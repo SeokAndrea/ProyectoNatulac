@@ -17,24 +17,29 @@ export interface ContadorRegistro {
 }
 
 /**
- * Una línea activa en el turno, con la presentación y la velocidad
- * (envases/hora) elegidas para ella — cada línea puede estar
- * llenando algo distinto al mismo tiempo, por eso esto va por línea
- * y no una sola vez para todo el turno.
+ * Una línea en uso durante el turno, con la presentación y la
+ * velocidad (envases/hora) elegidas para ella — cada línea puede
+ * estar llenando algo distinto al mismo tiempo, por eso esto va por
+ * línea y no una sola vez para todo el turno. "saborId" es opcional:
+ * solo se carga cuando la línea viene corriendo del turno anterior
+ * (no arranca de cero) y ya se sabe qué sabor tiene.
  */
 export interface LineaEnTurno {
   linea: LineaCodigo
   presentacion: PresentacionCodigo
   envasesHora: number
+  saborId: string | null
+  saborNombre: string | null
 }
 
-export type CondicionTanque = "VOLUMEN" | "SUCIO" | "VACIO"
+export type CondicionTanque = "VOLUMEN" | "SUCIO" | "VACIO" | "EN_PREPARACION"
 
 /**
  * Recepción: estado de uno de los 3 tanques de materia prima al
  * llegar el supervisor de turno. Sabor y volumen solo tienen sentido
- * cuando condicion = "VOLUMEN" (un tanque sucio o vacío no tiene
- * sabor ni lote cargado).
+ * cuando condicion = "VOLUMEN" (un tanque sucio, vacío o en
+ * preparación no tiene sabor ni lote cargado acá — un tanque "en
+ * preparación" se resuelve en la sección Preparaciones).
  */
 export interface TanqueRecepcion {
   numeroTanque: 1 | 2 | 3
@@ -43,6 +48,28 @@ export interface TanqueRecepcion {
   condicion: CondicionTanque
   volumenL: number | null
   lote: string | null
+}
+
+/**
+ * Preparación: mezcla de un tanque (tambores de concentrado + agua/
+ * azúcar/ácido cítrico). Puede haber VARIAS por tanque en el mismo
+ * turno (se prepara, se usa, se vuelve a preparar) — por eso se
+ * acumulan como los contadores, no se pisan. Carga 100% manual: el
+ * cálculo cajas→litros→tambores lo hace el analista de producción
+ * fuera de la app; los ajustes son solo para calidad/inventario, sin
+ * ningún efecto calculado.
+ */
+export interface PreparacionRegistro {
+  id: string
+  numeroTanque: 1 | 2 | 3
+  saborId: string | null
+  saborNombre: string | null
+  lote: string | null
+  tambores: number
+  agua: number | null
+  azucar: number | null
+  acidoCitrico: number | null
+  creadoEn: string
 }
 
 /**
@@ -75,6 +102,7 @@ export interface TurnoActivo {
   tanques: TanqueRecepcion[]
   contadores: ContadorRegistro[]
   productoTerminado: ProductoTerminadoRegistro[]
+  preparaciones: PreparacionRegistro[]
 }
 
 export interface DatosNuevoTanque {
@@ -109,6 +137,16 @@ interface DatosProductoTerminado {
   cajasSueltas: number
 }
 
+interface DatosPreparacion {
+  numeroTanque: 1 | 2 | 3
+  saborId: string | null
+  lote: string
+  tambores: number
+  agua: number | null
+  azucar: number | null
+  acidoCitrico: number | null
+}
+
 type Resultado = { ok: true } | { ok: false; error: string }
 
 interface TurnoContextValue {
@@ -119,6 +157,7 @@ interface TurnoContextValue {
   finalizarTurno: () => Promise<void>
   registrarContador: (datos: DatosNuevoContador) => Promise<Resultado>
   registrarProductoTerminado: (datos: DatosProductoTerminado) => Promise<Resultado>
+  registrarPreparacion: (datos: DatosPreparacion) => Promise<Resultado>
 }
 
 const LIMITE_MERMA = 0.03
@@ -141,6 +180,8 @@ interface FilaLinea {
   presentacion_volumen_ml: number | null
   envases_hora: number | null
   litros_hora: number | null
+  sabor_id: string | null
+  sabor_nombre: string | null
 }
 
 interface FilaTanque {
@@ -175,6 +216,19 @@ interface FilaProductoTerminado {
   creado_en: string
 }
 
+interface FilaPreparacion {
+  id: string
+  numero_tanque: number
+  sabor_id: string | null
+  sabor_nombre: string | null
+  lote: string | null
+  tambores: number
+  agua: number | null
+  azucar: number | null
+  acido_citrico: number | null
+  creado_en: string
+}
+
 export interface FilaTurno {
   id: string
   codigo: string
@@ -186,6 +240,7 @@ export interface FilaTurno {
   tanques: FilaTanque[]
   contadores: FilaContador[]
   producto_terminado: FilaProductoTerminado[]
+  preparaciones: FilaPreparacion[]
 }
 
 /*
@@ -221,6 +276,8 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       linea: l.linea_codigo as LineaCodigo,
       presentacion: String(l.presentacion_volumen_ml ?? ""),
       envasesHora: l.envases_hora ?? 0,
+      saborId: l.sabor_id,
+      saborNombre: l.sabor_nombre,
     })),
     tanques: fila.tanques.map((t) => ({
       numeroTanque: t.numero_tanque as 1 | 2 | 3,
@@ -249,6 +306,18 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       paletas: p.paletas,
       cajasSueltas: p.cajas_sueltas,
       litrosProducidos: p.litros_producidos,
+      creadoEn: p.creado_en,
+    })),
+    preparaciones: fila.preparaciones.map((p) => ({
+      id: p.id,
+      numeroTanque: p.numero_tanque as 1 | 2 | 3,
+      saborId: p.sabor_id,
+      saborNombre: p.sabor_nombre,
+      lote: p.lote,
+      tambores: p.tambores,
+      agua: p.agua,
+      azucar: p.azucar,
+      acidoCitrico: p.acido_citrico,
       creadoEn: p.creado_en,
     })),
   }
@@ -297,6 +366,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         presentacion_volumen_ml: Number(l.presentacion),
         envases_hora: l.envasesHora,
         litros_hora: litrosHoraDeLive(velocidades, l.linea, l.presentacion, l.envasesHora),
+        sabor_id: l.saborId,
       })),
       p_tanques: datos.tanques.map((t) => ({
         numero_tanque: t.numeroTanque,
@@ -415,9 +485,64 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  async function registrarPreparacion(datos: DatosPreparacion): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("registrar_preparacion", {
+      p_turno_id: turnoActivo.id,
+      p_numero_tanque: datos.numeroTanque,
+      p_sabor_id: datos.saborId,
+      p_lote: datos.lote,
+      p_tambores: datos.tambores,
+      p_agua: datos.agua,
+      p_azucar: datos.azucar,
+      p_acido_citrico: datos.acidoCitrico,
+      p_usuario: usuario,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo registrar la preparación. Intenta de nuevo." }
+    }
+
+    const nuevo = data as FilaPreparacion
+    setTurnoActivo((actual) =>
+      actual
+        ? {
+            ...actual,
+            preparaciones: [
+              {
+                id: nuevo.id,
+                numeroTanque: nuevo.numero_tanque as 1 | 2 | 3,
+                saborId: nuevo.sabor_id,
+                saborNombre: nuevo.sabor_nombre,
+                lote: nuevo.lote,
+                tambores: nuevo.tambores,
+                agua: nuevo.agua,
+                azucar: nuevo.azucar,
+                acidoCitrico: nuevo.acido_citrico,
+                creadoEn: nuevo.creado_en,
+              },
+              ...actual.preparaciones,
+            ],
+          }
+        : actual,
+    )
+    return { ok: true }
+  }
+
   return (
     <TurnoContext.Provider
-      value={{ turnoActivo, cargando, iniciarTurno, finalizarTurno, registrarContador, registrarProductoTerminado }}
+      value={{
+        turnoActivo,
+        cargando,
+        iniciarTurno,
+        finalizarTurno,
+        registrarContador,
+        registrarProductoTerminado,
+        registrarPreparacion,
+      }}
     >
       {children}
     </TurnoContext.Provider>

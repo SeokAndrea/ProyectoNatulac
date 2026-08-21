@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { PlayCircle, PackageCheck, Gauge, ClipboardCheck, BarChart3, Calculator, Users, DatabaseZap, History } from "lucide-react"
+import { PlayCircle, PackageCheck, Gauge, ClipboardCheck, BarChart3, Calculator, Users, DatabaseZap, History, Beaker } from "lucide-react"
 import type { RolCodigo } from "@/lib/catalogos"
 
 export interface AppDef {
@@ -52,6 +52,15 @@ export const apps: AppDef[] = [
     description: "Carga los lotes de producto terminado.",
     href: "/producto-terminado",
     icon: PackageCheck,
+    requiereTurno: true,
+    rolesPermitidos: ["SUPERVISOR"],
+  },
+  {
+    slug: "preparaciones",
+    title: "Preparaciones",
+    description: "Tambores y ajustes de calidad por tanque en preparación.",
+    href: "/preparaciones",
+    icon: Beaker,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
   },

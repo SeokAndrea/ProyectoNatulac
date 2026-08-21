@@ -30,7 +30,11 @@ export function construirHistorial(
   const horaInicio = formatearHora(turno.horaInicio)
 
   const nombreLineas =
-    turno.lineas.length === 0 ? "Ninguna (parada)" : turno.lineas.map((l) => nombrePorCodigo(lineas, l.linea)).join(", ")
+    turno.lineas.length === 0
+      ? "Ninguna (parada)"
+      : turno.lineas
+          .map((l) => `${nombrePorCodigo(lineas, l.linea)}${l.saborNombre ? ` (${l.saborNombre})` : ""}`)
+          .join(", ")
 
   eventos.push({
     hora: horaInicio,
@@ -44,8 +48,25 @@ export function construirHistorial(
         ? `${t.saborNombre ?? "Sabor"} · ${t.volumenL} L${t.lote ? ` · Lote ${t.lote}` : ""}`
         : t.condicion === "SUCIO"
           ? "Sucio"
-          : "Vacío"
+          : t.condicion === "VACIO"
+            ? "Vacío"
+            : "En Preparación"
     eventos.push({ hora: horaInicio, seccion: "Recepción", detalle: `Tanque ${t.numeroTanque}: ${estado}` })
+  }
+
+  for (const p of turno.preparaciones) {
+    const ajustes = [
+      p.agua !== null ? `Agua ${p.agua} L` : null,
+      p.azucar !== null ? `Azúcar ${p.azucar} kg` : null,
+      p.acidoCitrico !== null ? `Ácido cítrico ${p.acidoCitrico} kg` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ")
+    eventos.push({
+      hora: formatearHora(p.creadoEn),
+      seccion: "Preparaciones",
+      detalle: `Tanque ${p.numeroTanque}: ${p.saborNombre ?? "sin sabor"}${p.lote ? ` · Lote ${p.lote}` : ""} · ${p.tambores} tambores${ajustes ? ` · ${ajustes}` : ""}`,
+    })
   }
 
   for (const c of turno.contadores) {

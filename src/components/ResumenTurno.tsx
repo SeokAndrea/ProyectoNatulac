@@ -44,7 +44,10 @@ export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
                   key={l.linea}
                   className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
                 >
-                  <span className="font-medium text-foreground">{nombrePorCodigo(lineas, l.linea)}</span>
+                  <span className="font-medium text-foreground">
+                    {nombrePorCodigo(lineas, l.linea)}
+                    {l.saborNombre ? ` · ${l.saborNombre}` : ""}
+                  </span>
                   <span className="text-muted-foreground">
                     {l.presentacion} ml · {l.envasesHora} env/h{litros ? ` · ${litros} L/h` : ""}
                   </span>
@@ -69,7 +72,9 @@ export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
                   ? `${t.saborNombre ?? "Sabor"} · ${t.volumenL} L${t.lote ? ` · Lote ${t.lote}` : ""}`
                   : t.condicion === "SUCIO"
                     ? "Sucio"
-                    : "Vacío"}
+                    : t.condicion === "VACIO"
+                      ? "Vacío"
+                      : "En Preparación"}
               </span>
             </div>
           ))}

@@ -43,14 +43,19 @@ const fechaHoy = new Date().toLocaleDateString("es-CO", {
  * elige el supervisor y quedan fijos para el resto de la gestión
  * hasta "Finalizar Turno".
  *
- * Flujo: Turno → Grupo → Líneas a usar → Recepción (3 tanques,
+ * Flujo: Turno → Grupo → Líneas en uso → Recepción (3 tanques,
  * obligatorio, va al final). Cada línea que se marca pide su propia
  * Presentación y Velocidad (la velocidad no se escribe a mano: se
  * elige entre las opciones tabuladas para esa combinación
  * línea+presentación, ver src/lib/catalogosLive.tsx) —
  * dos líneas pueden estar llenando presentaciones distintas al mismo
  * tiempo, por eso esto va por línea y no una sola vez para todo el
- * turno.
+ * turno. "Continúa del turno anterior" es para cuando la línea ya
+ * viene corriendo (no arranca de cero) y ya se sabe qué sabor tiene.
+ *
+ * Un tanque puede quedar "En Preparación" en Recepción (como Sucio/
+ * Vacío, sin pedir más datos acá) — esos datos se cargan después en
+ * la sección Preparaciones (src/pages/apps/Preparaciones.tsx).
  */
 export default function ComenzarTurno() {
   const { turnoActivo, cargando, iniciarTurno } = useTurno()
@@ -104,7 +109,13 @@ function TurnoYaEnCurso({ turno }: { turno: TurnoActivo }) {
   )
 }
 
-type ConfigLinea = { presentacion: PresentacionCodigo | ""; envasesHora: number | "" }
+type ConfigLinea = {
+  presentacion: PresentacionCodigo | ""
+  envasesHora: number | ""
+  /** La línea viene corriendo del turno anterior, no arranca de cero. */
+  continua: boolean
+  saborId: string
+}
 
 interface TanqueForm {
   condicion: CondicionTanque | ""
@@ -147,7 +158,7 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
 
   const lineasCompletas = lineas.every((l) => {
     const c = config[l]
-    return c && c.presentacion !== "" && c.envasesHora !== ""
+    return c && c.presentacion !== "" && c.envasesHora !== "" && (!c.continua || c.saborId !== "")
   })
   const tanquesCompletos = numerosTanque.every((n) => tanqueCompleto(tanques[n]))
   const formularioValido =
@@ -157,7 +168,7 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
     setNinguna(false)
     if (checked) {
       setLineas((actual) => [...actual, codigo])
-      setConfig((actual) => ({ ...actual, [codigo]: { presentacion: "", envasesHora: "" } }))
+      setConfig((actual) => ({ ...actual, [codigo]: { presentacion: "", envasesHora: "", continua: false, saborId: "" } }))
     } else {
       setLineas((actual) => actual.filter((l) => l !== codigo))
       setConfig((actual) => {
@@ -176,7 +187,10 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
   }
 
   function setPresentacionDeLinea(codigo: LineaCodigo, presentacion: PresentacionCodigo) {
-    setConfig((actual) => ({ ...actual, [codigo]: { presentacion, envasesHora: "" } }))
+    setConfig((actual) => {
+      const actualLinea = actual[codigo]
+      return { ...actual, [codigo]: { presentacion, envasesHora: "", continua: actualLinea?.continua ?? false, saborId: actualLinea?.saborId ?? "" } }
+    })
   }
 
   function setVelocidadDeLinea(codigo: LineaCodigo, envasesHora: number) {
@@ -184,6 +198,22 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
       const actualLinea = actual[codigo]
       if (!actualLinea) return actual
       return { ...actual, [codigo]: { ...actualLinea, envasesHora } }
+    })
+  }
+
+  function setContinuaDeLinea(codigo: LineaCodigo, continua: boolean) {
+    setConfig((actual) => {
+      const actualLinea = actual[codigo]
+      if (!actualLinea) return actual
+      return { ...actual, [codigo]: { ...actualLinea, continua, saborId: continua ? actualLinea.saborId : "" } }
+    })
+  }
+
+  function setSaborDeLinea(codigo: LineaCodigo, saborId: string) {
+    setConfig((actual) => {
+      const actualLinea = actual[codigo]
+      if (!actualLinea) return actual
+      return { ...actual, [codigo]: { ...actualLinea, saborId } }
     })
   }
 
@@ -200,7 +230,13 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
       ? []
       : lineas.map((l) => {
           const c = config[l]!
-          return { linea: l, presentacion: c.presentacion as PresentacionCodigo, envasesHora: c.envasesHora as number }
+          return {
+            linea: l,
+            presentacion: c.presentacion as PresentacionCodigo,
+            envasesHora: c.envasesHora as number,
+            saborId: c.continua && c.saborId !== "" ? c.saborId : null,
+            saborNombre: null,
+          }
         })
 
     const tanquesFinal: DatosNuevoTanque[] = numerosTanque.map((n) => {
@@ -275,7 +311,7 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Líneas a usar</Label>
+            <Label>Líneas en uso</Label>
             <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
               {lineasCatalogo.filter((l) => l.activo).map((l) => {
                 const activa = lineas.includes(l.codigo)
@@ -295,42 +331,67 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
                     </label>
 
                     {activa && (
-                      <div className="ml-6 grid grid-cols-2 gap-2">
-                        <Select
-                          value={c?.presentacion ?? ""}
-                          onValueChange={(v) => setPresentacionDeLinea(l.codigo, v)}
-                          disabled={presentacionesDisponibles.length === 0}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue
-                              placeholder={presentacionesDisponibles.length === 0 ? "Sin datos" : "Presentación"}
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {presentacionesDisponibles.map((codigo) => (
-                              <SelectItem key={codigo} value={codigo}>
-                                {nombrePorCodigo(presentaciones, codigo)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="ml-6 flex flex-col gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select
+                            value={c?.presentacion ?? ""}
+                            onValueChange={(v) => setPresentacionDeLinea(l.codigo, v)}
+                            disabled={presentacionesDisponibles.length === 0}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue
+                                placeholder={presentacionesDisponibles.length === 0 ? "Sin datos" : "Presentación"}
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {presentacionesDisponibles.map((codigo) => (
+                                <SelectItem key={codigo} value={codigo}>
+                                  {nombrePorCodigo(presentaciones, codigo)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
 
-                        <Select
-                          value={c?.envasesHora ? String(c.envasesHora) : ""}
-                          onValueChange={(v) => setVelocidadDeLinea(l.codigo, Number(v))}
-                          disabled={!c?.presentacion || opcionesVelocidad.length === 0}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Velocidad" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {opcionesVelocidad.map((v) => (
-                              <SelectItem key={v.envasesHora} value={String(v.envasesHora)}>
-                                {v.envasesHora} env/h · {v.litrosHora} L/h
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          <Select
+                            value={c?.envasesHora ? String(c.envasesHora) : ""}
+                            onValueChange={(v) => setVelocidadDeLinea(l.codigo, Number(v))}
+                            disabled={!c?.presentacion || opcionesVelocidad.length === 0}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Velocidad" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {opcionesVelocidad.map((v) => (
+                                <SelectItem key={v.envasesHora} value={String(v.envasesHora)}>
+                                  {v.envasesHora} env/h · {v.litrosHora} L/h
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Checkbox
+                            checked={c?.continua ?? false}
+                            onCheckedChange={(checked) => setContinuaDeLinea(l.codigo, checked === true)}
+                          />
+                          Continúa del turno anterior (ya tiene sabor asignado)
+                        </label>
+
+                        {c?.continua && (
+                          <Select value={c.saborId} onValueChange={(v) => setSaborDeLinea(l.codigo, v)}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Sabor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {sabores.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.nombre} ({s.familiaNombre})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     )}
                   </div>
@@ -402,6 +463,7 @@ function TanqueRecepcionCampo({
           <SelectItem value="VOLUMEN">Volumen en L</SelectItem>
           <SelectItem value="SUCIO">Sucio</SelectItem>
           <SelectItem value="VACIO">Vacío</SelectItem>
+          <SelectItem value="EN_PREPARACION">En Preparación</SelectItem>
         </SelectContent>
       </Select>
 

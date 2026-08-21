@@ -70,12 +70,18 @@ export default function FinalizarTurno() {
 
   /*
    * Checklist de lo que "debe llevar" el acta de fin de turno — hoy
-   * cubre Recepción, Contadores y Producto Terminado (lo que ya
-   * existe). Cuando se agreguen más secciones (ej. Preparación),
-   * sumar acá su propia condición de "completo".
+   * cubre Recepción, Preparaciones, Contadores y Producto Terminado
+   * (lo que ya existe). Cuando se agreguen más secciones, sumar acá
+   * su propia condición de "completo".
    */
   const itemsChecklist = [
     { etiqueta: "Recepción", completo: turnoActivo.tanques.length > 0 },
+    ...turnoActivo.tanques
+      .filter((t) => t.condicion === "EN_PREPARACION")
+      .map((t) => ({
+        etiqueta: `Preparación — Tanque ${t.numeroTanque}`,
+        completo: turnoActivo.preparaciones.some((p) => p.numeroTanque === t.numeroTanque),
+      })),
     ...turnoActivo.lineas.map((l) => ({
       etiqueta: `Contadores y Merma — ${nombrePorCodigo(lineas, l.linea)}`,
       completo: turnoActivo.contadores.some((c) => c.linea === l.linea),
@@ -119,6 +125,37 @@ export default function FinalizarTurno() {
             <ResumenTurno turno={turnoActivo} />
           </CardContent>
         </Card>
+
+        {turnoActivo.tanques.some((t) => t.condicion === "EN_PREPARACION") && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Preparaciones</CardTitle>
+              <CardDescription>Tambores y ajustes cargados por tanque.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {turnoActivo.preparaciones.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Todavía no se cargó ninguna preparación en este turno.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {turnoActivo.preparaciones.map((p) => (
+                    <div key={p.id} className="rounded-lg border border-border px-3 py-2 text-sm">
+                      <p className="font-medium text-foreground">
+                        Tanque {p.numeroTanque} · {p.saborNombre ?? "Sin sabor"}
+                        {p.lote ? ` · Lote ${p.lote}` : ""}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {p.tambores} tambores
+                        {p.agua !== null ? ` · Agua ${p.agua} L` : ""}
+                        {p.azucar !== null ? ` · Azúcar ${p.azucar} kg` : ""}
+                        {p.acidoCitrico !== null ? ` · Ácido cítrico ${p.acidoCitrico} kg` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

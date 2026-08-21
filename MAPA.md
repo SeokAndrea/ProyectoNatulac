@@ -82,6 +82,8 @@ página (cada pestaña llama a `recargar()` del contexto).
 | Eliminar personal (borrado real, no solo desactivar; con "forzar" para limpiar usuarios de prueba con turnos) | `src/components/PersonalPanel.tsx`, `src/lib/personal.ts` → `eliminarPersonal` |
 | Dashboard de Planta / Mis Estadísticas (merma teórica vs real, horas de producción) — primera versión, ver `resumen-diseno-dashboard-natulac.md` para el diseño completo pendiente | `src/pages/apps/MisEstadisticas.tsx`, `src/lib/estadisticas.ts` |
 | Generador de datos de prueba (turnos completos para 3 supervisores ficticios, botón en Mis Estadísticas, solo Super Administrador) | `src/lib/datosPrueba.ts` |
+| Preparaciones (tambores + ajustes por tanque "En Preparación", carga manual, varias por tanque) | `src/pages/apps/Preparaciones.tsx`, `src/lib/turno.tsx` → `registrarPreparacion` |
+| Sabor por línea en "Líneas en uso" (cuando una línea continúa del turno anterior) | `src/pages/apps/ComenzarTurno.tsx` |
 
 ## Piezas compartidas entre páginas
 

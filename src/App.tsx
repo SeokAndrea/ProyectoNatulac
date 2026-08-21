@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom"
 import Login from "@/pages/Login"
 import Hub from "@/pages/Hub"
 import ComenzarTurno from "@/pages/apps/ComenzarTurno"
+import Preparaciones from "@/pages/apps/Preparaciones"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
 import ContadoresMerma from "@/pages/apps/ContadoresMerma"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
@@ -39,6 +40,14 @@ export default function App() {
         element={
           <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
             <ComenzarTurno />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/preparaciones"
+        element={
+          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
+            <Preparaciones />
           </ProtectedRoute>
         }
       />

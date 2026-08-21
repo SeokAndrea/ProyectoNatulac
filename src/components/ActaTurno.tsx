@@ -10,7 +10,8 @@ import type { TurnoActivo } from "@/lib/turno"
  * dependencia nueva. En el diálogo de impresión, "Guardar como PDF"
  * hace exactamente eso.
  *
- * Solo el resumen (Recepción, Contadores, Producto Terminado) — el
+ * Solo el resumen (Recepción, Preparaciones, Contadores, Producto
+ * Terminado) — el
  * Historial hora-sección-qué NO va acá, queda solo en pantalla (ver
  * la tarjeta "Historial del turno" en FinalizarTurno.tsx).
  *
@@ -124,7 +125,13 @@ export function ActaTurno({
               <tr key={t.numeroTanque} className={i % 2 === 1 ? "bg-black/[0.02]" : ""}>
                 <td className="py-1 pr-3">Tanque {t.numeroTanque}</td>
                 <td className="py-1 pr-3">
-                  {t.condicion === "VOLUMEN" ? (t.saborNombre ?? "—") : t.condicion === "SUCIO" ? "Sucio" : "Vacío"}
+                  {t.condicion === "VOLUMEN"
+                    ? (t.saborNombre ?? "—")
+                    : t.condicion === "SUCIO"
+                      ? "Sucio"
+                      : t.condicion === "VACIO"
+                        ? "Vacío"
+                        : "En Preparación"}
                 </td>
                 <td className="py-1 pr-3">{t.condicion === "VOLUMEN" ? `${t.volumenL} L` : "—"}</td>
                 <td className="py-1">{t.lote ?? "—"}</td>
@@ -132,6 +139,43 @@ export function ActaTurno({
             ))}
           </tbody>
         </table>
+      </Seccion>
+
+      <Seccion titulo="Preparaciones">
+        {turno.preparaciones.length === 0 ? (
+          <p className="text-black/50">Sin registros.</p>
+        ) : (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-black/20 text-left text-black/60">
+                <th className="py-1 pr-3 font-medium">Tanque</th>
+                <th className="py-1 pr-3 font-medium">Sabor</th>
+                <th className="py-1 pr-3 font-medium">Lote</th>
+                <th className="py-1 pr-3 font-medium">Tambores</th>
+                <th className="py-1 font-medium">Ajustes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {turno.preparaciones.map((p, i) => (
+                <tr key={p.id} className={i % 2 === 1 ? "bg-black/[0.02]" : ""}>
+                  <td className="py-1 pr-3">Tanque {p.numeroTanque}</td>
+                  <td className="py-1 pr-3">{p.saborNombre ?? "—"}</td>
+                  <td className="py-1 pr-3">{p.lote ?? "—"}</td>
+                  <td className="py-1 pr-3">{p.tambores}</td>
+                  <td className="py-1">
+                    {[
+                      p.agua !== null ? `Agua ${p.agua} L` : null,
+                      p.azucar !== null ? `Azúcar ${p.azucar} kg` : null,
+                      p.acidoCitrico !== null ? `Ácido cítrico ${p.acidoCitrico} kg` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Seccion>
 
       <Seccion titulo="Contadores por línea">

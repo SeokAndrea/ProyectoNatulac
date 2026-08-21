@@ -231,23 +231,45 @@ llamar desde el frontend con la clave pública.
 ### `recepcion_tanques`
 Los 3 tanques de materia prima que el supervisor completa al iniciar
 el turno (obligatorio). Sabor y volumen solo tienen sentido cuando
-`condicion = 'VOLUMEN'` (un tanque sucio o vacío no los tiene).
+`condicion = 'VOLUMEN'` (sucio/vacío/en preparación no los tienen).
 
 | Columna | Notas |
 |---|---|
 | turno_id, numero_tanque | únicos juntos (1 fila por tanque por turno, tanques 1-3) |
 | sabor_id | FK a `sabores`, obligatorio solo si `condicion = 'VOLUMEN'` |
-| condicion | `VOLUMEN` \| `SUCIO` \| `VACIO` |
+| condicion | `VOLUMEN` \| `SUCIO` \| `VACIO` \| `EN_PREPARACION` |
 | volumen_l | 0 a 20.000 |
 | lote | texto libre, cargado a mano |
+
+Un tanque `EN_PREPARACION` se resuelve más tarde en la tabla
+`preparaciones` (puede tener varias filas, una por cada vez que se
+preparó ese tanque en el turno).
+
+### `preparaciones`
+Mezcla de un tanque (tambores de concentrado + ajustes de calidad).
+Varias filas por tanque por turno — se acumulan, no se pisan. Carga
+100% manual: el cálculo cajas→litros→tambores lo hace el analista de
+producción fuera de la app; los ajustes son solo para
+calidad/inventario, sin ningún efecto calculado en el resto del
+sistema.
+
+| Columna | Notas |
+|---|---|
+| turno_id, numero_tanque | qué tanque de ese turno |
+| sabor_id | FK a `sabores` |
+| lote | texto libre |
+| tambores | entero, obligatorio |
+| agua, azucar, acido_citrico | numéricos, opcionales, sin unidad forzada en la base (la interfaz sugiere L / kg / kg) |
 
 ### `turno_lineas` (ampliada)
 Además de la relación turno↔línea original, ahora guarda la
 presentación y velocidad elegidas **por línea** (dos líneas pueden
 llenar presentaciones distintas al mismo tiempo): `presentacion_id`,
-`envases_hora`, `litros_hora`. La columna `turnos.velocidad_llenadora`
-de la primera migración quedó sin usar por este motivo (no se borró
-para no romper nada).
+`envases_hora`, `litros_hora`, y `sabor_id` (solo si la línea "continúa
+del turno anterior" — se elige a mano en Comenzar Turno, no se deriva
+de Preparaciones todavía). La columna `turnos.velocidad_llenadora` de
+la primera migración quedó sin usar por este motivo (no se borró para
+no romper nada).
 
 ### `lineas` (ampliada)
 Se le agregó `codigo` (`LINEA_1`, `LINEA_2`, `LINEA_3`) para que
@@ -305,3 +327,4 @@ npx supabase db push
 | `20260902090000_eliminar_acta_y_usuario.sql` | Borrado real: `eliminar_turno` (solo turnos CERRADOS) y `eliminar_personal` (Postgres lo rechaza solo si la persona tiene turnos/contadores — protección automática por llave foránea, sin código extra) |
 | `20260903090000_forzar_eliminar_personal.sql` | `eliminar_personal` gana un parámetro `p_forzar`: si es true, borra primero los turnos de esa persona (arrastra en cascada todo lo asociado) y recién ahí la persona — pensado para limpiar usuarios de prueba |
 | `20260904090000_estadisticas_produccion.sql` | `estadisticas_produccion()`: una fila por (turno, línea) — incluye turnos ABIERTOS, con contadores sumados + producto terminado, para el Dashboard de Planta / Mis Estadísticas (se actualiza en vivo mientras el supervisor carga datos) — sin políticas de rol, filtros abiertos a propósito (ver `resumen-diseno-dashboard-natulac.md`) |
+| `20260905090000_preparaciones.sql` | Tabla `preparaciones` (varias por tanque por turno, carga manual sin fórmula); 4ª condición de tanque `EN_PREPARACION`; `turno_lineas.sabor_id` para líneas que continúan del turno anterior |
