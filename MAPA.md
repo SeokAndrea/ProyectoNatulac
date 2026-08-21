@@ -23,7 +23,8 @@ relativas a la raíz del proyecto.
 | Textos de "Finalizar Turno" | `src/pages/apps/FinalizarTurno.tsx` |
 | Textos de "Mis Estadísticas" / "Dashboard de Planta" | `src/pages/apps/MisEstadisticas.tsx` |
 | Textos de "Calculadora" | `src/pages/apps/Calculadora.tsx` |
-| Textos de "Añadir Personal" | `src/pages/apps/AnadirPersonal.tsx` |
+| Textos de "Edición de Datos" | `src/pages/apps/EdicionDatos.tsx` |
+| Textos de "Personal" (administradores de área) | `src/pages/apps/Personal.tsx`, `src/components/PersonalPanel.tsx` |
 
 ## Estilo / apariencia
 
@@ -41,15 +42,21 @@ relativas a la raíz del proyecto.
 | Tipos de turno (Turno 1/2/3, 12x12) y sus horarios | `src/lib/catalogos.ts` → `TURNO_TIPOS` |
 | Grupos | `src/lib/catalogos.ts` → `GRUPOS` |
 | Líneas de producción | `src/lib/catalogos.ts` → `LINEAS` |
-| Presentaciones (tamaño de envase y empaque) | `src/lib/catalogos.ts` → `PRESENTACIONES` |
-| Familias de producto (Clásicos, Premium, etc.) y sabores | `src/lib/catalogos.ts` → `FAMILIAS_PRODUCTO` / `SABORES` |
-| Velocidades de llenadora por línea + presentación | `src/lib/catalogos.ts` → `VELOCIDADES_LLENADORA` (falta la de 500 ml en todas las líneas) |
+| Presentaciones (tamaño de envase y empaque) | Edición de Datos → pestaña Presentaciones (Supabase real, `src/lib/catalogosLive.tsx` + `src/lib/presentaciones.ts`) |
+| Familias de producto y sabores | Edición de Datos → pestaña Sabores (Supabase real, `src/lib/sabores.ts`) |
+| Velocidades de llenadora por línea + presentación | Edición de Datos → pestaña Velocidades (Supabase real, `src/lib/catalogosLive.tsx` + `src/lib/velocidades.ts`; Línea 1 = TB, Línea 2/3 = TP) |
+| Líneas (nombre, activa/inactiva — el código no se puede cambiar) | Edición de Datos → pestaña Líneas (Supabase real, `src/lib/lineas.ts`) |
 | Áreas | `src/lib/catalogos.ts` → `AREAS` |
 | Roles (Supervisor, Administrador de Área, Super Administrador) | `src/lib/catalogos.ts` → `ROLES` |
 
-Estos catálogos son una copia local mientras no hay conexión a la base
-de datos real. Cuando se conecte Supabase, tienen que reemplazarse por
-consultas a las tablas del mismo nombre en `supabase/migrations/`.
+Áreas, Roles, Tipos de turno y Grupos siguen como copia local
+(cambian poquísimo). Líneas, Presentaciones, Velocidades y Sabores YA
+están conectados a Supabase de verdad: se cargan una vez en
+`CatalogosProvider` (`src/lib/catalogosLive.tsx`, montado en
+`main.tsx`) y todo el resto de la app (Comenzar Turno, el banner de
+estado, el acta de Finalizar Turno) los lee de ahí — al editar algo en
+Edición de Datos, se refleja en el resto de la app sin recargar la
+página (cada pestaña llama a `recargar()` del contexto).
 
 ## Rutas y navegación
 
@@ -63,9 +70,18 @@ consultas a las tablas del mismo nombre en `supabase/migrations/`.
 | Qué querés cambiar | Archivo |
 |---|---|
 | Cómo funciona el login (contra la tabla "usuarios" de Supabase) | `src/lib/auth.tsx` |
-| El turno activo, líneas, presentación, y los contadores registrados | `src/lib/turno.tsx` |
-| Alta y listado de personal (usuario, contraseña, área, rol) | `src/lib/personal.ts` |
+| El turno activo, líneas, presentación, Recepción de tanques, y los contadores registrados (conectado a Supabase) | `src/lib/turno.tsx` |
+| Alta, edición, reseteo de contraseña y baja de personal — filtrado por área en Postgres (no solo en la interfaz): ADMINISTRADOR_AREA solo ve/edita la suya, SUPERADMINISTRADOR ve todas | `src/lib/personal.ts`, `src/components/PersonalPanel.tsx` (usado por `Personal.tsx` y por la pestaña Personal de `EdicionDatos.tsx`) |
+| Edición de catálogos generales — sabores, personal, presentaciones, velocidades, líneas (solo SUPERADMINISTRADOR) | `src/pages/apps/EdicionDatos.tsx`, `src/lib/catalogosLive.tsx` |
 | Fórmulas de la calculadora (cuando se agreguen) | `src/pages/apps/Calculadora.tsx` (ver el comentario ahí con los pasos) |
+| Producto Terminado (paletas + cajas sueltas por línea, una vez al finalizar turno) | `src/pages/apps/ProductoTerminado.tsx`, `src/lib/turno.tsx` → `registrarProductoTerminado` |
+| Historial del turno en curso (Hora - Sección - Qué, dentro de Finalizar Turno; NO va en el PDF) | `src/lib/historial.ts` → `construirHistorial` |
+| Checklist antes de finalizar turno (qué falta cargar) | `src/pages/apps/FinalizarTurno.tsx` → `itemsChecklist` |
+| Acta de turno en PDF (resumen estilizado; usa la impresión del navegador, no una librería) | `src/components/ActaTurno.tsx`, botón "Generar Acta" en Finalizar Turno y en Auditoría |
+| Auditoría: buscar/eliminar cualquier turno pasado por supervisor/fecha (solo Super Administrador) | `src/pages/apps/Historial.tsx`, `src/lib/historialTurnos.ts` |
+| Eliminar personal (borrado real, no solo desactivar; con "forzar" para limpiar usuarios de prueba con turnos) | `src/components/PersonalPanel.tsx`, `src/lib/personal.ts` → `eliminarPersonal` |
+| Dashboard de Planta / Mis Estadísticas (merma teórica vs real, horas de producción) — primera versión, ver `resumen-diseno-dashboard-natulac.md` para el diseño completo pendiente | `src/pages/apps/MisEstadisticas.tsx`, `src/lib/estadisticas.ts` |
+| Generador de datos de prueba (turnos completos para 3 supervisores ficticios, botón en Mis Estadísticas, solo Super Administrador) | `src/lib/datosPrueba.ts` |
 
 ## Piezas compartidas entre páginas
 
@@ -82,6 +98,7 @@ consultas a las tablas del mismo nombre en `supabase/migrations/`.
 | Qué | Dónde |
 |---|---|
 | Esquema SQL (tablas, auditoría, reglas de merma) | `supabase/migrations/` |
+| Resumen legible de tablas, funciones y datos sembrados (para consulta rápida, no se ejecuta) | `supabase/ESQUEMA.md` |
 | Usuarios y contraseñas (tabla propia, NO Supabase Auth — contraseñas hasheadas con pgcrypto) | `supabase/migrations/20260822090000_usuarios_tabla_propia.sql` |
 | Cliente de Supabase para el frontend | `src/lib/supabase.ts` |
 | Credenciales (no se suben a git) | `.env.local` (copiar desde `.env.example`) |

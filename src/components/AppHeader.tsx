@@ -40,7 +40,7 @@ export function AppHeader({
   }
 
   return (
-    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur">
+    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur print:hidden">
       <div className="border-b border-border/70">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
           {left}

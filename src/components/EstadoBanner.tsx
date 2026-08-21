@@ -2,7 +2,8 @@ import { CircleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth"
 import { useTurno } from "@/lib/turno"
-import { AREAS, GRUPOS, LINEAS, ROLES, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { useCatalogosLive } from "@/lib/catalogosLive"
+import { AREAS, GRUPOS, ROLES, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 
 /*
  * Franja fija debajo del header con Área, Rol y el estado del turno
@@ -12,7 +13,8 @@ import { AREAS, GRUPOS, LINEAS, ROLES, TURNO_TIPOS, nombrePorCodigo } from "@/li
  */
 export function EstadoBanner() {
   const { session } = useAuth()
-  const { turnoActivo } = useTurno()
+  const { turnoActivo, cargando } = useTurno()
+  const { lineas } = useCatalogosLive()
 
   if (!session) return null
 
@@ -30,14 +32,14 @@ export function EstadoBanner() {
           <span className="font-medium text-foreground">{nombrePorCodigo(ROLES, session.rol)}</span>
         </span>
 
-        {turnoActivo ? (
+        {cargando ? null : turnoActivo ? (
           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="text-muted-foreground">Turno:</span>
             <span className="font-medium text-foreground">
               {nombrePorCodigo(TURNO_TIPOS, turnoActivo.turnoTipo)} · {nombrePorCodigo(GRUPOS, turnoActivo.grupo)} ·{" "}
               {turnoActivo.lineas.length === 0
                 ? "sin líneas (parada)"
-                : turnoActivo.lineas.map((l) => nombrePorCodigo(LINEAS, l.linea)).join(", ")}
+                : turnoActivo.lineas.map((l) => nombrePorCodigo(lineas, l.linea)).join(", ")}
             </span>
             <Badge variant="secondary">{turnoActivo.codigo}</Badge>
           </span>

@@ -5,11 +5,15 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/ProyectoNatulac/',
+  base: '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
     },
+  },
+  preview: {
+    host: true,
+    allowedHosts: true,
   },
 })

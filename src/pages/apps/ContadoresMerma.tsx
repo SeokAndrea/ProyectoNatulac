@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { Gauge, AlertTriangle, CircleOff, Info } from "lucide-react"
+import { Gauge, AlertTriangle, CircleOff, Info, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { ListaContadores } from "@/components/ListaContadores"
@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { LINEAS, nombrePorCodigo, type LineaCodigo } from "@/lib/catalogos"
+import { nombrePorCodigo, type LineaCodigo } from "@/lib/catalogos"
+import { useCatalogosLive } from "@/lib/catalogosLive"
 import { LIMITE_MERMA, useTurno } from "@/lib/turno"
 
 /*
@@ -27,13 +28,19 @@ import { LIMITE_MERMA, useTurno } from "@/lib/turno"
  * buenos, 162 desechados — no cierra y es válido), así que esa
  * diferencia se muestra como dato informativo, nunca bloquea el
  * registro.
- *
- * Esta pantalla todavía solo guarda los datos en memoria (vía
- * TurnoProvider): falta conectarla a la tabla "contadores" de
- * Supabase.
  */
 export default function ContadoresMerma() {
-  const { turnoActivo, registrarContador } = useTurno()
+  const { turnoActivo, cargando, registrarContador } = useTurno()
+
+  if (cargando) {
+    return (
+      <AppShell title="Contadores y Merma" description="Envases por línea del turno en curso">
+        <div className="flex justify-center py-16 text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" />
+        </div>
+      </AppShell>
+    )
+  }
 
   if (!turnoActivo) {
     return (
@@ -88,13 +95,22 @@ function FormularioContador({
   onRegistrar,
 }: {
   lineas: LineaCodigo[]
-  onRegistrar: (datos: { linea: LineaCodigo; envasesLlenadora: number; envasesBuenos: number; envasesDesechados: number; justificacion: string }) => void
+  onRegistrar: (datos: {
+    linea: LineaCodigo
+    envasesLlenadora: number
+    envasesBuenos: number
+    envasesDesechados: number
+    justificacion: string
+  }) => Promise<{ ok: true } | { ok: false; error: string }>
 }) {
+  const { lineas: lineasCatalogo } = useCatalogosLive()
   const [linea, setLinea] = useState<LineaCodigo | "">(lineas[0] ?? "")
   const [llenadora, setLlenadora] = useState("")
   const [buenos, setBuenos] = useState("")
   const [desechados, setDesechados] = useState("")
   const [justificacion, setJustificacion] = useState("")
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const nLlenadora = Number(llenadora)
   const nBuenos = Number(buenos)
@@ -113,15 +129,22 @@ function FormularioContador({
     nLlenadora > 0 &&
     (!requiereJustificacion || justificacion.trim().length > 0)
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!formularioValido) return
-    onRegistrar({
+    setEnviando(true)
+    setError(null)
+    const resultado = await onRegistrar({
       linea,
       envasesLlenadora: nLlenadora,
       envasesBuenos: nBuenos,
       envasesDesechados: nDesechados,
       justificacion: justificacion.trim(),
     })
+    setEnviando(false)
+    if (!resultado.ok) {
+      setError(resultado.error)
+      return
+    }
     setLlenadora("")
     setBuenos("")
     setDesechados("")
@@ -144,7 +167,7 @@ function FormularioContador({
             <SelectContent>
               {lineas.map((codigo) => (
                 <SelectItem key={codigo} value={codigo}>
-                  {nombrePorCodigo(LINEAS, codigo)}
+                  {nombrePorCodigo(lineasCatalogo, codigo)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -202,7 +225,14 @@ function FormularioContador({
           </div>
         )}
 
-        <Button className="mt-2 w-full" disabled={!formularioValido} onClick={handleSubmit}>
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+
+        <Button className="mt-2 w-full" disabled={!formularioValido || enviando} onClick={handleSubmit}>
+          {enviando && <Loader2 className="size-4 animate-spin" />}
           Registrar
         </Button>
       </CardContent>

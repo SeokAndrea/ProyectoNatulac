@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { PlayCircle, PackageCheck, Gauge, ClipboardCheck, BarChart3, Calculator, UserPlus } from "lucide-react"
+import { PlayCircle, PackageCheck, Gauge, ClipboardCheck, BarChart3, Calculator, Users, DatabaseZap, History } from "lucide-react"
 import type { RolCodigo } from "@/lib/catalogos"
 
 export interface AppDef {
@@ -79,7 +79,7 @@ export const apps: AppDef[] = [
     description: "Consulta tu rendimiento y métricas de planta.",
     href: "/estadisticas",
     icon: BarChart3,
-    requiereTurno: true,
+    requiereTurno: false,
   },
   {
     slug: "calculadora",
@@ -90,12 +90,30 @@ export const apps: AppDef[] = [
     requiereTurno: true,
   },
   {
-    slug: "anadir-personal",
-    title: "Añadir Personal",
-    description: "Registra usuario, contraseña, área y rol de un nuevo integrante.",
+    slug: "personal",
+    title: "Personal",
+    description: "Alta, edición y baja de personal de tu área.",
     href: "/personal",
-    icon: UserPlus,
+    icon: Users,
     requiereTurno: false,
-    rolesPermitidos: ["ADMINISTRADOR_AREA", "SUPERADMINISTRADOR"],
+    rolesPermitidos: ["ADMINISTRADOR_AREA"],
+  },
+  {
+    slug: "auditoria",
+    title: "Auditoría",
+    description: "Historial de turnos por supervisor y fecha.",
+    href: "/auditoria",
+    icon: History,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
+  },
+  {
+    slug: "edicion-datos",
+    title: "Edición de Datos",
+    description: "Catálogos generales de la planta: sabores, presentaciones, líneas y más.",
+    href: "/edicion-datos",
+    icon: DatabaseZap,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
   },
 ]

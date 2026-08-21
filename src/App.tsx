@@ -7,7 +7,9 @@ import ContadoresMerma from "@/pages/apps/ContadoresMerma"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import MisEstadisticas from "@/pages/apps/MisEstadisticas"
 import Calculadora from "@/pages/apps/Calculadora"
-import AnadirPersonal from "@/pages/apps/AnadirPersonal"
+import Personal from "@/pages/apps/Personal"
+import EdicionDatos from "@/pages/apps/EdicionDatos"
+import Historial from "@/pages/apps/Historial"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 /*
@@ -83,8 +85,24 @@ export default function App() {
       <Route
         path="/personal"
         element={
-          <ProtectedRoute rolesPermitidos={["ADMINISTRADOR_AREA", "SUPERADMINISTRADOR"]}>
-            <AnadirPersonal />
+          <ProtectedRoute rolesPermitidos={["ADMINISTRADOR_AREA"]}>
+            <Personal />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/edicion-datos"
+        element={
+          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <EdicionDatos />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auditoria"
+        element={
+          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <Historial />
           </ProtectedRoute>
         }
       />

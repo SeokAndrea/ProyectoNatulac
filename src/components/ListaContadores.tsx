@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge"
-import { LINEAS, nombrePorCodigo } from "@/lib/catalogos"
+import { nombrePorCodigo } from "@/lib/catalogos"
+import { useCatalogosLive } from "@/lib/catalogosLive"
 import type { ContadorRegistro } from "@/lib/turno"
 
 /**
@@ -14,6 +15,7 @@ export function ListaContadores({
   contadores: ContadorRegistro[]
   mostrarTotales?: boolean
 }) {
+  const { lineas } = useCatalogosLive()
   const totales = contadores.reduce(
     (acc, c) => ({
       llenadora: acc.llenadora + c.envasesLlenadora,
@@ -32,7 +34,7 @@ export function ListaContadores({
           className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm"
         >
           <div>
-            <p className="font-medium text-foreground">{nombrePorCodigo(LINEAS, c.linea)}</p>
+            <p className="font-medium text-foreground">{nombrePorCodigo(lineas, c.linea)}</p>
             <p className="text-muted-foreground">
               {c.envasesLlenadora} llenadora · {c.envasesBuenos} buenos · {c.envasesDesechados} desechados
             </p>

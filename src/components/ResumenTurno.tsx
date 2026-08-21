@@ -1,4 +1,5 @@
-import { GRUPOS, LINEAS, TURNO_TIPOS, nombrePorCodigo, litrosHoraDe } from "@/lib/catalogos"
+import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { useCatalogosLive, litrosHoraDeLive } from "@/lib/catalogosLive"
 import type { TurnoActivo } from "@/lib/turno"
 
 /**
@@ -8,6 +9,7 @@ import type { TurnoActivo } from "@/lib/turno"
  * — pueden ser distintas entre sí.
  */
 export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
+  const { lineas, velocidades } = useCatalogosLive()
   return (
     <div className="flex flex-col gap-4">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -36,13 +38,13 @@ export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
         ) : (
           <div className="flex flex-col gap-2">
             {turno.lineas.map((l) => {
-              const litros = litrosHoraDe(l.linea, l.presentacion, l.envasesHora)
+              const litros = litrosHoraDeLive(velocidades, l.linea, l.presentacion, l.envasesHora)
               return (
                 <div
                   key={l.linea}
                   className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
                 >
-                  <span className="font-medium text-foreground">{nombrePorCodigo(LINEAS, l.linea)}</span>
+                  <span className="font-medium text-foreground">{nombrePorCodigo(lineas, l.linea)}</span>
                   <span className="text-muted-foreground">
                     {l.presentacion} ml · {l.envasesHora} env/h{litros ? ` · ${litros} L/h` : ""}
                   </span>
@@ -51,6 +53,27 @@ export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
             })}
           </div>
         )}
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Recepción</p>
+        <div className="flex flex-col gap-2">
+          {turno.tanques.map((t) => (
+            <div
+              key={t.numeroTanque}
+              className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+            >
+              <span className="font-medium text-foreground">Tanque {t.numeroTanque}</span>
+              <span className="text-muted-foreground">
+                {t.condicion === "VOLUMEN"
+                  ? `${t.saborNombre ?? "Sabor"} · ${t.volumenL} L${t.lote ? ` · Lote ${t.lote}` : ""}`
+                  : t.condicion === "SUCIO"
+                    ? "Sucio"
+                    : "Vacío"}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

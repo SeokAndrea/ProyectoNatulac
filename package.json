@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist"
+    "deploy": "tsc -b && vite build --base=/ProyectoNatulac/ && gh-pages -d dist"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

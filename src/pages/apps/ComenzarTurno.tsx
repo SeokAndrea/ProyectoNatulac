@@ -1,26 +1,33 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { PlayCircle, ClipboardCheck, CalendarDays, Clock } from "lucide-react"
+import { PlayCircle, ClipboardCheck, CalendarDays, Clock, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import {
   GRUPOS,
-  LINEAS,
-  PRESENTACIONES,
   TURNO_TIPOS,
   nombrePorCodigo,
-  presentacionesPorLinea,
-  velocidadesPara,
   type GrupoCodigo,
   type LineaCodigo,
   type PresentacionCodigo,
   type TurnoTipoCodigo,
 } from "@/lib/catalogos"
-import { useTurno, type DatosNuevoTurno, type LineaEnTurno, type TurnoActivo } from "@/lib/turno"
+import { useCatalogosLive, presentacionesPorLineaLive, velocidadesParaLive } from "@/lib/catalogosLive"
+import { listarSabores, type Sabor } from "@/lib/sabores"
+import {
+  useTurno,
+  type CondicionTanque,
+  type DatosNuevoTanque,
+  type DatosNuevoTurno,
+  type LineaEnTurno,
+  type TurnoActivo,
+} from "@/lib/turno"
 
 const fechaHoy = new Date().toLocaleDateString("es-CO", {
   weekday: "long",
@@ -36,16 +43,28 @@ const fechaHoy = new Date().toLocaleDateString("es-CO", {
  * elige el supervisor y quedan fijos para el resto de la gestión
  * hasta "Finalizar Turno".
  *
- * Flujo: Turno → Grupo → Líneas a usar. Cada línea que se marca pide
- * su propia Presentación y Velocidad (la velocidad no se escribe a
- * mano: se elige entre las opciones tabuladas para esa combinación
- * línea+presentación, ver VELOCIDADES_LLENADORA en catalogos.ts) —
+ * Flujo: Turno → Grupo → Líneas a usar → Recepción (3 tanques,
+ * obligatorio, va al final). Cada línea que se marca pide su propia
+ * Presentación y Velocidad (la velocidad no se escribe a mano: se
+ * elige entre las opciones tabuladas para esa combinación
+ * línea+presentación, ver src/lib/catalogosLive.tsx) —
  * dos líneas pueden estar llenando presentaciones distintas al mismo
  * tiempo, por eso esto va por línea y no una sola vez para todo el
  * turno.
  */
 export default function ComenzarTurno() {
-  const { turnoActivo, iniciarTurno } = useTurno()
+  const { turnoActivo, cargando, iniciarTurno } = useTurno()
+  const { cargando: cargandoCatalogos } = useCatalogosLive()
+
+  if (cargando || cargandoCatalogos) {
+    return (
+      <AppShell title="Comenzar Turno" description="Registro de inicio de turno">
+        <div className="flex justify-center py-16 text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" />
+        </div>
+      </AppShell>
+    )
+  }
 
   if (turnoActivo) {
     return <TurnoYaEnCurso turno={turnoActivo} />
@@ -87,12 +106,42 @@ function TurnoYaEnCurso({ turno }: { turno: TurnoActivo }) {
 
 type ConfigLinea = { presentacion: PresentacionCodigo | ""; envasesHora: number | "" }
 
-function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurno) => void }) {
+interface TanqueForm {
+  condicion: CondicionTanque | ""
+  saborId: string
+  volumenL: string
+  lote: string
+}
+
+const numerosTanque = [1, 2, 3] as const
+const tanqueVacio: TanqueForm = { condicion: "", saborId: "", volumenL: "", lote: "" }
+
+function tanqueCompleto(t: TanqueForm) {
+  if (t.condicion === "") return false
+  if (t.condicion !== "VOLUMEN") return true
+  const volumen = Number(t.volumenL)
+  return t.saborId !== "" && t.volumenL !== "" && volumen > 0 && volumen <= 20000 && t.lote.trim() !== ""
+}
+
+function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurno) => Promise<{ ok: true } | { ok: false; error: string }> }) {
   const [turnoTipo, setTurnoTipo] = useState<TurnoTipoCodigo | "">("")
   const [grupo, setGrupo] = useState<GrupoCodigo | "">("")
   const [ninguna, setNinguna] = useState(false)
   const [lineas, setLineas] = useState<LineaCodigo[]>([])
   const [config, setConfig] = useState<Partial<Record<LineaCodigo, ConfigLinea>>>({})
+  const [tanques, setTanques] = useState<Record<1 | 2 | 3, TanqueForm>>({
+    1: { ...tanqueVacio },
+    2: { ...tanqueVacio },
+    3: { ...tanqueVacio },
+  })
+  const [sabores, setSabores] = useState<Sabor[]>([])
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { lineas: lineasCatalogo, presentaciones, velocidades } = useCatalogosLive()
+
+  useEffect(() => {
+    listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
+  }, [])
 
   const horaActual = new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
 
@@ -100,8 +149,9 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
     const c = config[l]
     return c && c.presentacion !== "" && c.envasesHora !== ""
   })
+  const tanquesCompletos = numerosTanque.every((n) => tanqueCompleto(tanques[n]))
   const formularioValido =
-    turnoTipo !== "" && grupo !== "" && (ninguna || (lineas.length > 0 && lineasCompletas))
+    turnoTipo !== "" && grupo !== "" && (ninguna || (lineas.length > 0 && lineasCompletas)) && tanquesCompletos
 
   function toggleLinea(codigo: LineaCodigo, checked: boolean) {
     setNinguna(false)
@@ -137,15 +187,39 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
     })
   }
 
-  function handleSubmit() {
+  function setTanque(numero: 1 | 2 | 3, valor: TanqueForm) {
+    setTanques((actual) => ({ ...actual, [numero]: valor }))
+  }
+
+  async function handleSubmit() {
     if (!formularioValido) return
+    setEnviando(true)
+    setError(null)
+
     const lineasFinal: LineaEnTurno[] = ninguna
       ? []
       : lineas.map((l) => {
           const c = config[l]!
           return { linea: l, presentacion: c.presentacion as PresentacionCodigo, envasesHora: c.envasesHora as number }
         })
-    onIniciar({ turnoTipo, grupo, lineas: lineasFinal })
+
+    const tanquesFinal: DatosNuevoTanque[] = numerosTanque.map((n) => {
+      const t = tanques[n]
+      const esVolumen = t.condicion === "VOLUMEN"
+      return {
+        numeroTanque: n,
+        condicion: t.condicion as CondicionTanque,
+        saborId: esVolumen ? t.saborId : null,
+        volumenL: esVolumen ? Number(t.volumenL) : null,
+        lote: esVolumen ? t.lote.trim() : null,
+      }
+    })
+
+    const resultado = await onIniciar({ turnoTipo, grupo, lineas: lineasFinal, tanques: tanquesFinal })
+    setEnviando(false)
+    if (!resultado.ok) {
+      setError(resultado.error)
+    }
   }
 
   return (
@@ -203,11 +277,11 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
           <div className="flex flex-col gap-2">
             <Label>Líneas a usar</Label>
             <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
-              {LINEAS.map((l) => {
+              {lineasCatalogo.filter((l) => l.activo).map((l) => {
                 const activa = lineas.includes(l.codigo)
-                const presentacionesDisponibles = presentacionesPorLinea(l.codigo)
+                const presentacionesDisponibles = presentacionesPorLineaLive(velocidades, l.codigo)
                 const c = config[l.codigo]
-                const opcionesVelocidad = c?.presentacion ? velocidadesPara(l.codigo, c.presentacion) : []
+                const opcionesVelocidad = c?.presentacion ? velocidadesParaLive(velocidades, l.codigo, c.presentacion) : []
 
                 return (
                   <div key={l.codigo} className="flex flex-col gap-2">
@@ -235,7 +309,7 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
                           <SelectContent>
                             {presentacionesDisponibles.map((codigo) => (
                               <SelectItem key={codigo} value={codigo}>
-                                {nombrePorCodigo(PRESENTACIONES, codigo)}
+                                {nombrePorCodigo(presentaciones, codigo)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -271,12 +345,96 @@ function FormularioNuevoTurno({ onIniciar }: { onIniciar: (datos: DatosNuevoTurn
             </div>
           </div>
 
-          <Button className="mt-2 w-full" disabled={!formularioValido} onClick={handleSubmit}>
-            <PlayCircle className="size-4" />
+          <Separator />
+
+          <div className="flex flex-col gap-2">
+            <Label>Recepción</Label>
+            <CardDescription>Condición de los 3 tanques al llegar de turno.</CardDescription>
+            <div className="flex flex-col gap-4 rounded-lg border border-border p-3">
+              {numerosTanque.map((numero) => (
+                <TanqueRecepcionCampo
+                  key={numero}
+                  numero={numero}
+                  valor={tanques[numero]}
+                  sabores={sabores}
+                  onCambiar={(v) => setTanque(numero, v)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+
+          <Button className="mt-2 w-full" disabled={!formularioValido || enviando} onClick={handleSubmit}>
+            {enviando ? <Loader2 className="size-4 animate-spin" /> : <PlayCircle className="size-4" />}
             Empezar Turno
           </Button>
         </CardContent>
       </Card>
     </AppShell>
+  )
+}
+
+function TanqueRecepcionCampo({
+  numero,
+  valor,
+  sabores,
+  onCambiar,
+}: {
+  numero: 1 | 2 | 3
+  valor: TanqueForm
+  sabores: Sabor[]
+  onCambiar: (v: TanqueForm) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-border pb-3 last:border-0 last:pb-0">
+      <p className="text-sm font-medium text-foreground">Tanque {numero}</p>
+
+      <Select value={valor.condicion} onValueChange={(v) => onCambiar({ ...valor, condicion: v as CondicionTanque })}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Condición del tanque" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="VOLUMEN">Volumen en L</SelectItem>
+          <SelectItem value="SUCIO">Sucio</SelectItem>
+          <SelectItem value="VACIO">Vacío</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {valor.condicion === "VOLUMEN" && (
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={valor.saborId} onValueChange={(v) => onCambiar({ ...valor, saborId: v })}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Sabor" />
+            </SelectTrigger>
+            <SelectContent>
+              {sabores.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.nombre} ({s.familiaNombre})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            min={0}
+            max={20000}
+            placeholder="Volumen (L), máx. 20.000"
+            value={valor.volumenL}
+            onChange={(e) => onCambiar({ ...valor, volumenL: e.target.value })}
+          />
+          <Input
+            className="col-span-2"
+            placeholder="Lote"
+            value={valor.lote}
+            onChange={(e) => onCambiar({ ...valor, lote: e.target.value })}
+          />
+        </div>
+      )}
+    </div>
   )
 }

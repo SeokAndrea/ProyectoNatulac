@@ -55,7 +55,7 @@ export default function Login() {
                 <Input
                   id="username"
                   autoComplete="username"
-                  placeholder="ej. jperez"
+                  placeholder="ej. kgomez"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   autoFocus
@@ -88,7 +88,7 @@ export default function Login() {
         </Card>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          ¿Problemas para ingresar? Contacta a tu supervisor de planta.
+          Mensaje placeholder para link al manual
         </p>
       </div>
     </div>

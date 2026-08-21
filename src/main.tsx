@@ -5,15 +5,18 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from '@/lib/auth'
 import { TurnoProvider } from '@/lib/turno'
+import { CatalogosProvider } from '@/lib/catalogosLive'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <TurnoProvider>
-          <App />
-        </TurnoProvider>
-      </AuthProvider>
+      <CatalogosProvider>
+        <AuthProvider>
+          <TurnoProvider>
+            <App />
+          </TurnoProvider>
+        </AuthProvider>
+      </CatalogosProvider>
     </BrowserRouter>
   </StrictMode>,
 )
