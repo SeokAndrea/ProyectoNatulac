@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { PlayCircle, PackageCheck, Gauge, ClipboardCheck, BarChart3, Calculator, Users, DatabaseZap, History, Beaker } from "lucide-react"
+import { PlayCircle, PackageCheck, Gauge, ClipboardCheck, ClipboardList, Calculator, Users, DatabaseZap, History, Beaker, RadioTower } from "lucide-react"
 import type { RolCodigo } from "@/lib/catalogos"
 
 export interface AppDef {
@@ -47,6 +47,15 @@ export const apps: AppDef[] = [
     rolesPermitidos: ["SUPERVISOR"],
   },
   {
+    slug: "recepcion",
+    title: "Recepción",
+    description: "Con qué condición encontraste los tanques y qué líneas están funcionando.",
+    href: "/recepcion",
+    icon: ClipboardList,
+    requiereTurno: true,
+    rolesPermitidos: ["SUPERVISOR"],
+  },
+  {
     slug: "producto-terminado",
     title: "Producto Terminado",
     description: "Carga los lotes de producto terminado.",
@@ -56,10 +65,10 @@ export const apps: AppDef[] = [
     rolesPermitidos: ["SUPERVISOR"],
   },
   {
-    slug: "preparaciones",
-    title: "Preparaciones",
-    description: "Tambores y ajustes de calidad por tanque en preparación.",
-    href: "/preparaciones",
+    slug: "preparacion",
+    title: "Preparación",
+    description: "Líneas y tanques de la planta: activar, cambiar o detener en cualquier momento.",
+    href: "/preparacion",
     icon: Beaker,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
@@ -67,7 +76,7 @@ export const apps: AppDef[] = [
   {
     slug: "contadores-merma",
     title: "Contadores y Merma",
-    description: "Envases de la llenadora, buenos y desechados por línea.",
+    description: "Envases de la llenadora por corrida, con la merma contra Producto Terminado.",
     href: "/contadores",
     icon: Gauge,
     requiereTurno: true,
@@ -83,11 +92,11 @@ export const apps: AppDef[] = [
     rolesPermitidos: ["SUPERVISOR"],
   },
   {
-    slug: "mis-estadisticas",
-    title: "Mis Estadísticas",
-    description: "Consulta tu rendimiento y métricas de planta.",
-    href: "/estadisticas",
-    icon: BarChart3,
+    slug: "panel-produccion",
+    title: "Panel de Producción",
+    description: "Tanques, meta y merma del turno en curso — en vivo.",
+    href: "/panel-produccion",
+    icon: RadioTower,
     requiereTurno: false,
   },
   {

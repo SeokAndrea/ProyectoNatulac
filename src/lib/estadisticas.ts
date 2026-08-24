@@ -2,20 +2,22 @@ import { supabase } from "@/lib/supabase"
 import type { AreaCodigo, GrupoCodigo, LineaCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 
 /*
- * Dashboard de producción — primera versión, construida sobre lo que
- * ya existe (turnos cerrados, contadores, producto_terminado), sin
- * el modelo de "corridas"/paradas descrito en
- * resumen-diseno-dashboard-natulac.md (todavía sin construir). Cada
- * fila es un (turno, línea); los cálculos de merma y horas se hacen
- * acá, no en SQL, para poder recortarlos por cualquier dimensión sin
- * duplicar la función de Supabase.
+ * Dashboard de producción — construida sobre lo que ya existe (turnos
+ * cerrados, contadores, producto_terminado), sin el catálogo de
+ * paradas descrito en resumen-diseno-dashboard-natulac.md (todavía
+ * sin construir). Cada fila es una CORRIDA (turno_lineas, ver
+ * src/lib/turno.tsx) — antes era un (turno, línea), pero una línea
+ * puede tener varias corridas (una por lote) en el mismo turno; los
+ * cálculos de merma y horas se hacen acá, no en SQL, para poder
+ * recortarlos por cualquier dimensión sin duplicar la función de
+ * Supabase.
  *
- * Merma teórica: la de la llenadora (desechados / llenadora), la
- * fuente de siempre. Merma real: comparando lo que efectivamente se
- * paletizó (Producto Terminado, convertido a envases) contra lo que
- * la llenadora contó — la diferencia son las pérdidas que pasan
- * después de la llenadora (paletizado, manipuleo, etc.) y que el
- * contador de la llenadora no ve.
+ * Merma: comparando lo que efectivamente se paletizó (Producto
+ * Terminado, convertido a envases) contra lo que la llenadora contó
+ * — la diferencia son las pérdidas que pasan después de la llenadora
+ * (paletizado, manipuleo, etc.). Ya no existe una "merma teórica"
+ * aparte (dependía de envases_desechados, columna que Contadores
+ * perdió al pasar a un solo valor).
  */
 export interface FilaEstadistica {
   turnoId: string
@@ -30,9 +32,8 @@ export interface FilaEstadistica {
   supervisorUsuario: string
   supervisorNombre: string
   linea: LineaCodigo
+  turnoLineaId: string
   envasesLlenadora: number
-  envasesBuenos: number
-  envasesDesechados: number
   paletas: number
   cajasSueltas: number
   cajasXPaleta: number
@@ -54,9 +55,8 @@ interface FilaCruda {
   supervisor_usuario: string
   supervisor_nombre: string
   linea_codigo: string
+  turno_linea_id: string
   envases_llenadora: number
-  envases_buenos: number
-  envases_desechados: number
   paletas: number
   cajas_sueltas: number
   cajas_x_paleta: number
@@ -87,9 +87,8 @@ export async function obtenerEstadisticas(filtros: {
     supervisorUsuario: f.supervisor_usuario,
     supervisorNombre: f.supervisor_nombre,
     linea: f.linea_codigo as LineaCodigo,
+    turnoLineaId: f.turno_linea_id,
     envasesLlenadora: f.envases_llenadora,
-    envasesBuenos: f.envases_buenos,
-    envasesDesechados: f.envases_desechados,
     paletas: f.paletas,
     cajasSueltas: f.cajas_sueltas,
     cajasXPaleta: f.cajas_x_paleta,
@@ -104,14 +103,8 @@ export function envasesReales(fila: FilaEstadistica): number {
   return (fila.paletas * fila.cajasXPaleta + fila.cajasSueltas) * fila.envasesXCaja
 }
 
-/** % desechado en la llenadora. */
-export function mermaTeoricaPct(fila: FilaEstadistica): number | null {
-  if (fila.envasesLlenadora === 0) return null
-  return Math.round((fila.envasesDesechados / fila.envasesLlenadora) * 10000) / 100
-}
-
 /** % de diferencia entre lo que contó la llenadora y lo que terminó empacado. */
-export function mermaRealPct(fila: FilaEstadistica): number | null {
+export function mermaPct(fila: FilaEstadistica): number | null {
   if (fila.envasesLlenadora === 0) return null
   return Math.round((1 - envasesReales(fila) / fila.envasesLlenadora) * 10000) / 100
 }

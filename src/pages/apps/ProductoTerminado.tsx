@@ -15,16 +15,12 @@ import { useTurno, type LineaEnTurno, type ProductoTerminadoRegistro } from "@/l
 
 /*
  * Producto Terminado: conteo físico de paletas + "restos" (cajas
- * sueltas) por línea, cargado una vez al finalizar el turno — NO sale
- * de los contadores de envases (eso es "Contadores y Merma", una
- * pantalla aparte). Pensado para más adelante conectarse a un PLC
- * que cuente las cajas automático; por eso son números simples
- * (paletas, cajas sueltas), no texto libre.
- *
- * El sabor se elige a mano por ahora (a veces se continúa el del
- * turno anterior, a veces viene de Recepción o de una futura sección
- * "Preparación" todavía sin definir) — ver
- * supabase/migrations/20260831090000_producto_terminado.sql.
+ * sueltas) por CORRIDA (turnoLineaId) — no por línea suelta. Si una
+ * línea va por su segundo lote del turno, es un registro nuevo, no
+ * pisa al del lote anterior (ver supabase/migrations/
+ * 20260909090000_lotes_y_corridas.sql). Pensado para más adelante
+ * conectarse a un PLC que cuente las cajas automático; por eso son
+ * números simples (paletas, cajas sueltas), no texto libre.
  */
 export default function ProductoTerminado() {
   const { turnoActivo, cargando, registrarProductoTerminado } = useTurno()
@@ -62,13 +58,16 @@ export default function ProductoTerminado() {
     )
   }
 
-  if (turnoActivo.lineas.length === 0) {
+  const lineasActivas = turnoActivo.lineas.filter((l) => l.activa)
+  const finalizadas = turnoActivo.lineas.filter((l) => !l.activa)
+
+  if (lineasActivas.length === 0) {
     return (
       <AppShell title="Producto Terminado" description="Carga de lotes de producto terminado">
         <EmptyState
           icon={PackageCheck}
-          title="El turno está registrado como parada"
-          description="No se seleccionaron líneas en uso para este turno, así que no hay nada que registrar acá."
+          title="Ninguna línea activa"
+          description="Activa una corrida en Preparación para poder registrar su producto terminado."
         />
       </AppShell>
     )
@@ -77,17 +76,43 @@ export default function ProductoTerminado() {
   return (
     <AppShell title="Producto Terminado" description={`Turno ${turnoActivo.codigo}`}>
       <div className="mx-auto flex max-w-lg flex-col gap-4">
-        {turnoActivo.lineas.map((l) => (
+        {lineasActivas.map((l) => (
           <FormularioLinea
-            key={l.linea}
+            key={l.id}
             lineaTurno={l}
             nombreLinea={nombrePorCodigo(lineas, l.linea)}
             presentaciones={presentaciones}
             sabores={sabores}
-            registroExistente={turnoActivo.productoTerminado.find((p) => p.linea === l.linea) ?? null}
+            registroExistente={turnoActivo.productoTerminado.find((p) => p.turnoLineaId === l.id) ?? null}
             onRegistrar={registrarProductoTerminado}
           />
         ))}
+
+        {finalizadas.some((l) => turnoActivo.productoTerminado.some((p) => p.turnoLineaId === l.id)) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Corridas finalizadas de este turno</CardTitle>
+              <CardDescription>Producto terminado de lotes que ya se cerraron.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              {finalizadas.map((l) => {
+                const registro = turnoActivo.productoTerminado.find((p) => p.turnoLineaId === l.id)
+                if (!registro) return null
+                return (
+                  <div key={l.id} className="rounded-lg border border-border px-3 py-2 text-sm">
+                    <p className="font-medium text-foreground">
+                      {nombrePorCodigo(lineas, l.linea)}
+                      {l.lote ? ` · Lote ${l.lote}` : ""}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {registro.paletas} paletas + {registro.cajasSueltas} cajas sueltas ({registro.saborNombre ?? "sin sabor"})
+                    </p>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppShell>
   )
@@ -107,6 +132,7 @@ function FormularioLinea({
   sabores: Sabor[]
   registroExistente: ProductoTerminadoRegistro | null
   onRegistrar: (datos: {
+    turnoLineaId: string
     linea: LineaEnTurno["linea"]
     saborId: string | null
     presentacion: PresentacionCodigo
@@ -114,7 +140,7 @@ function FormularioLinea({
     cajasSueltas: number
   }) => Promise<{ ok: true } | { ok: false; error: string }>
 }) {
-  const [saborId, setSaborId] = useState(registroExistente?.saborId ?? "")
+  const [saborId, setSaborId] = useState(registroExistente?.saborId ?? lineaTurno.saborId ?? "")
   const [paletas, setPaletas] = useState(registroExistente ? String(registroExistente.paletas) : "")
   const [cajasSueltas, setCajasSueltas] = useState(registroExistente ? String(registroExistente.cajasSueltas) : "")
   const [error, setError] = useState<string | null>(null)
@@ -133,6 +159,7 @@ function FormularioLinea({
     setEnviando(true)
     setError(null)
     const resultado = await onRegistrar({
+      turnoLineaId: lineaTurno.id,
       linea: lineaTurno.linea,
       saborId: saborId || null,
       presentacion: lineaTurno.presentacion,
@@ -149,7 +176,10 @@ function FormularioLinea({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between gap-2">
-          <span>{nombreLinea}</span>
+          <span>
+            {nombreLinea}
+            {lineaTurno.lote ? ` · Lote ${lineaTurno.lote}` : ""}
+          </span>
           {registroExistente && (
             <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
               <Check className="size-3.5" />
@@ -178,9 +208,9 @@ function FormularioLinea({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`paletas-${lineaTurno.linea}`}>Paletas completas</Label>
+            <Label htmlFor={`paletas-${lineaTurno.id}`}>Paletas completas</Label>
             <Input
-              id={`paletas-${lineaTurno.linea}`}
+              id={`paletas-${lineaTurno.id}`}
               type="number"
               min={0}
               value={paletas}
@@ -188,9 +218,9 @@ function FormularioLinea({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`resto-${lineaTurno.linea}`}>Cajas sueltas (resto)</Label>
+            <Label htmlFor={`resto-${lineaTurno.id}`}>Cajas sueltas (resto)</Label>
             <Input
-              id={`resto-${lineaTurno.linea}`}
+              id={`resto-${lineaTurno.id}`}
               type="number"
               min={0}
               value={cajasSueltas}

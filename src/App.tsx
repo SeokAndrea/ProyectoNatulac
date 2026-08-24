@@ -2,11 +2,12 @@ import { Navigate, Route, Routes } from "react-router-dom"
 import Login from "@/pages/Login"
 import Hub from "@/pages/Hub"
 import ComenzarTurno from "@/pages/apps/ComenzarTurno"
-import Preparaciones from "@/pages/apps/Preparaciones"
+import Recepcion from "@/pages/apps/Recepcion"
+import Preparacion from "@/pages/apps/Preparacion"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
 import ContadoresMerma from "@/pages/apps/ContadoresMerma"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
-import MisEstadisticas from "@/pages/apps/MisEstadisticas"
+import PanelProduccion from "@/pages/apps/PanelProduccion"
 import Calculadora from "@/pages/apps/Calculadora"
 import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
@@ -44,10 +45,18 @@ export default function App() {
         }
       />
       <Route
-        path="/preparaciones"
+        path="/recepcion"
         element={
           <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <Preparaciones />
+            <Recepcion />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/preparacion"
+        element={
+          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
+            <Preparacion />
           </ProtectedRoute>
         }
       />
@@ -76,10 +85,10 @@ export default function App() {
         }
       />
       <Route
-        path="/estadisticas"
+        path="/panel-produccion"
         element={
           <ProtectedRoute>
-            <MisEstadisticas />
+            <PanelProduccion />
           </ProtectedRoute>
         }
       />

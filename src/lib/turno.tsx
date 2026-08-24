@@ -1,45 +1,47 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import type { GrupoCodigo, LineaCodigo, PresentacionCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { useAuth } from "@/lib/auth"
-import { useCatalogosLive, litrosHoraDeLive } from "@/lib/catalogosLive"
+import { useCatalogosLive, litrosHoraDeLive, type PresentacionLive } from "@/lib/catalogosLive"
 import { supabase } from "@/lib/supabase"
 
-export interface ContadorRegistro {
-  id: string
-  linea: LineaCodigo
-  envasesLlenadora: number
-  envasesBuenos: number
-  envasesDesechados: number
-  mermaPct: number
-  requiereJustificacion: boolean
-  justificacion: string
-  creadoEn: string
-}
-
 /**
- * Una línea en uso durante el turno, con la presentación y la
- * velocidad (envases/hora) elegidas para ella — cada línea puede
- * estar llenando algo distinto al mismo tiempo, por eso esto va por
- * línea y no una sola vez para todo el turno. "saborId" es opcional:
- * solo se carga cuando la línea viene corriendo del turno anterior
- * (no arranca de cero) y ya se sabe qué sabor tiene.
+ * Una corrida de línea: presentación + velocidad + el lote que
+ * consume (loteId, referencia a un PreparacionRegistro). Ya NO es "una
+ * fila fija por línea" — puede haber varias por línea en el mismo
+ * turno (una por lote), y las que ya terminaron quedan en la lista
+ * con activa=false, en vez de borrarse: cada corrida es su propio
+ * tramo, nunca se pisan entre sí. Se activa/cambia/finaliza en
+ * cualquier momento desde Preparación (src/pages/apps/Preparacion.tsx)
+ * y la(s) corrida(s) activa(s) se heredan solas de turno a turno.
  */
 export interface LineaEnTurno {
+  id: string
   linea: LineaCodigo
   presentacion: PresentacionCodigo
   envasesHora: number
   saborId: string | null
   saborNombre: string | null
+  lote: string | null
+  /** Lote (preparación) del que está tomando esta corrida, si corresponde. */
+  loteId: string | null
+  activa: boolean
+  activadaEn: string
+  finalizadaEn: string | null
 }
 
-export type CondicionTanque = "VOLUMEN" | "SUCIO" | "VACIO" | "EN_PREPARACION"
+export type CondicionTanque = "LISTO" | "SUCIO" | "VACIO" | "EN_PREPARACION"
 
 /**
- * Recepción: estado de uno de los 3 tanques de materia prima al
- * llegar el supervisor de turno. Sabor y volumen solo tienen sentido
- * cuando condicion = "VOLUMEN" (un tanque sucio, vacío o en
- * preparación no tiene sabor ni lote cargado acá — un tanque "en
- * preparación" se resuelve en la sección Preparaciones).
+ * Estado de uno de los 3 tanques de materia prima. Es estado continuo
+ * que se cambia en cualquier momento desde Recepción/Preparación y se
+ * hereda de turno a turno. EN_PREPARACION = "no liberado" (se está
+ * mezclando, todavía no se puede usar); LISTO = "liberado" (ya se
+ * puede tomar para una corrida). Sabor y volumen solo tienen sentido
+ * cuando condicion = "LISTO" — se copian ahí desde el lote al
+ * liberarlo (ver liberarLote); mientras está EN_PREPARACION esos
+ * campos quedan en null porque todavía no es oficial.
+ * "ultimoSabor/ultimoLote" quedan guardados cuando el tanque pasa a
+ * SUCIO, para poder mostrarlos sin que el supervisor los reescriba.
  */
 export interface TanqueRecepcion {
   numeroTanque: 1 | 2 | 3
@@ -48,16 +50,22 @@ export interface TanqueRecepcion {
   condicion: CondicionTanque
   volumenL: number | null
   lote: string | null
+  activadaEn: string
+  ultimoSaborId: string | null
+  ultimoSaborNombre: string | null
+  ultimoLote: string | null
 }
 
 /**
- * Preparación: mezcla de un tanque (tambores de concentrado + agua/
- * azúcar/ácido cítrico). Puede haber VARIAS por tanque en el mismo
- * turno (se prepara, se usa, se vuelve a preparar) — por eso se
- * acumulan como los contadores, no se pisan. Carga 100% manual: el
- * cálculo cajas→litros→tambores lo hace el analista de producción
- * fuera de la app; los ajustes son solo para calidad/inventario, sin
- * ningún efecto calculado.
+ * Preparación = LOTE: mezcla de un tanque (tambores de concentrado +
+ * agua/azúcar/ácido cítrico + volumen), creada de una sola vez con
+ * iniciarPreparacion. Cada preparación es su propio lote,
+ * independiente de las demás — NUNCA se suman entre sí (si el tanque
+ * ya se usó y se vuelve a preparar, es un lote nuevo, no una
+ * ampliación del anterior). "liberadoEn" queda null hasta que se
+ * libera (ver liberarLote) — recién ahí el tanque queda LISTO y una
+ * corrida lo puede tomar. "cerradoEn" queda null mientras el lote
+ * sigue en uso; se completa al finalizarlo (ver finalizarLote).
  */
 export interface PreparacionRegistro {
   id: string
@@ -65,22 +73,43 @@ export interface PreparacionRegistro {
   saborId: string | null
   saborNombre: string | null
   lote: string | null
+  volumenL: number | null
   tambores: number
   agua: number | null
   azucar: number | null
   acidoCitrico: number | null
   creadoEn: string
+  liberadoEn: string | null
+  cerradoEn: string | null
+}
+
+/**
+ * Contador: un solo valor por registro (envases que salieron de la
+ * llenadora), ligado a la corrida (turnoLineaId) que lo generó. La
+ * merma ya no se calcula acá — sale de comparar esto contra el
+ * Producto Terminado de esa MISMA corrida (ver mermaPorCorrida más
+ * abajo), porque puede que uno de los dos todavía no esté cargado.
+ */
+export interface ContadorRegistro {
+  id: string
+  linea: LineaCodigo
+  turnoLineaId: string | null
+  envasesLlenadora: number
+  justificacion: string
+  creadoEn: string
 }
 
 /**
  * Producto Terminado: conteo físico de paletas + "restos" (cajas
- * sueltas que no llegaron a armar una paleta entera) por línea,
- * cargado una vez al finalizar el turno — no depende de los
- * contadores de envases. Es un registro por línea (se actualiza si
- * se vuelve a cargar, no se acumula como los contadores).
+ * sueltas) de UNA corrida — ligado a turnoLineaId, no a la línea
+ * suelta. Sigue siendo upsert (se corrige mientras la corrida sigue
+ * activa), pero una corrida nueva (lote nuevo) genera un registro
+ * nuevo en vez de pisar el de la corrida anterior.
  */
 export interface ProductoTerminadoRegistro {
+  id: string
   linea: LineaCodigo
+  turnoLineaId: string | null
   saborId: string | null
   saborNombre: string | null
   presentacion: PresentacionCodigo
@@ -95,9 +124,12 @@ export interface TurnoActivo {
   codigo: string
   fecha: string
   horaInicio: string
+  estado: "ABIERTO" | "CERRADO"
+  fechaFin: string | null
+  horaFin: string | null
   turnoTipo: TurnoTipoCodigo
   grupo: GrupoCodigo
-  /** Vacío = "Ninguna" (parada / limpieza / mantenimiento). */
+  /** Todas las corridas tocadas en este turno (activas y finalizadas durante él) — filtrar por .activa para "en uso ahora". */
   lineas: LineaEnTurno[]
   tanques: TanqueRecepcion[]
   contadores: ContadorRegistro[]
@@ -105,31 +137,36 @@ export interface TurnoActivo {
   preparaciones: PreparacionRegistro[]
 }
 
-export interface DatosNuevoTanque {
+export interface DatosNuevoTurno {
+  turnoTipo: TurnoTipoCodigo
+  grupo: GrupoCodigo
+}
+
+export interface DatosActivarLinea {
+  linea: LineaCodigo
+  presentacion: PresentacionCodigo
+  envasesHora: number
+  /** Tanque LISTO (liberado) del que va a tomar esta corrida — sabor y lote se derivan de ahí. */
   numeroTanque: 1 | 2 | 3
-  saborId: string | null
+}
+
+export interface DatosCambiarTanque {
+  numeroTanque: 1 | 2 | 3
   condicion: CondicionTanque
+  saborId: string | null
   volumenL: number | null
   lote: string | null
 }
 
-export interface DatosNuevoTurno {
-  turnoTipo: TurnoTipoCodigo
-  grupo: GrupoCodigo
-  lineas: LineaEnTurno[]
-  /** Los 3 tanques de Recepción — obligatorio completarlos para iniciar. */
-  tanques: DatosNuevoTanque[]
-}
-
 interface DatosNuevoContador {
+  turnoLineaId: string
   linea: LineaCodigo
   envasesLlenadora: number
-  envasesBuenos: number
-  envasesDesechados: number
   justificacion: string
 }
 
 interface DatosProductoTerminado {
+  turnoLineaId: string
   linea: LineaCodigo
   saborId: string | null
   presentacion: PresentacionCodigo
@@ -137,10 +174,11 @@ interface DatosProductoTerminado {
   cajasSueltas: number
 }
 
-interface DatosPreparacion {
+export interface DatosIniciarPreparacion {
   numeroTanque: 1 | 2 | 3
   saborId: string | null
   lote: string
+  volumenL: number
   tambores: number
   agua: number | null
   azucar: number | null
@@ -156,8 +194,14 @@ interface TurnoContextValue {
   iniciarTurno: (datos: DatosNuevoTurno) => Promise<Resultado>
   finalizarTurno: () => Promise<void>
   registrarContador: (datos: DatosNuevoContador) => Promise<Resultado>
+  actualizarJustificacionContador: (contadorId: string, justificacion: string) => Promise<Resultado>
   registrarProductoTerminado: (datos: DatosProductoTerminado) => Promise<Resultado>
-  registrarPreparacion: (datos: DatosPreparacion) => Promise<Resultado>
+  iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
+  liberarLote: (loteId: string) => Promise<Resultado>
+  activarLinea: (datos: DatosActivarLinea) => Promise<Resultado>
+  finalizarLinea: (linea: LineaCodigo) => Promise<Resultado>
+  finalizarLote: (loteId: string) => Promise<Resultado>
+  cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
 }
 
 const LIMITE_MERMA = 0.03
@@ -166,22 +210,28 @@ const TurnoContext = createContext<TurnoContextValue | null>(null)
 
 /*
  * Todo esto vive en las tablas "turnos", "turno_lineas",
- * "recepcion_tanques" y "contadores" de Supabase — ver
- * supabase/migrations/20260825090000_conectar_turnos.sql. Como esas
- * tablas tienen RLS activado y sin políticas, todo pasa por las
- * funciones RPC de esa migración (mismo patrón que
- * src/lib/personal.ts): turno_activo_de, iniciar_turno,
- * finalizar_turno, registrar_contador. turno_activo_de devuelve el
- * turno abierto de un supervisor como un solo objeto JSON (turno +
- * líneas + tanques + contadores juntos).
+ * "recepcion_tanques", "preparaciones" (= lotes), "contadores" y
+ * "producto_terminado" de Supabase — ver
+ * supabase/migrations/20260909090000_lotes_y_corridas.sql (y las
+ * anteriores para el resto del esquema). Como esas tablas tienen RLS
+ * activado y sin políticas, todo pasa por funciones RPC (mismo patrón
+ * que src/lib/personal.ts). turno_json()/turno_activo_de() devuelven
+ * el turno como un solo objeto JSON (turno + líneas + tanques +
+ * contadores + producto terminado + preparaciones juntos).
  */
 interface FilaLinea {
+  id: string
   linea_codigo: string
   presentacion_volumen_ml: number | null
   envases_hora: number | null
   litros_hora: number | null
   sabor_id: string | null
   sabor_nombre: string | null
+  lote: string | null
+  lote_id: string | null
+  activa: boolean
+  activada_en: string
+  finalizada_en: string | null
 }
 
 interface FilaTanque {
@@ -191,22 +241,25 @@ interface FilaTanque {
   condicion: CondicionTanque
   volumen_l: number | null
   lote: string | null
+  activada_en: string
+  ultimo_sabor_id: string | null
+  ultimo_sabor_nombre: string | null
+  ultimo_lote: string | null
 }
 
 interface FilaContador {
   id: string
   linea_codigo: string
+  turno_linea_id: string | null
   envases_llenadora: number
-  envases_buenos: number
-  envases_desechados: number
-  merma_pct: number
-  requiere_justificacion: boolean
   justificacion: string | null
   creado_en: string
 }
 
 interface FilaProductoTerminado {
+  id: string
   linea_codigo: string
+  turno_linea_id: string | null
   sabor_id: string | null
   sabor_nombre: string | null
   presentacion_volumen_ml: number
@@ -222,11 +275,14 @@ interface FilaPreparacion {
   sabor_id: string | null
   sabor_nombre: string | null
   lote: string | null
+  volumen_l: number | null
   tambores: number
   agua: number | null
   azucar: number | null
   acido_citrico: number | null
   creado_en: string
+  liberado_en: string | null
+  cerrado_en: string | null
 }
 
 export interface FilaTurno {
@@ -234,6 +290,9 @@ export interface FilaTurno {
   codigo: string
   fecha: string
   hora_inicio: string
+  estado: "ABIERTO" | "CERRADO"
+  fecha_fin: string | null
+  hora_fin: string | null
   turno_tipo_codigo: string
   grupo_codigo: string
   lineas: FilaLinea[]
@@ -270,14 +329,23 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
     codigo: fila.codigo,
     fecha: fila.fecha,
     horaInicio: fila.hora_inicio,
+    estado: fila.estado,
+    fechaFin: fila.fecha_fin,
+    horaFin: fila.hora_fin,
     turnoTipo: fila.turno_tipo_codigo as TurnoTipoCodigo,
     grupo: fila.grupo_codigo as GrupoCodigo,
     lineas: fila.lineas.map((l) => ({
+      id: l.id,
       linea: l.linea_codigo as LineaCodigo,
       presentacion: String(l.presentacion_volumen_ml ?? ""),
       envasesHora: l.envases_hora ?? 0,
       saborId: l.sabor_id,
       saborNombre: l.sabor_nombre,
+      lote: l.lote,
+      loteId: l.lote_id,
+      activa: l.activa,
+      activadaEn: l.activada_en,
+      finalizadaEn: l.finalizada_en,
     })),
     tanques: fila.tanques.map((t) => ({
       numeroTanque: t.numero_tanque as 1 | 2 | 3,
@@ -286,20 +354,23 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       condicion: t.condicion,
       volumenL: t.volumen_l,
       lote: t.lote,
+      activadaEn: t.activada_en,
+      ultimoSaborId: t.ultimo_sabor_id,
+      ultimoSaborNombre: t.ultimo_sabor_nombre,
+      ultimoLote: t.ultimo_lote,
     })),
     contadores: fila.contadores.map((c) => ({
       id: c.id,
       linea: c.linea_codigo as LineaCodigo,
+      turnoLineaId: c.turno_linea_id,
       envasesLlenadora: c.envases_llenadora,
-      envasesBuenos: c.envases_buenos,
-      envasesDesechados: c.envases_desechados,
-      mermaPct: c.merma_pct,
-      requiereJustificacion: c.requiere_justificacion,
       justificacion: c.justificacion ?? "",
       creadoEn: c.creado_en,
     })),
     productoTerminado: fila.producto_terminado.map((p) => ({
+      id: p.id,
       linea: p.linea_codigo as LineaCodigo,
+      turnoLineaId: p.turno_linea_id,
       saborId: p.sabor_id,
       saborNombre: p.sabor_nombre,
       presentacion: String(p.presentacion_volumen_ml),
@@ -314,12 +385,44 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       saborId: p.sabor_id,
       saborNombre: p.sabor_nombre,
       lote: p.lote,
+      volumenL: p.volumen_l,
       tambores: p.tambores,
       agua: p.agua,
       azucar: p.azucar,
       acidoCitrico: p.acido_citrico,
       creadoEn: p.creado_en,
+      liberadoEn: p.liberado_en,
+      cerradoEn: p.cerrado_en,
     })),
+  }
+}
+
+/**
+ * Merma de una corrida puntual: envases de Producto Terminado de esa
+ * corrida (paletas/cajas sueltas convertidas con la presentación)
+ * contra los envases que sumaron sus contadores. null si todavía
+ * falta uno de los dos datos — no hay nada que comparar.
+ */
+export function mermaCorrida(
+  turnoLineaId: string,
+  turno: Pick<TurnoActivo, "contadores" | "productoTerminado">,
+  presentaciones: PresentacionLive[],
+): { envasesLlenadora: number; envasesProductoTerminado: number; pct: number } | null {
+  const llenadora = turno.contadores
+    .filter((c) => c.turnoLineaId === turnoLineaId)
+    .reduce((a, c) => a + c.envasesLlenadora, 0)
+  const pt = turno.productoTerminado.find((p) => p.turnoLineaId === turnoLineaId)
+  if (llenadora === 0 || !pt) return null
+
+  const pres = presentaciones.find((p) => p.codigo === pt.presentacion)
+  const envasesXCaja = pres?.envasesXCaja ?? 0
+  const cajasXPaleta = pres?.cajasXPaleta ?? 0
+  const envasesPt = (pt.paletas * cajasXPaleta + pt.cajasSueltas) * envasesXCaja
+
+  return {
+    envasesLlenadora: llenadora,
+    envasesProductoTerminado: envasesPt,
+    pct: Math.round((1 - envasesPt / llenadora) * 10000) / 100,
   }
 }
 
@@ -361,26 +464,95 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_area_codigo: session.area,
       p_turno_tipo_codigo: datos.turnoTipo,
       p_grupo_codigo: datos.grupo,
-      p_lineas: datos.lineas.map((l) => ({
-        linea_codigo: l.linea,
-        presentacion_volumen_ml: Number(l.presentacion),
-        envases_hora: l.envasesHora,
-        litros_hora: litrosHoraDeLive(velocidades, l.linea, l.presentacion, l.envasesHora),
-        sabor_id: l.saborId,
-      })),
-      p_tanques: datos.tanques.map((t) => ({
-        numero_tanque: t.numeroTanque,
-        sabor_id: t.saborId,
-        condicion: t.condicion,
-        volumen_l: t.volumenL,
-        lote: t.lote,
-      })),
       p_fecha: fechaLocal(ahora),
       p_hora_inicio: horaLocal(ahora),
     })
 
     if (error || !data) {
       return { ok: false, error: "No se pudo iniciar el turno. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function activarLinea(datos: DatosActivarLinea): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("activar_linea", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_linea_codigo: datos.linea,
+      p_presentacion_volumen_ml: Number(datos.presentacion),
+      p_envases_hora: datos.envasesHora,
+      p_litros_hora: litrosHoraDeLive(velocidades, datos.linea, datos.presentacion, datos.envasesHora),
+      p_numero_tanque: datos.numeroTanque,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo activar la línea. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function finalizarLinea(linea: LineaCodigo): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("finalizar_linea", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_linea_codigo: linea,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo finalizar la línea. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function finalizarLote(loteId: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("finalizar_lote", {
+      p_usuario: usuario,
+      p_lote_id: loteId,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo finalizar el lote. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function cambiarCondicionTanque(datos: DatosCambiarTanque): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("cambiar_condicion_tanque", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_numero_tanque: datos.numeroTanque,
+      p_condicion: datos.condicion,
+      p_sabor_id: datos.saborId,
+      p_volumen_l: datos.volumenL,
+      p_lote: datos.lote,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo cambiar el tanque. Intenta de nuevo." }
     }
 
     setTurnoActivo(mapearTurno(data as FilaTurno))
@@ -405,10 +577,9 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
 
     const { data, error } = await supabase.rpc("registrar_contador", {
       p_turno_id: turnoActivo.id,
+      p_turno_linea_id: datos.turnoLineaId,
       p_linea_codigo: datos.linea,
       p_envases_llenadora: datos.envasesLlenadora,
-      p_envases_buenos: datos.envasesBuenos,
-      p_envases_desechados: datos.envasesDesechados,
       p_justificacion: datos.justificacion,
       p_usuario: usuario,
     })
@@ -426,16 +597,34 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
               {
                 id: nuevo.id,
                 linea: nuevo.linea_codigo as LineaCodigo,
+                turnoLineaId: nuevo.turno_linea_id,
                 envasesLlenadora: nuevo.envases_llenadora,
-                envasesBuenos: nuevo.envases_buenos,
-                envasesDesechados: nuevo.envases_desechados,
-                mermaPct: nuevo.merma_pct,
-                requiereJustificacion: nuevo.requiere_justificacion,
                 justificacion: nuevo.justificacion ?? "",
                 creadoEn: nuevo.creado_en,
               },
               ...actual.contadores,
             ],
+          }
+        : actual,
+    )
+    return { ok: true }
+  }
+
+  async function actualizarJustificacionContador(contadorId: string, justificacion: string): Promise<Resultado> {
+    const { error } = await supabase.rpc("actualizar_justificacion_contador", {
+      p_contador_id: contadorId,
+      p_justificacion: justificacion,
+    })
+
+    if (error) {
+      return { ok: false, error: "No se pudo guardar la justificación. Intenta de nuevo." }
+    }
+
+    setTurnoActivo((actual) =>
+      actual
+        ? {
+            ...actual,
+            contadores: actual.contadores.map((c) => (c.id === contadorId ? { ...c, justificacion } : c)),
           }
         : actual,
     )
@@ -449,6 +638,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
 
     const { data, error } = await supabase.rpc("registrar_producto_terminado", {
       p_turno_id: turnoActivo.id,
+      p_turno_linea_id: datos.turnoLineaId,
       p_linea_codigo: datos.linea,
       p_sabor_id: datos.saborId,
       p_volumen_ml: Number(datos.presentacion),
@@ -467,9 +657,11 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         ? {
             ...actual,
             productoTerminado: [
-              ...actual.productoTerminado.filter((p) => p.linea !== nuevo.linea_codigo),
+              ...actual.productoTerminado.filter((p) => p.turnoLineaId !== nuevo.turno_linea_id),
               {
+                id: nuevo.id,
                 linea: nuevo.linea_codigo as LineaCodigo,
+                turnoLineaId: nuevo.turno_linea_id,
                 saborId: nuevo.sabor_id,
                 saborNombre: nuevo.sabor_nombre,
                 presentacion: String(nuevo.presentacion_volumen_ml),
@@ -485,50 +677,48 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
-  async function registrarPreparacion(datos: DatosPreparacion): Promise<Resultado> {
+  async function iniciarPreparacion(datos: DatosIniciarPreparacion): Promise<Resultado> {
     if (!turnoActivo || !usuario) {
       return { ok: false, error: "No hay un turno en curso." }
     }
 
-    const { data, error } = await supabase.rpc("registrar_preparacion", {
+    const { data, error } = await supabase.rpc("iniciar_preparacion", {
+      p_usuario: usuario,
       p_turno_id: turnoActivo.id,
       p_numero_tanque: datos.numeroTanque,
       p_sabor_id: datos.saborId,
       p_lote: datos.lote,
+      p_volumen_l: datos.volumenL,
       p_tambores: datos.tambores,
       p_agua: datos.agua,
       p_azucar: datos.azucar,
       p_acido_citrico: datos.acidoCitrico,
-      p_usuario: usuario,
     })
 
     if (error || !data) {
-      return { ok: false, error: "No se pudo registrar la preparación. Intenta de nuevo." }
+      return { ok: false, error: "No se pudo iniciar la preparación. Intenta de nuevo." }
     }
 
-    const nuevo = data as FilaPreparacion
-    setTurnoActivo((actual) =>
-      actual
-        ? {
-            ...actual,
-            preparaciones: [
-              {
-                id: nuevo.id,
-                numeroTanque: nuevo.numero_tanque as 1 | 2 | 3,
-                saborId: nuevo.sabor_id,
-                saborNombre: nuevo.sabor_nombre,
-                lote: nuevo.lote,
-                tambores: nuevo.tambores,
-                agua: nuevo.agua,
-                azucar: nuevo.azucar,
-                acidoCitrico: nuevo.acido_citrico,
-                creadoEn: nuevo.creado_en,
-              },
-              ...actual.preparaciones,
-            ],
-          }
-        : actual,
-    )
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function liberarLote(loteId: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("liberar_lote", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_lote_id: loteId,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo liberar el lote. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
     return { ok: true }
   }
 
@@ -540,8 +730,14 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         iniciarTurno,
         finalizarTurno,
         registrarContador,
+        actualizarJustificacionContador,
         registrarProductoTerminado,
-        registrarPreparacion,
+        iniciarPreparacion,
+        liberarLote,
+        activarLinea,
+        finalizarLinea,
+        finalizarLote,
+        cambiarCondicionTanque,
       }}
     >
       {children}

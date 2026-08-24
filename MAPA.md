@@ -21,7 +21,7 @@ relativas a la raíz del proyecto.
 | Textos de "Producto Terminado" | `src/pages/apps/ProductoTerminado.tsx` |
 | Textos de "Contadores y Merma" | `src/pages/apps/ContadoresMerma.tsx` |
 | Textos de "Finalizar Turno" | `src/pages/apps/FinalizarTurno.tsx` |
-| Textos de "Mis Estadísticas" / "Dashboard de Planta" | `src/pages/apps/MisEstadisticas.tsx` |
+| Textos del "Resumen de Planta" (Por Grupo / Por Supervisor) | `src/pages/apps/PanelProduccion.tsx` |
 | Textos de "Calculadora" | `src/pages/apps/Calculadora.tsx` |
 | Textos de "Edición de Datos" | `src/pages/apps/EdicionDatos.tsx` |
 | Textos de "Personal" (administradores de área) | `src/pages/apps/Personal.tsx`, `src/components/PersonalPanel.tsx` |
@@ -30,10 +30,11 @@ relativas a la raíz del proyecto.
 
 | Qué querés cambiar | Archivo |
 |---|---|
-| Colores (primario, fondo, etc.) | `src/index.css` (bloques `:root` y `.dark`, con comentario explicando cada valor) |
+| Colores (primario, fondo, estados success/warning/danger, colores de sabor) | `src/index.css` (bloques `:root` y `.dark`) — paleta adoptada de github.com/SeokAndrea/brew-flow-monitor (dashboard de referencia hecho en Lovable), reemplaza la marca azul anterior de Natulac |
 | Tamaño de esquinas redondeadas | `src/index.css` → variable `--radius` |
-| Tipografía | `src/index.css` → `--font-sans` |
+| Tipografía | `src/index.css` → `--font-sans` (IBM Plex Sans) / `--font-mono` (JetBrains Mono, para números tabulares — clase utilitaria `num`) |
 | Apariencia de un componente puntual (botón, tarjeta, input...) | `src/components/ui/` (uno por componente, son de shadcn/ui) |
+| Panel de Producción en vivo (tanques con nivel animado, Meta calculada, merma, por línea — con selector de fecha/turno para ver turnos viejos; abajo, Resumen de Planta con rango de fechas, Por Grupo y Por Supervisor) | `src/pages/apps/PanelProduccion.tsx`, `src/lib/panelProduccion.ts`, `src/lib/estadisticas.ts` |
 
 ## Catálogos (listas de opciones)
 
@@ -74,16 +75,16 @@ página (cada pestaña llama a `recargar()` del contexto).
 | Alta, edición, reseteo de contraseña y baja de personal — filtrado por área en Postgres (no solo en la interfaz): ADMINISTRADOR_AREA solo ve/edita la suya, SUPERADMINISTRADOR ve todas | `src/lib/personal.ts`, `src/components/PersonalPanel.tsx` (usado por `Personal.tsx` y por la pestaña Personal de `EdicionDatos.tsx`) |
 | Edición de catálogos generales — sabores, personal, presentaciones, velocidades, líneas (solo SUPERADMINISTRADOR) | `src/pages/apps/EdicionDatos.tsx`, `src/lib/catalogosLive.tsx` |
 | Fórmulas de la calculadora (cuando se agreguen) | `src/pages/apps/Calculadora.tsx` (ver el comentario ahí con los pasos) |
-| Producto Terminado (paletas + cajas sueltas por línea, una vez al finalizar turno) | `src/pages/apps/ProductoTerminado.tsx`, `src/lib/turno.tsx` → `registrarProductoTerminado` |
+| Producto Terminado (paletas + cajas sueltas POR CORRIDA — un lote nuevo en la misma línea genera un registro nuevo, no pisa al anterior) | `src/pages/apps/ProductoTerminado.tsx`, `src/lib/turno.tsx` → `registrarProductoTerminado` |
 | Historial del turno en curso (Hora - Sección - Qué, dentro de Finalizar Turno; NO va en el PDF) | `src/lib/historial.ts` → `construirHistorial` |
 | Checklist antes de finalizar turno (qué falta cargar) | `src/pages/apps/FinalizarTurno.tsx` → `itemsChecklist` |
 | Acta de turno en PDF (resumen estilizado; usa la impresión del navegador, no una librería) | `src/components/ActaTurno.tsx`, botón "Generar Acta" en Finalizar Turno y en Auditoría |
 | Auditoría: buscar/eliminar cualquier turno pasado por supervisor/fecha (solo Super Administrador) | `src/pages/apps/Historial.tsx`, `src/lib/historialTurnos.ts` |
 | Eliminar personal (borrado real, no solo desactivar; con "forzar" para limpiar usuarios de prueba con turnos) | `src/components/PersonalPanel.tsx`, `src/lib/personal.ts` → `eliminarPersonal` |
-| Dashboard de Planta / Mis Estadísticas (merma teórica vs real, horas de producción) — primera versión, ver `resumen-diseno-dashboard-natulac.md` para el diseño completo pendiente | `src/pages/apps/MisEstadisticas.tsx`, `src/lib/estadisticas.ts` |
-| Generador de datos de prueba (turnos completos para 3 supervisores ficticios, botón en Mis Estadísticas, solo Super Administrador) | `src/lib/datosPrueba.ts` |
-| Preparaciones (tambores + ajustes por tanque "En Preparación", carga manual, varias por tanque) | `src/pages/apps/Preparaciones.tsx`, `src/lib/turno.tsx` → `registrarPreparacion` |
-| Sabor por línea en "Líneas en uso" (cuando una línea continúa del turno anterior) | `src/pages/apps/ComenzarTurno.tsx` |
+| Resumen de Planta / Por Grupo / Por Supervisor (merma, horas, litros — una sola merma, ya no hay "teórica" vs "real") — dentro de Panel de Producción desde que se eliminó Mis Estadísticas (2026-08-24); ver `resumen-diseno-dashboard-natulac.md` para el diseño completo pendiente | `src/pages/apps/PanelProduccion.tsx`, `src/lib/estadisticas.ts` |
+| Recepción y Preparación (misma vista/acciones, compartidas — Recepción es adonde se llega justo después de Comenzar Turno, Preparación está disponible todo el turno). Condición de tanque: VACÍO/SUCIO → "Iniciar Preparación" (pide sabor/lote/volumen/tambores/ajustes de una vez) → EN_PREPARACION ("no liberado") → "Liberar" → LISTO ("liberado", recién ahí una corrida lo puede tomar). "Activar corrida" elige un tanque LISTO (sabor/lote salen de ahí solos); "Finalizar" archiva la corrida en vez de borrarla | `src/components/EstadoPlantaTabs.tsx` (UI compartida), `src/pages/apps/Recepcion.tsx`, `src/pages/apps/Preparacion.tsx`, `src/lib/turno.tsx` → `iniciarPreparacion`, `liberarLote`, `activarLinea`, `finalizarLinea`, `finalizarLote`, `cambiarCondicionTanque` |
+| Comenzar Turno (solo Turno tipo + Grupo — al confirmar manda derecho a Recepción) | `src/pages/apps/ComenzarTurno.tsx`, `src/components/TanqueEditForm.tsx` |
+| Contadores y Merma (un solo valor por registro — envases de la llenadora — ligado a la corrida activa; la merma sale de compararlo contra Producto Terminado de esa misma corrida, no hay más "merma teórica") | `src/pages/apps/ContadoresMerma.tsx`, `src/lib/turno.tsx` → `registrarContador`, `mermaCorrida` |
 
 ## Piezas compartidas entre páginas
 

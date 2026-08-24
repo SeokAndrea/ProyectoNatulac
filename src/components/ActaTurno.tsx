@@ -1,6 +1,6 @@
 import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import type { TurnoActivo } from "@/lib/turno"
+import { mermaCorrida, type TurnoActivo } from "@/lib/turno"
 
 /*
  * Acta de turno para imprimir/guardar como PDF: usa la función de
@@ -52,10 +52,13 @@ export function ActaTurno({
   })
   const totalCajas = cajasPorLinea.reduce((a, b) => a + b, 0)
   const totalLitros = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)
+  const mermasPorCorrida = turno.productoTerminado
+    .map((p) => (p.turnoLineaId ? mermaCorrida(p.turnoLineaId, turno, presentaciones) : null))
+    .filter((m): m is NonNullable<typeof m> => m !== null)
   const mermaPromedio =
-    turno.contadores.length === 0
+    mermasPorCorrida.length === 0
       ? null
-      : Math.round((turno.contadores.reduce((a, c) => a + c.mermaPct, 0) / turno.contadores.length) * 100) / 100
+      : Math.round((mermasPorCorrida.reduce((a, m) => a + m.pct, 0) / mermasPorCorrida.length) * 100) / 100
 
   return (
     <div className="bg-white p-8 text-sm text-black">
@@ -125,7 +128,7 @@ export function ActaTurno({
               <tr key={t.numeroTanque} className={i % 2 === 1 ? "bg-black/[0.02]" : ""}>
                 <td className="py-1 pr-3">Tanque {t.numeroTanque}</td>
                 <td className="py-1 pr-3">
-                  {t.condicion === "VOLUMEN"
+                  {t.condicion === "LISTO"
                     ? (t.saborNombre ?? "—")
                     : t.condicion === "SUCIO"
                       ? "Sucio"
@@ -133,7 +136,7 @@ export function ActaTurno({
                         ? "Vacío"
                         : "En Preparación"}
                 </td>
-                <td className="py-1 pr-3">{t.condicion === "VOLUMEN" ? `${t.volumenL} L` : "—"}</td>
+                <td className="py-1 pr-3">{t.condicion === "LISTO" ? `${t.volumenL} L` : "—"}</td>
                 <td className="py-1">{t.lote ?? "—"}</td>
               </tr>
             ))}
@@ -187,23 +190,22 @@ export function ActaTurno({
               <tr className="border-b border-black/20 text-left text-black/60">
                 <th className="py-1 pr-3 font-medium">Línea</th>
                 <th className="py-1 pr-3 font-medium">Llenadora</th>
-                <th className="py-1 pr-3 font-medium">Buenos</th>
-                <th className="py-1 pr-3 font-medium">Desechados</th>
                 <th className="py-1 font-medium">Merma</th>
               </tr>
             </thead>
             <tbody>
-              {turno.contadores.map((c, i) => (
-                <tr key={c.id} className={i % 2 === 1 ? "bg-black/[0.02]" : ""}>
-                  <td className="py-1 pr-3">{nombrePorCodigo(lineas, c.linea)}</td>
-                  <td className="py-1 pr-3">{c.envasesLlenadora}</td>
-                  <td className="py-1 pr-3">{c.envasesBuenos}</td>
-                  <td className="py-1 pr-3">{c.envasesDesechados}</td>
-                  <td className="py-1 font-medium">
-                    {c.mermaPct}% {c.requiereJustificacion && c.justificacion ? `— ${c.justificacion}` : ""}
-                  </td>
-                </tr>
-              ))}
+              {turno.contadores.map((c, i) => {
+                const merma = c.turnoLineaId ? mermaCorrida(c.turnoLineaId, turno, presentaciones) : null
+                return (
+                  <tr key={c.id} className={i % 2 === 1 ? "bg-black/[0.02]" : ""}>
+                    <td className="py-1 pr-3">{nombrePorCodigo(lineas, c.linea)}</td>
+                    <td className="py-1 pr-3">{c.envasesLlenadora}</td>
+                    <td className="py-1 font-medium">
+                      {merma !== null ? `${merma.pct}%` : "Pendiente"} {merma !== null && merma.pct > 3 && c.justificacion ? `— ${c.justificacion}` : ""}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

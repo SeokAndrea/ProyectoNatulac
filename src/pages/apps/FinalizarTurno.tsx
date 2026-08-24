@@ -70,12 +70,14 @@ export default function FinalizarTurno() {
 
   /*
    * Checklist de lo que "debe llevar" el acta de fin de turno — hoy
-   * cubre Recepción, Preparaciones, Contadores y Producto Terminado
-   * (lo que ya existe). Cuando se agreguen más secciones, sumar acá
-   * su propia condición de "completo".
+   * cubre Preparaciones, Contadores y Producto Terminado (lo que ya
+   * existe). Ya no incluye "Recepción": tanques y líneas son estado
+   * continuo (ver Preparación) y todo turno nace con los 3 tanques ya
+   * creados, así que esa condición era siempre verdadera. Cuando se
+   * agreguen más secciones, sumar acá su propia condición de
+   * "completo".
    */
   const itemsChecklist = [
-    { etiqueta: "Recepción", completo: turnoActivo.tanques.length > 0 },
     ...turnoActivo.tanques
       .filter((t) => t.condicion === "EN_PREPARACION")
       .map((t) => ({
@@ -83,12 +85,12 @@ export default function FinalizarTurno() {
         completo: turnoActivo.preparaciones.some((p) => p.numeroTanque === t.numeroTanque),
       })),
     ...turnoActivo.lineas.map((l) => ({
-      etiqueta: `Contadores y Merma — ${nombrePorCodigo(lineas, l.linea)}`,
-      completo: turnoActivo.contadores.some((c) => c.linea === l.linea),
+      etiqueta: `Contadores y Merma — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`,
+      completo: turnoActivo.contadores.some((c) => c.turnoLineaId === l.id),
     })),
     ...turnoActivo.lineas.map((l) => ({
-      etiqueta: `Producto Terminado — ${nombrePorCodigo(lineas, l.linea)}`,
-      completo: turnoActivo.productoTerminado.some((p) => p.linea === l.linea),
+      etiqueta: `Producto Terminado — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`,
+      completo: turnoActivo.productoTerminado.some((p) => p.turnoLineaId === l.id),
     })),
   ]
   const faltan = itemsChecklist.filter((i) => !i.completo).length
@@ -160,16 +162,13 @@ export default function FinalizarTurno() {
         <Card>
           <CardHeader>
             <CardTitle>Contadores por línea</CardTitle>
-            <CardDescription>
-              Envases de la llenadora, buenos y desechados registrados en Contadores y Merma durante
-              este turno.
-            </CardDescription>
+            <CardDescription>Envases de la llenadora registrados en Contadores y Merma durante este turno.</CardDescription>
           </CardHeader>
           <CardContent>
             {turnoActivo.contadores.length === 0 ? (
               <p className="text-sm text-muted-foreground">Todavía no se cargó ningún contador en este turno.</p>
             ) : (
-              <ListaContadores contadores={turnoActivo.contadores} mostrarTotales />
+              <ListaContadores contadores={turnoActivo.contadores} productoTerminado={turnoActivo.productoTerminado} mostrarTotales />
             )}
           </CardContent>
         </Card>

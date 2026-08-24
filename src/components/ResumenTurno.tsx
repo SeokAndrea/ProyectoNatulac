@@ -33,33 +33,35 @@ export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
 
       <div>
         <p className="mb-2 text-sm text-muted-foreground">Líneas en uso</p>
-        {turno.lineas.length === 0 ? (
+        {turno.lineas.filter((l) => l.activa).length === 0 ? (
           <p className="text-sm font-medium text-foreground">Ninguna (parada)</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {turno.lineas.map((l) => {
-              const litros = litrosHoraDeLive(velocidades, l.linea, l.presentacion, l.envasesHora)
-              return (
-                <div
-                  key={l.linea}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
-                >
-                  <span className="font-medium text-foreground">
-                    {nombrePorCodigo(lineas, l.linea)}
-                    {l.saborNombre ? ` · ${l.saborNombre}` : ""}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {l.presentacion} ml · {l.envasesHora} env/h{litros ? ` · ${litros} L/h` : ""}
-                  </span>
-                </div>
-              )
-            })}
+            {turno.lineas
+              .filter((l) => l.activa)
+              .map((l) => {
+                const litros = litrosHoraDeLive(velocidades, l.linea, l.presentacion, l.envasesHora)
+                return (
+                  <div
+                    key={l.id}
+                    className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium text-foreground">
+                      {nombrePorCodigo(lineas, l.linea)}
+                      {l.saborNombre ? ` · ${l.saborNombre}` : ""}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {l.presentacion} ml · {l.envasesHora} env/h{litros ? ` · ${litros} L/h` : ""}
+                    </span>
+                  </div>
+                )
+              })}
           </div>
         )}
       </div>
 
       <div>
-        <p className="mb-2 text-sm text-muted-foreground">Recepción</p>
+        <p className="mb-2 text-sm text-muted-foreground">Tanques</p>
         <div className="flex flex-col gap-2">
           {turno.tanques.map((t) => (
             <div
@@ -68,7 +70,7 @@ export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
             >
               <span className="font-medium text-foreground">Tanque {t.numeroTanque}</span>
               <span className="text-muted-foreground">
-                {t.condicion === "VOLUMEN"
+                {t.condicion === "LISTO"
                   ? `${t.saborNombre ?? "Sabor"} · ${t.volumenL} L${t.lote ? ` · Lote ${t.lote}` : ""}`
                   : t.condicion === "SUCIO"
                     ? "Sucio"

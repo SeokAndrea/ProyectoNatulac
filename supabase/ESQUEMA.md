@@ -229,8 +229,12 @@ llamar desde el frontend con la clave pública.
 ---
 
 ### `recepcion_tanques`
-Los 3 tanques de materia prima que el supervisor completa al iniciar
-el turno (obligatorio). Sabor y volumen solo tienen sentido cuando
+Estado de los 3 tanques de materia prima — **estado CONTINUO desde
+`20260907090000_preparacion_continua.sql`**: ya no se completa una
+sola vez al iniciar el turno, se activa/cambia en cualquier momento
+desde Preparación (`src/pages/apps/Preparacion.tsx`) y `iniciar_turno()`
+copia la fila más reciente de la misma área al turno nuevo en vez de
+pedirla de nuevo. Sabor y volumen solo tienen sentido cuando
 `condicion = 'VOLUMEN'` (sucio/vacío/en preparación no los tienen).
 
 | Columna | Notas |
@@ -240,6 +244,8 @@ el turno (obligatorio). Sabor y volumen solo tienen sentido cuando
 | condicion | `VOLUMEN` \| `SUCIO` \| `VACIO` \| `EN_PREPARACION` |
 | volumen_l | 0 a 20.000 |
 | lote | texto libre, cargado a mano |
+| activada_en | cuándo se puso en la condición actual (no se resetea al heredarse a un turno nuevo) |
+| ultimo_sabor_id, ultimo_lote | copiados automáticamente al pasar de `VOLUMEN` a `SUCIO` — para mostrar "último sabor · lote" sin volver a escribirlo |
 
 Un tanque `EN_PREPARACION` se resuelve más tarde en la tabla
 `preparaciones` (puede tener varias filas, una por cada vez que se
@@ -265,11 +271,18 @@ sistema.
 Además de la relación turno↔línea original, ahora guarda la
 presentación y velocidad elegidas **por línea** (dos líneas pueden
 llenar presentaciones distintas al mismo tiempo): `presentacion_id`,
-`envases_hora`, `litros_hora`, y `sabor_id` (solo si la línea "continúa
-del turno anterior" — se elige a mano en Comenzar Turno, no se deriva
-de Preparaciones todavía). La columna `turnos.velocidad_llenadora` de
+`envases_hora`, `litros_hora`, `sabor_id`, `lote` y `tanque_numero`
+(qué tanque está usando). La columna `turnos.velocidad_llenadora` de
 la primera migración quedó sin usar por este motivo (no se borró para
 no romper nada).
+
+**Estado CONTINUO desde `20260907090000_preparacion_continua.sql`**:
+una línea activada sigue activa turno tras turno (0 filas = esa línea
+no está en uso) hasta que un supervisor la detenga — se administra
+siempre desde Preparación, nunca desde Comenzar Turno. `activada_en`/
+`activada_por` registran cuándo y quién la activó/cambió por última
+vez; `iniciar_turno()` copia estas filas del turno más reciente de la
+misma área en vez de pedirlas de nuevo.
 
 ### `lineas` (ampliada)
 Se le agregó `codigo` (`LINEA_1`, `LINEA_2`, `LINEA_3`) para que
@@ -281,7 +294,10 @@ coincida con los códigos que ya usaba el frontend — antes solo tenía
 | Función | Qué hace |
 |---|---|
 | `turno_activo_de(usuario)` | Devuelve el turno ABIERTO de ese supervisor como un solo JSON (turno + líneas + tanques + contadores), o null si no tiene ninguno |
-| `iniciar_turno(usuario, area_codigo, turno_tipo_codigo, grupo_codigo, lineas jsonb, tanques jsonb)` | Crea el turno + sus líneas + sus 3 tanques en una sola transacción |
+| `iniciar_turno(usuario, area_codigo, turno_tipo_codigo, grupo_codigo, fecha, hora_inicio)` | Crea el turno; ya NO recibe líneas/tanques — los hereda del turno más reciente de la misma área (o arranca con los 3 tanques VACÍO y ninguna línea si es la primera vez) |
+| `activar_linea(usuario, turno_id, linea_codigo, presentacion_volumen_ml, envases_hora, litros_hora, sabor_id, lote, tanque_numero)` | Activa o actualiza una línea en cualquier momento del turno (upsert por `turno_id, linea_id`) |
+| `detener_linea(usuario, turno_id, linea_codigo)` | Borra la fila de esa línea en `turno_lineas` — deja de estar en uso |
+| `cambiar_condicion_tanque(usuario, turno_id, numero_tanque, condicion, sabor_id, volumen_l, lote)` | Cambia la condición de un tanque en cualquier momento; si pasa de VOLUMEN a SUCIO copia el sabor/lote a `ultimo_sabor_id`/`ultimo_lote` |
 | `finalizar_turno(turno_id)` | Cierra el turno (`estado = 'CERRADO'`) |
 | `registrar_contador(turno_id, linea_codigo, envases_llenadora, envases_buenos, envases_desechados, justificacion, usuario)` | Inserta un contador y lo devuelve |
 
@@ -328,3 +344,8 @@ npx supabase db push
 | `20260903090000_forzar_eliminar_personal.sql` | `eliminar_personal` gana un parámetro `p_forzar`: si es true, borra primero los turnos de esa persona (arrastra en cascada todo lo asociado) y recién ahí la persona — pensado para limpiar usuarios de prueba |
 | `20260904090000_estadisticas_produccion.sql` | `estadisticas_produccion()`: una fila por (turno, línea) — incluye turnos ABIERTOS, con contadores sumados + producto terminado, para el Dashboard de Planta / Mis Estadísticas (se actualiza en vivo mientras el supervisor carga datos) — sin políticas de rol, filtros abiertos a propósito (ver `resumen-diseno-dashboard-natulac.md`) |
 | `20260905090000_preparaciones.sql` | Tabla `preparaciones` (varias por tanque por turno, carga manual sin fórmula); 4ª condición de tanque `EN_PREPARACION`; `turno_lineas.sabor_id` para líneas que continúan del turno anterior |
+| `20260906090000_panel_produccion.sql` | `turno_abierto_ahora()` y `turno_de_fecha_tipo()` — encontrar el turno en vivo o uno histórico por fecha/tipo, sin restricción de rol, para el Panel de Producción |
+| `20260907090000_preparacion_continua.sql` | Líneas y tanques pasan a ser estado CONTINUO: `activar_linea`/`detener_linea`/`cambiar_condicion_tanque` (se llaman en cualquier momento desde Preparación), `iniciar_turno()` pierde los parámetros de líneas/tanques y hereda el último estado de la misma área, "último sabor/lote" automático al marcar un tanque SUCIO |
+| `20260908090000_estado_planta_sin_turno_abierto.sql` | `estado_planta_actual()` reemplaza a `turno_abierto_ahora()` como fuente de la vista "en vivo" del Panel de Producción: busca el turno más reciente en general (abierto o cerrado), no solo uno con `estado = 'ABIERTO'` — antes, el panel se veía "vacío" en el hueco entre que un supervisor finalizaba su turno y el siguiente empezaba el suyo |
+| `20260909090000_lotes_y_corridas.sql` | Cada preparación pasa a ser un LOTE independiente (no se suman); `turno_lineas` deja de ser una fila fija por línea — ahora una fila por CORRIDA (con `lote_id`, `activa`, `finalizada_en`), `detener_linea` se renombra a `finalizar_linea` y ARCHIVA en vez de borrar; nuevo `finalizar_lote()`; `contadores` pierde `envases_buenos`/`envases_desechados` (un solo valor, `envases_llenadora`, ligado a `turno_linea_id`) y ya no calcula merma como columna generada; `producto_terminado` se re-referencia a `turno_linea_id` (upsert por corrida, no por línea); `estadisticas_produccion()` pasa de "una fila por (turno, línea)" a "una fila por corrida" |
+| `20260910090000_recepcion_y_liberacion.sql` | Condición de tanque `VOLUMEN` se renombra a `LISTO` (dato + constraint). `preparaciones` gana `volumen_l` y `liberado_en`. Nuevo `iniciar_preparacion()`: crea el lote completo (sabor/lote/volumen/tambores/ajustes) de una sola vez y pone el tanque en `EN_PREPARACION` — reemplaza al viejo combo `cambiar_condicion_tanque` + `registrar_preparacion` (que se borra). Nuevo `liberar_lote()`: marca el lote liberado y pasa el tanque a `LISTO`, copiando sabor/lote/volumen. `activar_linea()` cambia de firma: ahora pide `p_numero_tanque` (debe estar `LISTO`) en vez de `p_lote_id` suelto — el lote/sabor se resuelven solos |

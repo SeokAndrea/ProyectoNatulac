@@ -37,9 +37,10 @@ export function EstadoBanner() {
             <span className="text-muted-foreground">Turno:</span>
             <span className="font-medium text-foreground">
               {nombrePorCodigo(TURNO_TIPOS, turnoActivo.turnoTipo)} · {nombrePorCodigo(GRUPOS, turnoActivo.grupo)} ·{" "}
-              {turnoActivo.lineas.length === 0
-                ? "sin líneas (parada)"
-                : turnoActivo.lineas.map((l) => nombrePorCodigo(lineas, l.linea)).join(", ")}
+              {(() => {
+                const activas = turnoActivo.lineas.filter((l) => l.activa)
+                return activas.length === 0 ? "sin líneas (parada)" : activas.map((l) => nombrePorCodigo(lineas, l.linea)).join(", ")
+              })()}
             </span>
             <Badge variant="secondary">{turnoActivo.codigo}</Badge>
           </span>
