@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BarChart3,
   Boxes,
+  Building2,
   CalendarDays,
   CheckCircle2,
   Clock,
@@ -32,11 +33,13 @@ import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/c
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth } from "@/lib/auth"
-import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, velocidadesParaLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
 import { horasTurno, mermaPct, obtenerEstadisticas, promedio, type FilaEstadistica } from "@/lib/estadisticas"
 import {
   calcularMeta,
+  mermaEnvasesTurno,
+  mermaSemielaboradoTurno,
   obtenerEstadoPlantaActual,
   obtenerResumenTurnoAnterior,
   obtenerTurnoDeFechaTipo,
@@ -144,28 +147,38 @@ function estadoDeLineas(turno: TurnoActivo, lineasCatalogo: LineaLive[]): LineaC
   })
 }
 
-interface CajasPorPresentacion {
-  presentacion: string
-  nombre: string
+interface ProduccionLinea {
+  linea: string
   cajas: number
+  litros: number
+  eficienciaPct: number | null
 }
 
-/** Cuántas cajas se cargaron en Producto Terminado, agrupadas por presentación (1L, 250ml, etc.) — para el desglose bajo Litros producidos. */
-function cajasPorPresentacionDe(turno: TurnoActivo, presentaciones: PresentacionLive[]): CajasPorPresentacion[] {
-  const porPresentacion = new Map<string, CajasPorPresentacion>()
+/** Cajas, litros y eficiencia de CADA línea del catálogo, para la tabla combinada del banner. */
+function produccionPorLineaDe(
+  turno: TurnoActivo,
+  lineasCatalogo: LineaLive[],
+  presentaciones: PresentacionLive[],
+  velocidades: ReturnType<typeof useCatalogosLive>["velocidades"],
+): ProduccionLinea[] {
+  return lineasCatalogo.map((lc) => {
+    const productoLinea = turno.productoTerminado.filter((p) => p.linea === lc.codigo)
+    const cajas = productoLinea.reduce((a, p) => {
+      const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
+      return a + p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
+    }, 0)
+    const litros = productoLinea.reduce((a, p) => a + p.litrosProducidos, 0)
 
-  for (const p of turno.productoTerminado) {
-    const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
-    const cajas = p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
-    const existente = porPresentacion.get(p.presentacion)
-    if (existente) {
-      existente.cajas += cajas
-    } else {
-      porPresentacion.set(p.presentacion, { presentacion: p.presentacion, nombre: pres?.nombre ?? `${p.presentacion} ml`, cajas })
+    const corridaActiva = turno.lineas.find((l) => l.linea === lc.codigo && l.activa)
+    let eficienciaPct: number | null = null
+    if (corridaActiva) {
+      const opciones = velocidadesParaLive(velocidades, corridaActiva.linea, corridaActiva.presentacion)
+      const maxima = Math.max(corridaActiva.envasesHora, ...opciones.map((o) => o.envasesHora))
+      eficienciaPct = maxima > 0 ? Math.round((corridaActiva.envasesHora / maxima) * 100) : 0
     }
-  }
 
-  return [...porPresentacion.values()].filter((c) => c.cajas > 0)
+    return { linea: lc.codigo, cajas, litros, eficienciaPct }
+  })
 }
 
 /*
@@ -200,6 +213,15 @@ export default function PanelProduccion() {
   const [turnoAnterior, setTurnoAnterior] = useState<ResumenTurnoAnterior | null>(null)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [ahora, setAhora] = useState(() => new Date())
+  /*
+   * Solo el Super Administrador tiene session.area === null ("ve
+   * todas las áreas") — sin este filtro, "en vivo" mostraba el turno
+   * más reciente de CUALQUIER área, mezclando el Área de Pruebas con
+   * la producción real. El resto de los roles ya tiene su área fija
+   * en la sesión, no necesita elegir.
+   */
+  const [areaFiltro, setAreaFiltro] = useState<AreaCodigo | "TODAS">(session?.area ?? "ASEPTICO")
+  const areaEfectiva = session?.area ?? (areaFiltro === "TODAS" ? null : areaFiltro)
 
   useEffect(() => {
     const id = setInterval(() => setAhora(new Date()), 1000)
@@ -207,11 +229,11 @@ export default function PanelProduccion() {
   }, [])
 
   async function cargarTurnoAnterior(turnoActualId: string | null) {
-    if (!session?.area) {
+    if (!areaEfectiva) {
       setTurnoAnterior(null)
       return
     }
-    setTurnoAnterior(await obtenerResumenTurnoAnterior(session.area, turnoActualId))
+    setTurnoAnterior(await obtenerResumenTurnoAnterior(areaEfectiva, turnoActualId))
   }
 
   /*
@@ -223,7 +245,7 @@ export default function PanelProduccion() {
    */
   async function cargarEnVivo() {
     setCargando(true)
-    const t = await obtenerEstadoPlantaActual(session?.area ?? null)
+    const t = await obtenerEstadoPlantaActual(areaEfectiva)
     if (t) {
       setTurno(t)
       setFecha(t.fecha)
@@ -241,7 +263,7 @@ export default function PanelProduccion() {
   async function buscarFechaTipo(f: string, tt: string) {
     setCargando(true)
     setEnVivo(false)
-    const t = await obtenerTurnoDeFechaTipo(f, tt)
+    const t = await obtenerTurnoDeFechaTipo(f, tt, areaEfectiva)
     setTurno(t)
     await cargarTurnoAnterior(t?.id ?? null)
     setBuscado(true)
@@ -249,15 +271,22 @@ export default function PanelProduccion() {
   }
 
   useEffect(() => {
-    cargarEnVivo()
+    if (enVivo) {
+      cargarEnVivo()
+    } else {
+      buscarFechaTipo(fecha, turnoTipo)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.area])
+  }, [areaEfectiva])
 
   const meta = turno ? calcularMeta(turno, presentaciones) : null
   const horario = HORARIOS[turnoTipo]
   const litrosProducidos = turno ? turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0) : 0
   const lineasEstado = turno ? estadoDeLineas(turno, lineas) : []
-  const cajasPorPresentacion = turno ? cajasPorPresentacionDe(turno, presentaciones) : []
+  const produccionPorLinea = turno ? produccionPorLineaDe(turno, lineas, presentaciones, velocidades) : []
+  const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
+  const mermaEnvases = turno ? mermaEnvasesTurno(turno, presentaciones) : null
+  const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno, presentaciones) : null
   const hh = String(ahora.getHours()).padStart(2, "0")
   const mm = String(ahora.getMinutes()).padStart(2, "0")
   const ss = String(ahora.getSeconds()).padStart(2, "0")
@@ -266,7 +295,7 @@ export default function PanelProduccion() {
   const lineasActivas = lineasEstado.filter((l) => l.estado === "activa").length
 
   return (
-    <AppShell title="Panel de Producción" description="Estado de la planta en vivo">
+    <AppShell title="Panel de Producción" description="Estado de la planta en vivo" fullWidth>
       <div className="flex flex-col gap-5">
         {/* ---------------- BANNER SUPERIOR ---------------- */}
         <section className="panel-banner shadow-panel relative overflow-hidden rounded-2xl border border-border">
@@ -309,71 +338,91 @@ export default function PanelProduccion() {
               )}
             </div>
 
-            <Button variant="outline" size="sm" onClick={() => setMostrarFiltros((v) => !v)}>
-              <CalendarDays className="size-3.5" />
-              {enVivo ? "En vivo" : `${fecha} · ${nombrePorCodigo(TURNO_TIPOS, turnoTipo)}`}
-            </Button>
+            <div className="flex items-center gap-2">
+              {!session?.area && (
+                <button
+                  type="button"
+                  onClick={() => setMostrarFiltros(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                >
+                  <Building2 className="size-3.5" />
+                  {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(AREAS, areaFiltro)}
+                </button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setMostrarFiltros((v) => !v)}>
+                <CalendarDays className="size-3.5" />
+                {enVivo ? "En vivo" : `${fecha} · ${nombrePorCodigo(TURNO_TIPOS, turnoTipo)}`}
+              </Button>
+            </div>
           </div>
 
           {turno && meta && (
-            <div className="relative grid grid-cols-1 divide-y divide-border/70 md:grid-cols-4 md:divide-x md:divide-y-0">
-              {/* HORA */}
-              <BannerCelda icon={Clock} label="Hora">
-                <p className="num flex items-baseline gap-1 text-5xl font-bold leading-none tracking-tight text-foreground">
-                  {hh}
-                  <span className="alert-pulse text-muted-foreground">:</span>
-                  {mm}
-                  <span className="text-xl font-semibold text-muted-foreground">:{ss}</span>
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {horario ? `Ventana ${horario.inicio} – ${horario.fin}` : "Sin horario definido"}
-                </p>
-              </BannerCelda>
+            <>
+              <div className="relative grid grid-cols-1 divide-y divide-border/70 md:grid-cols-4 md:divide-x md:divide-y-0">
+                {/* HORA */}
+                <BannerCelda icon={Clock} label="Hora" centrado>
+                  <p className="num flex items-baseline justify-center gap-1 text-4xl font-bold leading-none tracking-tight text-foreground">
+                    {hh}
+                    <span className="alert-pulse text-muted-foreground">:</span>
+                    {mm}
+                    <span className="text-lg font-semibold text-muted-foreground">:{ss}</span>
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {horario ? `Ventana ${horario.inicio} – ${horario.fin}` : "Sin horario definido"}
+                  </p>
+                </BannerCelda>
 
-              {/* CAJAS */}
-              <BannerCelda icon={Boxes} label="Cajas producidas" acento>
-                <p className="num text-5xl font-bold leading-none tracking-tight text-foreground">
-                  {meta.totalReales.toLocaleString("es-CO")}
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Meta del turno {meta.totalEsperadas.toLocaleString("es-CO")} cajas
-                </p>
-              </BannerCelda>
+                {/* CAJAS */}
+                <BannerCelda icon={Boxes} label="Cajas producidas" acento>
+                  <p className="num text-2xl font-bold leading-none tracking-tight text-foreground">
+                    {cajasProducidasTotal.toLocaleString("es-CO")}
+                  </p>
+                </BannerCelda>
 
-              {/* LITROS */}
-              <BannerCelda icon={Droplets} label="Litros producidos">
-                <p className="num text-5xl font-bold leading-none tracking-tight text-foreground">
-                  {litrosProducidos.toLocaleString("es-CO")}
-                  <span className="ml-1 text-lg font-semibold text-muted-foreground">L</span>
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {cajasPorPresentacion.length > 0 ? (
-                    cajasPorPresentacion.map((c) => (
-                      <span
-                        key={c.presentacion}
-                        className="inline-flex items-center gap-1 rounded-md border border-border bg-background/70 px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                      >
-                        <span className="num font-semibold text-foreground">{c.cajas.toLocaleString("es-CO")}</span>
-                        caj. {c.nombre}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Sin producto terminado cargado.</span>
-                  )}
-                </div>
-              </BannerCelda>
+                {/* LITROS */}
+                <BannerCelda icon={Droplets} label="Litros producidos">
+                  <p className="num text-2xl font-bold leading-none tracking-tight text-foreground">
+                    {litrosProducidos.toLocaleString("es-CO")}
+                    <span className="ml-1 text-sm font-semibold text-muted-foreground">L</span>
+                  </p>
+                </BannerCelda>
 
-              {/* META */}
-              <BannerCelda icon={Target} label="Cumplimiento de meta">
-                <MetaAnillo pct={meta.pctCumplimiento} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
-              </BannerCelda>
-            </div>
+                {/* META */}
+                <BannerCelda icon={Target} label="Cumplimiento de meta">
+                  <MetaAnillo pct={meta.pctCumplimiento} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
+                </BannerCelda>
+              </div>
+
+              {/* ------- CAJAS · EFICIENCIA · LITROS, POR LÍNEA ------- */}
+              <div className="relative border-t border-border/70 px-4 py-2.5">
+                <TablaProduccionPorLinea filas={produccionPorLinea} lineas={lineas} />
+              </div>
+            </>
           )}
         </section>
 
         {mostrarFiltros && (
           <Card className="border-border bg-surface shadow-sm">
             <CardContent className="flex flex-wrap items-end gap-3">
+              {!session?.area && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs text-muted-foreground">Área</span>
+                  <Select value={areaFiltro} onValueChange={(v) => setAreaFiltro(v as AreaCodigo | "TODAS")}>
+                    <SelectTrigger className="w-[190px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AREAS.map((a) => (
+                        <SelectItem key={a.codigo} value={a.codigo}>
+                          {a.nombre}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="TODAS">Todas las áreas (sin Pruebas)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="flex flex-col gap-2">
                 <span className="text-xs text-muted-foreground">Turno</span>
                 <Select
@@ -466,7 +515,7 @@ export default function PanelProduccion() {
                 )}
               </PanelCard>
 
-              <div className="rise-in xl:col-span-3">
+              <div className="rise-in flex flex-col gap-4 xl:col-span-3">
                 {turnoAnterior ? (
                   <TurnoAnteriorCard resumen={turnoAnterior} />
                 ) : (
@@ -475,6 +524,8 @@ export default function PanelProduccion() {
                     <p className="mt-2 text-xs text-muted-foreground">Sin turno cerrado previo.</p>
                   </PanelCard>
                 )}
+
+                {mermaEnvases && mermaSemielaborado && <MermaActualCard envases={mermaEnvases} semielaborado={mermaSemielaborado} />}
               </div>
             </div>
 
@@ -523,10 +574,6 @@ export default function PanelProduccion() {
                 )}
               </SeccionColapsable>
 
-              <SeccionColapsable titulo="Eficiencia por línea" descripcion="Velocidad elegida vs. máxima disponible.">
-                <TablaEficienciaLineas turno={turno} velocidades={velocidades} lineas={lineas} />
-              </SeccionColapsable>
-
               <SeccionColapsable
                 titulo="Top Fallas y Paradas de Línea"
                 descripcion="El catálogo de paradas todavía no existe — esto va a explicar la diferencia entre la meta esperada y lo producido."
@@ -540,7 +587,7 @@ export default function PanelProduccion() {
         <div className="flex flex-col gap-3">
           <TituloSeccion>Histórico</TituloSeccion>
           <SeccionColapsable titulo="Resumen de Planta" descripcion="KPIs, matriz grupo × supervisor y tablas en un rango de fechas.">
-            <ResumenPlanta />
+            <ResumenPlanta areaCodigo={areaEfectiva} />
           </SeccionColapsable>
         </div>
       </div>
@@ -563,20 +610,27 @@ function BannerCelda({
   icon: Icon,
   label,
   acento,
+  centrado,
   children,
 }: {
   icon: typeof Clock
   label: string
   acento?: boolean
+  centrado?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className={cn("px-5 py-5", acento && "bg-background/40")}>
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        <Icon className="size-3.5 text-primary" />
+    <div className={cn("px-4 py-3", acento && "bg-background/40", centrado && "text-center")}>
+      <div
+        className={cn(
+          "flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground",
+          centrado && "justify-center",
+        )}
+      >
+        <Icon className="size-3 text-primary" />
         {label}
       </div>
-      <div className="mt-3">{children}</div>
+      <div className="mt-1.5">{children}</div>
     </div>
   )
 }
@@ -586,8 +640,8 @@ function MetaAnillo({ pct, reales, esperadas }: { pct: number | null; reales: nu
   if (pct === null) {
     return (
       <div>
-        <p className="num text-5xl font-bold leading-none tracking-tight text-muted-foreground">—</p>
-        <p className="mt-2 text-xs text-muted-foreground">Ninguna línea en uso.</p>
+        <p className="num text-2xl font-bold leading-none tracking-tight text-muted-foreground">—</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">Ninguna línea en uso.</p>
       </div>
     )
   }
@@ -596,23 +650,23 @@ function MetaAnillo({ pct, reales, esperadas }: { pct: number | null; reales: nu
   const color = clamped >= 90 ? "var(--success)" : clamped >= 60 ? "var(--warning)" : "var(--danger)"
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-2.5">
       <div
-        className="relative grid size-20 shrink-0 place-items-center rounded-full transition-all duration-700"
+        className="relative grid size-11 shrink-0 place-items-center rounded-full transition-all duration-700"
         style={{ background: `conic-gradient(${color} ${clamped * 3.6}deg, color-mix(in oklab, var(--muted) 90%, transparent) 0deg)` }}
       >
-        <div className="grid size-[3.6rem] place-items-center rounded-full bg-background">
-          <span className="num text-base font-bold" style={{ color }}>
+        <div className="grid size-8 place-items-center rounded-full bg-background">
+          <span className="num text-[11px] font-bold" style={{ color }}>
             {pct}%
           </span>
         </div>
       </div>
       <div className="min-w-0">
-        <p className="num text-2xl font-bold leading-none">
+        <p className="num text-lg font-bold leading-none">
           {reales.toLocaleString("es-CO")}
-          <span className="text-sm font-medium text-muted-foreground"> / {esperadas.toLocaleString("es-CO")}</span>
+          <span className="text-xs font-medium text-muted-foreground"> / {esperadas.toLocaleString("es-CO")}</span>
         </p>
-        <p className="mt-1.5 text-xs text-muted-foreground">Cajas reales vs. meta del turno</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">Cajas reales vs. meta</p>
       </div>
     </div>
   )
@@ -863,6 +917,59 @@ function TurnoAnteriorCard({ resumen }: { resumen: ResumenTurnoAnterior }) {
   )
 }
 
+/**
+ * Merma del turno EN CURSO, en dos mitades: Envases (llenadora vs.
+ * paletizado — la de siempre) y Semielaborado (litros de tanque
+ * consumidos vs. litros que salieron en Producto Terminado — la
+ * pérdida de ANTES de la llenadora). Ver mermaEnvasesTurno()/
+ * mermaSemielaboradoTurno() en src/lib/panelProduccion.ts.
+ */
+function MermaActualCard({
+  envases,
+  semielaborado,
+}: {
+  envases: { pct: number | null }
+  semielaborado: { pct: number | null; litrosConsumidos: number; litrosProducidos: number }
+}) {
+  return (
+    <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
+      <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-surface px-4 py-3">
+        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          <ScanLine className="size-4 text-primary" />
+          Merma del turno en curso
+        </p>
+        <Badge variant="muted">Máx. {MERMA_MAX}%</Badge>
+      </div>
+
+      <div className="grid grid-cols-2 divide-x divide-border/70">
+        <MermaBloque titulo="Envases" pct={envases.pct} />
+        <MermaBloque titulo="Semielaborado" pct={semielaborado.pct} />
+      </div>
+
+      <div className="border-t border-border/70 p-4 text-[11px] text-muted-foreground">
+        Semielaborado: {semielaborado.litrosProducidos.toLocaleString("es-CO")} L producidos de{" "}
+        {semielaborado.litrosConsumidos.toLocaleString("es-CO")} L consumidos de tanque.
+      </div>
+    </Card>
+  )
+}
+
+function MermaBloque({ titulo, pct }: { titulo: string; pct: number | null }) {
+  const nivel = pct === null ? null : nivelMerma(pct)
+  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : undefined
+  return (
+    <div className="p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
+      <p className={cn("num mt-1 text-3xl font-bold leading-none", color)}>{pct !== null ? `${pct}%` : "—"}</p>
+      {nivel === "danger" && (
+        <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-danger">
+          <AlertTriangle className="size-3" /> Fuera de tolerancia
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** Placeholder del top de fallas: la estructura ya está armada, sólo falta el catálogo de paradas. */
 function TopFallasPlaceholder() {
   const filas = ["Falla mecánica", "Cambio de formato", "Falta de insumo", "Limpieza / CIP", "Corte eléctrico"]
@@ -896,65 +1003,44 @@ function TopFallasPlaceholder() {
   )
 }
 
-/** La vieja "Por Línea" de Control de Mermas — velocidad elegida vs. máxima disponible. */
-function TablaEficienciaLineas({
-  turno,
-  velocidades,
-  lineas,
-}: {
-  turno: TurnoActivo
-  velocidades: ReturnType<typeof useCatalogosLive>["velocidades"]
-  lineas: ReturnType<typeof useCatalogosLive>["lineas"]
-}) {
-  const lineasActivas = turno.lineas.filter((l) => l.activa)
 
-  if (lineasActivas.length === 0) {
-    return <p className="text-sm text-muted-foreground">Ninguna línea en uso.</p>
+/** Fila por línea (catálogo completo) con cajas, eficiencia y litros juntos — vive dentro del banner, ver produccionPorLineaDe(). */
+function TablaProduccionPorLinea({ filas, lineas }: { filas: ProduccionLinea[]; lineas: LineaLive[] }) {
+  if (filas.length === 0) {
+    return <p className="text-xs text-muted-foreground">Esta área todavía no tiene líneas cargadas.</p>
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-surface">
-            <TableHead className="text-[11px] uppercase tracking-wide">Línea</TableHead>
-            <TableHead className="text-right text-[11px] uppercase tracking-wide">Eficiencia</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {lineasActivas.map((l) => {
-            const opciones = velocidadesParaLive(velocidades, l.linea, l.presentacion)
-            const maxima = Math.max(l.envasesHora, ...opciones.map((o) => o.envasesHora))
-            const eficiencia = maxima > 0 ? Math.round((l.envasesHora / maxima) * 100) : 0
-            return (
-              <TableRow key={l.id}>
-                <TableCell className="font-medium">{nombrePorCodigo(lineas, l.linea)}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-[width] duration-700",
-                          eficiencia >= 90 ? "bg-success" : eficiencia >= 60 ? "bg-warning" : "bg-danger",
-                        )}
-                        style={{ width: `${eficiencia}%` }}
-                      />
-                    </div>
-                    <span className="num w-10 text-right text-xs font-semibold">{eficiencia}%</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+    <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Cajas producidas</span>
+      <span className="text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Eficiencia</span>
+      <span className="text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Litros producidos</span>
+
+      {filas.map((f) => {
+        const eficiencia = f.eficienciaPct
+        const color = eficiencia === null ? "text-muted-foreground" : eficiencia >= 90 ? "text-success" : eficiencia >= 60 ? "text-warning" : "text-danger"
+        return (
+          <div key={f.linea} className="contents">
+            <span className="num flex items-baseline gap-1.5 border-t border-border/60 py-1 font-semibold text-foreground">
+              <span className="text-[10px] font-medium uppercase text-muted-foreground">{nombrePorCodigo(lineas, f.linea)}</span>
+              {f.cajas.toLocaleString("es-CO")}
+            </span>
+            <span className={cn("num border-t border-border/60 py-1 text-right font-semibold", color)}>
+              {eficiencia !== null ? `${eficiencia}%` : "—"}
+            </span>
+            <span className="num border-t border-border/60 py-1 text-right font-semibold text-foreground">
+              {f.litros.toLocaleString("es-CO")} L
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 /* ============================ RESUMEN DE PLANTA ============================ */
 
-function ResumenPlanta() {
+function ResumenPlanta({ areaCodigo }: { areaCodigo: AreaCodigo | null }) {
   const [fechaDesde, setFechaDesde] = useState(() => haceDias(30))
   const [fechaHasta, setFechaHasta] = useState("")
   const [filas, setFilas] = useState<FilaEstadistica[]>([])
@@ -962,7 +1048,7 @@ function ResumenPlanta() {
 
   async function buscar() {
     setCargando(true)
-    const lista = await obtenerEstadisticas({ fechaDesde, fechaHasta })
+    const lista = await obtenerEstadisticas({ fechaDesde, fechaHasta, areaCodigo })
     setFilas(lista)
     setCargando(false)
   }
@@ -970,7 +1056,7 @@ function ResumenPlanta() {
   useEffect(() => {
     buscar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [areaCodigo])
 
   const mermaProm = promedio(filas.map(mermaPct))
   const horasTotales = filas.reduce((acc, f) => acc + (horasTurno(f) ?? 0), 0)
@@ -991,7 +1077,9 @@ function ResumenPlanta() {
           {cargando ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
           Buscar
         </Button>
-        <span className="text-xs text-muted-foreground">Incluye turnos en curso — todas las áreas y supervisores.</span>
+        <span className="text-xs text-muted-foreground">
+          Incluye turnos en curso{areaCodigo ? "" : " — todas las áreas (sin Pruebas)"}.
+        </span>
       </div>
 
       {cargando ? (

@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
+import type { AreaCodigo } from "@/lib/catalogos"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import { envasesReales, obtenerEstadisticas } from "@/lib/estadisticas"
 
@@ -16,8 +17,12 @@ export async function obtenerEstadoPlantaActual(areaCodigo: string | null): Prom
   return mapearTurno(data as FilaTurno)
 }
 
-export async function obtenerTurnoDeFechaTipo(fecha: string, turnoTipo: string): Promise<TurnoActivo | null> {
-  const { data, error } = await supabase.rpc("turno_de_fecha_tipo", { p_fecha: fecha, p_turno_tipo: turnoTipo })
+export async function obtenerTurnoDeFechaTipo(fecha: string, turnoTipo: string, areaCodigo: string | null): Promise<TurnoActivo | null> {
+  const { data, error } = await supabase.rpc("turno_de_fecha_tipo", {
+    p_fecha: fecha,
+    p_turno_tipo: turnoTipo,
+    p_area_codigo: areaCodigo,
+  })
   if (error || !data) return null
   return mapearTurno(data as FilaTurno)
 }
@@ -77,18 +82,19 @@ export function horasTranscurridasTurno(turno: TurnoActivo): number {
   return Math.max(minutos / 60, 0.1)
 }
 
-export interface MermaResumenTurno {
+export interface MermaEnvasesTurno {
   pct: number | null
 }
 
 /**
- * Merma de TODO el turno (todas las corridas juntas): envases de
- * Producto Terminado contra los que sumaron los contadores. Ya no
- * existe una "merma teórica" aparte (dependía de envases_desechados,
- * columna que se sacó de Contadores) — queda una sola merma, la
- * misma que se calcula por corrida en mermaCorrida() de turno.tsx.
+ * Merma de ENVASES de todo el turno (todas las corridas juntas):
+ * envases de Producto Terminado contra los que sumaron los
+ * contadores. Ya no existe una "merma teórica" aparte (dependía de
+ * envases_desechados, columna que se sacó de Contadores) — queda una
+ * sola merma, la misma que se calcula por corrida en mermaCorrida()
+ * de turno.tsx.
  */
-export function mermaResumenTurno(turno: TurnoActivo, presentaciones: PresentacionLive[]): MermaResumenTurno {
+export function mermaEnvasesTurno(turno: TurnoActivo, presentaciones: PresentacionLive[]): MermaEnvasesTurno {
   const llenadoraTotal = turno.contadores.reduce((a, c) => a + c.envasesLlenadora, 0)
 
   const envasesRealesTotal = turno.productoTerminado.reduce((a, p) => {
@@ -100,6 +106,35 @@ export function mermaResumenTurno(turno: TurnoActivo, presentaciones: Presentaci
   const pct = llenadoraTotal === 0 ? null : Math.round((1 - envasesRealesTotal / llenadoraTotal) * 10000) / 100
 
   return { pct }
+}
+
+export interface MermaSemielaboradoTurno {
+  pct: number | null
+  litrosConsumidos: number
+  litrosProducidos: number
+}
+
+/**
+ * Merma de SEMIELABORADO: litros que salieron de los tanques (cada
+ * contador consume envasesLlenadora × volumenMl/1000 del lote de su
+ * corrida — mismo cálculo que registrar_contador() al descontarle al
+ * lote, ver supabase/migrations/20260914090000_litros_consumidos_lote.sql)
+ * contra los litros que efectivamente salieron en Producto Terminado.
+ * Es la merma de ANTES de la llenadora (jarabe/mezcla que no llegó a
+ * envasarse) — complementa a mermaEnvasesTurno(), que mide la de
+ * DESPUÉS (llenadora vs. paletizado).
+ */
+export function mermaSemielaboradoTurno(turno: TurnoActivo, presentaciones: PresentacionLive[]): MermaSemielaboradoTurno {
+  const litrosConsumidos = turno.contadores.reduce((a, c) => {
+    const corrida = turno.lineas.find((l) => l.id === c.turnoLineaId)
+    const pres = corrida ? presentaciones.find((p) => p.codigo === corrida.presentacion) : undefined
+    return a + (c.envasesLlenadora * (pres?.volumenMl ?? 0)) / 1000
+  }, 0)
+
+  const litrosProducidos = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)
+  const pct = litrosConsumidos === 0 ? null : Math.round((1 - litrosProducidos / litrosConsumidos) * 10000) / 100
+
+  return { pct, litrosConsumidos, litrosProducidos }
 }
 
 export interface ResumenTurnoAnterior {
@@ -128,8 +163,8 @@ export async function obtenerResumenTurnoAnterior(
   areaCodigo: string,
   turnoActualId: string | null,
 ): Promise<ResumenTurnoAnterior | null> {
-  const filas = await obtenerEstadisticas({ fechaDesde: haceDiasISO(4) })
-  const delArea = filas.filter((f) => f.area === areaCodigo && f.estado === "CERRADO" && f.turnoId !== turnoActualId)
+  const filas = await obtenerEstadisticas({ fechaDesde: haceDiasISO(4), areaCodigo: areaCodigo as AreaCodigo })
+  const delArea = filas.filter((f) => f.estado === "CERRADO" && f.turnoId !== turnoActualId)
   if (delArea.length === 0) return null
 
   const ultimoTurnoId = delArea.reduce((masReciente, f) =>

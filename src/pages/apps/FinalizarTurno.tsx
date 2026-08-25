@@ -1,7 +1,8 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { AlertTriangle, ClipboardCheck, FileText, Loader2, Square } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
+import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
 import { EmptyState } from "@/components/EmptyState"
 import { ResumenTurno } from "@/components/ResumenTurno"
 import { ListaContadores } from "@/components/ListaContadores"
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
+import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useTurno } from "@/lib/turno"
 
 /*
@@ -32,12 +34,17 @@ import { useTurno } from "@/lib/turno"
  * el diálogo de impresión, donde "Guardar como PDF" hace el resto.
  */
 export default function FinalizarTurno() {
-  const { turnoActivo, cargando, finalizarTurno } = useTurno()
+  const { turnoActivo, cargando, finalizarTurno, cambiarCondicionTanque, confirmarEstadoTanque } = useTurno()
   const { session } = useAuth()
   const { lineas, presentaciones } = useCatalogosLive()
   const navigate = useNavigate()
   const [finalizando, setFinalizando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  const [sabores, setSabores] = useState<Sabor[]>([])
+
+  useEffect(() => {
+    listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
+  }, [])
 
   if (cargando) {
     return (
@@ -78,6 +85,7 @@ export default function FinalizarTurno() {
       .filter((t) => t.condicion === "EN_PREPARACION")
       .filter((t) => !turnoActivo.preparaciones.some((p) => p.numeroTanque === t.numeroTanque))
       .map((t) => `Preparación — Tanque ${t.numeroTanque}`),
+    ...turnoActivo.tanques.filter((t) => !t.confirmadoFinEn).map((t) => `Estado final — Tanque ${t.numeroTanque} sin confirmar`),
     ...turnoActivo.lineas
       .filter((l) => !turnoActivo.contadores.some((c) => c.turnoLineaId === l.id))
       .map((l) => `Contadores — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`),
@@ -102,6 +110,28 @@ export default function FinalizarTurno() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <SeccionColapsable titulo="Datos del turno">
             <ResumenTurno turno={turnoActivo} />
+          </SeccionColapsable>
+
+          <SeccionColapsable
+            titulo="Estado final de tanques"
+            descripcion="Confirmá o corregí el estado de cada tanque antes de cerrar el turno."
+            abiertoPorDefecto={turnoActivo.tanques.some((t) => !t.confirmadoFinEn)}
+          >
+            <div className="flex flex-col gap-2">
+              {turnoActivo.tanques.map((t) => (
+                <ConfirmarEstadoTanque
+                  key={t.numeroTanque}
+                  tanque={t}
+                  sabores={sabores}
+                  momento="FIN"
+                  onConfirmar={() => confirmarEstadoTanque(t.numeroTanque, "FIN")}
+                  onGuardarEdicion={(datos) => cambiarCondicionTanque({ ...datos, momento: "FIN" })}
+                />
+              ))}
+              {turnoActivo.tanques.every((t) => t.confirmadoFinEn) && (
+                <p className="text-sm text-muted-foreground">Los 3 tanques ya tienen su estado final confirmado.</p>
+              )}
+            </div>
           </SeccionColapsable>
 
           {turnoActivo.tanques.some((t) => t.condicion === "EN_PREPARACION") && (

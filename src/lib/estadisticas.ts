@@ -68,10 +68,13 @@ interface FilaCruda {
 export async function obtenerEstadisticas(filtros: {
   fechaDesde?: string
   fechaHasta?: string
+  /** null = todas las áreas EXCEPTO Pruebas (ver estadisticas_produccion en Supabase) — solo lo usa el Super Administrador. */
+  areaCodigo?: AreaCodigo | null
 }): Promise<FilaEstadistica[]> {
   const { data, error } = await supabase.rpc("estadisticas_produccion", {
     p_fecha_desde: filtros.fechaDesde || null,
     p_fecha_hasta: filtros.fechaHasta || null,
+    p_area_codigo: filtros.areaCodigo ?? null,
   })
   if (error || !data) return []
   return (data as FilaCruda[]).map((f) => ({

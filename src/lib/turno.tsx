@@ -60,6 +60,9 @@ export interface TanqueRecepcion {
   ultimoSaborId: string | null
   ultimoSaborNombre: string | null
   ultimoLote: string | null
+  /** null = falta revisar (Confirmar o Editar) al abrir/cerrar turno — ver confirmarEstadoTanque(). */
+  confirmadoInicioEn: string | null
+  confirmadoFinEn: string | null
 }
 
 /**
@@ -164,6 +167,8 @@ export interface DatosCambiarTanque {
   saborId: string | null
   volumenL: number | null
   lote: string | null
+  /** Si viene, además de guardar los datos marca el tanque como revisado para ese momento del turno. */
+  momento?: "INICIO" | "FIN"
 }
 
 interface DatosNuevoContador {
@@ -212,6 +217,7 @@ interface TurnoContextValue {
   entregarCorrida: (turnoLineaId: string) => Promise<Resultado>
   finalizarLote: (loteId: string) => Promise<Resultado>
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
+  confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
 }
 
 const LIMITE_MERMA = 0.03
@@ -257,6 +263,8 @@ interface FilaTanque {
   ultimo_sabor_id: string | null
   ultimo_sabor_nombre: string | null
   ultimo_lote: string | null
+  confirmado_inicio_en: string | null
+  confirmado_fin_en: string | null
 }
 
 interface FilaContador {
@@ -377,6 +385,8 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       ultimoSaborId: t.ultimo_sabor_id,
       ultimoSaborNombre: t.ultimo_sabor_nombre,
       ultimoLote: t.ultimo_lote,
+      confirmadoInicioEn: t.confirmado_inicio_en,
+      confirmadoFinEn: t.confirmado_fin_en,
     })),
     contadores: fila.contadores.map((c) => ({
       id: c.id,
@@ -625,10 +635,31 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_sabor_id: datos.saborId,
       p_volumen_l: datos.volumenL,
       p_lote: datos.lote,
+      p_momento: datos.momento ?? null,
     })
 
     if (error || !data) {
       return { ok: false, error: "No se pudo cambiar el tanque. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function confirmarEstadoTanque(numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN"): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("confirmar_estado_tanque", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_numero_tanque: numeroTanque,
+      p_momento: momento,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo confirmar el estado del tanque. Intenta de nuevo." }
     }
 
     setTurnoActivo(mapearTurno(data as FilaTurno))
@@ -798,6 +829,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         entregarCorrida,
         finalizarLote,
         cambiarCondicionTanque,
+        confirmarEstadoTanque,
       }}
     >
       {children}

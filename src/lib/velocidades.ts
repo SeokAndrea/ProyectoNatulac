@@ -22,8 +22,13 @@ export async function crearVelocidad(datos: {
   return { ok: true }
 }
 
-export async function editarVelocidad(id: string, maquina: string, litrosHora: number): Promise<boolean> {
-  const { error } = await supabase.rpc("editar_velocidad", { p_velocidad_id: id, p_maquina: maquina, p_litros_hora: litrosHora })
+export async function editarVelocidad(id: string, maquina: string, envasesHora: number, litrosHora: number): Promise<boolean> {
+  const { error } = await supabase.rpc("editar_velocidad", {
+    p_velocidad_id: id,
+    p_maquina: maquina,
+    p_envases_hora: envasesHora,
+    p_litros_hora: litrosHora,
+  })
   return !error
 }
 

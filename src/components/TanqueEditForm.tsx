@@ -8,6 +8,12 @@ import type { CondicionTanque, DatosCambiarTanque, TanqueRecepcion } from "@/lib
 
 type Resultado = { ok: true } | { ok: false; error: string }
 
+/** Los lotes son 4 dígitos (0001, 0002...) — si escriben solo el número (ej. "3"), se completa con ceros a la izquierda. */
+function normalizarLote(valor: string): string {
+  const recortado = valor.trim()
+  return /^\d+$/.test(recortado) ? recortado.padStart(4, "0") : recortado
+}
+
 /**
  * Formulario para cambiar la condición de un tanque — compartido
  * entre Preparación (donde se abre/cierra con un botón "Cambiar
@@ -49,7 +55,7 @@ export function TanqueEditForm({
       condicion,
       saborId: condicion === "LISTO" ? saborId : null,
       volumenL: condicion === "LISTO" ? Number(volumenL) : null,
-      lote: condicion === "LISTO" ? lote.trim() : null,
+      lote: condicion === "LISTO" ? normalizarLote(lote) : null,
     })
     setGuardando(false)
     if (!resultado.ok) {

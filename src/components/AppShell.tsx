@@ -8,10 +8,13 @@ import { AppHeader } from "@/components/AppHeader"
 export function AppShell({
   title,
   description,
+  fullWidth,
   children,
 }: {
   title: string
   description?: string
+  /** Usa todo el ancho disponible (sin max-w-6xl ni el padding lateral habitual) — para pantallas tipo dashboard que necesitan el espacio completo. */
+  fullWidth?: boolean
   children: ReactNode
 }) {
   return (
@@ -33,7 +36,13 @@ export function AppShell({
         }
       />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8 print:max-w-none print:p-0">
+      <main
+        className={
+          fullWidth
+            ? "w-full flex-1 px-3 py-4 sm:px-4 sm:py-5 print:p-0"
+            : "mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8 print:max-w-none print:p-0"
+        }
+      >
         {children}
       </main>
     </div>

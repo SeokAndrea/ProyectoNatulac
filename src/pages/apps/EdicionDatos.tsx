@@ -670,18 +670,20 @@ function LineaVelocidadesCard({
 function FilaVelocidad({ velocidad, onCambio }: { velocidad: VelocidadLive; onCambio: () => void }) {
   const [editando, setEditando] = useState(false)
   const [maquina, setMaquina] = useState(velocidad.maquina)
+  const [envasesHora, setEnvasesHora] = useState(String(velocidad.envasesHora))
   const [litrosHora, setLitrosHora] = useState(String(velocidad.litrosHora))
   const [enviando, setEnviando] = useState(false)
 
   function cancelar() {
     setEditando(false)
     setMaquina(velocidad.maquina)
+    setEnvasesHora(String(velocidad.envasesHora))
     setLitrosHora(String(velocidad.litrosHora))
   }
 
   async function guardar() {
     setEnviando(true)
-    const ok = await editarVelocidad(velocidad.id, maquina.trim(), Number(litrosHora))
+    const ok = await editarVelocidad(velocidad.id, maquina.trim(), Number(envasesHora), Number(litrosHora))
     setEnviando(false)
     if (!ok) return
     setEditando(false)
@@ -703,7 +705,9 @@ function FilaVelocidad({ velocidad, onCambio }: { velocidad: VelocidadLive; onCa
         <td className="py-1.5 pr-3">
           <Input value={maquina} onChange={(e) => setMaquina(e.target.value)} className="h-7 w-24" />
         </td>
-        <td className="py-1.5 pr-3 text-muted-foreground">{velocidad.envasesHora}</td>
+        <td className="py-1.5 pr-3">
+          <Input type="number" value={envasesHora} onChange={(e) => setEnvasesHora(e.target.value)} className="h-7 w-24" />
+        </td>
         <td className="py-1.5 pr-3">
           <Input type="number" value={litrosHora} onChange={(e) => setLitrosHora(e.target.value)} className="h-7 w-24" />
         </td>

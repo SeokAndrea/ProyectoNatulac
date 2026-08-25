@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
 import { TanqueEditForm } from "@/components/TanqueEditForm"
 import { nombrePorCodigo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, presentacionesPorLineaLive, velocidadesParaLive } from "@/lib/catalogosLive"
@@ -62,8 +63,16 @@ export type ModoEstadoPlanta = "status" | "preparacion"
  */
 export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo; sabores: Sabor[]; modo: ModoEstadoPlanta }) {
   const { lineas, presentaciones, velocidades } = useCatalogosLive()
-  const { activarLinea, pausarLinea, continuarLinea, terminarSaborLinea, cambiarCondicionTanque, iniciarPreparacion, liberarLote } =
-    useTurno()
+  const {
+    activarLinea,
+    pausarLinea,
+    continuarLinea,
+    terminarSaborLinea,
+    cambiarCondicionTanque,
+    confirmarEstadoTanque,
+    iniciarPreparacion,
+    liberarLote,
+  } = useTurno()
 
   const tanquesListos = turno.tanques.filter((t) => t.condicion === "LISTO")
 
@@ -89,6 +98,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
             modo={modo}
             preparaciones={turno.preparaciones.filter((p) => p.numeroTanque === t.numeroTanque)}
             onCambiarCondicion={cambiarCondicionTanque}
+            onConfirmarEstadoTanque={confirmarEstadoTanque}
             onIniciarPreparacion={iniciarPreparacion}
             onLiberarLote={liberarLote}
           />
@@ -140,6 +150,7 @@ function TanqueCard({
   modo,
   preparaciones,
   onCambiarCondicion,
+  onConfirmarEstadoTanque,
   onIniciarPreparacion,
   onLiberarLote,
 }: {
@@ -148,6 +159,7 @@ function TanqueCard({
   modo: ModoEstadoPlanta
   preparaciones: PreparacionRegistro[]
   onCambiarCondicion: Parameters<typeof TanqueEditForm>[0]["onGuardar"]
+  onConfirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
   onIniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onLiberarLote: (loteId: string) => Promise<Resultado>
 }) {
@@ -219,6 +231,16 @@ function TanqueCard({
             {tanque.condicion === "VACIO" && <p className="mt-2 text-xs text-muted-foreground">Disponible para preparación.</p>}
           </div>
         </div>
+
+        {modo === "preparacion" && (
+          <ConfirmarEstadoTanque
+            tanque={tanque}
+            sabores={sabores}
+            momento="INICIO"
+            onConfirmar={() => onConfirmarEstadoTanque(tanque.numeroTanque, "INICIO")}
+            onGuardarEdicion={(datos) => onCambiarCondicion({ ...datos, momento: "INICIO" })}
+          />
+        )}
 
         {modo === "preparacion" && tanque.condicion === "EN_PREPARACION" && loteAbierto && (
           <Button
