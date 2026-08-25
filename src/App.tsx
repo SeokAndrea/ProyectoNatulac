@@ -2,12 +2,12 @@ import { Navigate, Route, Routes } from "react-router-dom"
 import Login from "@/pages/Login"
 import Hub from "@/pages/Hub"
 import ComenzarTurno from "@/pages/apps/ComenzarTurno"
-import Recepcion from "@/pages/apps/Recepcion"
+import Status from "@/pages/apps/Status"
 import Preparacion from "@/pages/apps/Preparacion"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
-import ContadoresMerma from "@/pages/apps/ContadoresMerma"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
+import HistorialDia from "@/pages/apps/HistorialDia"
 import Calculadora from "@/pages/apps/Calculadora"
 import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
@@ -45,10 +45,10 @@ export default function App() {
         }
       />
       <Route
-        path="/recepcion"
+        path="/status"
         element={
           <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <Recepcion />
+            <Status />
           </ProtectedRoute>
         }
       />
@@ -69,14 +69,6 @@ export default function App() {
         }
       />
       <Route
-        path="/contadores"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <ContadoresMerma />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/finalizar-turno"
         element={
           <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
@@ -89,6 +81,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <PanelProduccion />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/historial-dia"
+        element={
+          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
+            <HistorialDia />
           </ProtectedRoute>
         }
       />

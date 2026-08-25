@@ -1,18 +1,17 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { CheckCircle2, Circle, ClipboardCheck, FileText, Loader2, Square } from "lucide-react"
+import { AlertTriangle, ClipboardCheck, FileText, Loader2, Square } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { ResumenTurno } from "@/components/ResumenTurno"
 import { ListaContadores } from "@/components/ListaContadores"
 import { ActaTurno } from "@/components/ActaTurno"
+import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
 import { useTurno } from "@/lib/turno"
-import { construirHistorial } from "@/lib/historial"
 
 /*
  * Finalizar Turno: el resumen formal del turno en curso (datos fijos
@@ -21,6 +20,12 @@ import { construirHistorial } from "@/lib/historial"
  * como el acta del turno. El cierre hace un UPDATE real en la tabla
  * "turnos" de Supabase (estado = 'CERRADO', ver finalizar_turno() en
  * supabase/migrations/20260825090000_conectar_turnos.sql).
+ *
+ * No hay una tarjeta de Checklist propia — si falta algo al apretar
+ * "Finalizar Turno", se avisa ahí mismo (con un segundo clic para
+ * confirmar igual), en vez de ocupar una tarjeta todo el tiempo. Las
+ * demás secciones son colapsables (SeccionColapsable): cerradas por
+ * defecto, un clic las abre si hace falta revisarlas.
  *
  * "Generar Acta (PDF)" usa la impresión del navegador (ver
  * src/components/ActaTurno.tsx) — no genera el PDF ella misma, abre
@@ -32,6 +37,7 @@ export default function FinalizarTurno() {
   const { lineas, presentaciones } = useCatalogosLive()
   const navigate = useNavigate()
   const [finalizando, setFinalizando] = useState(false)
+  const [confirmando, setConfirmando] = useState(false)
 
   if (cargando) {
     return (
@@ -60,81 +66,46 @@ export default function FinalizarTurno() {
     )
   }
 
+  /*
+   * Lo que "debería" tener el acta de fin de turno — hoy cubre
+   * Preparaciones, Contadores y Producto Terminado (lo que ya
+   * existe). Ya no incluye "Recepción": tanques y líneas son estado
+   * continuo y todo turno nace con los 3 tanques ya creados, así que
+   * esa condición era siempre verdadera.
+   */
+  const itemsFaltantes = [
+    ...turnoActivo.tanques
+      .filter((t) => t.condicion === "EN_PREPARACION")
+      .filter((t) => !turnoActivo.preparaciones.some((p) => p.numeroTanque === t.numeroTanque))
+      .map((t) => `Preparación — Tanque ${t.numeroTanque}`),
+    ...turnoActivo.lineas
+      .filter((l) => !turnoActivo.contadores.some((c) => c.turnoLineaId === l.id))
+      .map((l) => `Contadores — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`),
+    ...turnoActivo.lineas
+      .filter((l) => !turnoActivo.productoTerminado.some((p) => p.turnoLineaId === l.id))
+      .map((l) => `Producto Terminado — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`),
+  ]
+
   async function handleFinalizar() {
+    if (itemsFaltantes.length > 0 && !confirmando) {
+      setConfirmando(true)
+      return
+    }
     setFinalizando(true)
     await finalizarTurno()
     navigate("/hub", { replace: true })
   }
 
-  const historial = construirHistorial(turnoActivo, lineas, presentaciones)
-
-  /*
-   * Checklist de lo que "debe llevar" el acta de fin de turno — hoy
-   * cubre Preparaciones, Contadores y Producto Terminado (lo que ya
-   * existe). Ya no incluye "Recepción": tanques y líneas son estado
-   * continuo (ver Preparación) y todo turno nace con los 3 tanques ya
-   * creados, así que esa condición era siempre verdadera. Cuando se
-   * agreguen más secciones, sumar acá su propia condición de
-   * "completo".
-   */
-  const itemsChecklist = [
-    ...turnoActivo.tanques
-      .filter((t) => t.condicion === "EN_PREPARACION")
-      .map((t) => ({
-        etiqueta: `Preparación — Tanque ${t.numeroTanque}`,
-        completo: turnoActivo.preparaciones.some((p) => p.numeroTanque === t.numeroTanque),
-      })),
-    ...turnoActivo.lineas.map((l) => ({
-      etiqueta: `Contadores y Merma — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`,
-      completo: turnoActivo.contadores.some((c) => c.turnoLineaId === l.id),
-    })),
-    ...turnoActivo.lineas.map((l) => ({
-      etiqueta: `Producto Terminado — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`,
-      completo: turnoActivo.productoTerminado.some((p) => p.turnoLineaId === l.id),
-    })),
-  ]
-  const faltan = itemsChecklist.filter((i) => !i.completo).length
-
   return (
     <AppShell title="Finalizar Turno" description={`Turno ${turnoActivo.codigo}`}>
-      <div className="mx-auto flex max-w-lg flex-col gap-6 print:hidden">
-        <Card>
-          <CardHeader>
-            <CardTitle>Checklist</CardTitle>
-            <CardDescription>
-              {faltan === 0 ? "Todo listo para finalizar." : `Falta cargar ${faltan} cosa${faltan === 1 ? "" : "s"}.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {itemsChecklist.map((item, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm">
-                {item.completo ? (
-                  <CheckCircle2 className="size-4 shrink-0 text-secondary-foreground" />
-                ) : (
-                  <Circle className="size-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className={item.completo ? "text-foreground" : "text-muted-foreground"}>{item.etiqueta}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Datos del turno</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <div className="mx-auto flex max-w-5xl flex-col gap-4 print:hidden">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <SeccionColapsable titulo="Datos del turno">
             <ResumenTurno turno={turnoActivo} />
-          </CardContent>
-        </Card>
+          </SeccionColapsable>
 
-        {turnoActivo.tanques.some((t) => t.condicion === "EN_PREPARACION") && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Preparaciones</CardTitle>
-              <CardDescription>Tambores y ajustes cargados por tanque.</CardDescription>
-            </CardHeader>
-            <CardContent>
+          {turnoActivo.tanques.some((t) => t.condicion === "EN_PREPARACION") && (
+            <SeccionColapsable titulo="Preparaciones" descripcion="Tambores y ajustes cargados por tanque.">
               {turnoActivo.preparaciones.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Todavía no se cargó ninguna preparación en este turno.</p>
               ) : (
@@ -155,30 +126,24 @@ export default function FinalizarTurno() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
+            </SeccionColapsable>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Contadores por línea</CardTitle>
-            <CardDescription>Envases de la llenadora registrados en Contadores y Merma durante este turno.</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <SeccionColapsable
+            titulo="Contadores por línea"
+            descripcion="Envases de la llenadora registrados durante este turno."
+          >
             {turnoActivo.contadores.length === 0 ? (
               <p className="text-sm text-muted-foreground">Todavía no se cargó ningún contador en este turno.</p>
             ) : (
               <ListaContadores contadores={turnoActivo.contadores} productoTerminado={turnoActivo.productoTerminado} mostrarTotales />
             )}
-          </CardContent>
-        </Card>
+          </SeccionColapsable>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Producto Terminado por línea</CardTitle>
-            <CardDescription>Paletas y cajas sueltas (resto) registradas en Producto Terminado.</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <SeccionColapsable
+            titulo="Producto Terminado por línea"
+            descripcion="Paletas y cajas sueltas (resto) registradas en Producto Terminado."
+          >
             {turnoActivo.productoTerminado.length === 0 ? (
               <p className="text-sm text-muted-foreground">Todavía no se cargó Producto Terminado en este turno.</p>
             ) : (
@@ -206,45 +171,39 @@ export default function FinalizarTurno() {
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </SeccionColapsable>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Historial del turno</CardTitle>
-            <CardDescription>Todo lo registrado durante el turno, en orden.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {historial.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Todavía no hay nada registrado.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {historial.map((e, i) => (
-                  <div key={i} className="flex gap-3 rounded-lg border border-border px-3 py-2 text-sm">
-                    <span className="w-12 shrink-0 font-medium text-foreground">{e.hora}</span>
-                    <span className="w-36 shrink-0 text-muted-foreground">{e.seccion}</span>
-                    <span className="text-foreground">{e.detalle}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {confirmando && itemsFaltantes.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+            <p className="flex items-center gap-1.5 font-medium">
+              <AlertTriangle className="size-4 shrink-0" />
+              Falta cargar {itemsFaltantes.length} cosa{itemsFaltantes.length === 1 ? "" : "s"}:
+            </p>
+            <ul className="list-inside list-disc pl-1">
+              {itemsFaltantes.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-        <Button variant="outline" onClick={() => window.print()}>
-          <FileText className="size-4" />
-          Generar Acta (PDF)
-        </Button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button variant="outline" className="sm:flex-1" onClick={() => window.print()}>
+            <FileText className="size-4" />
+            Generar Acta (PDF)
+          </Button>
 
-        <Button
-          variant="outline"
-          className="border-destructive/40 text-destructive hover:bg-destructive/10"
-          onClick={handleFinalizar}
-          disabled={finalizando}
-        >
-          {finalizando ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
-          Finalizar Turno
-        </Button>
+          <Button
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10 sm:flex-1"
+            onClick={handleFinalizar}
+            disabled={finalizando}
+          >
+            {finalizando ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
+            {confirmando && itemsFaltantes.length > 0 ? "Finalizar de todos modos" : "Finalizar Turno"}
+          </Button>
+        </div>
       </div>
 
       <div className="hidden print:block">

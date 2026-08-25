@@ -26,7 +26,13 @@ export interface LineaEnTurno {
   loteId: string | null
   activa: boolean
   activadaEn: string
+  /** Parada reversible (se puede Continuar) — la corrida sigue activa=true mientras está pausada. */
+  pausadaEn: string | null
   finalizadaEn: string | null
+  /** Terminó Sabor ya se apretó (activa=false) pero todavía no se registró su contador — no está realmente cerrada. */
+  esperandoCierre: boolean
+  /** El supervisor ya cerró SU parte con "¿Va a continuar en el siguiente turno?" — la corrida sigue activa=true igual. */
+  entregadaEn: string | null
 }
 
 export type CondicionTanque = "LISTO" | "SUCIO" | "VACIO" | "EN_PREPARACION"
@@ -129,6 +135,8 @@ export interface TurnoActivo {
   horaFin: string | null
   turnoTipo: TurnoTipoCodigo
   grupo: GrupoCodigo
+  supervisorUsuario: string
+  supervisorNombre: string
   /** Todas las corridas tocadas en este turno (activas y finalizadas durante él) — filtrar por .activa para "en uso ahora". */
   lineas: LineaEnTurno[]
   tanques: TanqueRecepcion[]
@@ -178,7 +186,6 @@ export interface DatosIniciarPreparacion {
   numeroTanque: 1 | 2 | 3
   saborId: string | null
   lote: string
-  volumenL: number
   tambores: number
   agua: number | null
   azucar: number | null
@@ -199,7 +206,10 @@ interface TurnoContextValue {
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   liberarLote: (loteId: string) => Promise<Resultado>
   activarLinea: (datos: DatosActivarLinea) => Promise<Resultado>
-  finalizarLinea: (linea: LineaCodigo) => Promise<Resultado>
+  pausarLinea: (turnoLineaId: string) => Promise<Resultado>
+  continuarLinea: (turnoLineaId: string) => Promise<Resultado>
+  terminarSaborLinea: (turnoLineaId: string) => Promise<Resultado>
+  entregarCorrida: (turnoLineaId: string) => Promise<Resultado>
   finalizarLote: (loteId: string) => Promise<Resultado>
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
 }
@@ -231,6 +241,8 @@ interface FilaLinea {
   lote_id: string | null
   activa: boolean
   activada_en: string
+  pausada_en: string | null
+  entregada_en: string | null
   finalizada_en: string | null
 }
 
@@ -295,6 +307,8 @@ export interface FilaTurno {
   hora_fin: string | null
   turno_tipo_codigo: string
   grupo_codigo: string
+  supervisor_usuario: string
+  supervisor_nombre: string
   lineas: FilaLinea[]
   tanques: FilaTanque[]
   contadores: FilaContador[]
@@ -334,6 +348,8 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
     horaFin: fila.hora_fin,
     turnoTipo: fila.turno_tipo_codigo as TurnoTipoCodigo,
     grupo: fila.grupo_codigo as GrupoCodigo,
+    supervisorUsuario: fila.supervisor_usuario,
+    supervisorNombre: fila.supervisor_nombre,
     lineas: fila.lineas.map((l) => ({
       id: l.id,
       linea: l.linea_codigo as LineaCodigo,
@@ -345,7 +361,10 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       loteId: l.lote_id,
       activa: l.activa,
       activadaEn: l.activada_en,
+      pausadaEn: l.pausada_en,
       finalizadaEn: l.finalizada_en,
+      esperandoCierre: !l.activa && l.finalizada_en === null,
+      entregadaEn: l.entregada_en,
     })),
     tanques: fila.tanques.map((t) => ({
       numeroTanque: t.numero_tanque as 1 | 2 | 3,
@@ -499,19 +518,76 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
-  async function finalizarLinea(linea: LineaCodigo): Promise<Resultado> {
+  async function pausarLinea(turnoLineaId: string): Promise<Resultado> {
     if (!turnoActivo || !usuario) {
       return { ok: false, error: "No hay un turno en curso." }
     }
 
-    const { data, error } = await supabase.rpc("finalizar_linea", {
+    const { data, error } = await supabase.rpc("pausar_linea", {
       p_usuario: usuario,
       p_turno_id: turnoActivo.id,
-      p_linea_codigo: linea,
+      p_turno_linea_id: turnoLineaId,
     })
 
     if (error || !data) {
-      return { ok: false, error: "No se pudo finalizar la línea. Intenta de nuevo." }
+      return { ok: false, error: "No se pudo pausar la línea. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function continuarLinea(turnoLineaId: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("continuar_linea", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_turno_linea_id: turnoLineaId,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo continuar la línea. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function terminarSaborLinea(turnoLineaId: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("terminar_sabor_linea", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_turno_linea_id: turnoLineaId,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo terminar el sabor. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function entregarCorrida(turnoLineaId: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("entregar_corrida", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_turno_linea_id: turnoLineaId,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo entregar la corrida. Intenta de nuevo." }
     }
 
     setTurnoActivo(mapearTurno(data as FilaTurno))
@@ -585,28 +661,10 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     })
 
     if (error || !data) {
-      return { ok: false, error: "No se pudo registrar el contador. Intenta de nuevo." }
+      return { ok: false, error: error?.message ?? "No se pudo registrar el contador. Intenta de nuevo." }
     }
 
-    const nuevo = data as FilaContador
-    setTurnoActivo((actual) =>
-      actual
-        ? {
-            ...actual,
-            contadores: [
-              {
-                id: nuevo.id,
-                linea: nuevo.linea_codigo as LineaCodigo,
-                turnoLineaId: nuevo.turno_linea_id,
-                envasesLlenadora: nuevo.envases_llenadora,
-                justificacion: nuevo.justificacion ?? "",
-                creadoEn: nuevo.creado_en,
-              },
-              ...actual.contadores,
-            ],
-          }
-        : actual,
-    )
+    setTurnoActivo(mapearTurno(data as FilaTurno))
     return { ok: true }
   }
 
@@ -688,7 +746,6 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_numero_tanque: datos.numeroTanque,
       p_sabor_id: datos.saborId,
       p_lote: datos.lote,
-      p_volumen_l: datos.volumenL,
       p_tambores: datos.tambores,
       p_agua: datos.agua,
       p_azucar: datos.azucar,
@@ -735,7 +792,10 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         iniciarPreparacion,
         liberarLote,
         activarLinea,
-        finalizarLinea,
+        pausarLinea,
+        continuarLinea,
+        terminarSaborLinea,
+        entregarCorrida,
         finalizarLote,
         cambiarCondicionTanque,
       }}

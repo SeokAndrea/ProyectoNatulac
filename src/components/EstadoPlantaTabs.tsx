@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Beaker, CheckCircle2, Container, Factory, Layers, Loader2, PenLine, Square } from "lucide-react"
+import { Beaker, CheckCircle2, Container, Factory, Layers, Loader2, PauseCircle, PenLine, PlayCircle, Square } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,7 @@ import {
   useTurno,
   type CondicionTanque,
   type DatosActivarLinea,
+  type DatosIniciarPreparacion,
   type LineaEnTurno,
   type PreparacionRegistro,
   type TanqueRecepcion,
@@ -31,27 +32,37 @@ function colorSabor(nombre: string | null): string {
   return COLORES_SABOR[hash % COLORES_SABOR.length]
 }
 
+export type ModoEstadoPlanta = "status" | "preparacion"
+
 /*
- * Tanques y Líneas: el mismo estado CONTINUO de la planta, con las
- * mismas acciones, se muestra tanto en Recepción (justo después de
- * Comenzar Turno) como en Preparación (en cualquier momento del
- * turno) — por eso vive acá, compartido entre las dos páginas, en vez
- * de duplicarse.
+ * Tanques y Líneas: el estado CONTINUO de la planta, compartido entre
+ * Status (src/pages/apps/Status.tsx) y Preparación
+ * (src/pages/apps/Preparacion.tsx) — mismo dato, pero con acciones
+ * DISTINTAS según el prop "modo":
+ *   - "status": solo ver + corregir a mano si algo no coincide con la
+ *     realidad ("Cambiar estado manualmente" en tanques). Sin botones
+ *     para arrancar algo nuevo — ni Iniciar Preparación/Liberar en
+ *     tanques, ni Activar/Detener en líneas.
+ *   - "preparacion": todas las acciones para arrancar algo nuevo —
+ *     iniciar/liberar un tanque, activar/detener una corrida.
  *
- * Ciclo de vida de un tanque: VACÍO/SUCIO → "Iniciar Preparación"
- * (pide sabor/lote/volumen/tambores/ajustes de una sola vez) →
- * EN_PREPARACION ("no liberado", el tanque no se puede tomar
- * todavía) → "Liberar" (sin pedir nada nuevo) → LISTO ("liberado",
- * recién ahí una corrida lo puede tomar). "Cambiar estado" queda
- * como salida manual para casos puntuales (forzar SUCIO, corregir
- * algo a mano), sin pasar por el flujo guiado.
+ * Ciclo de vida de un tanque (modo "preparacion"): Vacío/Sucio (o
+ * incluso ya Listo, para arrancar un lote nuevo que reemplaza al
+ * actual) → "Iniciar Preparación" (sabor + tambores; el volumen sale
+ * solo de tambores × sabor.volumen) → En Preparación (no liberado) →
+ * "Liberar" → Listo (recién ahí una corrida lo puede tomar).
  *
- * Una corrida de línea (Activar corrida) elige un TANQUE — solo entre
- * los que están LISTOS — y el sabor/lote salen solos de ahí.
+ * Ciclo de vida de una corrida (modo "preparacion"): Activar (tanque
+ * LISTO + presentación + velocidad; sabor/lote salen del tanque
+ * elegido) → Detener → Parada (reversible, Continuar retoma la misma
+ * corrida) o Terminó Sabor (libera la línea para una corrida nueva;
+ * la corrida queda "esperando cierre" hasta que se registre su
+ * contador, ver ProductoTerminado.tsx).
  */
-export function EstadoPlantaTabs({ turno, sabores }: { turno: TurnoActivo; sabores: Sabor[] }) {
+export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo; sabores: Sabor[]; modo: ModoEstadoPlanta }) {
   const { lineas, presentaciones, velocidades } = useCatalogosLive()
-  const { activarLinea, finalizarLinea, cambiarCondicionTanque, iniciarPreparacion, liberarLote } = useTurno()
+  const { activarLinea, pausarLinea, continuarLinea, terminarSaborLinea, cambiarCondicionTanque, iniciarPreparacion, liberarLote } =
+    useTurno()
 
   const tanquesListos = turno.tanques.filter((t) => t.condicion === "LISTO")
 
@@ -68,12 +79,13 @@ export function EstadoPlantaTabs({ turno, sabores }: { turno: TurnoActivo; sabor
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="tanques" className="flex flex-col gap-3">
+      <TabsContent value="tanques" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {turno.tanques.map((t) => (
           <TanqueCard
             key={t.numeroTanque}
             tanque={t}
             sabores={sabores}
+            modo={modo}
             preparaciones={turno.preparaciones.filter((p) => p.numeroTanque === t.numeroTanque)}
             onCambiarCondicion={cambiarCondicionTanque}
             onIniciarPreparacion={iniciarPreparacion}
@@ -82,7 +94,7 @@ export function EstadoPlantaTabs({ turno, sabores }: { turno: TurnoActivo; sabor
         ))}
       </TabsContent>
 
-      <TabsContent value="lineas" className="flex flex-col gap-3">
+      <TabsContent value="lineas" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {lineas
           .filter((l) => l.activo)
           .map((l) => (
@@ -90,12 +102,15 @@ export function EstadoPlantaTabs({ turno, sabores }: { turno: TurnoActivo; sabor
               key={l.codigo}
               lineaCodigo={l.codigo}
               nombreLinea={l.nombre}
+              modo={modo}
               lineaTurno={turno.lineas.find((tl) => tl.linea === l.codigo && tl.activa) ?? null}
               tanquesListos={tanquesListos}
               presentaciones={presentaciones}
               velocidades={velocidades}
               onActivar={activarLinea}
-              onFinalizar={finalizarLinea}
+              onPausar={pausarLinea}
+              onContinuar={continuarLinea}
+              onTerminarSabor={terminarSaborLinea}
             />
           ))}
       </TabsContent>
@@ -121,6 +136,7 @@ type Resultado = { ok: true } | { ok: false; error: string }
 function TanqueCard({
   tanque,
   sabores,
+  modo,
   preparaciones,
   onCambiarCondicion,
   onIniciarPreparacion,
@@ -128,18 +144,10 @@ function TanqueCard({
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
+  modo: ModoEstadoPlanta
   preparaciones: PreparacionRegistro[]
   onCambiarCondicion: Parameters<typeof TanqueEditForm>[0]["onGuardar"]
-  onIniciarPreparacion: (datos: {
-    numeroTanque: 1 | 2 | 3
-    saborId: string | null
-    lote: string
-    volumenL: number
-    tambores: number
-    agua: number | null
-    azucar: number | null
-    acidoCitrico: number | null
-  }) => Promise<Resultado>
+  onIniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onLiberarLote: (loteId: string) => Promise<Resultado>
 }) {
   const [editando, setEditando] = useState(false)
@@ -211,7 +219,7 @@ function TanqueCard({
           </div>
         </div>
 
-        {tanque.condicion === "EN_PREPARACION" && loteAbierto && (
+        {modo === "preparacion" && tanque.condicion === "EN_PREPARACION" && loteAbierto && (
           <Button
             size="sm"
             className="self-start"
@@ -227,7 +235,8 @@ function TanqueCard({
           </Button>
         )}
 
-        {(tanque.condicion === "VACIO" || tanque.condicion === "SUCIO") &&
+        {modo === "preparacion" &&
+          tanque.condicion !== "EN_PREPARACION" &&
           (mostrarFormPrep ? (
             <FormularioIniciarPreparacion
               numeroTanque={tanque.numeroTanque}
@@ -238,27 +247,28 @@ function TanqueCard({
           ) : (
             <Button size="sm" variant="outline" className="self-start" onClick={() => setMostrarFormPrep(true)}>
               <Beaker className="size-3.5" />
-              Iniciar Preparación
+              {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
             </Button>
           ))}
 
-        {!editando ? (
-          <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setEditando(true)}>
-            <PenLine className="size-3.5" />
-            Cambiar estado manualmente
-          </Button>
-        ) : (
-          <TanqueEditForm
-            tanque={tanque}
-            sabores={sabores}
-            onGuardar={async (datos) => {
-              const resultado = await onCambiarCondicion(datos)
-              if (resultado.ok) setEditando(false)
-              return resultado
-            }}
-            onCancelar={() => setEditando(false)}
-          />
-        )}
+        {modo === "status" &&
+          (!editando ? (
+            <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setEditando(true)}>
+              <PenLine className="size-3.5" />
+              Cambiar estado manualmente
+            </Button>
+          ) : (
+            <TanqueEditForm
+              tanque={tanque}
+              sabores={sabores}
+              onGuardar={async (datos) => {
+                const resultado = await onCambiarCondicion(datos)
+                if (resultado.ok) setEditando(false)
+                return resultado
+              }}
+              onCancelar={() => setEditando(false)}
+            />
+          ))}
       </CardContent>
     </Card>
   )
@@ -272,21 +282,11 @@ function FormularioIniciarPreparacion({
 }: {
   numeroTanque: 1 | 2 | 3
   sabores: Sabor[]
-  onIniciar: (datos: {
-    numeroTanque: 1 | 2 | 3
-    saborId: string | null
-    lote: string
-    volumenL: number
-    tambores: number
-    agua: number | null
-    azucar: number | null
-    acidoCitrico: number | null
-  }) => Promise<Resultado>
+  onIniciar: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onCancelar: () => void
 }) {
   const [saborId, setSaborId] = useState("")
   const [lote, setLote] = useState("")
-  const [volumenL, setVolumenL] = useState("")
   const [tambores, setTambores] = useState("")
   const [agua, setAgua] = useState("")
   const [azucar, setAzucar] = useState("")
@@ -294,14 +294,11 @@ function FormularioIniciarPreparacion({
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
-  const valido =
-    saborId !== "" &&
-    lote.trim() !== "" &&
-    volumenL !== "" &&
-    Number(volumenL) > 0 &&
-    Number(volumenL) <= 20000 &&
-    tambores !== "" &&
-    Number(tambores) >= 0
+  const saborElegido = sabores.find((s) => s.id === saborId)
+  const litrosEstimados =
+    saborElegido?.volumen && tambores !== "" && Number(tambores) > 0 ? Math.round(Number(tambores) * saborElegido.volumen) : null
+
+  const valido = saborId !== "" && lote.trim() !== "" && tambores !== "" && Number(tambores) >= 0
 
   async function handleSubmit() {
     if (!valido) return
@@ -311,7 +308,6 @@ function FormularioIniciarPreparacion({
       numeroTanque,
       saborId: saborId || null,
       lote: lote.trim(),
-      volumenL: Number(volumenL),
       tambores: Number(tambores),
       agua: agua.trim() === "" ? null : Number(agua),
       azucar: azucar.trim() === "" ? null : Number(azucar),
@@ -340,14 +336,6 @@ function FormularioIniciarPreparacion({
           </SelectContent>
         </Select>
         <Input placeholder="Lote" value={lote} onChange={(e) => setLote(e.target.value)} />
-        <Input
-          type="number"
-          min={0}
-          max={20000}
-          placeholder="Volumen (L)"
-          value={volumenL}
-          onChange={(e) => setVolumenL(e.target.value)}
-        />
         <Input type="number" min={0} placeholder="Tambores" value={tambores} onChange={(e) => setTambores(e.target.value)} />
         <Input type="number" min={0} placeholder="Agua (L)" value={agua} onChange={(e) => setAgua(e.target.value)} />
         <Input type="number" min={0} placeholder="Azúcar (kg)" value={azucar} onChange={(e) => setAzucar(e.target.value)} />
@@ -359,6 +347,13 @@ function FormularioIniciarPreparacion({
           onChange={(e) => setAcidoCitrico(e.target.value)}
         />
       </div>
+
+      {litrosEstimados !== null && (
+        <p className="text-xs text-muted-foreground">
+          ≈ <span className="font-medium text-foreground">{litrosEstimados.toLocaleString("es-CO")} L</span> con este sabor (
+          {saborElegido?.volumen?.toLocaleString("es-CO")} L por tambor)
+        </p>
+      )}
 
       {error && (
         <p className="text-xs text-destructive" role="alert">
@@ -382,30 +377,38 @@ function FormularioIniciarPreparacion({
 function LineaCard({
   lineaCodigo,
   nombreLinea,
+  modo,
   lineaTurno,
   tanquesListos,
   presentaciones,
   velocidades,
   onActivar,
-  onFinalizar,
+  onPausar,
+  onContinuar,
+  onTerminarSabor,
 }: {
   lineaCodigo: LineaCodigo
   nombreLinea: string
+  modo: ModoEstadoPlanta
   lineaTurno: LineaEnTurno | null
   tanquesListos: TanqueRecepcion[]
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   velocidades: ReturnType<typeof useCatalogosLive>["velocidades"]
   onActivar: (datos: DatosActivarLinea) => Promise<Resultado>
-  onFinalizar: (linea: LineaCodigo) => Promise<Resultado>
+  onPausar: (turnoLineaId: string) => Promise<Resultado>
+  onContinuar: (turnoLineaId: string) => Promise<Resultado>
+  onTerminarSabor: (turnoLineaId: string) => Promise<Resultado>
 }) {
   const activa = lineaTurno !== null
+  const pausada = lineaTurno?.pausadaEn != null
   const [editando, setEditando] = useState(false)
+  const [detener, setDetener] = useState(false)
   const [presentacion, setPresentacion] = useState<PresentacionCodigo | "">(lineaTurno?.presentacion ?? "")
   const [envasesHora, setEnvasesHora] = useState<number | "">(lineaTurno?.envasesHora ?? "")
   const [numeroTanque, setNumeroTanque] = useState<1 | 2 | 3 | "">("")
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
-  const [finalizando, setFinalizando] = useState(false)
+  const [enviandoAccion, setEnviandoAccion] = useState(false)
 
   const presentacionesDisponibles = presentacionesPorLineaLive(velocidades, lineaCodigo)
   const opcionesVelocidad = presentacion ? velocidadesParaLive(velocidades, lineaCodigo, presentacion) : []
@@ -439,10 +442,12 @@ function LineaCard({
     setEditando(false)
   }
 
-  async function finalizar() {
-    setFinalizando(true)
-    await onFinalizar(lineaCodigo)
-    setFinalizando(false)
+  async function accion(fn: (turnoLineaId: string) => Promise<Resultado>) {
+    if (!lineaTurno) return
+    setEnviandoAccion(true)
+    await fn(lineaTurno.id)
+    setEnviandoAccion(false)
+    setDetener(false)
   }
 
   return (
@@ -453,7 +458,9 @@ function LineaCard({
             <Factory className="size-4 text-muted-foreground" />
             {nombreLinea}
           </p>
-          <Badge variant={activa ? "success" : "muted"}>{activa ? "Activa" : "Detenida"}</Badge>
+          <Badge variant={!activa ? "muted" : pausada ? "warning" : "success"}>
+            {!activa ? "Detenida" : pausada ? "Parada" : "Activa"}
+          </Badge>
         </div>
 
         {activa && lineaTurno && (
@@ -476,24 +483,59 @@ function LineaCard({
           </div>
         )}
 
-        {!editando ? (
+        {modo === "preparacion" &&
+          (!editando && pausada && lineaTurno ? (
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion}>
+              {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+              Continuar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => accion(onTerminarSabor)}
+              disabled={enviandoAccion}
+            >
+              <Square className="size-3.5" />
+              Terminó Sabor
+            </Button>
+          </div>
+        ) : !editando && !detener ? (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={empezarEdicion}>
               <PenLine className="size-3.5" />
               {activa ? "Cambiar" : "Activar corrida"}
             </Button>
             {activa && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                onClick={finalizar}
-                disabled={finalizando}
-              >
-                {finalizando ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" />}
-                Finalizar
+              <Button variant="outline" size="sm" onClick={() => setDetener(true)}>
+                <PauseCircle className="size-3.5" />
+                Detener
               </Button>
             )}
+          </div>
+        ) : !editando && detener ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+            <p className="text-xs text-muted-foreground">¿Fue una parada momentánea o se terminó el sabor?</p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => accion(onPausar)} disabled={enviandoAccion}>
+                {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PauseCircle className="size-3.5" />}
+                Parada
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                onClick={() => accion(onTerminarSabor)}
+                disabled={enviandoAccion}
+              >
+                <Square className="size-3.5" />
+                Terminó Sabor
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setDetener(false)} disabled={enviandoAccion}>
+                Cancelar
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
@@ -582,7 +624,7 @@ function LineaCard({
               </Button>
             </div>
           </div>
-        )}
+          ))}
       </CardContent>
     </Card>
   )

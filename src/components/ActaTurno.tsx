@@ -10,7 +10,7 @@ import { mermaCorrida, type TurnoActivo } from "@/lib/turno"
  * dependencia nueva. En el diálogo de impresión, "Guardar como PDF"
  * hace exactamente eso.
  *
- * Solo el resumen (Recepción, Preparaciones, Contadores, Producto
+ * Solo el resumen (Tanques, Preparaciones, Contadores, Producto
  * Terminado) — el
  * Historial hora-sección-qué NO va acá, queda solo en pantalla (ver
  * la tarjeta "Historial del turno" en FinalizarTurno.tsx).
@@ -113,7 +113,7 @@ export function ActaTurno({
         </section>
       )}
 
-      <Seccion titulo="Recepción">
+      <Seccion titulo="Tanques">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-black/20 text-left text-black/60">

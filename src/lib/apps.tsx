@@ -1,12 +1,13 @@
 import type { LucideIcon } from "lucide-react"
-import { PlayCircle, PackageCheck, Gauge, ClipboardCheck, ClipboardList, Calculator, Users, DatabaseZap, History, Beaker, RadioTower } from "lucide-react"
+import { PlayCircle, PackageCheck, ClipboardCheck, ClipboardList, Calculator, Users, DatabaseZap, History, Beaker, RadioTower, CalendarClock, CalendarRange } from "lucide-react"
 import type { RolCodigo } from "@/lib/catalogos"
 
 export interface AppDef {
   slug: string
   title: string
   description: string
-  href: string
+  /** Sin href = todavía no tiene página propia (tarjeta deshabilitada, "Próximamente"). */
+  href?: string
   icon: LucideIcon
   /**
    * Si es true, la tarjeta aparece bloqueada en el hub (gris, con
@@ -21,6 +22,12 @@ export interface AppDef {
    * coincidir con el rolesPermitidos de la misma ruta en src/App.tsx.
    */
   rolesPermitidos?: RolCodigo[]
+  /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
+  atajo?: boolean
+  /** Se bloquea (gris) cuando SÍ hay un turno en curso — lo opuesto de requiereTurno (ver Comenzar Turno). */
+  bloqueaConTurno?: boolean
+  /** Se resalta en rojo cuando hay un turno en curso, para que sea obvio el siguiente paso (ver Finalizar Turno). */
+  resaltarConTurno?: boolean
 }
 
 /*
@@ -45,40 +52,32 @@ export const apps: AppDef[] = [
     icon: PlayCircle,
     requiereTurno: false,
     rolesPermitidos: ["SUPERVISOR"],
+    bloqueaConTurno: true,
   },
   {
-    slug: "recepcion",
-    title: "Recepción",
-    description: "Con qué condición encontraste los tanques y qué líneas están funcionando.",
-    href: "/recepcion",
+    slug: "status",
+    title: "Status",
+    description: "Verifica el estado real de tanques y líneas contra el sistema, y corrige si no coincide.",
+    href: "/status",
     icon: ClipboardList,
-    requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR"],
-  },
-  {
-    slug: "producto-terminado",
-    title: "Producto Terminado",
-    description: "Carga los lotes de producto terminado.",
-    href: "/producto-terminado",
-    icon: PackageCheck,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
   },
   {
     slug: "preparacion",
     title: "Preparación",
-    description: "Líneas y tanques de la planta: activar, cambiar o detener en cualquier momento.",
+    description: "Preparar y liberar tanques, activar o detener líneas — en cualquier momento del turno.",
     href: "/preparacion",
     icon: Beaker,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
   },
   {
-    slug: "contadores-merma",
-    title: "Contadores y Merma",
-    description: "Envases de la llenadora por corrida, con la merma contra Producto Terminado.",
-    href: "/contadores",
-    icon: Gauge,
+    slug: "producto-terminado",
+    title: "Producto Terminado y Contador",
+    description: "Carga los lotes de producto terminado y el contador de envases por línea.",
+    href: "/producto-terminado",
+    icon: PackageCheck,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
   },
@@ -90,6 +89,7 @@ export const apps: AppDef[] = [
     icon: ClipboardCheck,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
+    resaltarConTurno: true,
   },
   {
     slug: "panel-produccion",
@@ -98,6 +98,25 @@ export const apps: AppDef[] = [
     href: "/panel-produccion",
     icon: RadioTower,
     requiereTurno: false,
+    atajo: true,
+  },
+  {
+    slug: "historial-dia",
+    title: "Historial del Día",
+    description: "Qué hizo cada supervisor del área, por hora.",
+    href: "/historial-dia",
+    icon: CalendarClock,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERVISOR"],
+    atajo: true,
+  },
+  {
+    slug: "programacion",
+    title: "Programación",
+    description: "Qué se va a producir en el día — todavía sin construir.",
+    icon: CalendarRange,
+    requiereTurno: false,
+    atajo: true,
   },
   {
     slug: "calculadora",

@@ -21,8 +21,8 @@ const fechaHoy = new Date().toLocaleDateString("es-CO", {
  * fijan automáticamente al crear el turno, ver iniciarTurno en
  * src/lib/turno.tsx). Líneas y tanques NO se piden acá — son estado
  * continuo que se hereda solo del turno anterior de la misma área;
- * al confirmar, se manda derecho a Recepción
- * (src/pages/apps/Recepcion.tsx) para revisarlos.
+ * al confirmar, se manda derecho a Status
+ * (src/pages/apps/Status.tsx) para revisarlos.
  */
 export default function ComenzarTurno() {
   const { turnoActivo, cargando, iniciarTurno } = useTurno()
@@ -42,7 +42,7 @@ export default function ComenzarTurno() {
     return <TurnoYaEnCurso turno={turnoActivo} />
   }
 
-  return <FormularioNuevoTurno onIniciar={iniciarTurno} onCreado={() => navigate("/recepcion")} />
+  return <FormularioNuevoTurno onIniciar={iniciarTurno} onCreado={() => navigate("/status")} />
 }
 
 /*
@@ -111,7 +111,7 @@ function FormularioNuevoTurno({
         <CardHeader>
           <CardTitle>Datos del turno</CardTitle>
           <CardDescription>
-            Estos valores se mantienen fijos hasta que finalices el turno. Después vas a Recepción para
+            Estos valores se mantienen fijos hasta que finalices el turno. Después vas a Status para
             revisar tanques y líneas.
           </CardDescription>
         </CardHeader>

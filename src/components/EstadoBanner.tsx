@@ -3,13 +3,18 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth"
 import { useTurno } from "@/lib/turno"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { AREAS, GRUPOS, ROLES, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 
 /*
- * Franja fija debajo del header con Área, Rol y el estado del turno
- * en curso. Se muestra en todas las páginas internas (Hub y
- * AppShell) para que esa información nunca se pierda de vista,
+ * Franja fija debajo del header con Área, Supervisor activo y el
+ * estado del turno en curso. Se muestra en todas las páginas internas
+ * (Hub y AppShell) para que esa información nunca se pierda de vista,
  * incluso si el supervisor navega entre apps.
+ *
+ * "Supervisor" acá es el del turno EN CURSO (turnoActivo.supervisorNombre),
+ * no el rol del usuario logueado — importa sobre todo en el Panel de
+ * Producción, que puede mostrar el turno de cualquier supervisor, no
+ * solo el propio.
  */
 export function EstadoBanner() {
   const { session } = useAuth()
@@ -28,8 +33,8 @@ export function EstadoBanner() {
           </span>
         </span>
         <span>
-          <span className="text-muted-foreground">Rol: </span>
-          <span className="font-medium text-foreground">{nombrePorCodigo(ROLES, session.rol)}</span>
+          <span className="text-muted-foreground">Supervisor: </span>
+          <span className="font-medium text-foreground">{turnoActivo ? turnoActivo.supervisorNombre : session.nombre}</span>
         </span>
 
         {cargando ? null : turnoActivo ? (

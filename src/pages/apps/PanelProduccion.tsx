@@ -13,27 +13,33 @@ import {
   Gauge,
   Layers,
   Loader2,
-  PackageCheck,
   RadioTower,
   ScanLine,
   Search,
-  Target,
   UserRound,
   Users,
+  Workflow,
 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
+import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useAuth } from "@/lib/auth"
 import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
-import { useCatalogosLive, velocidadesParaLive } from "@/lib/catalogosLive"
+import { useCatalogosLive, velocidadesParaLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
 import { horasTurno, mermaPct, obtenerEstadisticas, promedio, type FilaEstadistica } from "@/lib/estadisticas"
-import { construirHistorial } from "@/lib/historial"
-import { calcularMeta, horasTranscurridasTurno, mermaResumenTurno, obtenerEstadoPlantaActual, obtenerTurnoDeFechaTipo } from "@/lib/panelProduccion"
+import {
+  calcularMeta,
+  obtenerEstadoPlantaActual,
+  obtenerResumenTurnoAnterior,
+  obtenerTurnoDeFechaTipo,
+  type ResumenTurnoAnterior,
+} from "@/lib/panelProduccion"
 import { LIMITE_MERMA, type TurnoActivo } from "@/lib/turno"
 import { cn } from "@/lib/utils"
 
@@ -74,6 +80,62 @@ function turnoTipoActual(): string {
   return "TURNO_3"
 }
 
+type EstadoLinea = "activa" | "parada" | "esperando_cierre" | "libre"
+
+interface LineaConEstado {
+  codigo: string
+  nombre: string
+  estado: EstadoLinea
+  corrida: TurnoActivo["lineas"][number] | null
+}
+
+const ESTADO_LINEA_INFO: Record<EstadoLinea, { label: string; badge: "success" | "warning" | "danger" | "muted"; dot: string }> = {
+  activa: { label: "Activa", badge: "success", dot: "bg-success" },
+  parada: { label: "Parada", badge: "warning", dot: "bg-warning" },
+  esperando_cierre: { label: "Esperando cierre", badge: "danger", dot: "bg-danger" },
+  libre: { label: "Libre", badge: "muted", dot: "bg-muted-foreground" },
+}
+
+/** Una fila por línea del área (catálogo completo), cruzada con la corrida actual/últimamente tocada de turno.lineas. */
+function estadoDeLineas(turno: TurnoActivo, lineasCatalogo: LineaLive[]): LineaConEstado[] {
+  return lineasCatalogo.map((lc) => {
+    const corridas = turno.lineas.filter((l) => l.linea === lc.codigo)
+    const activa = corridas.find((l) => l.activa)
+    if (activa) {
+      return { codigo: lc.codigo, nombre: lc.nombre, estado: activa.pausadaEn ? "parada" : "activa", corrida: activa }
+    }
+    const esperandoCierre = corridas.find((l) => l.esperandoCierre)
+    if (esperandoCierre) {
+      return { codigo: lc.codigo, nombre: lc.nombre, estado: "esperando_cierre", corrida: esperandoCierre }
+    }
+    return { codigo: lc.codigo, nombre: lc.nombre, estado: "libre", corrida: null }
+  })
+}
+
+interface CajasPorPresentacion {
+  presentacion: string
+  nombre: string
+  cajas: number
+}
+
+/** Cuántas cajas se cargaron en Producto Terminado, agrupadas por presentación (1L, 250ml, etc.) — para el desglose bajo Litros producidos. */
+function cajasPorPresentacionDe(turno: TurnoActivo, presentaciones: PresentacionLive[]): CajasPorPresentacion[] {
+  const porPresentacion = new Map<string, CajasPorPresentacion>()
+
+  for (const p of turno.productoTerminado) {
+    const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
+    const cajas = p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
+    const existente = porPresentacion.get(p.presentacion)
+    if (existente) {
+      existente.cajas += cajas
+    } else {
+      porPresentacion.set(p.presentacion, { presentacion: p.presentacion, nombre: pres?.nombre ?? `${p.presentacion} ml`, cajas })
+    }
+  }
+
+  return [...porPresentacion.values()].filter((c) => c.cajas > 0)
+}
+
 /*
  * Panel de Producción: vista EN VIVO del turno en curso (tanques,
  * meta calculada, merma, por línea) — con selector de fecha/turno
@@ -92,6 +154,7 @@ function turnoTipoActual(): string {
  * (ahora siempre muestra todas las áreas/supervisores).
  */
 export default function PanelProduccion() {
+  const { session } = useAuth()
   const { lineas, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -99,6 +162,22 @@ export default function PanelProduccion() {
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [turnoTipo, setTurnoTipo] = useState(() => turnoTipoActual())
   const [buscado, setBuscado] = useState(false)
+  const [turnoAnterior, setTurnoAnterior] = useState<ResumenTurnoAnterior | null>(null)
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  const [ahora, setAhora] = useState(() => new Date())
+
+  useEffect(() => {
+    const id = setInterval(() => setAhora(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  async function cargarTurnoAnterior(turnoActualId: string | null) {
+    if (!session?.area) {
+      setTurnoAnterior(null)
+      return
+    }
+    setTurnoAnterior(await obtenerResumenTurnoAnterior(session.area, turnoActualId))
+  }
 
   /*
    * "En vivo" ya no exige un turno con estado ABIERTO en ese instante:
@@ -111,7 +190,7 @@ export default function PanelProduccion() {
    */
   async function cargarEnVivo() {
     setCargando(true)
-    const t = await obtenerEstadoPlantaActual()
+    const t = await obtenerEstadoPlantaActual(session?.area ?? null)
     if (t) {
       setTurno(t)
       setFecha(t.fecha)
@@ -121,6 +200,7 @@ export default function PanelProduccion() {
       setTurno(null)
       setEnVivo(true)
     }
+    await cargarTurnoAnterior(t?.id ?? null)
     setBuscado(true)
     setCargando(false)
   }
@@ -130,6 +210,7 @@ export default function PanelProduccion() {
     setEnVivo(false)
     const t = await obtenerTurnoDeFechaTipo(f, tt)
     setTurno(t)
+    await cargarTurnoAnterior(t?.id ?? null)
     setBuscado(true)
     setCargando(false)
   }
@@ -137,18 +218,20 @@ export default function PanelProduccion() {
   useEffect(() => {
     cargarEnVivo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [session?.area])
 
-  const historial = turno ? construirHistorial(turno, lineas, presentaciones) : []
   const meta = turno ? calcularMeta(turno, presentaciones) : null
-  const merma = turno ? mermaResumenTurno(turno, presentaciones) : null
   const horario = HORARIOS[turnoTipo]
+  const litrosProducidos = turno ? turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0) : 0
+  const lineasEstado = turno ? estadoDeLineas(turno, lineas) : []
+  const cajasPorPresentacion = turno ? cajasPorPresentacionDe(turno, presentaciones) : []
+  const horaTexto = `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}:${String(ahora.getSeconds()).padStart(2, "0")}`
 
   return (
-    <AppShell title="Panel de Producción" description="Tanques, meta y merma del turno en curso">
+    <AppShell title="Panel de Producción" description="Estado de la planta en vivo">
       <div className="flex flex-col gap-4">
-        <Card className="border-border bg-surface shadow-sm">
-          <CardContent className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {turno?.estado === "ABIERTO" ? (
               <Badge variant="success" className="gap-1.5 py-1">
                 <Activity className="size-3.5" />
@@ -166,33 +249,47 @@ export default function PanelProduccion() {
                 {buscado ? "Sin turnos registrados" : "Cargando"}
               </Badge>
             )}
+            {turno && (
+              <span className="text-xs text-muted-foreground">
+                Turno {turno.codigo} · {turno.supervisorNombre} · {nombrePorCodigo(GRUPOS, turno.grupo)}
+                {turno.estado === "CERRADO" && turno.horaFin ? ` · Cerrado ${turno.horaFin.slice(0, 5)}` : ""}
+              </span>
+            )}
+          </div>
 
-            <div className="flex flex-col gap-2">
-              <span className="text-xs text-muted-foreground">Turno</span>
-              <Select
-                value={turnoTipo}
-                onValueChange={(v) => {
-                  setTurnoTipo(v)
-                  buscarFechaTipo(fecha, v)
-                }}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TURNO_TIPOS.map((t) => (
-                    <SelectItem key={t.codigo} value={t.codigo}>
-                      {t.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <Button variant="outline" size="sm" onClick={() => setMostrarFiltros((v) => !v)}>
+            <CalendarDays className="size-3.5" />
+            {enVivo ? "En vivo" : `${fecha} · ${nombrePorCodigo(TURNO_TIPOS, turnoTipo)}`}
+          </Button>
+        </div>
 
-            <div className="flex flex-col gap-2">
-              <span className="text-xs text-muted-foreground">Fecha</span>
-              <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        {mostrarFiltros && (
+          <Card className="border-border bg-surface shadow-sm">
+            <CardContent className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-2">
+                <span className="text-xs text-muted-foreground">Turno</span>
+                <Select
+                  value={turnoTipo}
+                  onValueChange={(v) => {
+                    setTurnoTipo(v)
+                    buscarFechaTipo(fecha, v)
+                  }}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TURNO_TIPOS.map((t) => (
+                      <SelectItem key={t.codigo} value={t.codigo}>
+                        {t.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-xs text-muted-foreground">Fecha</span>
                 <Input
                   type="date"
                   value={fecha}
@@ -200,24 +297,17 @@ export default function PanelProduccion() {
                     setFecha(e.target.value)
                     buscarFechaTipo(e.target.value, turnoTipo)
                   }}
-                  className="w-[160px] pl-8"
+                  className="w-[160px]"
                 />
               </div>
-            </div>
 
-            <Button variant="outline" size="sm" onClick={cargarEnVivo} disabled={cargando}>
-              {cargando ? <Loader2 className="size-3.5 animate-spin" /> : <RadioTower className="size-3.5" />}
-              Ver en vivo
-            </Button>
-
-            {turno && (
-              <span className="ml-auto text-xs text-muted-foreground">
-                Turno {turno.codigo} · {nombrePorCodigo(GRUPOS, turno.grupo)}
-                {turno.estado === "CERRADO" && turno.horaFin ? ` · Cerrado ${turno.horaFin.slice(0, 5)}` : ""}
-              </span>
-            )}
-          </CardContent>
-        </Card>
+              <Button variant="outline" size="sm" onClick={cargarEnVivo} disabled={cargando}>
+                {cargando ? <Loader2 className="size-3.5 animate-spin" /> : <RadioTower className="size-3.5" />}
+                Ver en vivo
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {cargando || cargandoCatalogos ? (
           <div className="flex justify-center py-16 text-muted-foreground">
@@ -230,76 +320,143 @@ export default function PanelProduccion() {
             description={
               enVivo
                 ? "En cuanto un supervisor inicie el primer turno, tanques y líneas van a aparecer acá."
-                : "Probá con otra fecha o tipo de turno."
+                : "Prueba con otra fecha o tipo de turno."
             }
           />
         ) : (
           <>
-            <MetaCard turno={turno} meta={meta!} horario={horario} lineas={lineas} />
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Container className="size-4 text-muted-foreground" />
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Recepción · {TANK_CAPACITY.toLocaleString("es-CO")} L c/u
-                </h2>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {turno.tanques.map((t) => (
-                  <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={turno.preparaciones} />
-                ))}
-              </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <HeroStat icon={Clock} label="Hora" value={horaTexto} />
+              <HeroStat
+                icon={Droplets}
+                label="Litros producidos"
+                value={litrosProducidos.toLocaleString("es-CO")}
+                sub={
+                  cajasPorPresentacion.length > 0
+                    ? cajasPorPresentacion.map((c) => `${c.cajas.toLocaleString("es-CO")} caj. de ${c.nombre}`).join(" · ")
+                    : undefined
+                }
+              />
+              <HeroStat
+                icon={Boxes}
+                label="Cajas vs. meta"
+                value={`${meta!.totalReales.toLocaleString("es-CO")} / ${meta!.totalEsperadas.toLocaleString("es-CO")}`}
+                sub={meta!.pctCumplimiento !== null ? `${meta!.pctCumplimiento}% de la meta · ${horario ? `${horario.inicio}–${horario.fin}` : ""}` : "Ninguna línea en uso"}
+              />
+              {turnoAnterior ? (
+                <TurnoAnteriorCard resumen={turnoAnterior} />
+              ) : (
+                <HeroStat icon={ScanLine} label="Merma turno anterior" value="—" sub="Sin turno cerrado previo" />
+              )}
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Control de Mermas · Tolerancia máxima {MERMA_MAX}%
-              </h2>
-            </div>
-            <MermaSection turno={turno} merma={merma!} velocidades={velocidades} lineas={lineas} />
-
-            <div className="flex items-center gap-2 pt-1">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Paradas de Línea</h2>
-            </div>
-            <Card className="relative border-border shadow-sm">
-              <CardHeader className="pb-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <Card className="border-border shadow-sm">
+                <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Construction className="size-4 text-primary" />
-                    Top Fallas y Paradas de Línea
+                    <Container className="size-4 text-primary" />
+                    Tanques
                   </CardTitle>
-                  <Badge variant="warning">Próximamente</Badge>
-                </div>
-                <CardDescription>
-                  El catálogo de paradas todavía no existe — esto va a explicar la diferencia entre la meta esperada y lo
-                  producido.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            {historial.length > 0 && (
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Historial del turno</CardTitle>
-                  <CardDescription>Todo lo registrado, en orden.</CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-2">
-                  {historial.map((e, i) => (
-                    <div key={i} className="flex gap-3 rounded-lg border border-border px-3 py-2 text-sm">
-                      <span className="num w-12 shrink-0 font-medium text-foreground">{e.hora}</span>
-                      <span className="w-36 shrink-0 text-muted-foreground">{e.seccion}</span>
-                      <span className="text-foreground">{e.detalle}</span>
-                    </div>
+                <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {turno.tanques.map((t) => (
+                    <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={turno.preparaciones} />
                   ))}
                 </CardContent>
               </Card>
-            )}
+
+              <Card className="border-border shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Workflow className="size-4 text-primary" />
+                    Líneas
+                  </CardTitle>
+                  <CardDescription>Estado actual de cada línea.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {lineasEstado.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Esta área todavía no tiene líneas cargadas.</p>
+                  ) : (
+                    lineasEstado.map((le) => <LineaEstadoRow key={le.codigo} linea={le} />)
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <SeccionColapsable titulo="Meta por línea" descripcion="Cajas reales vs. esperadas (velocidad elegida × horas transcurridas), por línea.">
+              {meta!.porLinea.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Ninguna línea en uso este turno.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {meta!.porLinea.map((m) => (
+                    <span
+                      key={m.linea}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs"
+                    >
+                      <span className="text-muted-foreground">{nombrePorCodigo(lineas, m.linea)}</span>
+                      <span className="num font-semibold text-foreground">
+                        {m.cajasReales.toLocaleString("es-CO")}/{m.cajasEsperadas.toLocaleString("es-CO")}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </SeccionColapsable>
+
+            <SeccionColapsable titulo="Eficiencia por línea" descripcion="Velocidad elegida vs. máxima disponible.">
+              <TablaEficienciaLineas turno={turno} velocidades={velocidades} lineas={lineas} />
+            </SeccionColapsable>
+
+            <SeccionColapsable titulo="Top Fallas y Paradas de Línea" descripcion="El catálogo de paradas todavía no existe — esto va a explicar la diferencia entre la meta esperada y lo producido.">
+              <div className="flex items-center gap-2">
+                <Construction className="size-4 text-muted-foreground" />
+                <Badge variant="warning">Próximamente</Badge>
+              </div>
+            </SeccionColapsable>
           </>
         )}
 
-        <ResumenPlanta />
+        <SeccionColapsable titulo="Resumen de Planta" descripcion="KPIs, por grupo y por supervisor en un rango de fechas.">
+          <ResumenPlanta />
+        </SeccionColapsable>
       </div>
     </AppShell>
+  )
+}
+
+function HeroStat({ icon: Icon, label, value, sub }: { icon: typeof Clock; label: string; value: string; sub?: string }) {
+  return (
+    <Card className="border-border shadow-sm">
+      <CardContent className="flex flex-col gap-1 py-5">
+        <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <Icon className="size-3.5" />
+          {label}
+        </div>
+        <p className="num text-4xl font-bold leading-none tracking-tight sm:text-5xl">{value}</p>
+        {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function LineaEstadoRow({ linea }: { linea: LineaConEstado }) {
+  const info = ESTADO_LINEA_INFO[linea.estado]
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-sm">
+      <div className="flex items-center gap-2.5">
+        <span className={cn("size-2 shrink-0 rounded-full", info.dot, linea.estado === "activa" && "alert-pulse")} />
+        <div>
+          <p className="font-medium text-foreground">{linea.nombre}</p>
+          {linea.corrida?.saborNombre && (
+            <p className="text-xs text-muted-foreground">
+              {linea.corrida.saborNombre}
+              {linea.corrida.lote ? ` · Lote ${linea.corrida.lote}` : ""}
+            </p>
+          )}
+        </div>
+      </div>
+      <Badge variant={info.badge}>{info.label}</Badge>
+    </div>
   )
 }
 
@@ -317,28 +474,19 @@ function TanqueCard({
   if (tanque.condicion === "EN_PREPARACION") {
     return (
       <Card className="overflow-hidden border-border shadow-sm">
-        <CardContent className="flex gap-4 p-4">
-          <div className="relative h-40 w-14 shrink-0 overflow-hidden rounded-md border border-dashed border-warning/50 bg-warning-soft">
-            <Layers className="alert-pulse absolute inset-x-0 top-1/2 mx-auto size-5 -translate-y-1/2 text-warning" />
+        <CardContent className="flex gap-2.5 p-3">
+          <div className="relative h-20 w-8 shrink-0 overflow-hidden rounded-md border border-dashed border-warning/50 bg-warning-soft">
+            <Layers className="alert-pulse absolute inset-x-0 top-1/2 mx-auto size-4 -translate-y-1/2 text-warning" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-sm font-semibold">
-                <Container className="size-4 text-muted-foreground" />
-                Tanque {tanque.numeroTanque}
+            <p className="text-xs font-semibold">Tanque {tanque.numeroTanque}</p>
+            <Badge variant="warning" className="mt-1">
+              En Preparación
+            </Badge>
+            {ultimaPrep && (
+              <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                {ultimaPrep.tambores}t · {ultimaPrep.saborNombre ?? "Sin sabor"}
               </p>
-              <Badge variant="warning">En Preparación</Badge>
-            </div>
-            {ultimaPrep ? (
-              <>
-                <p className="num mt-2 text-2xl font-semibold">{ultimaPrep.tambores} tambores</p>
-                <p className="text-xs text-muted-foreground">
-                  {ultimaPrep.saborNombre ?? "Sin sabor"}
-                  {ultimaPrep.lote ? ` · Lote ${ultimaPrep.lote}` : ""}
-                </p>
-              </>
-            ) : (
-              <p className="mt-2 text-xs text-muted-foreground">Todavía sin registrar en Preparación.</p>
             )}
           </div>
         </CardContent>
@@ -349,19 +497,14 @@ function TanqueCard({
   if (tanque.condicion !== "LISTO") {
     return (
       <Card className="overflow-hidden border-border shadow-sm">
-        <CardContent className="flex gap-4 p-4">
-          <div className="flex h-40 w-14 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
-            <span className="text-[10px] text-muted-foreground">
-              {tanque.condicion === "SUCIO" ? "Sucio" : "Vacío"}
-            </span>
+        <CardContent className="flex gap-2.5 p-3">
+          <div className="flex h-20 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
+            <span className="text-[9px] text-muted-foreground">{tanque.condicion === "SUCIO" ? "Sucio" : "Vacío"}</span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 text-sm font-semibold">
-              <Container className="size-4 text-muted-foreground" />
-              Tanque {tanque.numeroTanque}
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {tanque.condicion === "SUCIO" ? "Sucio — pendiente de limpieza." : "Vacío."}
+            <p className="text-xs font-semibold">Tanque {tanque.numeroTanque}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {tanque.condicion === "SUCIO" ? "Pendiente de limpieza." : "Vacío."}
             </p>
           </div>
         </CardContent>
@@ -375,213 +518,106 @@ function TanqueCard({
 
   return (
     <Card className="overflow-hidden border-border shadow-sm">
-      <CardContent className="flex gap-4 p-4">
-        <div className="relative h-40 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+      <CardContent className="flex gap-2.5 p-3">
+        <div className="relative h-20 w-8 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
           <div
             className="absolute inset-x-0 bottom-0 transition-[height] duration-700"
             style={{ height: `${pct}%`, backgroundColor: color, opacity: 0.9 }}
-          >
-            <div className="liquid-wave absolute -top-1.5 h-3 w-[150%] rounded-[50%]" style={{ backgroundColor: color }} />
-            <div
-              className="liquid-wave-2 absolute -top-1 h-2.5 w-[170%] rounded-[50%]"
-              style={{ backgroundColor: color, opacity: 0.55 }}
-            />
-          </div>
-          {[25, 50, 75].map((m) => (
-            <div key={m} className="absolute inset-x-0 border-t border-dashed border-border/70" style={{ bottom: `${m}%` }} />
-          ))}
-          <span className="num absolute inset-x-0 bottom-1 text-center text-[10px] font-semibold text-foreground/80">
+          />
+          <span className="num absolute inset-x-0 bottom-0.5 text-center text-[9px] font-semibold text-foreground/80">
             {pct.toFixed(0)}%
           </span>
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="flex items-center gap-1.5 text-sm font-semibold">
-              <Container className="size-4 text-muted-foreground" />
-              Tanque {tanque.numeroTanque}
-            </p>
-            <span className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-background" style={{ backgroundColor: color }}>
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-xs font-semibold">Tanque {tanque.numeroTanque}</p>
+            <span
+              className="truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-background"
+              style={{ backgroundColor: color }}
+            >
               {tanque.saborNombre ?? "Sabor"}
             </span>
           </div>
-
-          <p className="num mt-2 text-2xl font-semibold">{volumen.toLocaleString("es-CO")} L</p>
-          <p className="text-xs text-muted-foreground">
-            Capacidad máxima {TANK_CAPACITY.toLocaleString("es-CO")} L{tanque.lote ? ` · Lote ${tanque.lote}` : ""}
-          </p>
+          <p className="num mt-1 text-lg font-semibold leading-none">{volumen.toLocaleString("es-CO")} L</p>
+          {tanque.lote && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">Lote {tanque.lote}</p>}
         </div>
       </CardContent>
     </Card>
   )
 }
 
-function MetaCard({
-  turno,
-  meta,
-  horario,
-  lineas,
-}: {
-  turno: TurnoActivo
-  meta: ReturnType<typeof calcularMeta>
-  horario: { inicio: string; fin: string } | undefined
-  lineas: ReturnType<typeof useCatalogosLive>["lineas"]
-}) {
-  const horas = horasTranscurridasTurno(turno)
-  const pct = meta.pctCumplimiento
+/** Cómo cerró el último turno de esta área — referencia rápida al lado de lo que va del turno en curso. */
+/** Solo la merma del turno anterior, en grande — litros/cajas de referencia van chicos abajo. */
+function TurnoAnteriorCard({ resumen }: { resumen: ResumenTurnoAnterior }) {
+  const nivel = resumen.mermaPct === null ? null : nivelMerma(resumen.mermaPct)
+  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : undefined
 
   return (
     <Card className="border-border shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Target className="size-4 text-primary" />
-            Meta del Turno
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs text-muted-foreground sm:inline">
-              Cajas esperadas (velocidad elegida × horas transcurridas) vs. envases buenos contados.
-            </span>
-            <Badge variant="muted">{nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)}</Badge>
-          </div>
+      <CardContent className="flex flex-col gap-1 py-5">
+        <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <ScanLine className="size-3.5" />
+          Merma turno anterior
         </div>
-      </CardHeader>
-      <CardContent>
-        {meta.totalEsperadas === 0 ? (
-          <p className="text-sm text-muted-foreground">Ninguna línea en uso este turno (parada) — no hay meta que calcular.</p>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-6 xl:flex-nowrap">
-              <div className="flex shrink-0 items-baseline gap-3">
-                <p className="num text-5xl font-semibold tracking-tight">{pct !== null ? `${pct}%` : "—"}</p>
-                <p className="text-sm text-muted-foreground">
-                  <span className="num font-semibold text-foreground">{meta.totalReales.toLocaleString("es-CO")}</span> de{" "}
-                  {meta.totalEsperadas.toLocaleString("es-CO")} cajas
-                </p>
-              </div>
-
-              <div className="h-3 min-w-[140px] flex-1 overflow-hidden rounded-full bg-muted">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-[width] duration-700",
-                    pct === null ? "bg-muted-foreground" : pct >= 90 ? "bg-success" : pct >= 70 ? "bg-warning" : "bg-danger",
-                  )}
-                  style={{ width: `${Math.min(pct ?? 0, 100)}%` }}
-                />
-              </div>
-
-              <div className="flex shrink-0 flex-wrap gap-5 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
-                <MetaStat icon={Boxes} label={`Esperadas · ${horas.toFixed(1)} h`} value={meta.totalEsperadas.toLocaleString("es-CO")} />
-                <MetaStat icon={PackageCheck} label="Reales" value={meta.totalReales.toLocaleString("es-CO")} />
-                <MetaStat
-                  icon={Droplets}
-                  label="Litros"
-                  value={turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0).toLocaleString("es-CO")}
-                />
-                <MetaStat icon={Clock} label="Horario" value={horario ? `${horario.inicio}–${horario.fin}` : "—"} />
-              </div>
-            </div>
-
-            {meta.porLinea.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-                {meta.porLinea.map((m) => (
-                  <span
-                    key={m.linea}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs"
-                  >
-                    <span className="text-muted-foreground">{nombrePorCodigo(lineas, m.linea)}</span>
-                    <span className="num font-semibold text-foreground">
-                      {m.cajasReales.toLocaleString("es-CO")}/{m.cajasEsperadas.toLocaleString("es-CO")}
-                    </span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </>
-        )}
+        <p className={cn("num text-4xl font-bold leading-none tracking-tight sm:text-5xl", color)}>
+          {resumen.mermaPct !== null ? `${resumen.mermaPct.toFixed(2)}%` : "—"}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Turno {resumen.turnoCodigo} · {resumen.litrosProducidos.toLocaleString("es-CO")} L ·{" "}
+          {resumen.cajasProducidas.toLocaleString("es-CO")} cajas
+        </p>
       </CardContent>
     </Card>
   )
 }
 
-function MetaStat({ icon: Icon, label, value }: { icon: typeof Target; label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-        <Icon className="size-3.5" />
-        {label}
-      </div>
-      <p className="num text-lg font-semibold leading-none">{value}</p>
-    </div>
-  )
-}
 
-function MermaSection({
+/** La vieja "Por Línea" de Control de Mermas — velocidad elegida vs. máxima disponible. Vive colapsada como detalle secundario. */
+function TablaEficienciaLineas({
   turno,
-  merma,
   velocidades,
   lineas,
 }: {
   turno: TurnoActivo
-  merma: ReturnType<typeof mermaResumenTurno>
   velocidades: ReturnType<typeof useCatalogosLive>["velocidades"]
   lineas: ReturnType<typeof useCatalogosLive>["lineas"]
 }) {
   const lineasActivas = turno.lineas.filter((l) => l.activa)
 
-  return (
-    <section className="grid gap-4 xl:grid-cols-2">
-      <MermaHeadlineCard
-        titulo="Merma del Turno"
-        descripcion="Envases de la llenadora vs. Producto Terminado"
-        icon={ScanLine}
-        pct={merma.pct}
-      />
+  if (lineasActivas.length === 0) {
+    return <p className="text-sm text-muted-foreground">Ninguna línea en uso.</p>
+  }
 
-      <Card className="border-border shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Gauge className="size-4 text-primary" />
-            Por Línea
-          </CardTitle>
-          <CardDescription>Velocidad elegida vs. máxima disponible.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {lineasActivas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Ninguna línea en uso.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Línea</TableHead>
-                  <TableHead className="text-right">Eficiencia</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lineasActivas.map((l) => {
-                  const opciones = velocidadesParaLive(velocidades, l.linea, l.presentacion)
-                  const maxima = Math.max(l.envasesHora, ...opciones.map((o) => o.envasesHora))
-                  const eficiencia = maxima > 0 ? Math.round((l.envasesHora / maxima) * 100) : 0
-                  return (
-                    <TableRow key={l.id}>
-                      <TableCell className="font-medium">{nombrePorCodigo(lineas, l.linea)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
-                            <div className="h-full rounded-full bg-primary" style={{ width: `${eficiencia}%` }} />
-                          </div>
-                          <span className="num text-xs font-semibold">{eficiencia}%</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </section>
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Línea</TableHead>
+          <TableHead className="text-right">Eficiencia</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {lineasActivas.map((l) => {
+          const opciones = velocidadesParaLive(velocidades, l.linea, l.presentacion)
+          const maxima = Math.max(l.envasesHora, ...opciones.map((o) => o.envasesHora))
+          const eficiencia = maxima > 0 ? Math.round((l.envasesHora / maxima) * 100) : 0
+          return (
+            <TableRow key={l.id}>
+              <TableCell className="font-medium">{nombrePorCodigo(lineas, l.linea)}</TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-2">
+                  <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${eficiencia}%` }} />
+                  </div>
+                  <span className="num text-xs font-semibold">{eficiencia}%</span>
+                </div>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -811,48 +847,3 @@ function TablaPorSupervisor({ filas }: { filas: FilaEstadistica[] }) {
   )
 }
 
-function MermaHeadlineCard({
-  titulo,
-  descripcion,
-  icon: Icon,
-  pct,
-}: {
-  titulo: string
-  descripcion: string
-  icon: typeof ScanLine
-  pct: number | null
-}) {
-  const nivel = pct === null ? null : nivelMerma(pct)
-  const StatusIcon = nivel === "danger" ? AlertTriangle : nivel === "warn" ? Gauge : CheckCircle2
-  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : "text-success"
-
-  return (
-    <Card className="border-border shadow-sm">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="size-4 text-primary" />
-          {titulo}
-        </CardTitle>
-        <CardDescription>{descripcion}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {pct === null ? (
-          <p className="text-sm text-muted-foreground">Sin registros todavía.</p>
-        ) : (
-          <div className="flex items-center gap-3">
-            <StatusIcon className={cn("size-7", color, nivel === "danger" && "alert-pulse")} />
-            <div>
-              <p className={cn("num text-3xl font-semibold", color)}>{pct.toFixed(2)}%</p>
-              <p className="text-xs text-muted-foreground">
-                {nivel === "danger" ? "Fuera de tolerancia" : nivel === "warn" ? "Vigilar línea" : "Normal"}
-              </p>
-            </div>
-            <Badge variant={badgeVariantPorNivel[nivel!]} className="ml-auto">
-              Límite {MERMA_MAX.toFixed(1)}%
-            </Badge>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}

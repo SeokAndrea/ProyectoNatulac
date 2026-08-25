@@ -10,13 +10,13 @@ import { CatalogosProvider } from '@/lib/catalogosLive'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <CatalogosProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <CatalogosProvider>
           <TurnoProvider>
             <App />
           </TurnoProvider>
-        </AuthProvider>
-      </CatalogosProvider>
+        </CatalogosProvider>
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 )

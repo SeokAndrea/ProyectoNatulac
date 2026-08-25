@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/lib/auth"
 import type { LineaCodigo, PresentacionCodigo } from "@/lib/catalogos"
 
 /*
@@ -84,14 +85,17 @@ interface FilaVelocidad {
 }
 
 export function CatalogosProvider({ children }: { children: ReactNode }) {
+  const { session } = useAuth()
   const [lineas, setLineas] = useState<LineaLive[]>([])
   const [presentaciones, setPresentaciones] = useState<PresentacionLive[]>([])
   const [velocidades, setVelocidades] = useState<VelocidadLive[]>([])
   const [cargando, setCargando] = useState(true)
 
   async function recargar() {
+    // area null (SUPERADMINISTRADOR o todavía sin sesión) = sin filtrar,
+    // mismo comportamiento que antes de que existiera el filtro.
     const [lineasRes, presentacionesRes, velocidadesRes] = await Promise.all([
-      supabase.rpc("listar_lineas"),
+      supabase.rpc("listar_lineas", { p_area_codigo: session?.area ?? null }),
       supabase.rpc("listar_presentaciones"),
       supabase.rpc("listar_velocidades"),
     ])
@@ -135,7 +139,7 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     recargar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [session?.area])
 
   return (
     <CatalogosContext.Provider value={{ lineas, presentaciones, velocidades, cargando, recargar }}>

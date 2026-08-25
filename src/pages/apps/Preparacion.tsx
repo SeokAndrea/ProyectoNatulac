@@ -10,12 +10,14 @@ import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useTurno } from "@/lib/turno"
 
 /*
- * Preparación: la misma vista de Tanques/Líneas que Recepción (ver
- * src/components/EstadoPlantaTabs.tsx), disponible en cualquier
- * momento del turno — no solo justo después de Comenzar Turno. Es
- * estado CONTINUO: un tanque o una línea activada acá sigue así turno
- * tras turno hasta que un supervisor la cambie, y siempre se puede
- * activar algo nuevo, sin bloquearse en ningún estado previo.
+ * Preparación: arrancar cosas NUEVAS — iniciar y liberar un tanque,
+ * activar o detener una corrida (ver src/components/EstadoPlantaTabs.tsx,
+ * modo="preparacion"). Preparar un tanque y activar una línea son
+ * pasos seguidos ("libero el tanque, activo la línea"), por eso viven
+ * juntos acá. A diferencia de Status (que solo muestra el estado
+ * heredado y deja corregirlo a mano), Preparación no tiene esa
+ * corrección manual — es pura acción. Disponible en cualquier momento
+ * del turno, no solo justo después de Comenzar Turno.
  */
 export default function Preparacion() {
   const { turnoActivo, cargando } = useTurno()
@@ -28,7 +30,7 @@ export default function Preparacion() {
 
   if (cargando || cargandoCatalogos) {
     return (
-      <AppShell title="Preparación" description="Líneas y tanques de la planta">
+      <AppShell title="Preparación" description="Tanques y líneas de la planta">
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
@@ -38,7 +40,7 @@ export default function Preparacion() {
 
   if (!turnoActivo) {
     return (
-      <AppShell title="Preparación" description="Líneas y tanques de la planta">
+      <AppShell title="Preparación" description="Tanques y líneas de la planta">
         <EmptyState
           icon={Beaker}
           title="Primero debes iniciar un turno"
@@ -55,7 +57,7 @@ export default function Preparacion() {
 
   return (
     <AppShell title="Preparación" description={`Turno ${turnoActivo.codigo}`}>
-      <EstadoPlantaTabs turno={turnoActivo} sabores={sabores} />
+      <EstadoPlantaTabs turno={turnoActivo} sabores={sabores} modo="preparacion" />
     </AppShell>
   )
 }

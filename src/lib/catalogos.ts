@@ -18,6 +18,7 @@ export const AREAS = [
   { codigo: "VACIO", nombre: "Producción Vacío" },
   { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales" },
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
+  { codigo: "PRUEBAS", nombre: "Área de Pruebas" },
 ] as const
 
 export type AreaCodigo = (typeof AREAS)[number]["codigo"]
@@ -48,13 +49,17 @@ export const GRUPOS = [
 export type GrupoCodigo = (typeof GRUPOS)[number]["codigo"]
 
 /*
- * LineaCodigo es un tipo CERRADO a propósito (las 3 líneas físicas de
+ * LineaCodigo es un tipo CERRADO a propósito (las líneas físicas de
  * la planta) — ver la nota en
  * supabase/migrations/20260830090000_edicion_presentaciones_velocidades_lineas.sql
  * sobre por qué "Líneas" en Edición de Datos no permite crear líneas
- * nuevas con códigos distintos a estos.
+ * nuevas con códigos distintos a estos. LINEA_T1/T2/T3 son la
+ * excepción deliberada: las 3 líneas del área PRUEBAS (ver
+ * supabase/migrations/20260912090000_area_pruebas.sql) — necesitan
+ * código propio porque lineas.codigo es único a nivel global, no por
+ * área.
  */
-export type LineaCodigo = "LINEA_1" | "LINEA_2" | "LINEA_3"
+export type LineaCodigo = "LINEA_1" | "LINEA_2" | "LINEA_3" | "LINEA_T1" | "LINEA_T2" | "LINEA_T3"
 
 /** El volumen en ml, como string (ej. "1000") — ver src/lib/catalogosLive.tsx. */
 export type PresentacionCodigo = string

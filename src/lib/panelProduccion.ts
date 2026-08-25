@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
 import type { PresentacionLive } from "@/lib/catalogosLive"
+import { envasesReales, obtenerEstadisticas } from "@/lib/estadisticas"
 
 /*
  * Panel de Producción: estado actual de la planta (o histórico por
@@ -9,8 +10,8 @@ import type { PresentacionLive } from "@/lib/catalogosLive"
  * TurnoActivo que usa Comenzar/Finalizar Turno, solo que acá puede
  * ser de CUALQUIER supervisor, no del usuario logueado.
  */
-export async function obtenerEstadoPlantaActual(): Promise<TurnoActivo | null> {
-  const { data, error } = await supabase.rpc("estado_planta_actual")
+export async function obtenerEstadoPlantaActual(areaCodigo: string | null): Promise<TurnoActivo | null> {
+  const { data, error } = await supabase.rpc("estado_planta_actual", { p_area_codigo: areaCodigo })
   if (error || !data) return null
   return mapearTurno(data as FilaTurno)
 }
@@ -99,4 +100,53 @@ export function mermaResumenTurno(turno: TurnoActivo, presentaciones: Presentaci
   const pct = llenadoraTotal === 0 ? null : Math.round((1 - envasesRealesTotal / llenadoraTotal) * 10000) / 100
 
   return { pct }
+}
+
+export interface ResumenTurnoAnterior {
+  turnoCodigo: string
+  fecha: string
+  horaFin: string | null
+  mermaPct: number | null
+  litrosProducidos: number
+  cajasProducidas: number
+}
+
+function haceDiasISO(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * El último turno CERRADO de esta área (sin contar el turno en vivo
+ * actual) — para mostrar su merma/litros/cajas final como referencia
+ * ("cómo terminó el turno pasado") al lado de lo que va del turno en
+ * curso. Reutiliza estadisticas_produccion() (ya trae estado + área
+ * por fila), no hace falta una función nueva en Supabase.
+ */
+export async function obtenerResumenTurnoAnterior(
+  areaCodigo: string,
+  turnoActualId: string | null,
+): Promise<ResumenTurnoAnterior | null> {
+  const filas = await obtenerEstadisticas({ fechaDesde: haceDiasISO(4) })
+  const delArea = filas.filter((f) => f.area === areaCodigo && f.estado === "CERRADO" && f.turnoId !== turnoActualId)
+  if (delArea.length === 0) return null
+
+  const ultimoTurnoId = delArea.reduce((masReciente, f) =>
+    `${f.fecha} ${f.horaFin ?? f.horaInicio}` > `${masReciente.fecha} ${masReciente.horaFin ?? masReciente.horaInicio}` ? f : masReciente,
+  ).turnoId
+
+  const filasTurno = delArea.filter((f) => f.turnoId === ultimoTurnoId)
+  const llenadoraTotal = filasTurno.reduce((a, f) => a + f.envasesLlenadora, 0)
+  const envasesRealesTotal = filasTurno.reduce((a, f) => a + envasesReales(f), 0)
+  const mermaPct = llenadoraTotal === 0 ? null : Math.round((1 - envasesRealesTotal / llenadoraTotal) * 10000) / 100
+
+  return {
+    turnoCodigo: filasTurno[0].turnoCodigo,
+    fecha: filasTurno[0].fecha,
+    horaFin: filasTurno[0].horaFin,
+    mermaPct,
+    litrosProducidos: filasTurno.reduce((a, f) => a + f.litrosProducidos, 0),
+    cajasProducidas: filasTurno.reduce((a, f) => a + (f.paletas * f.cajasXPaleta + f.cajasSueltas), 0),
+  }
 }
