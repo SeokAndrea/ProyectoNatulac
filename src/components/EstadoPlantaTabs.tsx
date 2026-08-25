@@ -10,6 +10,7 @@ import { TanqueEditForm } from "@/components/TanqueEditForm"
 import { nombrePorCodigo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, presentacionesPorLineaLive, velocidadesParaLive } from "@/lib/catalogosLive"
 import type { Sabor } from "@/lib/sabores"
+import { cn } from "@/lib/utils"
 import {
   useTurno,
   type CondicionTanque,
@@ -297,8 +298,9 @@ function FormularioIniciarPreparacion({
   const saborElegido = sabores.find((s) => s.id === saborId)
   const litrosEstimados =
     saborElegido?.volumen && tambores !== "" && Number(tambores) > 0 ? Math.round(Number(tambores) * saborElegido.volumen) : null
+  const excedeCapacidad = litrosEstimados !== null && litrosEstimados > TANK_CAPACITY
 
-  const valido = saborId !== "" && lote.trim() !== "" && tambores !== "" && Number(tambores) >= 0
+  const valido = saborId !== "" && lote.trim() !== "" && tambores !== "" && Number(tambores) >= 0 && !excedeCapacidad
 
   async function handleSubmit() {
     if (!valido) return
@@ -349,9 +351,10 @@ function FormularioIniciarPreparacion({
       </div>
 
       {litrosEstimados !== null && (
-        <p className="text-xs text-muted-foreground">
+        <p className={cn("text-xs", excedeCapacidad ? "font-medium text-destructive" : "text-muted-foreground")}>
           ≈ <span className="font-medium text-foreground">{litrosEstimados.toLocaleString("es-CO")} L</span> con este sabor (
           {saborElegido?.volumen?.toLocaleString("es-CO")} L por tambor)
+          {excedeCapacidad && ` — supera la capacidad del tanque (${TANK_CAPACITY.toLocaleString("es-CO")} L)`}
         </p>
       )}
 
