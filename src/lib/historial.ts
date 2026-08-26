@@ -60,13 +60,15 @@ export function construirHistorial(
 
   for (const t of turno.tanques) {
     const estado =
-      t.condicion === "LISTO"
+      t.condicion === "LISTO" || t.condicion === "STANDBY"
         ? `${t.saborNombre ?? "Sabor"} · ${t.volumenL} L${t.lote ? ` · Lote ${t.lote}` : ""}`
         : t.condicion === "SUCIO"
           ? `Sucio${t.ultimoSaborNombre ? ` · último: ${t.ultimoSaborNombre}${t.ultimoLote ? ` · Lote ${t.ultimoLote}` : ""}` : ""}`
-          : t.condicion === "VACIO"
-            ? "Vacío"
-            : "En Preparación"
+          : t.condicion === "CIP"
+            ? "En CIP"
+            : t.condicion === "LIMPIO"
+              ? "Limpio"
+              : "En Preparación"
     eventos.push({ hora: formatearHora(t.activadaEn), seccion: "Tanques", detalle: `Tanque ${t.numeroTanque}: ${estado}` })
   }
 

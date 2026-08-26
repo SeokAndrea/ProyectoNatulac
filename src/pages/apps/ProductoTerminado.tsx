@@ -3,7 +3,6 @@ import { Link } from "react-router-dom"
 import {
   AlertTriangle,
   Apple,
-  ArrowRightCircle,
   Check,
   Cherry,
   ChevronDown,
@@ -13,12 +12,13 @@ import {
   Leaf,
   Loader2,
   PackageCheck,
+  PenLine,
   XCircle,
 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -69,7 +69,7 @@ export default function ProductoTerminado() {
 
   if (cargando || cargandoCatalogos) {
     return (
-      <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado">
+      <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado" fullWidth>
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
@@ -79,7 +79,7 @@ export default function ProductoTerminado() {
 
   if (!turnoActivo) {
     return (
-      <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado">
+      <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado" fullWidth>
         <EmptyState
           icon={PackageCheck}
           title="Primero debes iniciar un turno"
@@ -98,7 +98,7 @@ export default function ProductoTerminado() {
 
   if (corridasUsadas.length === 0) {
     return (
-      <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado">
+      <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado" fullWidth>
         <EmptyState
           icon={PackageCheck}
           title="Ninguna línea usada todavía"
@@ -108,13 +108,13 @@ export default function ProductoTerminado() {
     )
   }
 
-  // Cerrada = ya finalizada, no solo entregada/pausada — esas siguen necesitando carga.
-  const pendientes = corridasUsadas.filter((l) => l.activa || l.esperandoCierre)
-  const cerradas = corridasUsadas.filter((l) => !l.activa && !l.esperandoCierre)
+  // Cerrada = ya finalizada, o ya "Cerrada" por este supervisor (entregada al siguiente turno) — ambas dejan de pedir carga.
+  const pendientes = corridasUsadas.filter((l) => (l.activa || l.esperandoCierre) && l.entregadaEn === null)
+  const cerradas = corridasUsadas.filter((l) => (!l.activa && !l.esperandoCierre) || l.entregadaEn !== null)
 
   return (
-    <AppShell title="Producto Terminado y Contador" description={`Turno ${turnoActivo.codigo}`}>
-      <div className="mx-auto flex max-w-2xl flex-col gap-3">
+    <AppShell title="Producto Terminado y Contador" description={`Turno ${turnoActivo.codigo}`} fullWidth>
+      <div className="flex flex-col gap-3">
         {pendientes.length === 0 && cerradas.length > 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">
             No hay corridas pendientes de carga — todas las de este turno ya están cerradas.
@@ -225,7 +225,7 @@ function ListaCorridas({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mx-auto grid w-full max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
         {grupos.map((g) => {
           const { color, Icono } = infoSabor(g.saborNombre)
           const totalLineas = g.lotes.reduce((a, l) => a + l.corridas.length, 0)
@@ -253,7 +253,7 @@ function ListaCorridas({
       </div>
 
       {grupoSabor && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mx-auto grid w-full max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
           {grupoSabor.lotes.map((l) => (
             <div key={l.key} className="relative">
               <button
@@ -277,21 +277,24 @@ function ListaCorridas({
         </div>
       )}
 
-      {grupoLote &&
-        grupoLote.corridas.map((l) => (
-          <FilaProductoTerminado
-            key={l.id}
-            lineaTurno={l}
-            nombreLinea={nombrePorCodigo(lineas, l.linea)}
-            contadorActual={turnoActivo.contadores.filter((c) => c.turnoLineaId === l.id).reduce((a, c) => a + c.envasesLlenadora, 0)}
-            presentaciones={presentaciones}
-            registroExistente={turnoActivo.productoTerminado.find((p) => p.turnoLineaId === l.id) ?? null}
-            onRegistrarProducto={onRegistrarProducto}
-            onRegistrarContador={onRegistrarContador}
-            onEntregarCorrida={onEntregarCorrida}
-            onTerminarSabor={onTerminarSabor}
-          />
-        ))}
+      {grupoLote && (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {grupoLote.corridas.map((l) => (
+            <FilaProductoTerminado
+              key={l.id}
+              lineaTurno={l}
+              nombreLinea={nombrePorCodigo(lineas, l.linea)}
+              contadorActual={turnoActivo.contadores.filter((c) => c.turnoLineaId === l.id).reduce((a, c) => a + c.envasesLlenadora, 0)}
+              presentaciones={presentaciones}
+              registroExistente={turnoActivo.productoTerminado.find((p) => p.turnoLineaId === l.id) ?? null}
+              onRegistrarProducto={onRegistrarProducto}
+              onRegistrarContador={onRegistrarContador}
+              onEntregarCorrida={onEntregarCorrida}
+              onTerminarSabor={onTerminarSabor}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -429,6 +432,8 @@ type OnRegistrarContador = (datos: {
 type OnEntregarCorrida = (turnoLineaId: string) => Promise<ResultadoAccion>
 type OnTerminarSabor = (turnoLineaId: string) => Promise<ResultadoAccion>
 
+type ProximoEstado = "TERMINO_SABOR" | "CONTINUA"
+
 function FilaProductoTerminado({
   lineaTurno,
   nombreLinea,
@@ -451,14 +456,18 @@ function FilaProductoTerminado({
   onTerminarSabor: OnTerminarSabor
 }) {
   const saborId = registroExistente?.saborId ?? lineaTurno.saborId
-  const corridaCerrada = !lineaTurno.activa && !lineaTurno.esperandoCierre
+  /** Ya se decidió el destino de esta corrida (Terminó Corrida o Entregada al siguiente turno) — queda bloqueada salvo "Editar un error". */
+  const estaCerrada = (!lineaTurno.activa && !lineaTurno.esperandoCierre) || lineaTurno.entregadaEn !== null
+  /** Sigue corriendo y todavía no se decidió su próximo estado — acá se elige y se cierra de una. */
+  const puedeElegirProximoEstado = lineaTurno.activa && lineaTurno.entregadaEn === null
+
+  const [editandoError, setEditandoError] = useState(false)
   const [envasesLlenadora, setEnvasesLlenadora] = useState("")
   /** Paletas/Cajas sueltas son el TOTAL actual — se editan (reemplazan lo que había), no se suman. */
   const [paletas, setPaletas] = useState(registroExistente ? String(registroExistente.paletas) : "")
   const [cajasSueltas, setCajasSueltas] = useState(registroExistente ? String(registroExistente.cajasSueltas) : "")
   const [justificacion, setJustificacion] = useState("")
-  const [continuaSiguienteTurno, setContinuaSiguienteTurno] = useState(false)
-  const [terminoSabor, setTerminoSabor] = useState(false)
+  const [proximoEstado, setProximoEstado] = useState<ProximoEstado | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
@@ -482,9 +491,13 @@ function FilaProductoTerminado({
 
   const hayContadorNuevo = envasesLlenadora !== "" && nuevoContador > 0
   const hayProducto = (paletas !== "" || cajasSueltas !== "") && nPaletas >= 0 && nCajasSueltas >= 0
+  const hayDatos = hayContadorNuevo || hayProducto
+  const modoCorreccion = estaCerrada && editandoError
   const valido =
-    (hayContadorNuevo || hayProducto || continuaSiguienteTurno || terminoSabor) &&
+    hayDatos &&
+    (!puedeElegirProximoEstado || proximoEstado !== null) &&
     (!requiereJustificacion || justificacion.trim() !== "")
+  const textoBoton = modoCorreccion ? "Guardar corrección" : puedeElegirProximoEstado ? "Cerrar" : "Registrar"
 
   async function guardar() {
     if (!valido) return
@@ -521,7 +534,7 @@ function FilaProductoTerminado({
       }
     }
 
-    if (continuaSiguienteTurno) {
+    if (proximoEstado === "CONTINUA") {
       const resultado = await onEntregarCorrida(lineaTurno.id)
       if (!resultado.ok) {
         setEnviando(false)
@@ -530,7 +543,7 @@ function FilaProductoTerminado({
       }
     }
 
-    if (terminoSabor) {
+    if (proximoEstado === "TERMINO_SABOR") {
       const resultado = await onTerminarSabor(lineaTurno.id)
       if (!resultado.ok) {
         setEnviando(false)
@@ -542,17 +555,66 @@ function FilaProductoTerminado({
     setEnviando(false)
     setEnvasesLlenadora("")
     setJustificacion("")
-    setContinuaSiguienteTurno(false)
-    setTerminoSabor(false)
+    setProximoEstado(null)
+    setEditandoError(false)
+  }
+
+  // Ya cerrada (Terminó Corrida o Entregada) y no se está corrigiendo un error: vista bloqueada, solo lectura.
+  if (estaCerrada && !editandoError) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <span className="rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">
+                {nombreLinea}
+              </span>
+              {lineaTurno.lote && <span className="text-sm font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
+            </CardTitle>
+            <Badge variant="muted">Cerrada</Badge>
+          </div>
+          <CardDescription>{presentacion?.nombre ?? `${lineaTurno.presentacion} ml`}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Contador acumulado</p>
+              <p className="font-medium text-foreground">{contadorActual.toLocaleString("es-CO")} envases</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Paletas · Cajas sueltas</p>
+              <p className="font-medium text-foreground">
+                {registroExistente ? `${registroExistente.paletas} · ${registroExistente.cajasSueltas}` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Litros producidos</p>
+              <p className="font-medium text-foreground">{(registroExistente?.litrosProducidos ?? 0).toLocaleString("es-CO")} L</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Estado</p>
+              <p className="font-medium text-foreground">
+                {lineaTurno.entregadaEn ? `Entregada a las ${lineaTurno.entregadaEn.slice(11, 16)}` : "Sabor terminado"}
+              </p>
+            </div>
+          </div>
+
+          <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setEditandoError(true)}>
+            <PenLine className="size-3.5" />
+            Editar un error
+          </Button>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            {nombreLinea}
-            {lineaTurno.lote ? ` · Lote ${lineaTurno.lote}` : ""}
+          <CardTitle className="flex flex-wrap items-center gap-2">
+            <span className="rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">{nombreLinea}</span>
+            {lineaTurno.lote && <span className="text-sm font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
             {registroExistente && <Check className="size-3.5 text-muted-foreground" />}
           </CardTitle>
           <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
@@ -565,18 +627,14 @@ function FilaProductoTerminado({
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor={`contador-${lineaTurno.id}`}>Envases llenadora (Contador)</Label>
-            {corridaCerrada ? (
-              <p className="flex h-9 items-center text-xs text-muted-foreground">Corrida cerrada — no se puede sumar más.</p>
-            ) : (
-              <Input
-                id={`contador-${lineaTurno.id}`}
-                type="number"
-                min={0}
-                placeholder="Sumar al contador"
-                value={envasesLlenadora}
-                onChange={(e) => setEnvasesLlenadora(e.target.value)}
-              />
-            )}
+            <Input
+              id={`contador-${lineaTurno.id}`}
+              type="number"
+              min={0}
+              placeholder="Sumar al contador"
+              value={envasesLlenadora}
+              onChange={(e) => setEnvasesLlenadora(e.target.value)}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <Label>Sabor</Label>
@@ -639,36 +697,37 @@ function FilaProductoTerminado({
           />
         )}
 
-        {lineaTurno.activa &&
-          (lineaTurno.entregadaEn ? (
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <ArrowRightCircle className="size-3.5" />
-              Entregada al siguiente turno a las {lineaTurno.entregadaEn.slice(11, 16)}.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Checkbox
-                  checked={terminoSabor}
-                  onCheckedChange={(v) => {
-                    setTerminoSabor(v === true)
-                    if (v === true) setContinuaSiguienteTurno(false)
-                  }}
-                />
-                Ya terminé este sabor en esta línea — guardar estos valores y cerrar la corrida.
-              </label>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Checkbox
-                  checked={continuaSiguienteTurno}
-                  onCheckedChange={(v) => {
-                    setContinuaSiguienteTurno(v === true)
-                    if (v === true) setTerminoSabor(false)
-                  }}
-                />
-                Esta línea va a continuar en el siguiente turno — cerrar mi parte con estos valores.
-              </label>
+        {puedeElegirProximoEstado && (
+          <div className="flex flex-col gap-1.5">
+            <Label>¿Qué pasa con esta línea?</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setProximoEstado("TERMINO_SABOR")}
+                className={cn(
+                  "flex-1 rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors",
+                  proximoEstado === "TERMINO_SABOR"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-foreground/25 text-foreground hover:bg-muted/60",
+                )}
+              >
+                Terminó Corrida
+              </button>
+              <button
+                type="button"
+                onClick={() => setProximoEstado("CONTINUA")}
+                className={cn(
+                  "flex-1 rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors",
+                  proximoEstado === "CONTINUA"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-foreground/25 text-foreground hover:bg-muted/60",
+                )}
+              >
+                Continúa siguiente turno
+              </button>
             </div>
-          ))}
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-destructive" role="alert">
@@ -676,10 +735,17 @@ function FilaProductoTerminado({
           </p>
         )}
 
-        <Button size="sm" className="self-start" onClick={guardar} disabled={!valido || enviando}>
-          {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageCheck className="size-3.5" />}
-          {terminoSabor ? "Registrar y cerrar" : registroExistente ? "Guardar cambios" : "Registrar"}
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" className="self-start" onClick={guardar} disabled={!valido || enviando}>
+            {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageCheck className="size-3.5" />}
+            {textoBoton}
+          </Button>
+          {modoCorreccion && (
+            <Button size="sm" variant="ghost" onClick={() => setEditandoError(false)} disabled={enviando}>
+              Cancelar
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

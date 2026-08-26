@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Beaker, CheckCircle2, Container, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square } from "lucide-react"
+import { Beaker, BroomSparkles, CheckCircle2, Container, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,10 +15,13 @@ import type { Sabor } from "@/lib/sabores"
 import { cn } from "@/lib/utils"
 import {
   useTurno,
+  type CondicionLinea,
   type CondicionTanque,
   type DatosActivarLinea,
+  type DatosCambiarLinea,
   type DatosIniciarPreparacion,
   type LineaEnTurno,
+  type LineaEstado,
   type PreparacionRegistro,
   type TanqueRecepcion,
   type TurnoActivo,
@@ -52,11 +55,13 @@ export type ModoEstadoPlanta = "status" | "preparacion"
  *   - "preparacion": todas las acciones para arrancar algo nuevo —
  *     iniciar/liberar un tanque, activar/detener una corrida.
  *
- * Ciclo de vida de un tanque (modo "preparacion"): Vacío/Sucio (o
+ * Ciclo de vida de un tanque (modo "preparacion"): Limpio/Sucio (o
  * incluso ya Listo, para arrancar un lote nuevo que reemplaza al
  * actual) → "Iniciar Preparación" (sabor + tambores; el volumen sale
  * solo de tambores × sabor.volumen) → En Preparación (no liberado) →
- * "Liberar" → Listo (recién ahí una corrida lo puede tomar).
+ * "Liberar" → Listo (recién ahí una corrida lo puede tomar). Limpio y
+ * Vacío eran la misma cosa (nada adentro, disponible) — se fusionaron
+ * en Limpio, que además puede llegar de CIP (limpieza terminada).
  *
  * Ciclo de vida de una corrida (modo "preparacion"): Activar (tanque
  * LISTO + presentación + velocidad; sabor/lote salen del tanque
@@ -74,6 +79,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
     terminarSaborLinea,
     continuarSiguienteLote,
     cambiarCondicionTanque,
+    cambiarCondicionLinea,
     confirmarEstadoTanque,
     confirmarEstadoLinea,
     iniciarPreparacion,
@@ -121,6 +127,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
               nombreLinea={l.nombre}
               modo={modo}
               lineaTurno={turno.lineas.find((tl) => tl.linea === l.codigo && tl.activa) ?? null}
+              lineaEstado={turno.lineasEstado.find((le) => le.linea === l.codigo) ?? null}
               tanquesListos={tanquesListos}
               presentaciones={presentaciones}
               velocidades={velocidades}
@@ -130,6 +137,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
               onTerminarSabor={terminarSaborLinea}
               onContinuarSiguienteLote={continuarSiguienteLote}
               onConfirmarEstadoLinea={confirmarEstadoLinea}
+              onCambiarCondicionLinea={cambiarCondicionLinea}
             />
           ))}
       </TabsContent>
@@ -140,16 +148,31 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
 const nombreCondicion: Record<CondicionTanque, string> = {
   LISTO: "Listo",
   SUCIO: "Sucio",
-  VACIO: "Vacío",
   EN_PREPARACION: "En Preparación",
   STANDBY: "Standby",
+  CIP: "En CIP",
+  LIMPIO: "Limpio",
 }
 const badgeVariantCondicion: Record<CondicionTanque, "success" | "warning" | "muted" | "secondary"> = {
   LISTO: "success",
   EN_PREPARACION: "warning",
   SUCIO: "muted",
-  VACIO: "muted",
   STANDBY: "secondary",
+  CIP: "warning",
+  LIMPIO: "success",
+}
+
+const nombreCondicionLinea: Record<CondicionLinea, string> = {
+  DETENIDA: "Detenida",
+  LISTA: "Lista para arrancar",
+  CIP: "En CIP",
+  CAMBIO_PRESENTACION: "Cambio de Presentación",
+}
+const badgeVariantCondicionLinea: Record<CondicionLinea, "success" | "warning" | "muted"> = {
+  DETENIDA: "muted",
+  LISTA: "success",
+  CIP: "warning",
+  CAMBIO_PRESENTACION: "warning",
 }
 
 type Resultado = { ok: true } | { ok: false; error: string }
@@ -181,6 +204,13 @@ function TanqueCard({
   const [editando, setEditando] = useState(false)
   const [mostrarFormPrep, setMostrarFormPrep] = useState(false)
   const [liberando, setLiberando] = useState(false)
+  const [cambiandoCip, setCambiandoCip] = useState(false)
+
+  async function cambiarCip(condicion: "CIP" | "LIMPIO") {
+    setCambiandoCip(true)
+    await onCambiarCondicion({ numeroTanque: tanque.numeroTanque, condicion, saborId: null, volumenL: null, lote: null })
+    setCambiandoCip(false)
+  }
 
   const loteAbierto = preparaciones.find((p) => !p.liberadoEn && !p.cerradoEn) ?? null
   const color = colorSabor(
@@ -193,8 +223,18 @@ function TanqueCard({
 
   return (
     <Card className="overflow-hidden border-border shadow-sm">
-      <CardContent className="flex flex-col gap-4 p-4">
-        <div className="flex gap-4">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">
+            <Container className="size-4.5 text-muted-foreground" />
+            Tanque {tanque.numeroTanque}
+          </span>
+          <Badge variant={badgeVariantCondicion[tanque.condicion]} className="shrink-0">
+            {nombreCondicion[tanque.condicion]}
+          </Badge>
+        </div>
+
+        <div className="flex items-center gap-4">
           <TanqueVisual
             numeroTanque={tanque.numeroTanque}
             condicion={tanque.condicion}
@@ -203,56 +243,51 @@ function TanqueCard({
             capacidad={TANK_CAPACITY}
             square
           />
-
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-              <p className="flex items-center gap-1.5 text-sm font-semibold">
-                <Container className="size-4 text-muted-foreground" />
-                Tanque {tanque.numeroTanque}
-              </p>
-              <Badge variant={badgeVariantCondicion[tanque.condicion]} className="shrink-0">
-                {nombreCondicion[tanque.condicion]}
-              </Badge>
-            </div>
-
-            {tanque.condicion === "LISTO" && (
-              <>
-                <p className="num mt-2 text-xl font-semibold">{(tanque.volumenL ?? 0).toLocaleString("es-CO")} L</p>
-                <p className="text-xs text-muted-foreground">
-                  {tanque.saborNombre ?? "Sin sabor"}
-                  {tanque.lote ? ` · Lote ${tanque.lote}` : ""}
-                </p>
-              </>
+            {(tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") && (
+              <p className="num text-2xl font-bold text-foreground">{(tanque.volumenL ?? 0).toLocaleString("es-CO")} L</p>
             )}
-
-            {tanque.condicion === "STANDBY" && (
-              <>
-                <p className="num mt-2 text-xl font-semibold">{(tanque.volumenL ?? 0).toLocaleString("es-CO")} L</p>
-                <p className="text-xs text-muted-foreground">
-                  Resto de {tanque.saborNombre ?? "sabor sin datos"}
-                  {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — el lote ya se cerró.
-                </p>
-              </>
-            )}
-
-            {tanque.condicion === "EN_PREPARACION" && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {loteAbierto
-                  ? `${loteAbierto.saborNombre ?? "Sin sabor"}${loteAbierto.lote ? ` · Lote ${loteAbierto.lote}` : ""} · ${loteAbierto.tambores} tambores${loteAbierto.volumenL ? ` · ${loteAbierto.volumenL} L` : ""}`
-                  : "Sin datos de la preparación."}
-              </p>
-            )}
-
-            {tanque.condicion === "SUCIO" && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {tanque.ultimoSaborNombre
-                  ? `Último: ${tanque.ultimoSaborNombre}${tanque.ultimoLote ? textoUltimoLote(tanque.ultimoLote) : ""}`
-                  : "Sin datos del sabor anterior."}
-              </p>
-            )}
-
-            {tanque.condicion === "VACIO" && <p className="mt-2 text-xs text-muted-foreground">Disponible para preparación.</p>}
           </div>
+        </div>
+
+        <div>
+          {tanque.condicion === "LISTO" && (
+            <p className="text-sm text-muted-foreground">
+              {tanque.saborNombre ?? "Sin sabor"}
+              {tanque.lote ? ` · Lote ${tanque.lote}` : ""}
+            </p>
+          )}
+
+          {tanque.condicion === "STANDBY" && (
+            <p className="text-sm text-muted-foreground">
+              Resto de {tanque.saborNombre ?? "sabor sin datos"}
+              {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — el lote ya se cerró.
+            </p>
+          )}
+
+          {tanque.condicion === "EN_PREPARACION" && (
+            <p className="text-sm text-muted-foreground">
+              {loteAbierto
+                ? `${loteAbierto.saborNombre ?? "Sin sabor"}${loteAbierto.lote ? ` · Lote ${loteAbierto.lote}` : ""} · ${loteAbierto.tambores} tambores${loteAbierto.volumenL ? ` · ${loteAbierto.volumenL} L` : ""}`
+                : "Sin datos de la preparación."}
+            </p>
+          )}
+
+          {tanque.condicion === "SUCIO" && (
+            <p className="text-sm text-muted-foreground">
+              {tanque.ultimoSaborNombre
+                ? `Último: ${tanque.ultimoSaborNombre}${tanque.ultimoLote ? textoUltimoLote(tanque.ultimoLote) : ""}`
+                : "Sin datos del sabor anterior."}
+            </p>
+          )}
+
+          {tanque.condicion === "LIMPIO" && <p className="text-sm text-muted-foreground">Disponible para preparación.</p>}
+
+          {tanque.condicion === "CIP" && (
+            <p className="text-sm text-muted-foreground">
+              Proceso de limpieza{tanque.cipIniciadoEn ? ` desde las ${tanque.cipIniciadoEn.slice(11, 16)}` : ""}.
+            </p>
+          )}
         </div>
 
         {modo === "preparacion" && tanque.condicion === "EN_PREPARACION" && loteAbierto && (
@@ -271,20 +306,38 @@ function TanqueCard({
           </Button>
         )}
 
+        {modo === "preparacion" && tanque.condicion === "CIP" && (
+          <Button size="sm" className="self-start" disabled={cambiandoCip} onClick={() => cambiarCip("LIMPIO")}>
+            {cambiandoCip ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+            Terminó CIP
+          </Button>
+        )}
+
         {modo === "preparacion" &&
           tanque.condicion !== "EN_PREPARACION" &&
+          tanque.condicion !== "CIP" &&
           (mostrarFormPrep ? (
             <FormularioIniciarPreparacion
               numeroTanque={tanque.numeroTanque}
               sabores={sabores}
-              onIniciar={onIniciarPreparacion}
+              onIniciar={async (datos) => {
+                const resultado = await onIniciarPreparacion(datos)
+                if (resultado.ok) setMostrarFormPrep(false)
+                return resultado
+              }}
               onCancelar={() => setMostrarFormPrep(false)}
             />
           ) : (
-            <Button size="sm" variant="outline" className="self-start" onClick={() => setMostrarFormPrep(true)}>
-              <Beaker className="size-3.5" />
-              {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setMostrarFormPrep(true)}>
+                <Beaker className="size-3.5" />
+                {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
+              </Button>
+              <Button size="sm" variant="outline" disabled={cambiandoCip} onClick={() => cambiarCip("CIP")}>
+                {cambiandoCip ? <Loader2 className="size-3.5 animate-spin" /> : <BroomSparkles className="size-3.5" />}
+                Iniciar CIP
+              </Button>
+            </div>
           ))}
 
         {modo === "status" && (
@@ -297,7 +350,7 @@ function TanqueCard({
           />
         )}
 
-        {modo === "status" &&
+        {(modo === "status" || modo === "preparacion") &&
           (!editando ? (
             <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setEditando(true)}>
               <PenLine className="size-3.5" />
@@ -427,6 +480,7 @@ function LineaCard({
   nombreLinea,
   modo,
   lineaTurno,
+  lineaEstado,
   tanquesListos,
   presentaciones,
   velocidades,
@@ -436,11 +490,13 @@ function LineaCard({
   onTerminarSabor,
   onContinuarSiguienteLote,
   onConfirmarEstadoLinea,
+  onCambiarCondicionLinea,
 }: {
   lineaCodigo: LineaCodigo
   nombreLinea: string
   modo: ModoEstadoPlanta
   lineaTurno: LineaEnTurno | null
+  lineaEstado: LineaEstado | null
   tanquesListos: TanqueRecepcion[]
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   velocidades: ReturnType<typeof useCatalogosLive>["velocidades"]
@@ -450,12 +506,17 @@ function LineaCard({
   onTerminarSabor: (turnoLineaId: string) => Promise<Resultado>
   onContinuarSiguienteLote: (turnoLineaId: string) => Promise<Resultado>
   onConfirmarEstadoLinea: (turnoLineaId: string) => Promise<Resultado>
+  onCambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>
 }) {
   const activa = lineaTurno !== null
   const pausada = lineaTurno?.pausadaEn != null
   const loteTerminado = lineaTurno?.loteTerminado != null
+  const condicionLinea = lineaEstado?.condicion ?? "DETENIDA"
   const [editando, setEditando] = useState(false)
   const [detener, setDetener] = useState(false)
+  const [editandoEstadoLinea, setEditandoEstadoLinea] = useState(false)
+  const [enviandoEstadoLinea, setEnviandoEstadoLinea] = useState(false)
+  const [errorEstadoLinea, setErrorEstadoLinea] = useState<string | null>(null)
   const [presentacion, setPresentacion] = useState<PresentacionCodigo | "">(lineaTurno?.presentacion ?? "")
   const [envasesHora, setEnvasesHora] = useState<number | "">(lineaTurno?.envasesHora ?? "")
   const [numeroTanque, setNumeroTanque] = useState<1 | 2 | 3 | "">("")
@@ -505,6 +566,65 @@ function LineaCard({
     setEnviandoAccion(false)
     setDetener(false)
     if (!resultado.ok) setErrorAccion(resultado.error)
+  }
+
+  async function cambiarEstadoLinea(condicion: CondicionLinea) {
+    setEnviandoEstadoLinea(true)
+    setErrorEstadoLinea(null)
+    const resultado = await onCambiarCondicionLinea({ linea: lineaCodigo, condicion })
+    setEnviandoEstadoLinea(false)
+    if (!resultado.ok) {
+      setErrorEstadoLinea(resultado.error)
+      return
+    }
+    setEditandoEstadoLinea(false)
+  }
+
+  /** Control de estado continuo de la línea (sin corrida activa) — Select de las 4 condiciones + atajos de CIP con hora de inicio/fin. */
+  function renderEstadoLinea() {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+        {condicionLinea === "CIP" ? (
+          <p className="text-xs text-muted-foreground">
+            Proceso de limpieza{lineaEstado?.cipIniciadoEn ? ` desde las ${lineaEstado.cipIniciadoEn.slice(11, 16)}` : ""}.
+          </p>
+        ) : (
+          <Select value={condicionLinea} onValueChange={(v) => cambiarEstadoLinea(v as CondicionLinea)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="DETENIDA">Detenida</SelectItem>
+              <SelectItem value="LISTA">Lista para arrancar</SelectItem>
+              <SelectItem value="CAMBIO_PRESENTACION">Cambio de Presentación</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+
+        <div className="flex gap-2">
+          {condicionLinea === "CIP" ? (
+            <Button size="sm" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("LISTA")}>
+              {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+              Terminó CIP
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("CIP")}>
+              {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
+              Iniciar CIP
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => setEditandoEstadoLinea(false)} disabled={enviandoEstadoLinea}>
+            Cerrar
+          </Button>
+        </div>
+
+        {errorEstadoLinea && (
+          <p className="text-xs text-destructive" role="alert">
+            {errorEstadoLinea}
+          </p>
+        )}
+      </div>
+    )
   }
 
   /** "¿Parada momentánea o terminó el sabor?" — compartido entre Preparación y el "Detener" de Status. */
@@ -646,8 +766,11 @@ function LineaCard({
             <Factory className="size-4 text-muted-foreground" />
             {nombreLinea}
           </p>
-          <Badge variant={!activa ? "muted" : loteTerminado ? "warning" : pausada ? "warning" : "success"} className="shrink-0">
-            {!activa ? "Detenida" : loteTerminado ? "Terminó el Lote" : pausada ? "Parada" : "Activa"}
+          <Badge
+            variant={!activa ? badgeVariantCondicionLinea[condicionLinea] : loteTerminado ? "warning" : pausada ? "warning" : "success"}
+            className="shrink-0"
+          >
+            {!activa ? nombreCondicionLinea[condicionLinea] : loteTerminado ? "Terminó el Lote" : pausada ? "Parada" : "Corriendo"}
           </Badge>
         </div>
 
@@ -717,16 +840,23 @@ function LineaCard({
                 Terminó Sabor
               </Button>
             </div>
+          ) : !editando && !detener && editandoEstadoLinea ? (
+            renderEstadoLinea()
           ) : !editando && !detener ? (
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={empezarEdicion}>
                 <PenLine className="size-3.5" />
                 {activa ? "Cambiar" : "Activar corrida"}
               </Button>
-              {activa && (
+              {activa ? (
                 <Button variant="outline" size="sm" onClick={() => setDetener(true)}>
                   <PauseCircle className="size-3.5" />
                   Detener
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => setEditandoEstadoLinea(true)}>
+                  <PenLine className="size-3.5" />
+                  Estado
                 </Button>
               )}
             </div>
@@ -771,6 +901,22 @@ function LineaCard({
 
         {modo === "status" && lineaTurno && detener && renderDetenerConfirm()}
         {modo === "status" && lineaTurno && editando && renderFormularioEdicion()}
+
+        {modo === "status" &&
+          !activa &&
+          (editandoEstadoLinea ? (
+            renderEstadoLinea()
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start text-muted-foreground"
+              onClick={() => setEditandoEstadoLinea(true)}
+            >
+              <PenLine className="size-3.5" />
+              Corregir
+            </Button>
+          ))}
       </CardContent>
     </Card>
   )

@@ -581,7 +581,7 @@ export default function PanelProduccion() {
                   </div>
                 </PanelCard>
 
-                <PanelCard icon={PauseCircle} titulo="Última parada" meta={lineaParadaHaceMas ? undefined : "Mock"}>
+                <PanelCard icon={PauseCircle} titulo="Parada con mayor duración" meta={lineaParadaHaceMas ? undefined : "Mock"}>
                   {lineaParadaHaceMas ? (
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
@@ -642,7 +642,7 @@ export default function PanelProduccion() {
                     actual={mermaEnvases?.pct ?? null}
                   />
                   <MermaComparativaCard
-                    titulo="Merma de semielaborado"
+                    titulo="Merma"
                     pasado={turnoAnterior?.mermaSemielaboradoPct ?? null}
                     actual={mermaSemielaborado?.pct ?? null}
                     max={MERMA_SEMIELABORADO_MAX}
@@ -942,7 +942,11 @@ function TanqueCard({
           </>
         ) : (
           <p className="text-[11px] text-muted-foreground">
-            {tanque.condicion === "SUCIO" ? "Pendiente de limpieza." : "Disponible para llenar."}
+            {tanque.condicion === "SUCIO"
+              ? "Pendiente de limpieza."
+              : tanque.condicion === "CIP"
+                ? `Proceso de limpieza${tanque.cipIniciadoEn ? ` desde las ${tanque.cipIniciadoEn.slice(11, 16)}` : ""}.`
+                : "Disponible para llenar."}
           </p>
         )}
       </div>

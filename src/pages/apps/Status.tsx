@@ -30,7 +30,7 @@ export default function Status() {
 
   if (cargando || cargandoCatalogos) {
     return (
-      <AppShell title="Status" description="Estado real de tanques y líneas">
+      <AppShell title="Status" description="Estado real de tanques y líneas" fullWidth>
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
@@ -40,7 +40,7 @@ export default function Status() {
 
   if (!turnoActivo) {
     return (
-      <AppShell title="Status" description="Estado real de tanques y líneas">
+      <AppShell title="Status" description="Estado real de tanques y líneas" fullWidth>
         <EmptyState
           icon={ClipboardList}
           title="Primero debes iniciar un turno"
@@ -56,9 +56,9 @@ export default function Status() {
   }
 
   return (
-    <AppShell title="Status" description={`Turno ${turnoActivo.codigo}`}>
-      <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        <Card>
+    <AppShell title="Status" description={`Turno ${turnoActivo.codigo}`} fullWidth>
+      <div className="flex flex-col gap-4">
+        <Card className="mx-auto w-full max-w-3xl">
           <CardHeader>
             <CardTitle>¿Con qué encontraste la planta?</CardTitle>
             <CardDescription>

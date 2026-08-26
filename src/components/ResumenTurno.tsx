@@ -70,13 +70,15 @@ export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
             >
               <span className="font-medium text-foreground">Tanque {t.numeroTanque}</span>
               <span className="text-muted-foreground">
-                {t.condicion === "LISTO"
+                {t.condicion === "LISTO" || t.condicion === "STANDBY"
                   ? `${t.saborNombre ?? "Sabor"} · ${t.volumenL} L${t.lote ? ` · Lote ${t.lote}` : ""}`
                   : t.condicion === "SUCIO"
                     ? "Sucio"
-                    : t.condicion === "VACIO"
-                      ? "Vacío"
-                      : "En Preparación"}
+                    : t.condicion === "CIP"
+                      ? "En CIP"
+                      : t.condicion === "LIMPIO"
+                        ? "Limpio"
+                        : "En Preparación"}
               </span>
             </div>
           ))}

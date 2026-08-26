@@ -44,7 +44,16 @@ export interface LineaEnTurno {
   confirmadoInicioEn: string | null
 }
 
-export type CondicionTanque = "LISTO" | "SUCIO" | "VACIO" | "EN_PREPARACION" | "STANDBY"
+export type CondicionTanque = "LISTO" | "SUCIO" | "EN_PREPARACION" | "STANDBY" | "CIP" | "LIMPIO"
+
+/**
+ * Condición continua de una línea SIN corrida activa — igual patrón
+ * que CondicionTanque, pero "Corriendo" no es un valor acá: se deriva
+ * de que la línea tenga una corrida activa (turno_lineas.activa), ver
+ * LineaEnTurno más abajo. Esta condición solo importa cuando no hay
+ * corrida corriendo.
+ */
+export type CondicionLinea = "DETENIDA" | "LISTA" | "CIP" | "CAMBIO_PRESENTACION"
 
 /**
  * Estado de uno de los 3 tanques de materia prima. Es estado continuo
@@ -69,6 +78,8 @@ export interface TanqueRecepcion {
   saborNombre: string | null
   condicion: CondicionTanque
   volumenL: number | null
+  /** Volumen con el que se armó el lote actual (fijo desde que se crea, no se descuenta) — el 100% del visual sale de acá, no de la capacidad física del tanque. */
+  volumenInicialL: number | null
   lote: string | null
   activadaEn: string
   ultimoSaborId: string | null
@@ -77,6 +88,24 @@ export interface TanqueRecepcion {
   /** null = falta revisar (Confirmar o Editar) al abrir/cerrar turno — ver confirmarEstadoTanque(). */
   confirmadoInicioEn: string | null
   confirmadoFinEn: string | null
+  /** Se marcan al entrar a CIP / al salir de CIP hacia LIMPIO — ver cambiarCondicionTanque(). */
+  cipIniciadoEn: string | null
+  cipFinalizadoEn: string | null
+}
+
+/**
+ * Estado continuo de una línea sin corrida activa — mismo patrón que
+ * TanqueRecepcion, una fila por (turno, línea), se hereda de turno a
+ * turno. Cuando la línea SÍ tiene una corrida activa, este estado se
+ * ignora en la UI (se muestra Corriendo/Parada/Terminó el Lote como
+ * siempre, ver LineaEnTurno).
+ */
+export interface LineaEstado {
+  linea: LineaCodigo
+  condicion: CondicionLinea
+  activadaEn: string
+  cipIniciadoEn: string | null
+  cipFinalizadoEn: string | null
 }
 
 /**
@@ -150,12 +179,15 @@ export interface TurnoActivo {
   estado: "ABIERTO" | "CERRADO"
   fechaFin: string | null
   horaFin: string | null
+  /** true si lo cerró el job automático de cierre por vencimiento (cerrar_turnos_vencidos), no el supervisor. */
+  cierreAutomatico: boolean
   turnoTipo: TurnoTipoCodigo
   grupo: GrupoCodigo
   supervisorUsuario: string
   supervisorNombre: string
   /** Todas las corridas tocadas en este turno (activas y finalizadas durante él) — filtrar por .activa para "en uso ahora". */
   lineas: LineaEnTurno[]
+  lineasEstado: LineaEstado[]
   tanques: TanqueRecepcion[]
   contadores: ContadorRegistro[]
   productoTerminado: ProductoTerminadoRegistro[]
@@ -185,6 +217,11 @@ export interface DatosCambiarTanque {
   lote: string | null
   /** Si viene, además de guardar los datos marca el tanque como revisado para ese momento del turno. */
   momento?: "INICIO" | "FIN"
+}
+
+export interface DatosCambiarLinea {
+  linea: LineaCodigo
+  condicion: CondicionLinea
 }
 
 interface DatosNuevoContador {
@@ -234,6 +271,7 @@ interface TurnoContextValue {
   entregarCorrida: (turnoLineaId: string) => Promise<Resultado>
   finalizarLote: (loteId: string) => Promise<Resultado>
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
+  cambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
   confirmarEstadoLinea: (turnoLineaId: string) => Promise<Resultado>
 }
@@ -278,6 +316,7 @@ interface FilaTanque {
   sabor_nombre: string | null
   condicion: CondicionTanque
   volumen_l: number | null
+  volumen_inicial_l: number | null
   lote: string | null
   activada_en: string
   ultimo_sabor_id: string | null
@@ -285,6 +324,16 @@ interface FilaTanque {
   ultimo_lote: string | null
   confirmado_inicio_en: string | null
   confirmado_fin_en: string | null
+  cip_iniciado_en: string | null
+  cip_finalizado_en: string | null
+}
+
+interface FilaLineaEstado {
+  linea_codigo: string
+  condicion: CondicionLinea
+  activada_en: string
+  cip_iniciado_en: string | null
+  cip_finalizado_en: string | null
 }
 
 interface FilaContador {
@@ -333,11 +382,13 @@ export interface FilaTurno {
   estado: "ABIERTO" | "CERRADO"
   fecha_fin: string | null
   hora_fin: string | null
+  cierre_automatico: boolean
   turno_tipo_codigo: string
   grupo_codigo: string
   supervisor_usuario: string
   supervisor_nombre: string
   lineas: FilaLinea[]
+  lineas_estado: FilaLineaEstado[]
   tanques: FilaTanque[]
   contadores: FilaContador[]
   producto_terminado: FilaProductoTerminado[]
@@ -374,6 +425,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
     estado: fila.estado,
     fechaFin: fila.fecha_fin,
     horaFin: fila.hora_fin,
+    cierreAutomatico: fila.cierre_automatico,
     turnoTipo: fila.turno_tipo_codigo as TurnoTipoCodigo,
     grupo: fila.grupo_codigo as GrupoCodigo,
     supervisorUsuario: fila.supervisor_usuario,
@@ -402,6 +454,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       saborNombre: t.sabor_nombre,
       condicion: t.condicion,
       volumenL: t.volumen_l,
+      volumenInicialL: t.volumen_inicial_l,
       lote: t.lote,
       activadaEn: t.activada_en,
       ultimoSaborId: t.ultimo_sabor_id,
@@ -409,6 +462,15 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       ultimoLote: t.ultimo_lote,
       confirmadoInicioEn: t.confirmado_inicio_en,
       confirmadoFinEn: t.confirmado_fin_en,
+      cipIniciadoEn: t.cip_iniciado_en,
+      cipFinalizadoEn: t.cip_finalizado_en,
+    })),
+    lineasEstado: fila.lineas_estado.map((le) => ({
+      linea: le.linea_codigo as LineaCodigo,
+      condicion: le.condicion,
+      activadaEn: le.activada_en,
+      cipIniciadoEn: le.cip_iniciado_en,
+      cipFinalizadoEn: le.cip_finalizado_en,
     })),
     contadores: fila.contadores.map((c) => ({
       id: c.id,
@@ -688,6 +750,26 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  async function cambiarCondicionLinea(datos: DatosCambiarLinea): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("cambiar_condicion_linea", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_linea_codigo: datos.linea,
+      p_condicion: datos.condicion,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo cambiar el estado de la línea. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
   async function confirmarEstadoTanque(numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN"): Promise<Resultado> {
     if (!turnoActivo || !usuario) {
       return { ok: false, error: "No hay un turno en curso." }
@@ -869,6 +951,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         entregarCorrida,
         finalizarLote,
         cambiarCondicionTanque,
+        cambiarCondicionLinea,
         confirmarEstadoTanque,
         confirmarEstadoLinea,
       }}

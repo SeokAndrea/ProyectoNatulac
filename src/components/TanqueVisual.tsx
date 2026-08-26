@@ -1,4 +1,4 @@
-import { Clock3 } from "lucide-react"
+import { BroomSparkles, Clock3, Sparkle } from "lucide-react"
 import type { CondicionTanque } from "@/lib/turno"
 import { cn } from "@/lib/utils"
 
@@ -10,6 +10,14 @@ const GOTAS_SUCIO = [
   { left: "80%", bottom: "8%", size: 6 },
   { left: "8%", bottom: "22%", size: 5 },
   { left: "55%", bottom: "30%", size: 6 },
+]
+
+/** Brillitos de Limpio — mismo criterio de posiciones fijas que GOTAS_SUCIO. */
+const BRILLITOS_LIMPIO = [
+  { left: "22%", bottom: "58%", size: 9 },
+  { left: "68%", bottom: "68%", size: 6 },
+  { left: "45%", bottom: "35%", size: 7 },
+  { left: "78%", bottom: "40%", size: 5 },
 ]
 
 /**
@@ -43,7 +51,7 @@ export function TanqueVisual({
     <div
       className={cn(
         "relative shrink-0 overflow-hidden bg-muted",
-        square ? "size-24 rounded-xl border border-border" : "h-44 w-full",
+        square ? "size-32 rounded-xl border border-border" : "h-44 w-full",
       )}
     >
       {tieneLiquido && (
@@ -97,9 +105,29 @@ export function TanqueVisual({
         </>
       )}
 
-      {condicion === "VACIO" && (
+      {condicion === "LIMPIO" && (
         <div className="absolute inset-0 grid place-items-center">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Vacío</span>
+          {BRILLITOS_LIMPIO.map((b, i) => (
+            <Sparkle
+              key={i}
+              className="liquid-bubble absolute fill-current text-warning/70"
+              style={{ left: b.left, bottom: b.bottom, width: b.size, height: b.size, animationDelay: `${i * 0.4}s` }}
+              aria-hidden="true"
+            />
+          ))}
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Limpio</span>
+        </div>
+      )}
+
+      {condicion === "CIP" && (
+        <div
+          className="absolute inset-0 grid place-items-center"
+          style={{ backgroundColor: `color-mix(in oklab, ${color} 22%, var(--muted))` }}
+        >
+          <BroomSparkles className={cn("text-foreground/70", square ? "size-10" : "size-11")} aria-hidden="true" />
+          <span className="absolute inset-x-0 top-2 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            CIP
+          </span>
         </div>
       )}
 

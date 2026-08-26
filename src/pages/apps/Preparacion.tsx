@@ -14,10 +14,10 @@ import { useTurno } from "@/lib/turno"
  * activar o detener una corrida (ver src/components/EstadoPlantaTabs.tsx,
  * modo="preparacion"). Preparar un tanque y activar una línea son
  * pasos seguidos ("libero el tanque, activo la línea"), por eso viven
- * juntos acá. A diferencia de Status (que solo muestra el estado
- * heredado y deja corregirlo a mano), Preparación no tiene esa
- * corrección manual — es pura acción. Disponible en cualquier momento
- * del turno, no solo justo después de Comenzar Turno.
+ * juntos acá. También tiene "Corregir" (igual que Status) para el
+ * día a día — Status queda para la revisión puntual de inicio de
+ * turno. Disponible en cualquier momento del turno, no solo justo
+ * después de Comenzar Turno.
  */
 export default function Preparacion() {
   const { turnoActivo, cargando } = useTurno()
@@ -30,7 +30,7 @@ export default function Preparacion() {
 
   if (cargando || cargandoCatalogos) {
     return (
-      <AppShell title="Preparación y Producción" description="Tanques y líneas de la planta">
+      <AppShell title="Preparación y Producción" description="Tanques y líneas de la planta" fullWidth>
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
@@ -40,7 +40,7 @@ export default function Preparacion() {
 
   if (!turnoActivo) {
     return (
-      <AppShell title="Preparación y Producción" description="Tanques y líneas de la planta">
+      <AppShell title="Preparación y Producción" description="Tanques y líneas de la planta" fullWidth>
         <EmptyState
           icon={Beaker}
           title="Primero debes iniciar un turno"
@@ -56,7 +56,7 @@ export default function Preparacion() {
   }
 
   return (
-    <AppShell title="Preparación y Producción" description={`Turno ${turnoActivo.codigo}`}>
+    <AppShell title="Preparación y Producción" description={`Turno ${turnoActivo.codigo}`} fullWidth>
       <EstadoPlantaTabs turno={turnoActivo} sabores={sabores} modo="preparacion" />
     </AppShell>
   )

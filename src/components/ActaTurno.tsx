@@ -128,15 +128,17 @@ export function ActaTurno({
               <tr key={t.numeroTanque} className={i % 2 === 1 ? "bg-black/[0.02]" : ""}>
                 <td className="py-1 pr-3">Tanque {t.numeroTanque}</td>
                 <td className="py-1 pr-3">
-                  {t.condicion === "LISTO"
+                  {t.condicion === "LISTO" || t.condicion === "STANDBY"
                     ? (t.saborNombre ?? "—")
                     : t.condicion === "SUCIO"
                       ? "Sucio"
-                      : t.condicion === "VACIO"
-                        ? "Vacío"
-                        : "En Preparación"}
+                      : t.condicion === "CIP"
+                        ? "En CIP"
+                        : t.condicion === "LIMPIO"
+                          ? "Limpio"
+                          : "En Preparación"}
                 </td>
-                <td className="py-1 pr-3">{t.condicion === "LISTO" ? `${t.volumenL} L` : "—"}</td>
+                <td className="py-1 pr-3">{t.condicion === "LISTO" || t.condicion === "STANDBY" ? `${t.volumenL} L` : "—"}</td>
                 <td className="py-1">{t.lote ?? "—"}</td>
               </tr>
             ))}

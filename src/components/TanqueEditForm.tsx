@@ -75,7 +75,8 @@ export function TanqueEditForm({
           <SelectItem value="STANDBY">Standby (resto del lote)</SelectItem>
           <SelectItem value="EN_PREPARACION">En Preparación (no liberado)</SelectItem>
           <SelectItem value="SUCIO">Sucio</SelectItem>
-          <SelectItem value="VACIO">Vacío</SelectItem>
+          <SelectItem value="CIP">En CIP</SelectItem>
+          <SelectItem value="LIMPIO">Limpio</SelectItem>
         </SelectContent>
       </Select>
 
