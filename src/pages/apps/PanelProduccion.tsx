@@ -13,7 +13,6 @@ import {
   Droplets,
   Gauge,
   Grid3x3,
-  Layers,
   Loader2,
   RadioTower,
   ScanLine,
@@ -26,6 +25,7 @@ import {
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
+import { TanqueVisual } from "@/components/TanqueVisual"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,12 +45,15 @@ import {
   obtenerTurnoDeFechaTipo,
   type ResumenTurnoAnterior,
 } from "@/lib/panelProduccion"
-import { LIMITE_MERMA, type TurnoActivo } from "@/lib/turno"
+import { LIMITE_MERMA, mermaCorrida, type TurnoActivo } from "@/lib/turno"
 import { cn } from "@/lib/utils"
 
 const MERMA_MAX = LIMITE_MERMA * 100
 const MERMA_WARN = MERMA_MAX * (2 / 3)
 const TANK_CAPACITY = 20000
+
+/** El Área de Pruebas nunca debe verse desde el Panel de Producción — ni como selección explícita. */
+const AREAS_SELECCIONABLES = AREAS.filter((a) => a.codigo !== "PRUEBAS")
 
 type NivelMerma = "ok" | "warn" | "danger"
 const nivelMerma = (pct: number): NivelMerma => (pct <= MERMA_WARN ? "ok" : pct <= MERMA_MAX ? "warn" : "danger")
@@ -287,6 +290,24 @@ export default function PanelProduccion() {
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   const mermaEnvases = turno ? mermaEnvasesTurno(turno, presentaciones) : null
   const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno, presentaciones) : null
+  /** Envases de la llenadora (Contador) vs. Producto Terminado, por CORRIDA — no el promedio del turno, cada línea/lote por separado. */
+  const mermasPorLinea = turno
+    ? turno.productoTerminado
+        .map((p) => {
+          if (!p.turnoLineaId) return null
+          const merma = mermaCorrida(p.turnoLineaId, turno, presentaciones)
+          if (!merma) return null
+          const corrida = turno.lineas.find((l) => l.id === p.turnoLineaId)
+          return {
+            turnoLineaId: p.turnoLineaId,
+            nombreLinea: corrida ? nombrePorCodigo(lineas, corrida.linea) : "—",
+            lote: corrida?.lote ?? null,
+            ...merma,
+          }
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== null)
+        .sort((a, b) => a.nombreLinea.localeCompare(b.nombreLinea))
+    : []
   const hh = String(ahora.getHours()).padStart(2, "0")
   const mm = String(ahora.getMinutes()).padStart(2, "0")
   const ss = String(ahora.getSeconds()).padStart(2, "0")
@@ -297,109 +318,43 @@ export default function PanelProduccion() {
   return (
     <AppShell title="Panel de Producción" description="Estado de la planta en vivo" fullWidth>
       <div className="flex flex-col gap-5">
-        {/* ---------------- BANNER SUPERIOR ---------------- */}
-        <section className="panel-banner shadow-panel relative overflow-hidden rounded-2xl border border-border">
-          <div className="panel-grid pointer-events-none absolute inset-0 opacity-40" />
-
-          <div className="relative flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-5 py-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              {turno?.estado === "ABIERTO" ? (
-                <Badge variant="success" className="gap-1.5 py-1">
-                  <span className="relative flex size-1.5">
-                    <span className="dot-ring absolute inset-0 rounded-full bg-success" />
-                    <span className="relative inline-flex size-1.5 rounded-full bg-success" />
-                  </span>
-                  <Activity className="size-3.5" />
-                  En Operación
-                </Badge>
-              ) : turno ? (
-                <Badge variant="muted" className="gap-1.5 py-1">
-                  <RadioTower className="size-3.5" />
-                  Turno cerrado
-                </Badge>
-              ) : (
-                <Badge variant="muted" className="gap-1.5 py-1">
-                  <RadioTower className="size-3.5" />
-                  {buscado ? "Sin turnos registrados" : "Cargando"}
-                </Badge>
-              )}
-
-              {turno && (
-                <>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
-                    <UserRound className="size-3.5 text-primary" />
-                    {turno.supervisorNombre}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Turno {turno.codigo} · {nombrePorCodigo(GRUPOS, turno.grupo)}
-                    {turno.estado === "CERRADO" && turno.horaFin ? ` · Cerrado ${turno.horaFin.slice(0, 5)}` : ""}
-                  </span>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {!session?.area && (
-                <button
-                  type="button"
-                  onClick={() => setMostrarFiltros(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
-                >
-                  <Building2 className="size-3.5" />
-                  {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(AREAS, areaFiltro)}
-                </button>
-              )}
-              <Button variant="outline" size="sm" onClick={() => setMostrarFiltros((v) => !v)}>
+        {/* ---------------- EN VIVO / FECHA — primero, para que no se pierda debajo del banner ---------------- */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMostrarFiltros((v) => !v)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+              enVivo ? "border-success/50 bg-success-soft text-success" : "border-primary/50 bg-primary/10 text-primary",
+            )}
+          >
+            {enVivo ? (
+              <>
+                <span className="relative flex size-1.5">
+                  <span className="dot-ring absolute inset-0 rounded-full bg-success" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-success" />
+                </span>
+                EN VIVO
+              </>
+            ) : (
+              <>
                 <CalendarDays className="size-3.5" />
-                {enVivo ? "En vivo" : `${fecha} · ${nombrePorCodigo(TURNO_TIPOS, turnoTipo)}`}
-              </Button>
-            </div>
-          </div>
+                FECHA: {fecha} · {nombrePorCodigo(TURNO_TIPOS, turnoTipo)}
+              </>
+            )}
+          </button>
 
-          {turno && meta && (
-            <>
-              <div className="relative grid grid-cols-1 divide-y divide-border/70 md:grid-cols-4 md:divide-x md:divide-y-0">
-                {/* HORA */}
-                <BannerCelda icon={Clock} label="Hora" centrado>
-                  <p className="num flex items-baseline justify-center gap-1 text-4xl font-bold leading-none tracking-tight text-foreground">
-                    {hh}
-                    <span className="alert-pulse text-muted-foreground">:</span>
-                    {mm}
-                    <span className="text-lg font-semibold text-muted-foreground">:{ss}</span>
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {horario ? `Ventana ${horario.inicio} – ${horario.fin}` : "Sin horario definido"}
-                  </p>
-                </BannerCelda>
-
-                {/* CAJAS */}
-                <BannerCelda icon={Boxes} label="Cajas producidas" acento>
-                  <p className="num text-2xl font-bold leading-none tracking-tight text-foreground">
-                    {cajasProducidasTotal.toLocaleString("es-CO")}
-                  </p>
-                </BannerCelda>
-
-                {/* LITROS */}
-                <BannerCelda icon={Droplets} label="Litros producidos">
-                  <p className="num text-2xl font-bold leading-none tracking-tight text-foreground">
-                    {litrosProducidos.toLocaleString("es-CO")}
-                    <span className="ml-1 text-sm font-semibold text-muted-foreground">L</span>
-                  </p>
-                </BannerCelda>
-
-                {/* META */}
-                <BannerCelda icon={Target} label="Cumplimiento de meta">
-                  <MetaAnillo pct={meta.pctCumplimiento} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
-                </BannerCelda>
-              </div>
-
-              {/* ------- CAJAS · EFICIENCIA · LITROS, POR LÍNEA ------- */}
-              <div className="relative border-t border-border/70 px-4 py-2.5">
-                <TablaProduccionPorLinea filas={produccionPorLinea} lineas={lineas} />
-              </div>
-            </>
+          {!session?.area && (
+            <button
+              type="button"
+              onClick={() => setMostrarFiltros(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground"
+            >
+              <Building2 className="size-3.5" />
+              {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(AREAS, areaFiltro)}
+            </button>
           )}
-        </section>
+        </div>
 
         {mostrarFiltros && (
           <Card className="border-border bg-surface shadow-sm">
@@ -412,12 +367,12 @@ export default function PanelProduccion() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {AREAS.map((a) => (
+                      {AREAS_SELECCIONABLES.map((a) => (
                         <SelectItem key={a.codigo} value={a.codigo}>
                           {a.nombre}
                         </SelectItem>
                       ))}
-                      <SelectItem value="TODAS">Todas las áreas (sin Pruebas)</SelectItem>
+                      <SelectItem value="TODAS">Todas las áreas</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -465,6 +420,91 @@ export default function PanelProduccion() {
             </CardContent>
           </Card>
         )}
+
+        {/* ---------------- BANNER SUPERIOR ---------------- */}
+        <section className="panel-banner shadow-panel relative overflow-hidden rounded-2xl border border-border">
+          <div className="panel-grid pointer-events-none absolute inset-0 opacity-40" />
+
+          <div className="relative flex flex-wrap items-center gap-2.5 border-b border-border/70 px-5 py-3">
+            {turno?.estado === "ABIERTO" ? (
+              <Badge variant="success" className="gap-1.5 py-1">
+                <span className="relative flex size-1.5">
+                  <span className="dot-ring absolute inset-0 rounded-full bg-success" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-success" />
+                </span>
+                <Activity className="size-3.5" />
+                En Operación
+              </Badge>
+            ) : turno ? (
+              <Badge variant="muted" className="gap-1.5 py-1">
+                <RadioTower className="size-3.5" />
+                Turno cerrado
+              </Badge>
+            ) : (
+              <Badge variant="muted" className="gap-1.5 py-1">
+                <RadioTower className="size-3.5" />
+                {buscado ? "Sin turnos registrados" : "Cargando"}
+              </Badge>
+            )}
+
+            {turno && (
+              <>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
+                  <UserRound className="size-3.5 text-primary" />
+                  {turno.supervisorNombre}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Turno {turno.codigo} · {nombrePorCodigo(GRUPOS, turno.grupo)}
+                  {turno.estado === "CERRADO" && turno.horaFin ? ` · Cerrado ${turno.horaFin.slice(0, 5)}` : ""}
+                </span>
+              </>
+            )}
+          </div>
+
+          {turno && meta && (
+            <>
+              <div className="relative grid grid-cols-1 divide-y divide-border/70 md:grid-cols-4 md:divide-x md:divide-y-0">
+                {/* HORA */}
+                <BannerCelda icon={Clock} label="Hora" centrado>
+                  <p className="num flex items-baseline justify-center gap-1 text-4xl font-bold leading-none tracking-tight text-foreground">
+                    {hh}
+                    <span className="alert-pulse text-muted-foreground">:</span>
+                    {mm}
+                    <span className="text-lg font-semibold text-muted-foreground">:{ss}</span>
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {horario ? `Ventana ${horario.inicio} – ${horario.fin}` : "Sin horario definido"}
+                  </p>
+                </BannerCelda>
+
+                {/* CAJAS */}
+                <BannerCelda icon={Boxes} label="Cajas producidas" acento>
+                  <p className="num text-2xl font-bold leading-none tracking-tight text-foreground">
+                    {cajasProducidasTotal.toLocaleString("es-CO")}
+                  </p>
+                </BannerCelda>
+
+                {/* LITROS */}
+                <BannerCelda icon={Droplets} label="Litros producidos">
+                  <p className="num text-2xl font-bold leading-none tracking-tight text-foreground">
+                    {litrosProducidos.toLocaleString("es-CO")}
+                    <span className="ml-1 text-sm font-semibold text-muted-foreground">L</span>
+                  </p>
+                </BannerCelda>
+
+                {/* META */}
+                <BannerCelda icon={Target} label="Cumplimiento de meta">
+                  <MetaAnillo pct={meta.pctCumplimiento} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
+                </BannerCelda>
+              </div>
+
+              {/* ------- CAJAS · EFICIENCIA · LITROS, POR LÍNEA ------- */}
+              <div className="relative border-t border-border/70 px-4 py-2.5">
+                <TablaProduccionPorLinea filas={produccionPorLinea} lineas={lineas} />
+              </div>
+            </>
+          )}
+        </section>
 
         {cargando || cargandoCatalogos ? (
           <div className="flex justify-center py-16 text-muted-foreground">
@@ -565,6 +605,50 @@ export default function PanelProduccion() {
                                 pct >= 90 ? "bg-success" : pct >= 60 ? "bg-warning" : "bg-danger",
                               )}
                               style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </SeccionColapsable>
+
+              <SeccionColapsable
+                titulo="Mermas por línea"
+                descripcion="Envases de la llenadora (Contador) vs. Producto Terminado, por corrida — la merma real de cada línea/lote."
+              >
+                {mermasPorLinea.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Todavía no hay Contador y Producto Terminado cargados juntos para ninguna corrida.
+                  </p>
+                ) : (
+                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                    {mermasPorLinea.map((m) => {
+                      const nivel = nivelMerma(m.pct)
+                      return (
+                        <div key={m.turnoLineaId} className="rounded-xl border border-border bg-background/60 p-3">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              {m.nombreLinea}
+                              {m.lote ? ` · Lote ${m.lote}` : ""}
+                            </span>
+                            <Badge variant={badgeVariantPorNivel[nivel]}>{m.pct.toFixed(2)}%</Badge>
+                          </div>
+                          <p className="num mt-1 text-lg font-bold leading-none">
+                            {m.envasesProductoTerminado.toLocaleString("es-CO")}
+                            <span className="text-sm font-medium text-muted-foreground">
+                              {" "}
+                              / {m.envasesLlenadora.toLocaleString("es-CO")} envases
+                            </span>
+                          </p>
+                          <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-[width] duration-700",
+                                nivel === "danger" ? "bg-danger" : nivel === "warn" ? "bg-warning" : "bg-success",
+                              )}
+                              style={{ width: `${Math.min(100, (m.pct / MERMA_MAX) * 100)}%` }}
                             />
                           </div>
                         </div>
@@ -752,78 +836,25 @@ function TanqueCard({
 
   const enPreparacion = tanque.condicion === "EN_PREPARACION"
   const listo = tanque.condicion === "LISTO"
-  const volumen = listo ? (tanque.volumenL ?? 0) : 0
-  const pct = listo ? Math.min(100, (volumen / TANK_CAPACITY) * 100) : 0
-  const color = colorSabor(listo ? tanque.saborNombre : null)
+  const standby = tanque.condicion === "STANDBY"
+  const tieneLiquido = listo || standby
+  const color = colorSabor(tieneLiquido ? tanque.saborNombre : null)
 
   return (
     <div
       className={cn(
         "flex flex-col overflow-hidden rounded-xl border bg-background/60 transition-shadow duration-300",
-        listo ? "border-border hover:shadow-panel" : enPreparacion ? "border-warning/40" : "border-border",
+        listo ? "border-border hover:shadow-panel" : standby ? "border-secondary/50" : enPreparacion ? "border-warning/40" : "border-border",
       )}
     >
-      {/* Vidrio del tanque */}
-      <div className="relative h-44 w-full overflow-hidden bg-muted">
-        {listo && (
-          <div
-            className="absolute inset-x-0 bottom-0 transition-[height] duration-1000 ease-out"
-            style={{ height: `${pct}%`, backgroundColor: color, opacity: 0.92 }}
-          >
-            <div className="liquid-wave absolute -top-1.5 h-3 w-[150%] rounded-[50%]" style={{ backgroundColor: color }} />
-            <div
-              className="liquid-wave-2 absolute -top-1 h-2.5 w-[170%] rounded-[50%]"
-              style={{ backgroundColor: color, opacity: 0.55 }}
-            />
-            <span className="liquid-bubble absolute bottom-2 left-1/3 size-1 rounded-full bg-background/70" />
-            <span
-              className="liquid-bubble absolute bottom-3 left-2/3 size-1.5 rounded-full bg-background/60"
-              style={{ animationDelay: "1.4s" }}
-            />
-          </div>
-        )}
-
-        {enPreparacion && (
-          <div className="absolute inset-0 grid place-items-center bg-warning-soft">
-            <Layers className="alert-pulse size-6 text-warning" />
-          </div>
-        )}
-
-        {!listo && !enPreparacion && (
-          <div className="absolute inset-0 grid place-items-center">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {tanque.condicion === "SUCIO" ? "Sucio" : "Vacío"}
-            </span>
-          </div>
-        )}
-
-        {/* Marcas de nivel + reflejo */}
-        {[25, 50, 75].map((m) => (
-          <div
-            key={m}
-            className="pointer-events-none absolute inset-x-0 border-t border-dashed border-border/70"
-            style={{ bottom: `${m}%` }}
-          />
-        ))}
-        <div className="tank-glass pointer-events-none absolute inset-0" />
-
-        <span className="absolute left-2 top-2 rounded-md border border-border bg-background/80 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-foreground">
-          T{tanque.numeroTanque}
-        </span>
-
-        {listo && (
-          <span className="num absolute inset-x-0 bottom-1.5 text-center text-sm font-bold text-foreground drop-shadow">
-            {pct.toFixed(0)}%
-          </span>
-        )}
-      </div>
+      <TanqueVisual numeroTanque={tanque.numeroTanque} condicion={tanque.condicion} volumenL={tanque.volumenL} color={color} capacidad={TANK_CAPACITY} />
 
       {/* Pie del tanque */}
       <div className="flex min-w-0 flex-col gap-1 border-t border-border/70 px-2.5 py-2">
-        {listo ? (
+        {tieneLiquido ? (
           <>
             <p className="num text-base font-bold leading-none">
-              {volumen.toLocaleString("es-CO")}
+              {(tanque.volumenL ?? 0).toLocaleString("es-CO")}
               <span className="text-[11px] font-medium text-muted-foreground"> L</span>
             </p>
             <span
@@ -832,7 +863,12 @@ function TanqueCard({
             >
               {tanque.saborNombre ?? "Sabor"}
             </span>
-            {tanque.lote && <p className="truncate text-[10px] text-muted-foreground">Lote {tanque.lote}</p>}
+            {tanque.lote && (
+              <p className="truncate text-[10px] text-muted-foreground">
+                {standby ? "Resto del lote " : "Lote "}
+                {tanque.lote}
+              </p>
+            )}
           </>
         ) : enPreparacion ? (
           <>

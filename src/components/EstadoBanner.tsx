@@ -11,10 +11,13 @@ import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
  * (Hub y AppShell) para que esa información nunca se pierda de vista,
  * incluso si el supervisor navega entre apps.
  *
- * "Supervisor" acá es el del turno EN CURSO (turnoActivo.supervisorNombre),
- * no el rol del usuario logueado — importa sobre todo en el Panel de
- * Producción, que puede mostrar el turno de cualquier supervisor, no
- * solo el propio.
+ * "Supervisor" solo se muestra cuando hay turno activo (ahí sí es el
+ * del turno EN CURSO, turnoActivo.supervisorNombre — importa sobre
+ * todo en el Panel de Producción, que puede mostrar el turno de
+ * cualquier supervisor, no solo el propio). Sin turno activo cae a
+ * mostrar el usuario logueado, y ese SÍ puede no ser un supervisor
+ * (Administrador de Área, Super Administrador) — por eso ahí la
+ * etiqueta pasa a decir "Usuario".
  */
 export function EstadoBanner() {
   const { session } = useAuth()
@@ -33,7 +36,7 @@ export function EstadoBanner() {
           </span>
         </span>
         <span>
-          <span className="text-muted-foreground">Supervisor: </span>
+          <span className="text-muted-foreground">{turnoActivo ? "Supervisor: " : "Usuario: "}</span>
           <span className="font-medium text-foreground">{turnoActivo ? turnoActivo.supervisorNombre : session.nombre}</span>
         </span>
 

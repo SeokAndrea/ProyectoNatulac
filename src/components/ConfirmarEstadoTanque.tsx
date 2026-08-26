@@ -8,8 +8,8 @@ import type { DatosCambiarTanque, TanqueRecepcion } from "@/lib/turno"
 type Resultado = { ok: true } | { ok: false; error: string }
 
 const TEXTO: Record<"INICIO" | "FIN", { aviso: string; guardarTexto: string }> = {
-  INICIO: { aviso: "así quedó del turno anterior — confirmá o editá.", guardarTexto: "Guardar estado" },
-  FIN: { aviso: "confirmá el estado final antes de cerrar el turno.", guardarTexto: "Guardar estado final" },
+  INICIO: { aviso: "así quedó del turno anterior — confirma o edita.", guardarTexto: "Guardar estado" },
+  FIN: { aviso: "confirma el estado final antes de cerrar el turno.", guardarTexto: "Guardar estado final" },
 }
 
 /**

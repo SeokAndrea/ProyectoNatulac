@@ -42,9 +42,10 @@ export function TanqueEditForm({
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  /** Standby (resto del lote que se cerró solo) también necesita sabor/volumen/lote — igual que Listo. */
+  const requiereDatos = condicion === "LISTO" || condicion === "STANDBY"
   const volumenValido =
-    condicion !== "LISTO" ||
-    (saborId !== "" && volumenL !== "" && Number(volumenL) > 0 && Number(volumenL) <= 20000 && lote.trim() !== "")
+    !requiereDatos || (saborId !== "" && volumenL !== "" && Number(volumenL) > 0 && Number(volumenL) <= 20000 && lote.trim() !== "")
 
   async function guardar() {
     if (!volumenValido) return
@@ -53,9 +54,9 @@ export function TanqueEditForm({
     const resultado = await onGuardar({
       numeroTanque: tanque.numeroTanque,
       condicion,
-      saborId: condicion === "LISTO" ? saborId : null,
-      volumenL: condicion === "LISTO" ? Number(volumenL) : null,
-      lote: condicion === "LISTO" ? normalizarLote(lote) : null,
+      saborId: requiereDatos ? saborId : null,
+      volumenL: requiereDatos ? Number(volumenL) : null,
+      lote: requiereDatos ? normalizarLote(lote) : null,
     })
     setGuardando(false)
     if (!resultado.ok) {
@@ -71,13 +72,14 @@ export function TanqueEditForm({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="LISTO">Listo (liberado)</SelectItem>
+          <SelectItem value="STANDBY">Standby (resto del lote)</SelectItem>
           <SelectItem value="EN_PREPARACION">En Preparación (no liberado)</SelectItem>
           <SelectItem value="SUCIO">Sucio</SelectItem>
           <SelectItem value="VACIO">Vacío</SelectItem>
         </SelectContent>
       </Select>
 
-      {condicion === "LISTO" && (
+      {requiereDatos && (
         <div className="grid grid-cols-2 gap-2">
           <Select value={saborId} onValueChange={setSaborId}>
             <SelectTrigger className="w-full">

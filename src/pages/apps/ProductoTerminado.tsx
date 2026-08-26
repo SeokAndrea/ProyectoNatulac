@@ -1,6 +1,20 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, ArrowRightCircle, Check, ChevronDown, Loader2, PackageCheck } from "lucide-react"
+import {
+  AlertTriangle,
+  Apple,
+  ArrowRightCircle,
+  Check,
+  Cherry,
+  ChevronDown,
+  Citrus,
+  Droplets,
+  Grape,
+  Leaf,
+  Loader2,
+  PackageCheck,
+  XCircle,
+} from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { Button } from "@/components/ui/button"
@@ -11,23 +25,45 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { nombrePorCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
+import { cn } from "@/lib/utils"
 import { LIMITE_MERMA, useTurno, type LineaEnTurno, type ProductoTerminadoRegistro, type TurnoActivo } from "@/lib/turno"
 
 const LIMITE_MERMA_PCT = LIMITE_MERMA * 100
 
+/** Ícono + color por sabor (por nombre de fruta) — mismo criterio de color que el Panel de Producción, con un ícono cuando hay uno razonable. */
+const FRUTA_INFO: Array<{ prueba: RegExp; Icono: typeof Apple; color: string }> = [
+  { prueba: /manzana/i, Icono: Apple, color: "var(--flavor-red)" },
+  { prueba: /uva/i, Icono: Grape, color: "var(--flavor-red)" },
+  { prueba: /durazno/i, Icono: Cherry, color: "var(--flavor-yellow)" },
+  { prueba: /(naranja|mango)/i, Icono: Citrus, color: "var(--flavor-orange)" },
+  { prueba: /pera/i, Icono: Leaf, color: "var(--flavor-green)" },
+]
+const COLORES_SABOR_FALLBACK = ["var(--flavor-orange)", "var(--flavor-green)", "var(--flavor-red)", "var(--flavor-yellow)"]
+
+function infoSabor(nombre: string | null): { color: string; Icono: typeof Apple } {
+  if (!nombre) return { color: "var(--muted-foreground)", Icono: Droplets }
+  const encontrada = FRUTA_INFO.find((f) => f.prueba.test(nombre))
+  if (encontrada) return encontrada
+  let hash = 0
+  for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) % 997
+  return { color: COLORES_SABOR_FALLBACK[hash % COLORES_SABOR_FALLBACK.length], Icono: Droplets }
+}
+
 /*
  * Producto Terminado: una lista con TODA línea que se usó en el turno
  * (activa, esperando cierre, o ya finalizada — no solo las activas),
- * cada una con Envases de la llenadora (Contador) al lado de
- * Paletas/Cajas sueltas — se cargan juntos acá, el contador se
- * acumula, nunca se pisa. El sabor sale solo de la corrida (el mismo
- * que se copió del tanque al activar la línea) — no se elige aparte.
- * Un registro es por CORRIDA (turnoLineaId), no por línea suelta — si
- * una línea va por su segundo lote del turno, es un registro nuevo,
- * no pisa al del lote anterior.
+ * organizada en 3 niveles — Sabor → Lote → Línea — porque un sabor
+ * puede tener varios lotes a lo largo del turno, y un lote puede estar
+ * alimentando varias líneas a la vez. Envases de la llenadora
+ * (Contador, un log que se acumula solo) se cargan junto a
+ * Paletas/Cajas sueltas, pero estas últimas son el TOTAL actual (se
+ * editan, no se suman) — ver FilaProductoTerminado. El sabor sale
+ * solo de la corrida (el mismo que se copió del tanque al activar la
+ * línea) — no se elige aparte. Un registro es por CORRIDA
+ * (turnoLineaId), no por línea suelta.
  */
 export default function ProductoTerminado() {
-  const { turnoActivo, cargando, registrarProductoTerminado, registrarContador, entregarCorrida } = useTurno()
+  const { turnoActivo, cargando, registrarProductoTerminado, registrarContador, entregarCorrida, terminarSaborLinea } = useTurno()
   const { lineas, presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
 
   if (cargando || cargandoCatalogos) {
@@ -91,6 +127,7 @@ export default function ProductoTerminado() {
           onRegistrarProducto={registrarProductoTerminado}
           onRegistrarContador={registrarContador}
           onEntregarCorrida={entregarCorrida}
+          onTerminarSabor={terminarSaborLinea}
         />
 
         {cerradas.length > 0 && (
@@ -102,6 +139,7 @@ export default function ProductoTerminado() {
             onRegistrarProducto={registrarProductoTerminado}
             onRegistrarContador={registrarContador}
             onEntregarCorrida={entregarCorrida}
+            onTerminarSabor={terminarSaborLinea}
           />
         )}
       </div>
@@ -109,18 +147,47 @@ export default function ProductoTerminado() {
   )
 }
 
+interface GrupoLote {
+  key: string
+  loteId: string | null
+  lote: string | null
+  corridas: LineaEnTurno[]
+}
+
+interface GrupoSabor {
+  key: string
+  saborNombre: string | null
+  lotes: GrupoLote[]
+}
+
 /**
- * Un lote (preparación) puede estar siendo consumido por varias líneas
- * a la vez — agrupar las tarjetas por lote hace evidente esa relación
- * en vez de mostrarlas como corridas sueltas sin conexión visual.
+ * Sabor → Lote, con las líneas de cada lote SIEMPRE en el mismo orden
+ * (Línea 1, 2, 3...) sin importar cuál se activó primero — para que
+ * la posición de cada línea en la lista no salte de un momento a otro.
  */
-function agruparPorLote(corridas: LineaEnTurno[]): { key: string; lote: string | null; corridas: LineaEnTurno[] }[] {
-  const grupos = new Map<string, LineaEnTurno[]>()
+function agruparPorSaborYLote(corridas: LineaEnTurno[]): GrupoSabor[] {
+  const porSabor = new Map<string, LineaEnTurno[]>()
   for (const l of corridas) {
-    const key = l.loteId ?? l.id
-    grupos.set(key, [...(grupos.get(key) ?? []), l])
+    const key = l.saborId ?? `sin-sabor-${l.saborNombre ?? "?"}`
+    porSabor.set(key, [...(porSabor.get(key) ?? []), l])
   }
-  return [...grupos.entries()].map(([key, grupo]) => ({ key, lote: grupo[0].lote, corridas: grupo }))
+
+  return [...porSabor.entries()].map(([key, grupo]) => {
+    const porLote = new Map<string, LineaEnTurno[]>()
+    for (const l of grupo) {
+      const loteKey = l.loteId ?? l.id
+      porLote.set(loteKey, [...(porLote.get(loteKey) ?? []), l])
+    }
+
+    const lotes: GrupoLote[] = [...porLote.entries()].map(([loteKey, corridasLote]) => ({
+      key: loteKey,
+      loteId: corridasLote[0].loteId,
+      lote: corridasLote[0].lote,
+      corridas: [...corridasLote].sort((a, b) => a.linea.localeCompare(b.linea)),
+    }))
+
+    return { key, saborNombre: grupo[0].saborNombre, lotes }
+  })
 }
 
 function ListaCorridas({
@@ -131,6 +198,7 @@ function ListaCorridas({
   onRegistrarProducto,
   onRegistrarContador,
   onEntregarCorrida,
+  onTerminarSabor,
 }: {
   corridas: LineaEnTurno[]
   turnoActivo: TurnoActivo
@@ -139,36 +207,77 @@ function ListaCorridas({
   onRegistrarProducto: OnRegistrarProducto
   onRegistrarContador: OnRegistrarContador
   onEntregarCorrida: OnEntregarCorrida
+  onTerminarSabor: OnTerminarSabor
 }) {
-  const grupos = agruparPorLote(corridas)
-  const [loteAbierto, setLoteAbierto] = useState<string | null>(grupos.length === 1 ? grupos[0].key : null)
-  const grupoSeleccionado = grupos.find((g) => g.key === loteAbierto) ?? null
+  const grupos = agruparPorSaborYLote(corridas)
+  const [saborAbierto, setSaborAbierto] = useState<string | null>(grupos.length === 1 ? grupos[0].key : null)
+  const [loteAbierto, setLoteAbierto] = useState<string | null>(null)
+
+  const grupoSabor = grupos.find((g) => g.key === saborAbierto) ?? null
+  const loteEfectivo = loteAbierto ?? (grupoSabor?.lotes.length === 1 ? grupoSabor.lotes[0].key : null)
+  const grupoLote = grupoSabor?.lotes.find((l) => l.key === loteEfectivo) ?? null
+
+  function abrirSabor(key: string) {
+    setSaborAbierto((actual) => (actual === key ? null : key))
+    setLoteAbierto(null)
+  }
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {grupos.map((g) => (
-          <button
-            key={g.key}
-            type="button"
-            onClick={() => setLoteAbierto((actual) => (actual === g.key ? null : g.key))}
-            className={
-              "flex flex-col items-center justify-center gap-0.5 rounded-lg border px-2 py-3 text-center transition-colors " +
-              (loteAbierto === g.key
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border bg-muted/30 text-foreground hover:bg-muted/60")
-            }
-          >
-            <span className="text-sm font-semibold uppercase tracking-wide">Lote {g.lote ?? "sin código"}</span>
-            <span className="text-xs text-muted-foreground">
-              {g.corridas.length} {g.corridas.length === 1 ? "línea" : "líneas"}
-            </span>
-          </button>
-        ))}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {grupos.map((g) => {
+          const { color, Icono } = infoSabor(g.saborNombre)
+          const totalLineas = g.lotes.reduce((a, l) => a + l.corridas.length, 0)
+          const abierto = saborAbierto === g.key
+          return (
+            <button
+              key={g.key}
+              type="button"
+              onClick={() => abrirSabor(g.key)}
+              className={cn(
+                "flex flex-col items-center justify-center gap-2 rounded-xl border-2 px-3 py-6 text-center transition-colors",
+                abierto
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-foreground/25 bg-muted/30 text-foreground hover:bg-muted/60",
+              )}
+            >
+              <Icono className="size-8" style={{ color: abierto ? undefined : color }} />
+              <span className="text-base font-semibold uppercase tracking-wide">{g.saborNombre ?? "Sin sabor"}</span>
+              <span className="text-xs text-muted-foreground">
+                {g.lotes.length} {g.lotes.length === 1 ? "lote" : "lotes"} · {totalLineas} {totalLineas === 1 ? "línea" : "líneas"}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
-      {grupoSeleccionado &&
-        grupoSeleccionado.corridas.map((l) => (
+      {grupoSabor && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {grupoSabor.lotes.map((l) => (
+            <div key={l.key} className="relative">
+              <button
+                type="button"
+                onClick={() => setLoteAbierto((actual) => (actual === l.key ? null : l.key))}
+                className={cn(
+                  "flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-6 text-center transition-colors",
+                  loteEfectivo === l.key
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-foreground/25 bg-muted/30 text-foreground hover:bg-muted/60",
+                )}
+              >
+                <span className="text-base font-semibold uppercase tracking-wide">Lote {l.lote ?? "sin código"}</span>
+                <span className="text-xs text-muted-foreground">
+                  {l.corridas.length} {l.corridas.length === 1 ? "línea" : "líneas"}
+                </span>
+              </button>
+              <BotonCerrarLote lote={l} onTerminarSabor={onTerminarSabor} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {grupoLote &&
+        grupoLote.corridas.map((l) => (
           <FilaProductoTerminado
             key={l.id}
             lineaTurno={l}
@@ -185,6 +294,69 @@ function ListaCorridas({
   )
 }
 
+/**
+ * "Cerrar" un lote entero: termina el sabor de todas sus líneas
+ * activas de una sola vez (equivalente a apretar Terminó Sabor en
+ * cada una) — no borra ni oculta nada, las corridas cerradas se
+ * siguen viendo igual que siempre en "Corridas cerradas", con la
+ * misma información del turno.
+ */
+function BotonCerrarLote({ lote, onTerminarSabor }: { lote: GrupoLote; onTerminarSabor: OnTerminarSabor }) {
+  const [confirmando, setConfirmando] = useState(false)
+  const [cerrando, setCerrando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const activas = lote.corridas.filter((c) => c.activa)
+
+  if (activas.length === 0) return null
+
+  async function cerrar() {
+    setCerrando(true)
+    setError(null)
+    for (const corrida of activas) {
+      const resultado = await onTerminarSabor(corrida.id)
+      if (!resultado.ok) {
+        setError(resultado.error)
+        setCerrando(false)
+        return
+      }
+    }
+    setCerrando(false)
+    setConfirmando(false)
+  }
+
+  if (confirmando) {
+    return (
+      <div className="absolute -top-2 -right-2 z-10 flex flex-col items-end gap-1">
+        <div className="flex items-center gap-1 rounded-full border border-destructive/40 bg-background px-1.5 py-1 shadow-sm">
+          <button type="button" className="px-1 text-[10px] font-semibold text-destructive" onClick={cerrar} disabled={cerrando}>
+            {cerrando ? <Loader2 className="size-3 animate-spin" /> : "Sí, cerrar"}
+          </button>
+          <button
+            type="button"
+            className="px-1 text-[10px] text-muted-foreground"
+            onClick={() => setConfirmando(false)}
+            disabled={cerrando}
+          >
+            No
+          </button>
+        </div>
+        {error && <p className="max-w-32 text-right text-[10px] text-destructive">{error}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      title={`Cerrar Lote ${lote.lote ?? ""} — termina el sabor de sus ${activas.length} ${activas.length === 1 ? "línea" : "líneas"}`}
+      className="absolute -top-1.5 -right-1.5 z-10 rounded-full border border-border bg-background p-0.5 text-muted-foreground shadow-sm transition-colors hover:border-destructive/40 hover:text-destructive"
+      onClick={() => setConfirmando(true)}
+    >
+      <XCircle className="size-4" />
+    </button>
+  )
+}
+
 /** Corridas ya finalizadas: colapsadas por defecto detrás de un toggle, para no tener que scrollear entre ellas para llegar a las que sí necesitan carga. */
 function CorridasCerradas({
   corridas,
@@ -194,6 +366,7 @@ function CorridasCerradas({
   onRegistrarProducto,
   onRegistrarContador,
   onEntregarCorrida,
+  onTerminarSabor,
 }: {
   corridas: LineaEnTurno[]
   turnoActivo: TurnoActivo
@@ -202,6 +375,7 @@ function CorridasCerradas({
   onRegistrarProducto: OnRegistrarProducto
   onRegistrarContador: OnRegistrarContador
   onEntregarCorrida: OnEntregarCorrida
+  onTerminarSabor: OnTerminarSabor
 }) {
   const [abierto, setAbierto] = useState(false)
 
@@ -224,6 +398,7 @@ function CorridasCerradas({
           onRegistrarProducto={onRegistrarProducto}
           onRegistrarContador={onRegistrarContador}
           onEntregarCorrida={onEntregarCorrida}
+          onTerminarSabor={onTerminarSabor}
         />
       )}
     </div>
@@ -249,6 +424,7 @@ type OnRegistrarContador = (datos: {
 }) => Promise<ResultadoAccion>
 
 type OnEntregarCorrida = (turnoLineaId: string) => Promise<ResultadoAccion>
+type OnTerminarSabor = (turnoLineaId: string) => Promise<ResultadoAccion>
 
 function FilaProductoTerminado({
   lineaTurno,
@@ -272,9 +448,9 @@ function FilaProductoTerminado({
   const saborId = registroExistente?.saborId ?? lineaTurno.saborId
   const corridaCerrada = !lineaTurno.activa && !lineaTurno.esperandoCierre
   const [envasesLlenadora, setEnvasesLlenadora] = useState("")
-  /** Paletas/Cajas sueltas son SIEMPRE lo que se suma ahora (no el total) — igual que el Contador, se acumulan, nunca se pisan. */
-  const [paletas, setPaletas] = useState("")
-  const [cajasSueltas, setCajasSueltas] = useState("")
+  /** Paletas/Cajas sueltas son el TOTAL actual — se editan (reemplazan lo que había), no se suman. */
+  const [paletas, setPaletas] = useState(registroExistente ? String(registroExistente.paletas) : "")
+  const [cajasSueltas, setCajasSueltas] = useState(registroExistente ? String(registroExistente.cajasSueltas) : "")
   const [justificacion, setJustificacion] = useState("")
   const [continuaSiguienteTurno, setContinuaSiguienteTurno] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -284,16 +460,14 @@ function FilaProductoTerminado({
   const nPaletas = Number(paletas) || 0
   const nCajasSueltas = Number(cajasSueltas) || 0
   const cajasXPaleta = presentacion?.cajasXPaleta ?? 0
-  const cajasAcumuladas = registroExistente ? registroExistente.paletas * cajasXPaleta + registroExistente.cajasSueltas : 0
-  const cajasNuevas = nPaletas * cajasXPaleta + nCajasSueltas
-  const cajasTotalPreview = cajasAcumuladas + cajasNuevas
+  const cajasTotalPreview = nPaletas * cajasXPaleta + nCajasSueltas
   const envasesProducidos = presentacion ? cajasTotalPreview * presentacion.envasesXCaja : 0
 
   const nuevoContador = envasesLlenadora === "" ? 0 : Number(envasesLlenadora)
   const contadorTotalPreview = contadorActual + nuevoContador
 
   const mermaPct =
-    contadorTotalPreview > 0 && (paletas !== "" || cajasSueltas !== "" || cajasAcumuladas > 0)
+    contadorTotalPreview > 0 && (paletas !== "" || cajasSueltas !== "")
       ? Math.round((1 - envasesProducidos / contadorTotalPreview) * 10000) / 100
       : null
   const requiereJustificacion = mermaPct !== null && mermaPct > LIMITE_MERMA_PCT
@@ -349,8 +523,6 @@ function FilaProductoTerminado({
 
     setEnviando(false)
     setEnvasesLlenadora("")
-    setPaletas("")
-    setCajasSueltas("")
     setJustificacion("")
     setContinuaSiguienteTurno(false)
   }
@@ -371,27 +543,6 @@ function FilaProductoTerminado({
         <CardDescription>{presentacion?.nombre ?? `${lineaTurno.presentacion} ml`}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {registroExistente && (
-          <div className="grid grid-cols-3 divide-x divide-border rounded-lg border bg-muted/30">
-            <div className="flex flex-col items-center gap-0.5 px-2 py-3">
-              <span className="num text-2xl font-bold leading-none text-foreground">{cajasAcumuladas.toLocaleString("es-CO")}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Total cajas</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5 px-2 py-3">
-              <span className="num text-2xl font-bold leading-none text-foreground">
-                {registroExistente.paletas.toLocaleString("es-CO")}
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Paletas</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5 px-2 py-3">
-              <span className="num text-2xl font-bold leading-none text-foreground">
-                {(presentacion ? cajasAcumuladas * presentacion.envasesXCaja : 0).toLocaleString("es-CO")}
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Envases</span>
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor={`contador-${lineaTurno.id}`}>Envases llenadora (Contador)</Label>
@@ -413,23 +564,23 @@ function FilaProductoTerminado({
             <p className="flex h-9 items-center text-sm text-foreground">{lineaTurno.saborNombre ?? "—"}</p>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`paletas-${lineaTurno.id}`}>Sumar paletas</Label>
+            <Label htmlFor={`paletas-${lineaTurno.id}`}>Paletas</Label>
             <Input
               id={`paletas-${lineaTurno.id}`}
               type="number"
               min={0}
-              placeholder="Paletas nuevas"
+              placeholder="Paletas"
               value={paletas}
               onChange={(e) => setPaletas(e.target.value)}
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`resto-${lineaTurno.id}`}>Sumar cajas sueltas</Label>
+            <Label htmlFor={`resto-${lineaTurno.id}`}>Cajas sueltas</Label>
             <Input
               id={`resto-${lineaTurno.id}`}
               type="number"
               min={0}
-              placeholder="Cajas nuevas"
+              placeholder="Cajas sueltas"
               value={cajasSueltas}
               onChange={(e) => setCajasSueltas(e.target.value)}
             />
@@ -438,8 +589,8 @@ function FilaProductoTerminado({
 
         {presentacion && (paletas !== "" || cajasSueltas !== "") && (
           <p className="text-sm text-muted-foreground">
-            Vas a sumar <span className="font-medium text-foreground">{cajasNuevas.toLocaleString("es-CO")} cajas</span> — quedando en{" "}
-            <span className="font-medium text-foreground">{cajasTotalPreview.toLocaleString("es-CO")} cajas</span> acumuladas.
+            Total: <span className="font-medium text-foreground">{cajasTotalPreview.toLocaleString("es-CO")} cajas</span> (
+            {envasesProducidos.toLocaleString("es-CO")} envases).
           </p>
         )}
 
@@ -487,7 +638,7 @@ function FilaProductoTerminado({
 
         <Button size="sm" className="self-start" onClick={guardar} disabled={!valido || enviando}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageCheck className="size-3.5" />}
-          {registroExistente ? "Actualizar" : "Registrar"}
+          {registroExistente ? "Guardar cambios" : "Registrar"}
         </Button>
       </CardContent>
     </Card>

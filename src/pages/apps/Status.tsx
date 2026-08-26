@@ -12,10 +12,11 @@ import { useTurno } from "@/lib/turno"
 
 /*
  * Status: cómo quedaron tanques y líneas heredados del turno
- * anterior — solo ver y, si algo no coincide con la realidad,
- * corregir a mano (ver el escape hatch "Cambiar estado manualmente"
- * en src/components/EstadoPlantaTabs.tsx, modo="status"). No tiene
- * los botones para arrancar algo nuevo (Iniciar Preparación, Activar
+ * anterior — el paso de revisión Confirmar/Editar (ver
+ * ConfirmarEstadoTanque) y, si algo no coincide con la realidad
+ * después, el escape hatch "Corregir" (ver
+ * src/components/EstadoPlantaTabs.tsx, modo="status"). No tiene los
+ * botones para arrancar algo nuevo (Iniciar Preparación, Activar
  * línea) — eso es Preparación (src/pages/apps/Preparacion.tsx).
  */
 export default function Status() {

@@ -28,6 +28,13 @@ export interface LineaEnTurno {
   activadaEn: string
   /** Parada reversible (se puede Continuar) — la corrida sigue activa=true mientras está pausada. */
   pausadaEn: string | null
+  /**
+   * El lote que alimentaba esta corrida se cerró (el supervisor inició
+   * una preparación nueva sobre el mismo tanque) — la corrida sigue
+   * activa=true, pero en Líneas se le ofrecen 2 opciones: Terminó
+   * Sabor o Continuar al siguiente lote (ver continuarSiguienteLote).
+   */
+  loteTerminado: string | null
   finalizadaEn: string | null
   /** Terminó Sabor ya se apretó (activa=false) pero todavía no se registró su contador — no está realmente cerrada. */
   esperandoCierre: boolean
@@ -35,7 +42,7 @@ export interface LineaEnTurno {
   entregadaEn: string | null
 }
 
-export type CondicionTanque = "LISTO" | "SUCIO" | "VACIO" | "EN_PREPARACION"
+export type CondicionTanque = "LISTO" | "SUCIO" | "VACIO" | "EN_PREPARACION" | "STANDBY"
 
 /**
  * Estado de uno de los 3 tanques de materia prima. Es estado continuo
@@ -43,11 +50,16 @@ export type CondicionTanque = "LISTO" | "SUCIO" | "VACIO" | "EN_PREPARACION"
  * hereda de turno a turno. EN_PREPARACION = "no liberado" (se está
  * mezclando, todavía no se puede usar); LISTO = "liberado" (ya se
  * puede tomar para una corrida). Sabor y volumen solo tienen sentido
- * cuando condicion = "LISTO" — se copian ahí desde el lote al
- * liberarlo (ver liberarLote); mientras está EN_PREPARACION esos
- * campos quedan en null porque todavía no es oficial.
- * "ultimoSabor/ultimoLote" quedan guardados cuando el tanque pasa a
- * SUCIO, para poder mostrarlos sin que el supervisor los reescriba.
+ * cuando condicion = "LISTO" o "STANDBY" — se copian ahí desde el
+ * lote al liberarlo (ver liberarLote); mientras está EN_PREPARACION
+ * esos campos quedan en null porque todavía no es oficial.
+ * STANDBY = el lote que tenía adentro ya se cerró solo (el volumen
+ * llegó a 0 por Producto Terminado, ver registrar_producto_terminado)
+ * pero quedó un resto que no es exactamente 0 — sabor/lote/volumen se
+ * mantienen para que el supervisor decida a mano (Corregir) si lo
+ * guarda o lo marca Sucio. "ultimoSabor/ultimoLote" quedan guardados
+ * cuando el tanque pasa a SUCIO, para poder mostrarlos sin que el
+ * supervisor los reescriba.
  */
 export interface TanqueRecepcion {
   numeroTanque: 1 | 2 | 3
@@ -214,6 +226,7 @@ interface TurnoContextValue {
   pausarLinea: (turnoLineaId: string) => Promise<Resultado>
   continuarLinea: (turnoLineaId: string) => Promise<Resultado>
   terminarSaborLinea: (turnoLineaId: string) => Promise<Resultado>
+  continuarSiguienteLote: (turnoLineaId: string) => Promise<Resultado>
   entregarCorrida: (turnoLineaId: string) => Promise<Resultado>
   finalizarLote: (loteId: string) => Promise<Resultado>
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
@@ -248,6 +261,7 @@ interface FilaLinea {
   activa: boolean
   activada_en: string
   pausada_en: string | null
+  lote_terminado_en: string | null
   entregada_en: string | null
   finalizada_en: string | null
 }
@@ -370,6 +384,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       activa: l.activa,
       activadaEn: l.activada_en,
       pausadaEn: l.pausada_en,
+      loteTerminado: l.lote_terminado_en,
       finalizadaEn: l.finalizada_en,
       esperandoCierre: !l.activa && l.finalizada_en === null,
       entregadaEn: l.entregada_en,
@@ -585,6 +600,25 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  async function continuarSiguienteLote(turnoLineaId: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("continuar_siguiente_lote", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_turno_linea_id: turnoLineaId,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo continuar al siguiente lote. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
   async function entregarCorrida(turnoLineaId: string): Promise<Resultado> {
     if (!turnoActivo || !usuario) {
       return { ok: false, error: "No hay un turno en curso." }
@@ -740,29 +774,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       return { ok: false, error: "No se pudo registrar Producto Terminado. Intenta de nuevo." }
     }
 
-    const nuevo = data as FilaProductoTerminado
-    setTurnoActivo((actual) =>
-      actual
-        ? {
-            ...actual,
-            productoTerminado: [
-              ...actual.productoTerminado.filter((p) => p.turnoLineaId !== nuevo.turno_linea_id),
-              {
-                id: nuevo.id,
-                linea: nuevo.linea_codigo as LineaCodigo,
-                turnoLineaId: nuevo.turno_linea_id,
-                saborId: nuevo.sabor_id,
-                saborNombre: nuevo.sabor_nombre,
-                presentacion: String(nuevo.presentacion_volumen_ml),
-                paletas: nuevo.paletas,
-                cajasSueltas: nuevo.cajas_sueltas,
-                litrosProducidos: nuevo.litros_producidos,
-                creadoEn: nuevo.creado_en,
-              },
-            ],
-          }
-        : actual,
-    )
+    setTurnoActivo(mapearTurno(data as FilaTurno))
     return { ok: true }
   }
 
@@ -826,6 +838,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         pausarLinea,
         continuarLinea,
         terminarSaborLinea,
+        continuarSiguienteLote,
         entregarCorrida,
         finalizarLote,
         cambiarCondicionTanque,
