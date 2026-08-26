@@ -202,19 +202,6 @@
 }
 
 /*
- * Impresión del acta de turno (ver src/components/ActaTurno.tsx): se
- * fuerza fondo blanco/texto negro acá en vez de depender de las
- * variables de tema (--background, etc), porque si el navegador está
- * en modo oscuro esas variables imprimirían un fondo oscuro y
- * desperdiciarían tinta / quedaría ilegible en papel.
- */
-@media print {
-  @page {
-    margin: 1.5cm;
-  }
-}
-
-/*
  * Utilidades del dashboard (ver src/pages/apps/MisEstadisticas.tsx):
  * "num" para números tabulares en fuente mono (alineados en tablas),
  * "liquid-wave"/"liquid-wave-2"/"alert-pulse" para las animaciones de

@@ -12,6 +12,7 @@ import Calculadora from "@/pages/apps/Calculadora"
 import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
 import Historial from "@/pages/apps/Historial"
+import Actas from "@/pages/apps/Actas"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 /*
@@ -119,8 +120,16 @@ export default function App() {
       <Route
         path="/auditoria"
         element={
-          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"]}>
             <Historial />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/actas"
+        element={
+          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"]}>
+            <Actas />
           </ProtectedRoute>
         }
       />

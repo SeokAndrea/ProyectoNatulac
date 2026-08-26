@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react"
 import { CircleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth"
 import { useTurno } from "@/lib/turno"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { turnosActivosPorArea, type TurnoActivoArea } from "@/lib/historialTurnos"
 
 /*
  * Franja fija debajo del header con Área, Supervisor activo y el
@@ -18,11 +20,31 @@ import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
  * mostrar el usuario logueado, y ese SÍ puede no ser un supervisor
  * (Administrador de Área, Super Administrador) — por eso ahí la
  * etiqueta pasa a decir "Usuario".
+ *
+ * turno_activo_de() (turnoActivo) es SIEMPRE el turno PROPIO del
+ * usuario logueado — para un Administrador de Área eso da null
+ * siempre (no corre turnos él mismo), y decía "Sin turno iniciado"
+ * como si le faltara arrancar uno, cuando en realidad solo quiere ver
+ * si SU área tiene un turno activo ahora mismo (la misma info que ya
+ * ve el supervisor de esa área). Para roles que no son Supervisor, se
+ * busca el turno activo del área vía turnos_activos_por_area() en vez
+ * de asumir que no hay ninguno.
  */
 export function EstadoBanner() {
   const { session } = useAuth()
   const { turnoActivo, cargando } = useTurno()
   const { lineas } = useCatalogosLive()
+  const [turnoDeArea, setTurnoDeArea] = useState<TurnoActivoArea | null>(null)
+
+  const mirarTurnoDeArea = session?.rol !== "SUPERVISOR" && session?.area != null
+
+  useEffect(() => {
+    if (!session || !mirarTurnoDeArea) return
+    turnosActivosPorArea(session.username).then((lista) => {
+      setTurnoDeArea(lista.find((t) => t.areaCodigo === session.area) ?? null)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.username, mirarTurnoDeArea])
 
   if (!session) return null
 
@@ -51,6 +73,12 @@ export function EstadoBanner() {
               })()}
             </span>
             <Badge variant="secondary">{turnoActivo.codigo}</Badge>
+          </span>
+        ) : mirarTurnoDeArea && turnoDeArea?.turnoId ? (
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <span className="text-muted-foreground">Turno:</span>
+            <span className="font-medium text-foreground">Activo · Supervisor {turnoDeArea.supervisorNombre}</span>
+            <Badge variant="secondary">{turnoDeArea.turnoCodigo}</Badge>
           </span>
         ) : (
           <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-500">

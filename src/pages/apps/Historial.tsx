@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
-import { ChevronLeft, FileText, Loader2, Search, Trash2 } from "lucide-react"
+import { ChevronLeft, Loader2, RotateCcw, Search, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
-import { ActaTurno } from "@/components/ActaTurno"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,25 +8,41 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
+import { construirHistorial } from "@/lib/historial"
 import { listarPersonal, type PersonalRegistrado } from "@/lib/personal"
-import { eliminarTurno, listarTurnosHistorial, obtenerTurnoDetalle, type TurnoResumen } from "@/lib/historialTurnos"
-import type { TurnoActivo } from "@/lib/turno"
+import {
+  eliminarTurno,
+  listarTurnosHistorial,
+  obtenerTurnoDetalle,
+  reabrirTurno,
+  turnosActivosPorArea,
+  type TurnoActivoArea,
+  type TurnoResumen,
+} from "@/lib/historialTurnos"
+import { fechaLocal, type TurnoActivo } from "@/lib/turno"
 
 /*
- * Auditoría: buscar cualquier turno (abierto o cerrado, de cualquier
- * área/supervisor) por supervisor y/o rango de fechas, y ver su
- * detalle completo — solo SUPERADMINISTRADOR (ver rolesPermitidos en
- * src/lib/apps.tsx y src/App.tsx). Reutiliza <ActaTurno /> para el
- * detalle, así que desde acá también se puede generar el PDF de
- * cualquier turno pasado, no solo del que está en curso.
+ * Auditoría: registro cronológico de acciones de cualquier turno
+ * (Hora - Sección - Qué), buscable por supervisor y/o fecha — para
+ * Super Administrador (todas las áreas menos PRUEBAS) y Administrador
+ * de Área (acotado a la suya, ver rol_y_area_de() del lado del
+ * servidor). El PDF del acta vive aparte, en su propia app (ver
+ * src/pages/apps/Actas.tsx) — esto es solo el registro de acciones,
+ * no el documento de cierre.
+ *
+ * Arriba de la búsqueda, un vistazo rápido de qué área tiene un turno
+ * activo ahora mismo y quién es el supervisor.
  */
 export default function Historial() {
   const { session } = useAuth()
+  const { lineas, presentaciones } = useCatalogosLive()
+  const [turnosActivos, setTurnosActivos] = useState<TurnoActivoArea[]>([])
   const [supervisores, setSupervisores] = useState<PersonalRegistrado[]>([])
   const [supervisorUsuario, setSupervisorUsuario] = useState("")
-  const [fechaDesde, setFechaDesde] = useState("")
-  const [fechaHasta, setFechaHasta] = useState("")
+  const [fechaDesde, setFechaDesde] = useState(() => fechaLocal(new Date()))
+  const [fechaHasta, setFechaHasta] = useState(() => fechaLocal(new Date()))
   const [turnos, setTurnos] = useState<TurnoResumen[]>([])
   const [cargando, setCargando] = useState(true)
   const [seleccionado, setSeleccionado] = useState<TurnoResumen | null>(null)
@@ -36,9 +51,13 @@ export default function Historial() {
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [eliminando, setEliminando] = useState(false)
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
+  const [reabriendo, setReabriendo] = useState(false)
+  const [errorReabrir, setErrorReabrir] = useState<string | null>(null)
+  const [reabierto, setReabierto] = useState(false)
 
   useEffect(() => {
     if (!session) return
+    turnosActivosPorArea(session.username).then(setTurnosActivos)
     listarPersonal(session.username).then((lista) => setSupervisores(lista.filter((p) => p.rol === "SUPERVISOR" && p.activo)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.username])
@@ -59,6 +78,7 @@ export default function Historial() {
   async function verDetalle(turno: TurnoResumen) {
     if (!session) return
     setSeleccionado(turno)
+    setReabierto(false)
     setCargandoDetalle(true)
     const t = await obtenerTurnoDetalle(session.username, turno.id)
     setDetalle(t)
@@ -70,6 +90,7 @@ export default function Historial() {
     setDetalle(null)
     setConfirmandoEliminar(false)
     setErrorEliminar(null)
+    setErrorReabrir(null)
   }
 
   async function handleEliminar() {
@@ -86,10 +107,24 @@ export default function Historial() {
     buscar()
   }
 
+  async function handleReabrir() {
+    if (!session || !seleccionado) return
+    setReabriendo(true)
+    setErrorReabrir(null)
+    const resultado = await reabrirTurno(session.username, seleccionado.id)
+    setReabriendo(false)
+    if (!resultado.ok) {
+      setErrorReabrir(resultado.error)
+      return
+    }
+    setReabierto(true)
+    buscar()
+  }
+
   if (seleccionado) {
     return (
       <AppShell title="Auditoría" description={`Turno ${seleccionado.codigo}`}>
-        <div className="mx-auto flex max-w-2xl flex-col gap-4 print:hidden">
+        <div className="mx-auto flex max-w-2xl flex-col gap-4">
           <Button variant="ghost" size="sm" className="self-start" onClick={volver}>
             <ChevronLeft className="size-4" />
             Volver a la búsqueda
@@ -102,10 +137,12 @@ export default function Historial() {
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={() => window.print()}>
-                  <FileText className="size-4" />
-                  Generar Acta (PDF)
-                </Button>
+                {seleccionado.estado === "CERRADO" && !reabierto && (
+                  <Button variant="outline" onClick={handleReabrir} disabled={reabriendo}>
+                    {reabriendo ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+                    Reabrir Turno
+                  </Button>
+                )}
                 {seleccionado.estado === "CERRADO" && (
                   <Button
                     variant="outline"
@@ -113,10 +150,21 @@ export default function Historial() {
                     onClick={() => setConfirmandoEliminar((v) => !v)}
                   >
                     <Trash2 className="size-4" />
-                    Eliminar Acta
+                    Eliminar Turno
                   </Button>
                 )}
               </div>
+
+              {reabierto && (
+                <p className="text-sm text-success">
+                  Turno reabierto — el supervisor ya lo puede corregir y volver a Finalizar (eso genera una nueva versión del acta).
+                </p>
+              )}
+              {errorReabrir && (
+                <p className="text-sm text-destructive" role="alert">
+                  {errorReabrir}
+                </p>
+              )}
 
               {confirmandoEliminar && (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-3 text-sm">
@@ -143,25 +191,45 @@ export default function Historial() {
                 </div>
               )}
 
-              <Card className="overflow-hidden p-0">
-                <ActaTurno turno={detalle} supervisorNombre={seleccionado.supervisorNombre} area={seleccionado.area} />
-              </Card>
+              <div className="flex flex-col gap-2">
+                {construirHistorial(detalle, lineas, presentaciones).map((ev, i) => (
+                  <div key={i} className="flex gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                    <span className="num w-14 shrink-0 pt-0.5 text-xs text-muted-foreground">{ev.hora}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold tracking-wide text-foreground uppercase">{ev.seccion}</p>
+                      <p className="text-muted-foreground">{ev.detalle}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </>
           )}
         </div>
-
-        {detalle && (
-          <div className="hidden print:block">
-            <ActaTurno turno={detalle} supervisorNombre={seleccionado.supervisorNombre} area={seleccionado.area} />
-          </div>
-        )}
       </AppShell>
     )
   }
 
   return (
-    <AppShell title="Auditoría" description="Historial de turnos por supervisor y fecha">
+    <AppShell title="Auditoría" description="Registro de acciones por supervisor y fecha">
       <div className="mx-auto flex max-w-2xl flex-col gap-4">
+        {turnosActivos.length > 0 && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {turnosActivos.map((t) => (
+              <div
+                key={t.areaCodigo}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              >
+                <span className="font-medium text-foreground">{t.areaNombre}</span>
+                {t.turnoId ? (
+                  <Badge variant="success">Turno Activo · {t.supervisorNombre}</Badge>
+                ) : (
+                  <Badge variant="muted">Sin turno activo</Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Buscar</CardTitle>

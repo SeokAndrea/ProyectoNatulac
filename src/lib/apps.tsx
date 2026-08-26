@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { PlayCircle, PackageCheck, ClipboardCheck, ClipboardList, Calculator, Users, DatabaseZap, History, Beaker, RadioTower, CalendarClock, CalendarRange } from "lucide-react"
+import { PlayCircle, PackageCheck, ClipboardCheck, ClipboardList, Calculator, Users, DatabaseZap, History, FileText, Beaker, RadioTower, CalendarClock, CalendarRange } from "lucide-react"
 import type { RolCodigo } from "@/lib/catalogos"
 
 export interface AppDef {
@@ -28,6 +28,8 @@ export interface AppDef {
   bloqueaConTurno?: boolean
   /** Se resalta en rojo cuando hay un turno en curso, para que sea obvio el siguiente paso (ver Finalizar Turno). */
   resaltarConTurno?: boolean
+  /** Color fijo del ícono/tarjeta (por defecto: primary) — para distinguir a simple vista pasos como Comenzar/Preparación/Finalizar. */
+  color?: "success" | "blue"
 }
 
 /*
@@ -53,6 +55,7 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     rolesPermitidos: ["SUPERVISOR"],
     bloqueaConTurno: true,
+    color: "success",
   },
   {
     slug: "status",
@@ -71,6 +74,7 @@ export const apps: AppDef[] = [
     icon: Beaker,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
+    color: "blue",
   },
   {
     slug: "producto-terminado",
@@ -142,7 +146,16 @@ export const apps: AppDef[] = [
     href: "/auditoria",
     icon: History,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"],
+  },
+  {
+    slug: "actas",
+    title: "Actas",
+    description: "Actas de cierre de turno, con su PDF.",
+    href: "/actas",
+    icon: FileText,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"],
   },
   {
     slug: "edicion-datos",

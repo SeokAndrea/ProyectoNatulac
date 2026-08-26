@@ -50,6 +50,15 @@ export default function Hub() {
   )
 }
 
+const COLOR_ICONO: Record<NonNullable<AppDef["color"]>, string> = {
+  success: "bg-success/15 text-success group-hover:bg-success group-hover:text-primary-foreground",
+  blue: "bg-blue-500/15 text-blue-600 group-hover:bg-blue-600 group-hover:text-white dark:text-blue-400",
+}
+const COLOR_BORDE_HOVER: Record<NonNullable<AppDef["color"]>, string> = {
+  success: "hover:border-success/50",
+  blue: "hover:border-blue-500/50",
+}
+
 function TarjetaApp({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean }) {
   const Icon = app.icon
   const bloqueada = !app.href || (app.requiereTurno && !turnoActivo) || (app.bloqueaConTurno && turnoActivo)
@@ -63,7 +72,9 @@ function TarjetaApp({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean })
           ? "bg-muted text-muted-foreground"
           : resaltada
             ? "bg-destructive/15 text-destructive"
-            : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground",
+            : app.color
+              ? COLOR_ICONO[app.color]
+              : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground",
       )}
     >
       {bloqueada && !app.href ? <Icon className="size-5.5" /> : bloqueada ? <Lock className="size-5" /> : <Icon className="size-5.5" />}
@@ -113,7 +124,9 @@ function TarjetaApp({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean })
         "group flex flex-col justify-between gap-6 rounded-2xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         resaltada
           ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
-          : "border-border/70 bg-card hover:border-primary/40",
+          : app.color
+            ? cn("border-border/70 bg-card", COLOR_BORDE_HOVER[app.color])
+            : "border-border/70 bg-card hover:border-primary/40",
       )}
     >
       {iconoWrap}

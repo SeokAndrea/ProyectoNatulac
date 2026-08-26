@@ -239,6 +239,7 @@ function TanqueCard({
             numeroTanque={tanque.numeroTanque}
             condicion={tanque.condicion}
             volumenL={tanque.volumenL}
+            volumenInicialL={tanque.volumenInicialL}
             color={color}
             capacidad={TANK_CAPACITY}
             square
@@ -320,6 +321,7 @@ function TanqueCard({
             <FormularioIniciarPreparacion
               numeroTanque={tanque.numeroTanque}
               sabores={sabores}
+              volumenRestante={tanque.condicion === "STANDBY" ? (tanque.volumenL ?? 0) : 0}
               onIniciar={async (datos) => {
                 const resultado = await onIniciarPreparacion(datos)
                 if (resultado.ok) setMostrarFormPrep(false)
@@ -376,11 +378,14 @@ function TanqueCard({
 function FormularioIniciarPreparacion({
   numeroTanque,
   sabores,
+  volumenRestante,
   onIniciar,
   onCancelar,
 }: {
   numeroTanque: 1 | 2 | 3
   sabores: Sabor[]
+  /** Litros que ya están físicamente en el tanque (resto de Standby) — se suman al nuevo lote, no desaparecen. */
+  volumenRestante: number
   onIniciar: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onCancelar: () => void
 }) {
@@ -395,7 +400,9 @@ function FormularioIniciarPreparacion({
 
   const saborElegido = sabores.find((s) => s.id === saborId)
   const litrosEstimados =
-    saborElegido?.volumen && tambores !== "" && Number(tambores) > 0 ? Math.round(Number(tambores) * saborElegido.volumen) : null
+    saborElegido?.volumen && tambores !== "" && Number(tambores) > 0
+      ? Math.round(Number(tambores) * saborElegido.volumen) + volumenRestante
+      : null
   const excedeCapacidad = litrosEstimados !== null && litrosEstimados > TANK_CAPACITY
 
   const valido = saborId !== "" && lote.trim() !== "" && tambores !== "" && Number(tambores) >= 0 && !excedeCapacidad
@@ -421,7 +428,10 @@ function FormularioIniciarPreparacion({
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-      <p className="text-xs font-semibold text-muted-foreground">Nueva preparación (lote independiente, no se suma a otros)</p>
+      <p className="text-xs font-semibold text-muted-foreground">
+        Nueva preparación (lote independiente, no se suma a otros)
+        {volumenRestante > 0 ? ` — se suman los ${volumenRestante.toLocaleString("es-CO")} L que quedaban en el tanque.` : ""}
+      </p>
       <div className="grid grid-cols-2 gap-2">
         <Select value={saborId} onValueChange={setSaborId}>
           <SelectTrigger className="w-full">

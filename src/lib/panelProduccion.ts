@@ -108,6 +108,36 @@ export function mermaEnvasesTurno(turno: TurnoActivo, presentaciones: Presentaci
   return { pct }
 }
 
+/**
+ * Merma de ENVASES de una línea puntual, sumando TODAS sus corridas
+ * del turno (no solo la corrida activa ahora mismo) — mismo criterio
+ * de "sumar todo y recién ahí dividir" que mermaEnvasesTurno(), pero
+ * acotado a las corridas de esa línea. Si la línea ya cerró un lote y
+ * arrancó uno nuevo en el mismo turno (ej. preparó encima de un
+ * tanque en Standby), el lote nuevo recién arranca sin contador propio
+ * todavía — sin esto, el dashboard de la línea individual mostraba "—"
+ * en vez de la merma real acumulada de esa línea en el turno.
+ */
+export function mermaLineaTurno(turno: TurnoActivo, lineaCodigo: string, presentaciones: PresentacionLive[]): { pct: number | null } {
+  const corridaIds = new Set(turno.lineas.filter((l) => l.linea === lineaCodigo).map((l) => l.id))
+
+  const llenadora = turno.contadores
+    .filter((c) => c.turnoLineaId && corridaIds.has(c.turnoLineaId))
+    .reduce((a, c) => a + c.envasesLlenadora, 0)
+
+  const envasesReales = turno.productoTerminado
+    .filter((p) => p.turnoLineaId && corridaIds.has(p.turnoLineaId))
+    .reduce((a, p) => {
+      const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
+      const cajasXPaleta = pres?.cajasXPaleta ?? 0
+      const envasesXCaja = pres?.envasesXCaja ?? 0
+      return a + (p.paletas * cajasXPaleta + p.cajasSueltas) * envasesXCaja
+    }, 0)
+
+  const pct = llenadora === 0 ? null : Math.round((1 - envasesReales / llenadora) * 10000) / 100
+  return { pct }
+}
+
 export interface MermaSemielaboradoTurno {
   pct: number | null
   litrosConsumidos: number
@@ -115,20 +145,30 @@ export interface MermaSemielaboradoTurno {
 }
 
 /**
- * Merma de SEMIELABORADO: litros que salieron de los tanques (cada
- * contador consume envasesLlenadora × volumenMl/1000 del lote de su
- * corrida — mismo cálculo que registrar_contador() al descontarle al
- * lote, ver supabase/migrations/20260914090000_litros_consumidos_lote.sql)
- * contra los litros que efectivamente salieron en Producto Terminado.
- * Es la merma de ANTES de la llenadora (jarabe/mezcla que no llegó a
- * envasarse) — complementa a mermaEnvasesTurno(), que mide la de
- * DESPUÉS (llenadora vs. paletizado).
+ * Merma de SEMIELABORADO: litros que salieron REALMENTE de los
+ * tanques — por cada lote (preparación) que tocó alguna corrida de
+ * este turno, volumenInicialL - volumenL actual — contra los litros
+ * que efectivamente salieron en Producto Terminado. Es la merma de
+ * ANTES de la llenadora (jarabe/mezcla que no llegó a envasarse) —
+ * complementa a mermaEnvasesTurno(), que mide la de DESPUÉS (llenadora
+ * vs. paletizado).
+ *
+ * OJO: no se calcula desde el Contador (envasesLlenadora × volumenMl)
+ * — ese cálculo asumía que registrar_contador() seguía descontando del
+ * lote, pero eso se sacó en 20260928090000_cerrar_corrida_desde_contador_o_producto.sql
+ * (el único que descuenta volumen_l hoy es Producto Terminado, ver
+ * registrar_producto_terminado()). Además el tanque puede corregirse a
+ * mano (Corregir) o sumar un resto de Standby — el volumen real del
+ * tanque, no el contador, es la única fuente confiable de "cuánto
+ * salió".
  */
-export function mermaSemielaboradoTurno(turno: TurnoActivo, presentaciones: PresentacionLive[]): MermaSemielaboradoTurno {
-  const litrosConsumidos = turno.contadores.reduce((a, c) => {
-    const corrida = turno.lineas.find((l) => l.id === c.turnoLineaId)
-    const pres = corrida ? presentaciones.find((p) => p.codigo === corrida.presentacion) : undefined
-    return a + (c.envasesLlenadora * (pres?.volumenMl ?? 0)) / 1000
+export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoTurno {
+  const loteIds = new Set(turno.lineas.map((l) => l.loteId).filter((id): id is string => id !== null))
+
+  const litrosConsumidos = [...loteIds].reduce((a, loteId) => {
+    const lote = turno.preparaciones.find((p) => p.id === loteId)
+    if (!lote || lote.volumenInicialL === null) return a
+    return a + (lote.volumenInicialL - (lote.volumenL ?? 0))
   }, 0)
 
   const litrosProducidos = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)

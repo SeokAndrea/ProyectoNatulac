@@ -19,10 +19,12 @@ import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { agruparPorSaborYLote, type GrupoLote } from "@/lib/agruparProduccion"
 import { nombrePorCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { nivelMerma } from "@/lib/estadisticas"
@@ -148,48 +150,7 @@ export default function ProductoTerminado() {
   )
 }
 
-interface GrupoLote {
-  key: string
-  loteId: string | null
-  lote: string | null
-  corridas: LineaEnTurno[]
-}
-
-interface GrupoSabor {
-  key: string
-  saborNombre: string | null
-  lotes: GrupoLote[]
-}
-
-/**
- * Sabor → Lote, con las líneas de cada lote SIEMPRE en el mismo orden
- * (Línea 1, 2, 3...) sin importar cuál se activó primero — para que
- * la posición de cada línea en la lista no salte de un momento a otro.
- */
-function agruparPorSaborYLote(corridas: LineaEnTurno[]): GrupoSabor[] {
-  const porSabor = new Map<string, LineaEnTurno[]>()
-  for (const l of corridas) {
-    const key = l.saborId ?? `sin-sabor-${l.saborNombre ?? "?"}`
-    porSabor.set(key, [...(porSabor.get(key) ?? []), l])
-  }
-
-  return [...porSabor.entries()].map(([key, grupo]) => {
-    const porLote = new Map<string, LineaEnTurno[]>()
-    for (const l of grupo) {
-      const loteKey = l.loteId ?? l.id
-      porLote.set(loteKey, [...(porLote.get(loteKey) ?? []), l])
-    }
-
-    const lotes: GrupoLote[] = [...porLote.entries()].map(([loteKey, corridasLote]) => ({
-      key: loteKey,
-      loteId: corridasLote[0].loteId,
-      lote: corridasLote[0].lote,
-      corridas: [...corridasLote].sort((a, b) => a.linea.localeCompare(b.linea)),
-    }))
-
-    return { key, saborNombre: grupo[0].saborNombre, lotes }
-  })
-}
+// GrupoLote/GrupoSabor/agruparPorSaborYLote se movieron a src/lib/agruparProduccion.ts (compartido con el acta en PDF).
 
 function ListaCorridas({
   corridas,
@@ -420,6 +381,8 @@ type OnRegistrarProducto = (datos: {
   presentacion: PresentacionCodigo
   paletas: number
   cajasSueltas: number
+  productoRetenido: boolean
+  cajasRetenidas: number | null
 }) => Promise<ResultadoAccion>
 
 type OnRegistrarContador = (datos: {
@@ -468,6 +431,10 @@ function FilaProductoTerminado({
   const [cajasSueltas, setCajasSueltas] = useState(registroExistente ? String(registroExistente.cajasSueltas) : "")
   const [justificacion, setJustificacion] = useState("")
   const [proximoEstado, setProximoEstado] = useState<ProximoEstado | null>(null)
+  const [productoRetenido, setProductoRetenido] = useState(registroExistente?.productoRetenido ?? false)
+  const [cajasRetenidas, setCajasRetenidas] = useState(
+    registroExistente?.cajasRetenidas != null ? String(registroExistente.cajasRetenidas) : "",
+  )
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
@@ -526,6 +493,8 @@ function FilaProductoTerminado({
         presentacion: lineaTurno.presentacion,
         paletas: nPaletas,
         cajasSueltas: nCajasSueltas,
+        productoRetenido,
+        cajasRetenidas: productoRetenido && cajasRetenidas !== "" ? Number(cajasRetenidas) : null,
       })
       if (!resultado.ok) {
         setEnviando(false)
@@ -696,6 +665,22 @@ function FilaProductoTerminado({
             onChange={(e) => setJustificacion(e.target.value)}
           />
         )}
+
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Checkbox checked={productoRetenido} onCheckedChange={(v) => setProductoRetenido(v === true)} />
+            ¿Hay producto retenido?
+          </label>
+          {productoRetenido && (
+            <Input
+              type="number"
+              min={0}
+              placeholder="¿Cuántas cajas?"
+              value={cajasRetenidas}
+              onChange={(e) => setCajasRetenidas(e.target.value)}
+            />
+          )}
+        </div>
 
         {puedeElegirProximoEstado && (
           <div className="flex flex-col gap-1.5">

@@ -1,37 +1,36 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { AlertTriangle, ClipboardCheck, FileText, Loader2, Square } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Download, Loader2, Square } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
 import { EmptyState } from "@/components/EmptyState"
 import { ResumenTurno } from "@/components/ResumenTurno"
 import { ListaContadores } from "@/components/ListaContadores"
-import { ActaTurno } from "@/components/ActaTurno"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { Button } from "@/components/ui/button"
 import { nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
+import { generarActaPdf } from "@/lib/actaPdf"
+import { subirYRegistrarActa, urlPublicaActa } from "@/lib/historialTurnos"
 import { listarSabores, type Sabor } from "@/lib/sabores"
-import { useTurno } from "@/lib/turno"
+import { useTurno, type TurnoActivo } from "@/lib/turno"
 
 /*
  * Finalizar Turno: el resumen formal del turno en curso (datos fijos
  * + todos los contadores de Contadores y Merma por línea, con sus
- * mermas y justificaciones) para revisar antes de cerrar — funciona
- * como el acta del turno. El cierre hace un UPDATE real en la tabla
- * "turnos" de Supabase (estado = 'CERRADO', ver finalizar_turno() en
- * supabase/migrations/20260825090000_conectar_turnos.sql).
+ * mermas y justificaciones) para revisar antes de cerrar. El cierre
+ * hace un UPDATE real en "turnos" (estado = 'CERRADO', ver
+ * finalizar_turno()) y, si sale bien, genera el acta en PDF de una
+ * sola vez (jsPDF, ver src/lib/actaPdf.ts) y la sube a Supabase
+ * Storage (ver subirYRegistrarActa() en src/lib/historialTurnos.ts) —
+ * ya no depende de window.print()/"Guardar como PDF" del navegador.
  *
  * No hay una tarjeta de Checklist propia — si falta algo al apretar
  * "Finalizar Turno", se avisa ahí mismo (con un segundo clic para
  * confirmar igual), en vez de ocupar una tarjeta todo el tiempo. Las
  * demás secciones son colapsables (SeccionColapsable): cerradas por
  * defecto, un clic las abre si hace falta revisarlas.
- *
- * "Generar Acta (PDF)" usa la impresión del navegador (ver
- * src/components/ActaTurno.tsx) — no genera el PDF ella misma, abre
- * el diálogo de impresión, donde "Guardar como PDF" hace el resto.
  */
 export default function FinalizarTurno() {
   const { turnoActivo, cargando, finalizarTurno, cambiarCondicionTanque, confirmarEstadoTanque } = useTurno()
@@ -41,6 +40,7 @@ export default function FinalizarTurno() {
   const [finalizando, setFinalizando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [sabores, setSabores] = useState<Sabor[]>([])
+  const [cerrado, setCerrado] = useState<{ codigoTurno: string; actaUrl: string | null; errorActa: string | null } | null>(null)
 
   useEffect(() => {
     listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
@@ -99,14 +99,77 @@ export default function FinalizarTurno() {
       setConfirmando(true)
       return
     }
+    if (!session || !turnoActivo) return
     setFinalizando(true)
+
+    // Se guarda el turno ANTES de cerrarlo — finalizarTurno() limpia turnoActivo del contexto al terminar.
+    const turnoParaActa: TurnoActivo = turnoActivo
     await finalizarTurno()
-    navigate("/hub", { replace: true })
+
+    let actaUrl: string | null = null
+    let errorActa: string | null = null
+    try {
+      const blob = generarActaPdf({
+        turno: turnoParaActa,
+        supervisorNombre: session.nombre || session.username,
+        area: session.area,
+        lineas,
+        presentaciones,
+      })
+      const resultado = await subirYRegistrarActa(
+        session.username,
+        turnoParaActa.id,
+        session.area ?? "SIN_AREA",
+        turnoParaActa.codigo,
+        blob,
+      )
+      if (resultado.ok) {
+        actaUrl = urlPublicaActa(resultado.acta.storagePath)
+      } else {
+        errorActa = resultado.error
+      }
+    } catch {
+      errorActa = "No se pudo generar el PDF del acta. Podés generarla de nuevo desde Auditoría."
+    }
+
+    setFinalizando(false)
+    setCerrado({ codigoTurno: turnoParaActa.codigo, actaUrl, errorActa })
+  }
+
+  if (cerrado) {
+    return (
+      <AppShell title="Finalizar Turno" description={`Turno ${cerrado.codigoTurno}`}>
+        <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center">
+          <CheckCircle2 className="size-10 text-success" />
+          <div>
+            <p className="text-lg font-semibold text-foreground">Turno cerrado</p>
+            <p className="text-sm text-muted-foreground">Turno {cerrado.codigoTurno}</p>
+          </div>
+
+          {cerrado.actaUrl ? (
+            <Button asChild>
+              <a href={cerrado.actaUrl} target="_blank" rel="noreferrer">
+                <Download className="size-4" />
+                Descargar Acta (PDF)
+              </a>
+            </Button>
+          ) : (
+            <p className="text-sm text-destructive" role="alert">
+              {cerrado.errorActa}
+            </p>
+          )}
+
+          <Button variant="ghost" onClick={() => navigate("/hub", { replace: true })}>
+            Volver al inicio
+          </Button>
+        </div>
+      </AppShell>
+    )
   }
 
   return (
     <AppShell title="Finalizar Turno" description={`Turno ${turnoActivo.codigo}`}>
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 print:hidden">
+      <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <SeccionColapsable titulo="Datos del turno">
             <ResumenTurno turno={turnoActivo} />
@@ -218,26 +281,15 @@ export default function FinalizarTurno() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button variant="outline" className="sm:flex-1" onClick={() => window.print()}>
-            <FileText className="size-4" />
-            Generar Acta (PDF)
-          </Button>
-
-          <Button
-            variant="outline"
-            className="border-destructive/40 text-destructive hover:bg-destructive/10 sm:flex-1"
-            onClick={handleFinalizar}
-            disabled={finalizando}
-          >
-            {finalizando ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
-            {confirmando && itemsFaltantes.length > 0 ? "Finalizar de todos modos" : "Finalizar Turno"}
-          </Button>
-        </div>
-      </div>
-
-      <div className="hidden print:block">
-        <ActaTurno turno={turnoActivo} supervisorNombre={session?.nombre ?? ""} area={session?.area ?? null} />
+        <Button
+          variant="outline"
+          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+          onClick={handleFinalizar}
+          disabled={finalizando}
+        >
+          {finalizando ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
+          {confirmando && itemsFaltantes.length > 0 ? "Finalizar de todos modos" : "Finalizar Turno (genera el Acta)"}
+        </Button>
       </div>
     </AppShell>
   )

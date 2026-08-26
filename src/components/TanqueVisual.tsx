@@ -33,6 +33,7 @@ export function TanqueVisual({
   numeroTanque,
   condicion,
   volumenL,
+  volumenInicialL = null,
   color,
   capacidad = 20000,
   square = false,
@@ -40,12 +41,16 @@ export function TanqueVisual({
   numeroTanque: number
   condicion: CondicionTanque
   volumenL: number | null
+  /** Volumen con el que arrancó el lote actual — si se pasa, el % de TEXTO muestra cuánto queda DEL LOTE en vez de la capacidad del tanque (el líquido dibujado sigue siendo siempre respecto a la capacidad, es el nivel físico real). */
+  volumenInicialL?: number | null
   color: string
   capacidad?: number
   square?: boolean
 }) {
   const tieneLiquido = condicion === "LISTO" || condicion === "STANDBY"
   const pct = tieneLiquido ? Math.min(100, ((volumenL ?? 0) / capacidad) * 100) : 0
+  const pctTexto =
+    tieneLiquido && volumenInicialL && volumenInicialL > 0 ? Math.min(100, ((volumenL ?? 0) / volumenInicialL) * 100) : pct
 
   return (
     <div
@@ -147,7 +152,7 @@ export function TanqueVisual({
 
       {tieneLiquido && (
         <span className="num absolute inset-x-0 bottom-1.5 text-center text-sm font-bold text-foreground drop-shadow">
-          {pct.toFixed(0)}%
+          {pctTexto.toFixed(0)}%
         </span>
       )}
     </div>

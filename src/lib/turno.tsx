@@ -67,8 +67,11 @@ export type CondicionLinea = "DETENIDA" | "LISTA" | "CIP" | "CAMBIO_PRESENTACION
  * STANDBY = el lote que tenía adentro ya se cerró solo (el volumen
  * llegó a 0 por Producto Terminado, ver registrar_producto_terminado)
  * pero quedó un resto que no es exactamente 0 — sabor/lote/volumen se
- * mantienen para que el supervisor decida a mano (Corregir) si lo
- * guarda o lo marca Sucio. "ultimoSabor/ultimoLote" quedan guardados
+ * mantienen para que el supervisor decida a mano si lo guarda (Corregir),
+ * lo marca Sucio, o prepara un lote nuevo encima (Iniciar Preparación:
+ * ese resto se suma al volumen del lote nuevo, sigue físicamente en el
+ * tanque — ver iniciar_preparacion() en
+ * 20260952090000_preparar_sobre_standby_suma_resto.sql). "ultimoSabor/ultimoLote" quedan guardados
  * cuando el tanque pasa a SUCIO, para poder mostrarlos sin que el
  * supervisor los reescriba.
  */
@@ -78,7 +81,12 @@ export interface TanqueRecepcion {
   saborNombre: string | null
   condicion: CondicionTanque
   volumenL: number | null
-  /** Volumen con el que se armó el lote actual (fijo desde que se crea, no se descuenta) — el 100% del visual sale de acá, no de la capacidad física del tanque. */
+  /**
+   * Volumen con el que se armó el lote actual (fijo desde que se crea,
+   * no se descuenta) — el % de TEXTO del tanque (TanqueVisual) sale de
+   * acá ("100% del lote"), pero el líquido dibujado sigue siendo
+   * siempre respecto a la capacidad física del tanque (TANK_CAPACITY).
+   */
   volumenInicialL: number | null
   lote: string | null
   activadaEn: string
@@ -126,6 +134,8 @@ export interface PreparacionRegistro {
   saborNombre: string | null
   lote: string | null
   volumenL: number | null
+  /** Volumen con el que se armó este lote — junto con volumenL, permite calcular cuánto salió realmente del tanque (ver mermaSemielaboradoTurno). */
+  volumenInicialL: number | null
   tambores: number
   agua: number | null
   azucar: number | null
@@ -168,7 +178,19 @@ export interface ProductoTerminadoRegistro {
   paletas: number
   cajasSueltas: number
   litrosProducidos: number
+  /** Dato extra, sin uso todavía (no afecta litros/merma/acta). */
+  productoRetenido: boolean
+  cajasRetenidas: number | null
   creadoEn: string
+}
+
+/** Foto fija de un tanque, tomada una sola vez cuando el supervisor termina de confirmar/corregir el inicio — ver capturar_tanques_encontrados_si_completo(). */
+export interface TanqueEncontrado {
+  numeroTanque: 1 | 2 | 3
+  condicion: CondicionTanque
+  volumenL: number | null
+  saborNombre: string | null
+  lote: string | null
 }
 
 export interface TurnoActivo {
@@ -189,6 +211,8 @@ export interface TurnoActivo {
   lineas: LineaEnTurno[]
   lineasEstado: LineaEstado[]
   tanques: TanqueRecepcion[]
+  /** null si el supervisor nunca terminó de confirmar los 3 tanques al inicio (ej. cierre automático) — no se inventa el dato. */
+  tanquesEncontrados: TanqueEncontrado[] | null
   contadores: ContadorRegistro[]
   productoTerminado: ProductoTerminadoRegistro[]
   preparaciones: PreparacionRegistro[]
@@ -238,6 +262,8 @@ interface DatosProductoTerminado {
   presentacion: PresentacionCodigo
   paletas: number
   cajasSueltas: number
+  productoRetenido: boolean
+  cajasRetenidas: number | null
 }
 
 export interface DatosIniciarPreparacion {
@@ -355,6 +381,8 @@ interface FilaProductoTerminado {
   paletas: number
   cajas_sueltas: number
   litros_producidos: number
+  producto_retenido: boolean
+  cajas_retenidas: number | null
   creado_en: string
 }
 
@@ -365,6 +393,7 @@ interface FilaPreparacion {
   sabor_nombre: string | null
   lote: string | null
   volumen_l: number | null
+  volumen_inicial_l: number | null
   tambores: number
   agua: number | null
   azucar: number | null
@@ -372,6 +401,14 @@ interface FilaPreparacion {
   creado_en: string
   liberado_en: string | null
   cerrado_en: string | null
+}
+
+interface FilaTanqueEncontrado {
+  numero_tanque: number
+  condicion: CondicionTanque
+  volumen_l: number | null
+  sabor_nombre: string | null
+  lote: string | null
 }
 
 export interface FilaTurno {
@@ -383,6 +420,7 @@ export interface FilaTurno {
   fecha_fin: string | null
   hora_fin: string | null
   cierre_automatico: boolean
+  tanques_encontrados: FilaTanqueEncontrado[] | null
   turno_tipo_codigo: string
   grupo_codigo: string
   supervisor_usuario: string
@@ -402,7 +440,7 @@ export interface FilaTurno {
  * planta). Se calculan acá y se mandan como parámetro a
  * iniciar_turno/finalizar_turno.
  */
-function fechaLocal(d: Date) {
+export function fechaLocal(d: Date) {
   const anio = d.getFullYear()
   const mes = String(d.getMonth() + 1).padStart(2, "0")
   const dia = String(d.getDate()).padStart(2, "0")
@@ -426,6 +464,14 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
     fechaFin: fila.fecha_fin,
     horaFin: fila.hora_fin,
     cierreAutomatico: fila.cierre_automatico,
+    tanquesEncontrados:
+      fila.tanques_encontrados?.map((t) => ({
+        numeroTanque: t.numero_tanque as 1 | 2 | 3,
+        condicion: t.condicion,
+        volumenL: t.volumen_l,
+        saborNombre: t.sabor_nombre,
+        lote: t.lote,
+      })) ?? null,
     turnoTipo: fila.turno_tipo_codigo as TurnoTipoCodigo,
     grupo: fila.grupo_codigo as GrupoCodigo,
     supervisorUsuario: fila.supervisor_usuario,
@@ -490,6 +536,8 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       paletas: p.paletas,
       cajasSueltas: p.cajas_sueltas,
       litrosProducidos: p.litros_producidos,
+      productoRetenido: p.producto_retenido,
+      cajasRetenidas: p.cajas_retenidas,
       creadoEn: p.creado_en,
     })),
     preparaciones: fila.preparaciones.map((p) => ({
@@ -499,6 +547,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       saborNombre: p.sabor_nombre,
       lote: p.lote,
       volumenL: p.volumen_l,
+      volumenInicialL: p.volumen_inicial_l,
       tambores: p.tambores,
       agua: p.agua,
       azucar: p.azucar,
@@ -877,6 +926,8 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_paletas: datos.paletas,
       p_cajas_sueltas: datos.cajasSueltas,
       p_usuario: usuario,
+      p_producto_retenido: datos.productoRetenido,
+      p_cajas_retenidas: datos.cajasRetenidas,
     })
 
     if (error || !data) {

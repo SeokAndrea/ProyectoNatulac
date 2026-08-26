@@ -1,8 +1,5 @@
 import { supabase } from "@/lib/supabase"
 import type { AreaCodigo, GrupoCodigo, LineaCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
-import { LIMITE_MERMA } from "@/lib/turno"
-
-const MERMA_MAX = LIMITE_MERMA * 100
 
 /*
  * Dashboard de producción — construida sobre lo que ya existe (turnos
@@ -125,9 +122,12 @@ export function litrosConsumidos(fila: FilaEstadistica): number {
 
 export type NivelMerma = "ok" | "warn" | "danger"
 
-/** Umbral de "warn" a 2/3 del máximo permitido — mismo criterio en todas las pantallas que muestran merma. */
-export function nivelMerma(pct: number, max: number = MERMA_MAX): NivelMerma {
-  return pct <= max * (2 / 3) ? "ok" : pct <= max ? "warn" : "danger"
+/** Umbrales fijos del semáforo de merma: amarillo desde 3%, rojo desde 5% — mismo criterio en todas las pantallas que muestran merma (de envase). */
+export const MERMA_WARN_DESDE = 3
+export const MERMA_DANGER_DESDE = 5
+
+export function nivelMerma(pct: number, dangerDesde: number = MERMA_DANGER_DESDE, warnDesde: number = MERMA_WARN_DESDE): NivelMerma {
+  return pct <= warnDesde ? "ok" : pct <= dangerDesde ? "warn" : "danger"
 }
 
 export const badgeVariantPorNivel = { ok: "success", warn: "warning", danger: "danger" } as const

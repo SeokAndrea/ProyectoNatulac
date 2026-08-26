@@ -39,7 +39,9 @@ import {
   badgeVariantPorNivel,
   colorTextoPorNivel,
   horasTurno,
+  MERMA_DANGER_DESDE,
   mermaAgregada,
+  MERMA_WARN_DESDE,
   nivelMerma,
   obtenerEstadisticas,
   type FilaEstadistica,
@@ -48,19 +50,19 @@ import {
 import {
   calcularMeta,
   mermaEnvasesTurno,
+  mermaLineaTurno,
   mermaSemielaboradoTurno,
   obtenerEstadoPlantaActual,
   obtenerResumenTurnoAnterior,
   obtenerTurnoDeFechaTipo,
   type ResumenTurnoAnterior,
 } from "@/lib/panelProduccion"
-import { LIMITE_MERMA, mermaCorrida, type TurnoActivo } from "@/lib/turno"
+import { type TurnoActivo } from "@/lib/turno"
 import { cn } from "@/lib/utils"
 
-const MERMA_MAX = LIMITE_MERMA * 100
-const MERMA_WARN = MERMA_MAX * (2 / 3)
-/** La merma de semielaborado tiene su propia tolerancia, más estricta que la de envases. */
+/** La merma de semielaborado tiene su propia tolerancia, más estricta que la de envases — amarillo/rojo proporcionales a ese máximo, en vez de los umbrales fijos (3%/5%) de la merma de envase. */
 const MERMA_SEMIELABORADO_MAX = 1.5
+const MERMA_SEMIELABORADO_WARN = (MERMA_SEMIELABORADO_MAX * 2) / 3
 const TANK_CAPACITY = 20000
 
 /** El Área de Pruebas nunca debe verse desde el Panel de Producción — ni como selección explícita. */
@@ -121,6 +123,14 @@ interface FilaLineaCompacta extends LineaConEstado {
   mermaPct: number | null
   /** Minutos desde que se marcó Parada (pausadaEn) — null si no está parada. */
   minutosParada: number | null
+  /**
+   * TP = Tiempo de Producción: minutos desde que se activó la corrida
+   * (activadaEn) — null si no hay corrida activa ahora mismo. Por
+   * ahora es solo el tiempo corrido desde que arrancó; cuando se
+   * agreguen paradas reales (no el mock de "Tiempo detenida"), esto
+   * debería restarles el tiempo pausado en vez de contar todo seguido.
+   */
+  minutosProduccion: number | null
 }
 
 /** "125 min" hasta la hora, "2h 5min" de ahí para arriba. */
@@ -314,32 +324,22 @@ export default function PanelProduccion() {
   const produccionPorLinea = turno ? produccionPorLineaDe(turno, lineas, presentaciones, velocidades) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   const mermaEnvases = turno ? mermaEnvasesTurno(turno, presentaciones) : null
-  const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno, presentaciones) : null
-  /** Envases de la llenadora (Contador) vs. Producto Terminado, por CORRIDA — no el promedio del turno, cada línea/lote por separado. */
-  const mermasPorLinea = turno
-    ? turno.productoTerminado
-        .map((p) => {
-          if (!p.turnoLineaId) return null
-          const merma = mermaCorrida(p.turnoLineaId, turno, presentaciones)
-          if (!merma) return null
-          const corrida = turno.lineas.find((l) => l.id === p.turnoLineaId)
-          return {
-            turnoLineaId: p.turnoLineaId,
-            nombreLinea: corrida ? nombrePorCodigo(lineas, corrida.linea) : "—",
-            lote: corrida?.lote ?? null,
-            ...merma,
-          }
-        })
-        .filter((m): m is NonNullable<typeof m> => m !== null)
-        .sort((a, b) => a.nombreLinea.localeCompare(b.nombreLinea))
-    : []
+  const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno) : null
   /** Una fila por línea: estado + producción + merma juntos (antes vivían en 3 lugares separados de la pantalla). */
   const filasLineas: FilaLineaCompacta[] = lineasEstado.map((le) => {
     const prod = produccionPorLinea.find((p) => p.linea === le.codigo)
-    const merma = le.corrida ? mermasPorLinea.find((m) => m.turnoLineaId === le.corrida?.id) : undefined
+    // Sumando TODAS las corridas de la línea en el turno, igual que el
+    // contador — así un lote recién arrancado (sin datos propios
+    // todavía) no le hace perder de vista la merma que sí lleva
+    // acumulada la línea en este turno.
+    const merma = turno ? mermaLineaTurno(turno, le.codigo, presentaciones) : null
     const minutosParada = le.corrida?.pausadaEn
       ? Math.max(0, Math.round((ahora.getTime() - new Date(le.corrida.pausadaEn).getTime()) / 60000))
       : null
+    const minutosProduccion =
+      le.estado === "activa" && le.corrida
+        ? Math.max(0, Math.round((ahora.getTime() - new Date(le.corrida.activadaEn).getTime()) / 60000))
+        : null
     return {
       ...le,
       cajas: prod?.cajas ?? 0,
@@ -347,6 +347,7 @@ export default function PanelProduccion() {
       eficienciaPct: prod?.eficienciaPct ?? null,
       mermaPct: merma?.pct ?? null,
       minutosParada,
+      minutosProduccion,
     }
   })
   const lineaParadaHaceMas = [...filasLineas]
@@ -642,10 +643,12 @@ export default function PanelProduccion() {
                     actual={mermaEnvases?.pct ?? null}
                   />
                   <MermaComparativaCard
-                    titulo="Merma"
+                    titulo="Rendimiento"
                     pasado={turnoAnterior?.mermaSemielaboradoPct ?? null}
                     actual={mermaSemielaborado?.pct ?? null}
-                    max={MERMA_SEMIELABORADO_MAX}
+                    dangerDesde={MERMA_SEMIELABORADO_MAX}
+                    warnDesde={MERMA_SEMIELABORADO_WARN}
+                    invertido
                   />
                 </div>
               </div>
@@ -854,10 +857,14 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
           <span className={cn("relative size-2.5 rounded-full", info.dot)} />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{fila.nombre}</p>
+          <p className="truncate text-sm font-semibold text-foreground">
+            {fila.nombre}
+            {fila.corrida ? ` - ${fila.corrida.presentacion} ml` : ""}
+          </p>
+          {fila.corrida?.saborNombre && <p className="truncate text-xs text-muted-foreground">{fila.corrida.saborNombre}</p>}
           <p className="truncate text-xs text-muted-foreground">
             {info.label}
-            {fila.corrida?.saborNombre ? ` · ${fila.corrida.saborNombre}` : ""}
+            {fila.minutosProduccion !== null ? ` - TP: ${formatDuracion(fila.minutosProduccion)}` : ""}
           </p>
         </div>
       </div>
@@ -908,7 +915,14 @@ function TanqueCard({
         listo ? "border-border hover:shadow-panel" : standby ? "border-secondary/50" : enPreparacion ? "border-warning/40" : "border-border",
       )}
     >
-      <TanqueVisual numeroTanque={tanque.numeroTanque} condicion={tanque.condicion} volumenL={tanque.volumenL} color={color} capacidad={TANK_CAPACITY} />
+      <TanqueVisual
+        numeroTanque={tanque.numeroTanque}
+        condicion={tanque.condicion}
+        volumenL={tanque.volumenL}
+        volumenInicialL={tanque.volumenInicialL}
+        color={color}
+        capacidad={TANK_CAPACITY}
+      />
 
       {/* Pie del tanque */}
       <div className="flex min-w-0 flex-col gap-1 border-t border-border/70 px-2.5 py-2">
@@ -965,14 +979,19 @@ function MermaComparativaCard({
   titulo,
   pasado,
   actual,
-  max = MERMA_MAX,
+  dangerDesde = MERMA_DANGER_DESDE,
+  warnDesde = MERMA_WARN_DESDE,
+  invertido = false,
 }: {
   titulo: string
   pasado: number | null
   actual: number | null
-  max?: number
+  dangerDesde?: number
+  warnDesde?: number
+  /** Si es true, se muestra el rendimiento (100 - merma) en vez de la merma — los umbrales siguen siendo tolerancia de MERMA, no de rendimiento. */
+  invertido?: boolean
 }) {
-  const nivelActual = actual === null ? null : nivelMerma(actual, max)
+  const nivelActual = actual === null ? null : nivelMerma(actual, dangerDesde, warnDesde)
 
   return (
     <Card
@@ -986,30 +1005,46 @@ function MermaComparativaCard({
           <ScanLine className="size-4 text-primary" />
           {titulo}
         </p>
-        <Badge variant="muted">Máx. {max}%</Badge>
+        <Badge variant="muted">{invertido ? `Mín. ${Math.round((100 - dangerDesde) * 100) / 100}%` : `Máx. ${dangerDesde}%`}</Badge>
       </div>
 
       <div className="grid grid-cols-2 divide-x divide-border/70">
-        <MermaBloque titulo="Turno pasado" pct={pasado} max={max} />
-        <MermaBloque titulo="Turno actual" pct={actual} max={max} />
+        <MermaBloque titulo="Turno pasado" pct={pasado} dangerDesde={dangerDesde} warnDesde={warnDesde} invertido={invertido} />
+        <MermaBloque titulo="Turno actual" pct={actual} dangerDesde={dangerDesde} warnDesde={warnDesde} invertido={invertido} />
       </div>
 
       {nivelActual === "danger" && (
         <p className="flex items-center gap-1 border-t border-border/70 px-3 py-2 text-[11px] font-medium text-danger">
-          <AlertTriangle className="size-3" /> El turno actual está fuera de tolerancia.
+          <AlertTriangle className="size-3" />
+          {invertido ? "El turno actual está por debajo del rendimiento esperado." : "El turno actual está fuera de tolerancia."}
         </p>
       )}
     </Card>
   )
 }
 
-function MermaBloque({ titulo, pct, max = MERMA_MAX }: { titulo: string; pct: number | null; max?: number }) {
-  const nivel = pct === null ? null : nivelMerma(pct, max)
+function MermaBloque({
+  titulo,
+  pct,
+  dangerDesde = MERMA_DANGER_DESDE,
+  warnDesde = MERMA_WARN_DESDE,
+  invertido = false,
+}: {
+  titulo: string
+  pct: number | null
+  dangerDesde?: number
+  warnDesde?: number
+  invertido?: boolean
+}) {
+  const nivel = pct === null ? null : nivelMerma(pct, dangerDesde, warnDesde)
   const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : undefined
+  const valorMostrado = pct === null ? null : invertido ? Math.round((100 - pct) * 100) / 100 : pct
   return (
-    <div className="min-w-0 px-3 py-5">
+    <div className="min-w-0 px-3 py-5 text-center">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
-      <p className={cn("num mt-2 truncate text-3xl font-bold leading-none", color)}>{pct !== null ? `${pct}%` : "—"}</p>
+      <p className={cn("num mt-2 truncate text-3xl font-bold leading-none", color)}>
+        {valorMostrado !== null ? `${valorMostrado}%` : "—"}
+      </p>
     </div>
   )
 }
@@ -1339,7 +1374,7 @@ function TablaPorSupervisor({ filas }: { filas: FilaEstadistica[] }) {
                 </TableCell>
                 <TableCell className="text-right">
                   <Badge variant={badgeVariantPorNivel[nivelMerma(s.merma)]}>
-                    {s.merma <= MERMA_WARN && <CheckCircle2 className="size-3" />}
+                    {s.merma <= MERMA_WARN_DESDE && <CheckCircle2 className="size-3" />}
                     {s.merma.toFixed(1)}%
                   </Badge>
                 </TableCell>

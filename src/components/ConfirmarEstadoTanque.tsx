@@ -3,6 +3,7 @@ import { CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TanqueEditForm } from "@/components/TanqueEditForm"
 import type { Sabor } from "@/lib/sabores"
+import { textoCondicionTanque } from "@/lib/tanques"
 import type { DatosCambiarTanque, TanqueRecepcion } from "@/lib/turno"
 
 type Resultado = { ok: true } | { ok: false; error: string }
@@ -52,6 +53,10 @@ export function ConfirmarEstadoTanque({
     <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
       <p className="text-sm text-foreground">
         Tanque {tanque.numeroTanque}: {aviso}
+      </p>
+      <p className="text-sm font-medium text-foreground">
+        {textoCondicionTanque(tanque.condicion, tanque.volumenL, tanque.saborNombre)}
+        {tanque.lote ? ` · Lote ${tanque.lote}` : ""}
       </p>
 
       {editando ? (
