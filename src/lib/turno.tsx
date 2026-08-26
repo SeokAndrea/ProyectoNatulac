@@ -40,6 +40,8 @@ export interface LineaEnTurno {
   esperandoCierre: boolean
   /** El supervisor ya cerró SU parte con "¿Va a continuar en el siguiente turno?" — la corrida sigue activa=true igual. */
   entregadaEn: string | null
+  /** null = falta revisar (Confirmar o Corregir) al abrir el turno — solo aplica a una corrida activa heredada, ver confirmarEstadoLinea(). */
+  confirmadoInicioEn: string | null
 }
 
 export type CondicionTanque = "LISTO" | "SUCIO" | "VACIO" | "EN_PREPARACION" | "STANDBY"
@@ -171,6 +173,8 @@ export interface DatosActivarLinea {
   envasesHora: number
   /** Tanque LISTO (liberado) del que va a tomar esta corrida — sabor y lote se derivan de ahí. */
   numeroTanque: 1 | 2 | 3
+  /** Si viene en true, la corrida nace ya confirmada — "Editar" durante el paso de revisión de Status también cuenta como revisión. */
+  confirmarInicio?: boolean
 }
 
 export interface DatosCambiarTanque {
@@ -231,6 +235,7 @@ interface TurnoContextValue {
   finalizarLote: (loteId: string) => Promise<Resultado>
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
+  confirmarEstadoLinea: (turnoLineaId: string) => Promise<Resultado>
 }
 
 const LIMITE_MERMA = 0.03
@@ -264,6 +269,7 @@ interface FilaLinea {
   lote_terminado_en: string | null
   entregada_en: string | null
   finalizada_en: string | null
+  confirmado_inicio_en: string | null
 }
 
 interface FilaTanque {
@@ -388,6 +394,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       finalizadaEn: l.finalizada_en,
       esperandoCierre: !l.activa && l.finalizada_en === null,
       entregadaEn: l.entregada_en,
+      confirmadoInicioEn: l.confirmado_inicio_en,
     })),
     tanques: fila.tanques.map((t) => ({
       numeroTanque: t.numero_tanque as 1 | 2 | 3,
@@ -533,6 +540,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_envases_hora: datos.envasesHora,
       p_litros_hora: litrosHoraDeLive(velocidades, datos.linea, datos.presentacion, datos.envasesHora),
       p_numero_tanque: datos.numeroTanque,
+      p_confirmar_inicio: datos.confirmarInicio ?? false,
     })
 
     if (error || !data) {
@@ -700,6 +708,25 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  async function confirmarEstadoLinea(turnoLineaId: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("confirmar_estado_linea", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_turno_linea_id: turnoLineaId,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo confirmar el estado de la línea. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
   async function finalizarTurno() {
     if (!turnoActivo) return
     const ahora = new Date()
@@ -843,6 +870,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         finalizarLote,
         cambiarCondicionTanque,
         confirmarEstadoTanque,
+        confirmarEstadoLinea,
       }}
     >
       {children}

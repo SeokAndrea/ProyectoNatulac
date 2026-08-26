@@ -65,7 +65,7 @@ export const apps: AppDef[] = [
   },
   {
     slug: "preparacion",
-    title: "Preparación",
+    title: "Preparación y Producción",
     description: "Preparar y liberar tanques, activar o detener líneas — en cualquier momento del turno.",
     href: "/preparacion",
     icon: Beaker,

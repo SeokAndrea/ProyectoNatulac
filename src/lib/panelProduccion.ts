@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase"
 import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
 import type { AreaCodigo } from "@/lib/catalogos"
 import type { PresentacionLive } from "@/lib/catalogosLive"
-import { envasesReales, obtenerEstadisticas } from "@/lib/estadisticas"
+import { envasesReales, litrosConsumidos, obtenerEstadisticas } from "@/lib/estadisticas"
 
 /*
  * Panel de Producción: estado actual de la planta (o histórico por
@@ -142,6 +142,7 @@ export interface ResumenTurnoAnterior {
   fecha: string
   horaFin: string | null
   mermaPct: number | null
+  mermaSemielaboradoPct: number | null
   litrosProducidos: number
   cajasProducidas: number
 }
@@ -176,12 +177,18 @@ export async function obtenerResumenTurnoAnterior(
   const envasesRealesTotal = filasTurno.reduce((a, f) => a + envasesReales(f), 0)
   const mermaPct = llenadoraTotal === 0 ? null : Math.round((1 - envasesRealesTotal / llenadoraTotal) * 10000) / 100
 
+  const litrosConsumidosTotal = filasTurno.reduce((a, f) => a + litrosConsumidos(f), 0)
+  const litrosProducidosTotal = filasTurno.reduce((a, f) => a + f.litrosProducidos, 0)
+  const mermaSemielaboradoPct =
+    litrosConsumidosTotal === 0 ? null : Math.round((1 - litrosProducidosTotal / litrosConsumidosTotal) * 10000) / 100
+
   return {
     turnoCodigo: filasTurno[0].turnoCodigo,
     fecha: filasTurno[0].fecha,
     horaFin: filasTurno[0].horaFin,
     mermaPct,
-    litrosProducidos: filasTurno.reduce((a, f) => a + f.litrosProducidos, 0),
+    mermaSemielaboradoPct,
+    litrosProducidos: litrosProducidosTotal,
     cajasProducidas: filasTurno.reduce((a, f) => a + (f.paletas * f.cajasXPaleta + f.cajasSueltas), 0),
   }
 }

@@ -1,5 +1,8 @@
 import { supabase } from "@/lib/supabase"
 import type { AreaCodigo, GrupoCodigo, LineaCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
+import { LIMITE_MERMA } from "@/lib/turno"
+
+const MERMA_MAX = LIMITE_MERMA * 100
 
 /*
  * Dashboard de producción — construida sobre lo que ya existe (turnos
@@ -38,6 +41,7 @@ export interface FilaEstadistica {
   cajasSueltas: number
   cajasXPaleta: number
   envasesXCaja: number
+  volumenMl: number | null
   litrosProducidos: number
   saborNombre: string | null
 }
@@ -61,6 +65,7 @@ interface FilaCruda {
   cajas_sueltas: number
   cajas_x_paleta: number
   envases_x_caja: number
+  volumen_ml: number | null
   litros_producidos: number
   sabor_nombre: string | null
 }
@@ -96,6 +101,7 @@ export async function obtenerEstadisticas(filtros: {
     cajasSueltas: f.cajas_sueltas,
     cajasXPaleta: f.cajas_x_paleta,
     envasesXCaja: f.envases_x_caja,
+    volumenMl: f.volumen_ml,
     litrosProducidos: f.litros_producidos,
     saborNombre: f.sabor_nombre,
   }))
@@ -110,6 +116,42 @@ export function envasesReales(fila: FilaEstadistica): number {
 export function mermaPct(fila: FilaEstadistica): number | null {
   if (fila.envasesLlenadora === 0) return null
   return Math.round((1 - envasesReales(fila) / fila.envasesLlenadora) * 10000) / 100
+}
+
+/** Litros que salieron del tanque para esta corrida (antes de la llenadora) — mismo cálculo que registrar_producto_terminado() en Supabase. */
+export function litrosConsumidos(fila: FilaEstadistica): number {
+  return (fila.envasesLlenadora * (fila.volumenMl ?? 0)) / 1000
+}
+
+export type NivelMerma = "ok" | "warn" | "danger"
+
+/** Umbral de "warn" a 2/3 del máximo permitido — mismo criterio en todas las pantallas que muestran merma. */
+export function nivelMerma(pct: number, max: number = MERMA_MAX): NivelMerma {
+  return pct <= max * (2 / 3) ? "ok" : pct <= max ? "warn" : "danger"
+}
+
+export const badgeVariantPorNivel = { ok: "success", warn: "warning", danger: "danger" } as const
+
+/** Clase de texto (Tailwind) para un nivel de merma — null cuando no hay dato todavía. */
+export function colorTextoPorNivel(nivel: NivelMerma | null): string {
+  return nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : "text-muted-foreground"
+}
+
+/**
+ * Merma agregada de VARIAS corridas (por grupo, supervisor, o rango de
+ * fechas entero): suma envases_llenadora y envases_reales de TODAS las
+ * filas primero, y recién ahí saca el % — nunca promedia los % de cada
+ * fila entre sí. Promediar porcentajes le da el mismo peso a una
+ * corrida de 500 envases que a una de 50.000, y da un número sesgado
+ * (no es lo mismo que la merma real del conjunto). Mismo criterio que
+ * ya usa mermaEnvasesTurno() en src/lib/panelProduccion.ts para el
+ * turno en curso.
+ */
+export function mermaAgregada(filas: FilaEstadistica[]): number | null {
+  const llenadoraTotal = filas.reduce((a, f) => a + f.envasesLlenadora, 0)
+  if (llenadoraTotal === 0) return null
+  const realesTotal = filas.reduce((a, f) => a + envasesReales(f), 0)
+  return Math.round((1 - realesTotal / llenadoraTotal) * 10000) / 100
 }
 
 /**
@@ -130,10 +172,4 @@ export function horasTurno(fila: FilaEstadistica): number | null {
   let minutos = h2 * 60 + m2 - (h1 * 60 + m1)
   if (minutos < 0) minutos += 24 * 60
   return Math.round((minutos / 60) * 100) / 100
-}
-
-export function promedio(valores: (number | null)[]): number | null {
-  const validos = valores.filter((v): v is number => v !== null)
-  if (validos.length === 0) return null
-  return Math.round((validos.reduce((a, b) => a + b, 0) / validos.length) * 100) / 100
 }

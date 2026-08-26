@@ -26,10 +26,12 @@ export function AppHeader({
   left,
   title,
   description,
+  ocultarEstadoBanner,
 }: {
   left: ReactNode
   title?: string
   description?: string
+  ocultarEstadoBanner?: boolean
 }) {
   const { session, logout } = useAuth()
   const navigate = useNavigate()
@@ -76,7 +78,7 @@ export function AppHeader({
           )}
         </div>
       </div>
-      <EstadoBanner />
+      {!ocultarEstadoBanner && <EstadoBanner />}
     </div>
   )
 }

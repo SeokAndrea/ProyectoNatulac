@@ -8,12 +8,12 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
-  Construction,
   Container,
   Droplets,
   Gauge,
   Grid3x3,
   Loader2,
+  PauseCircle,
   RadioTower,
   ScanLine,
   Search,
@@ -35,7 +35,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/lib/auth"
 import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, velocidadesParaLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
-import { horasTurno, mermaPct, obtenerEstadisticas, promedio, type FilaEstadistica } from "@/lib/estadisticas"
+import {
+  badgeVariantPorNivel,
+  colorTextoPorNivel,
+  horasTurno,
+  mermaAgregada,
+  nivelMerma,
+  obtenerEstadisticas,
+  type FilaEstadistica,
+  type NivelMerma,
+} from "@/lib/estadisticas"
 import {
   calcularMeta,
   mermaEnvasesTurno,
@@ -50,14 +59,12 @@ import { cn } from "@/lib/utils"
 
 const MERMA_MAX = LIMITE_MERMA * 100
 const MERMA_WARN = MERMA_MAX * (2 / 3)
+/** La merma de semielaborado tiene su propia tolerancia, más estricta que la de envases. */
+const MERMA_SEMIELABORADO_MAX = 1.5
 const TANK_CAPACITY = 20000
 
 /** El Área de Pruebas nunca debe verse desde el Panel de Producción — ni como selección explícita. */
 const AREAS_SELECCIONABLES = AREAS.filter((a) => a.codigo !== "PRUEBAS")
-
-type NivelMerma = "ok" | "warn" | "danger"
-const nivelMerma = (pct: number): NivelMerma => (pct <= MERMA_WARN ? "ok" : pct <= MERMA_MAX ? "warn" : "danger")
-const badgeVariantPorNivel = { ok: "success", warn: "warning", danger: "danger" } as const
 
 /** Color real de la fruta cuando el sabor la nombra (Manzana, Durazno, Naranja, Pera, y variantes como "Naranja 100%"). */
 const COLOR_POR_FRUTA: Array<{ fruta: RegExp; color: string }> = [
@@ -106,32 +113,50 @@ interface LineaConEstado {
   corrida: TurnoActivo["lineas"][number] | null
 }
 
-const ESTADO_LINEA_INFO: Record<
-  EstadoLinea,
-  { label: string; badge: "success" | "warning" | "danger" | "muted"; dot: string; ring: string; row: string }
-> = {
-  activa: {
-    label: "Activa",
-    badge: "success",
-    dot: "bg-success",
-    ring: "bg-success",
-    row: "border-success/35 bg-success-soft/40",
-  },
-  parada: {
-    label: "Parada",
-    badge: "warning",
-    dot: "bg-warning",
-    ring: "bg-warning",
-    row: "border-warning/35 bg-warning-soft/40",
-  },
-  esperando_cierre: {
-    label: "Esperando cierre",
-    badge: "danger",
-    dot: "bg-danger",
-    ring: "bg-danger",
-    row: "border-danger/35 bg-danger-soft/40",
-  },
-  libre: { label: "Libre", badge: "muted", dot: "bg-muted-foreground", ring: "bg-muted-foreground", row: "border-border bg-muted/30" },
+/** Fila de la tabla "Líneas activas": estado + producción + merma, todo junto. */
+interface FilaLineaCompacta extends LineaConEstado {
+  cajas: number
+  litros: number
+  eficienciaPct: number | null
+  mermaPct: number | null
+  /** Minutos desde que se marcó Parada (pausadaEn) — null si no está parada. */
+  minutosParada: number | null
+}
+
+/** "125 min" hasta la hora, "2h 5min" de ahí para arriba. */
+function formatDuracion(minutos: number): string {
+  if (minutos < 60) return `${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  const resto = minutos % 60
+  return resto === 0 ? `${horas}h` : `${horas}h ${resto}min`
+}
+
+const ESTADO_LINEA_INFO: Record<EstadoLinea, { label: string; dot: string; ring: string }> = {
+  activa: { label: "Activa", dot: "bg-success", ring: "bg-success" },
+  parada: { label: "Parada", dot: "bg-warning", ring: "bg-warning" },
+  esperando_cierre: { label: "Esperando cierre", dot: "bg-danger", ring: "bg-danger" },
+  libre: { label: "Libre", dot: "bg-muted-foreground", ring: "bg-muted-foreground" },
+}
+
+/**
+ * "Última actualización" real: el máximo de todos los timestamps que
+ * ya trae el turno (líneas, tanques, contadores, producto terminado,
+ * preparaciones) — NO cuándo esta pantalla hizo el último fetch. Así
+ * no se resetea a "hace 0s" cada vez que se entra o se cambia de
+ * pantalla y se vuelve; solo se mueve cuando alguien realmente cargó
+ * algo.
+ */
+function ultimaAccionDeTurno(turno: TurnoActivo): Date | null {
+  const timestamps = [
+    ...turno.lineas.map((l) => l.activadaEn),
+    ...turno.tanques.map((t) => t.activadaEn),
+    ...turno.contadores.map((c) => c.creadoEn),
+    ...turno.productoTerminado.map((p) => p.creadoEn),
+    ...turno.preparaciones.map((p) => p.creadoEn),
+  ].filter((t): t is string => Boolean(t))
+
+  if (timestamps.length === 0) return null
+  return new Date(Math.max(...timestamps.map((t) => new Date(t).getTime())))
 }
 
 /** Una fila por línea del área (catálogo completo), cruzada con la corrida actual/últimamente tocada de turno.lineas. */
@@ -308,53 +333,161 @@ export default function PanelProduccion() {
         .filter((m): m is NonNullable<typeof m> => m !== null)
         .sort((a, b) => a.nombreLinea.localeCompare(b.nombreLinea))
     : []
+  /** Una fila por línea: estado + producción + merma juntos (antes vivían en 3 lugares separados de la pantalla). */
+  const filasLineas: FilaLineaCompacta[] = lineasEstado.map((le) => {
+    const prod = produccionPorLinea.find((p) => p.linea === le.codigo)
+    const merma = le.corrida ? mermasPorLinea.find((m) => m.turnoLineaId === le.corrida?.id) : undefined
+    const minutosParada = le.corrida?.pausadaEn
+      ? Math.max(0, Math.round((ahora.getTime() - new Date(le.corrida.pausadaEn).getTime()) / 60000))
+      : null
+    return {
+      ...le,
+      cajas: prod?.cajas ?? 0,
+      litros: prod?.litros ?? 0,
+      eficienciaPct: prod?.eficienciaPct ?? null,
+      mermaPct: merma?.pct ?? null,
+      minutosParada,
+    }
+  })
+  const lineaParadaHaceMas = [...filasLineas]
+    .filter((f) => f.minutosParada !== null)
+    .sort((a, b) => (b.minutosParada ?? 0) - (a.minutosParada ?? 0))[0] ?? null
   const hh = String(ahora.getHours()).padStart(2, "0")
   const mm = String(ahora.getMinutes()).padStart(2, "0")
   const ss = String(ahora.getSeconds()).padStart(2, "0")
 
   const tanquesListos = turno ? turno.tanques.filter((t) => t.condicion === "LISTO").length : 0
   const lineasActivas = lineasEstado.filter((l) => l.estado === "activa").length
+  const ultimaAccion = turno ? ultimaAccionDeTurno(turno) : null
+  const segundosDesdeActualizacion = ultimaAccion
+    ? Math.max(0, Math.round((ahora.getTime() - ultimaAccion.getTime()) / 1000))
+    : null
+  const textoUltimaActualizacion =
+    segundosDesdeActualizacion === null
+      ? null
+      : segundosDesdeActualizacion < 60
+        ? `hace ${segundosDesdeActualizacion}s`
+        : `hace ${Math.floor(segundosDesdeActualizacion / 60)} min`
 
   return (
-    <AppShell title="Panel de Producción" description="Estado de la planta en vivo" fullWidth>
+    <AppShell title="Panel de Producción" description="Estado de la planta en vivo" fullWidth ocultarEstadoBanner>
       <div className="flex flex-col gap-5">
-        {/* ---------------- EN VIVO / FECHA — primero, para que no se pierda debajo del banner ---------------- */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setMostrarFiltros((v) => !v)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-              enVivo ? "border-success/50 bg-success-soft text-success" : "border-primary/50 bg-primary/10 text-primary",
-            )}
-          >
-            {enVivo ? (
-              <>
+        {/* ---------------- BANNER SUPERIOR ---------------- */}
+        <section className="panel-banner shadow-panel relative overflow-hidden rounded-2xl border border-border">
+          <div className="panel-grid pointer-events-none absolute inset-0 opacity-40" />
+
+          <div className="relative flex flex-wrap items-center gap-2.5 border-b border-border/70 px-5 py-3">
+            {turno?.estado === "ABIERTO" ? (
+              <Badge variant="success" className="gap-1.5 py-1">
                 <span className="relative flex size-1.5">
                   <span className="dot-ring absolute inset-0 rounded-full bg-success" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-success" />
                 </span>
-                EN VIVO
-              </>
+                <Activity className="size-3.5" />
+                En Operación
+              </Badge>
+            ) : turno ? (
+              <Badge variant="muted" className="gap-1.5 py-1">
+                <RadioTower className="size-3.5" />
+                Turno cerrado
+              </Badge>
             ) : (
-              <>
-                <CalendarDays className="size-3.5" />
-                FECHA: {fecha} · {nombrePorCodigo(TURNO_TIPOS, turnoTipo)}
-              </>
+              <Badge variant="muted" className="gap-1.5 py-1">
+                <RadioTower className="size-3.5" />
+                {buscado ? "Sin turnos registrados" : "Cargando"}
+              </Badge>
             )}
-          </button>
 
-          {!session?.area && (
             <button
               type="button"
-              onClick={() => setMostrarFiltros(true)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground"
+              onClick={() => setMostrarFiltros((v) => !v)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
+                enVivo ? "border-success/50 bg-success-soft text-success" : "border-primary/50 bg-primary/10 text-primary",
+              )}
             >
-              <Building2 className="size-3.5" />
-              {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(AREAS, areaFiltro)}
+              {enVivo ? (
+                <>
+                  <span className="relative flex size-1.5">
+                    <span className="dot-ring absolute inset-0 rounded-full bg-success" />
+                    <span className="relative inline-flex size-1.5 rounded-full bg-success" />
+                  </span>
+                  EN VIVO
+                </>
+              ) : (
+                <>
+                  <CalendarDays className="size-3.5" />
+                  FECHA: {fecha} · {nombrePorCodigo(TURNO_TIPOS, turnoTipo)}
+                </>
+              )}
             </button>
+
+            {textoUltimaActualizacion && <span className="text-[11px] text-muted-foreground">Última actualización {textoUltimaActualizacion}</span>}
+
+            {!session?.area && (
+              <button
+                type="button"
+                onClick={() => setMostrarFiltros(true)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground"
+              >
+                <Building2 className="size-3.5" />
+                {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(AREAS, areaFiltro)}
+              </button>
+            )}
+
+            {turno && (
+              <>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
+                  <UserRound className="size-3.5 text-primary" />
+                  {turno.supervisorNombre}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Turno {turno.codigo} · {nombrePorCodigo(GRUPOS, turno.grupo)}
+                  {turno.estado === "CERRADO" && turno.horaFin ? ` · Cerrado ${turno.horaFin.slice(0, 5)}` : ""}
+                </span>
+              </>
+            )}
+          </div>
+
+          {turno && meta && (
+            <>
+              <div className="relative grid grid-cols-1 divide-y divide-border/70 md:grid-cols-4 md:divide-x md:divide-y-0">
+                {/* HORA */}
+                <BannerCelda icon={Clock} label="Hora" centrado>
+                  <p className="num flex items-baseline justify-center gap-1 text-4xl font-bold leading-none tracking-tight text-foreground">
+                    {hh}
+                    <span className="alert-pulse text-muted-foreground">:</span>
+                    {mm}
+                    <span className="text-lg font-semibold text-muted-foreground">:{ss}</span>
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {horario ? `Turno de ${horario.inicio} a ${horario.fin}` : "Sin horario definido"}
+                  </p>
+                </BannerCelda>
+
+                {/* CAJAS */}
+                <BannerCelda icon={Boxes} label="Cajas producidas" acento centrado>
+                  <p className="num text-4xl font-bold leading-none tracking-tight text-foreground">
+                    {cajasProducidasTotal.toLocaleString("es-CO")}
+                  </p>
+                </BannerCelda>
+
+                {/* LITROS */}
+                <BannerCelda icon={Droplets} label="Litros producidos" centrado>
+                  <p className="num text-4xl font-bold leading-none tracking-tight text-foreground">
+                    {litrosProducidos.toLocaleString("es-CO")}
+                    <span className="ml-1 text-lg font-semibold text-muted-foreground">L</span>
+                  </p>
+                </BannerCelda>
+
+                {/* META */}
+                <BannerCelda icon={Target} label="Cumplimiento de meta">
+                  <MetaAnillo pct={meta.pctCumplimiento} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
+                </BannerCelda>
+              </div>
+            </>
           )}
-        </div>
+        </section>
 
         {mostrarFiltros && (
           <Card className="border-border bg-surface shadow-sm">
@@ -421,91 +554,6 @@ export default function PanelProduccion() {
           </Card>
         )}
 
-        {/* ---------------- BANNER SUPERIOR ---------------- */}
-        <section className="panel-banner shadow-panel relative overflow-hidden rounded-2xl border border-border">
-          <div className="panel-grid pointer-events-none absolute inset-0 opacity-40" />
-
-          <div className="relative flex flex-wrap items-center gap-2.5 border-b border-border/70 px-5 py-3">
-            {turno?.estado === "ABIERTO" ? (
-              <Badge variant="success" className="gap-1.5 py-1">
-                <span className="relative flex size-1.5">
-                  <span className="dot-ring absolute inset-0 rounded-full bg-success" />
-                  <span className="relative inline-flex size-1.5 rounded-full bg-success" />
-                </span>
-                <Activity className="size-3.5" />
-                En Operación
-              </Badge>
-            ) : turno ? (
-              <Badge variant="muted" className="gap-1.5 py-1">
-                <RadioTower className="size-3.5" />
-                Turno cerrado
-              </Badge>
-            ) : (
-              <Badge variant="muted" className="gap-1.5 py-1">
-                <RadioTower className="size-3.5" />
-                {buscado ? "Sin turnos registrados" : "Cargando"}
-              </Badge>
-            )}
-
-            {turno && (
-              <>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
-                  <UserRound className="size-3.5 text-primary" />
-                  {turno.supervisorNombre}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Turno {turno.codigo} · {nombrePorCodigo(GRUPOS, turno.grupo)}
-                  {turno.estado === "CERRADO" && turno.horaFin ? ` · Cerrado ${turno.horaFin.slice(0, 5)}` : ""}
-                </span>
-              </>
-            )}
-          </div>
-
-          {turno && meta && (
-            <>
-              <div className="relative grid grid-cols-1 divide-y divide-border/70 md:grid-cols-4 md:divide-x md:divide-y-0">
-                {/* HORA */}
-                <BannerCelda icon={Clock} label="Hora" centrado>
-                  <p className="num flex items-baseline justify-center gap-1 text-4xl font-bold leading-none tracking-tight text-foreground">
-                    {hh}
-                    <span className="alert-pulse text-muted-foreground">:</span>
-                    {mm}
-                    <span className="text-lg font-semibold text-muted-foreground">:{ss}</span>
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {horario ? `Ventana ${horario.inicio} – ${horario.fin}` : "Sin horario definido"}
-                  </p>
-                </BannerCelda>
-
-                {/* CAJAS */}
-                <BannerCelda icon={Boxes} label="Cajas producidas" acento>
-                  <p className="num text-2xl font-bold leading-none tracking-tight text-foreground">
-                    {cajasProducidasTotal.toLocaleString("es-CO")}
-                  </p>
-                </BannerCelda>
-
-                {/* LITROS */}
-                <BannerCelda icon={Droplets} label="Litros producidos">
-                  <p className="num text-2xl font-bold leading-none tracking-tight text-foreground">
-                    {litrosProducidos.toLocaleString("es-CO")}
-                    <span className="ml-1 text-sm font-semibold text-muted-foreground">L</span>
-                  </p>
-                </BannerCelda>
-
-                {/* META */}
-                <BannerCelda icon={Target} label="Cumplimiento de meta">
-                  <MetaAnillo pct={meta.pctCumplimiento} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
-                </BannerCelda>
-              </div>
-
-              {/* ------- CAJAS · EFICIENCIA · LITROS, POR LÍNEA ------- */}
-              <div className="relative border-t border-border/70 px-4 py-2.5">
-                <TablaProduccionPorLinea filas={produccionPorLinea} lineas={lineas} />
-              </div>
-            </>
-          )}
-        </section>
-
         {cargando || cargandoCatalogos ? (
           <div className="flex justify-center py-16 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
@@ -522,50 +570,84 @@ export default function PanelProduccion() {
           />
         ) : (
           <>
-            {/* ------- TANQUES · LÍNEAS · MERMA ------- */}
+            {/* ------- TANQUES (angosta, izquierda, alta) · LÍNEAS + MERMAS/PARADAS (derecha) ------- */}
             <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
-              <PanelCard
-                className="rise-in xl:col-span-5"
-                icon={Container}
-                titulo="Tanques activos"
-                meta={`${tanquesListos}/${turno.tanques.length} listos`}
-              >
-                <div className="grid grid-cols-3 gap-3">
-                  {turno.tanques.map((t) => (
-                    <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={turno.preparaciones} />
-                  ))}
-                </div>
-              </PanelCard>
-
-              <PanelCard
-                className="rise-in xl:col-span-4"
-                icon={Workflow}
-                titulo="Líneas activas"
-                meta={`${lineasActivas}/${lineasEstado.length} en marcha`}
-                descripcion="Estado actual de cada línea de envasado."
-              >
-                {lineasEstado.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Esta área todavía no tiene líneas cargadas.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {lineasEstado.map((le) => (
-                      <LineaEstadoRow key={le.codigo} linea={le} />
+              <div className="rise-in flex flex-col gap-4 xl:col-span-4">
+                <PanelCard icon={Container} titulo="Tanques" meta={`${tanquesListos}/${turno.tanques.length} listos`}>
+                  <div className="grid grid-cols-3 gap-3">
+                    {turno.tanques.map((t) => (
+                      <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={turno.preparaciones} />
                     ))}
                   </div>
-                )}
-              </PanelCard>
+                </PanelCard>
 
-              <div className="rise-in flex flex-col gap-4 xl:col-span-3">
-                {turnoAnterior ? (
-                  <TurnoAnteriorCard resumen={turnoAnterior} />
-                ) : (
-                  <PanelCard icon={ScanLine} titulo="Merma turno anterior">
-                    <p className="num text-5xl font-bold leading-none tracking-tight text-muted-foreground">—</p>
-                    <p className="mt-2 text-xs text-muted-foreground">Sin turno cerrado previo.</p>
-                  </PanelCard>
-                )}
+                <PanelCard icon={PauseCircle} titulo="Última parada" meta={lineaParadaHaceMas ? undefined : "Mock"}>
+                  {lineaParadaHaceMas ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{lineaParadaHaceMas.nombre}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {lineaParadaHaceMas.corrida?.saborNombre ?? "Sin sabor"}
+                        </p>
+                      </div>
+                      <span className="num shrink-0 text-lg font-bold text-warning">
+                        {formatDuracion(lineaParadaHaceMas.minutosParada ?? 0)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 opacity-60">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">Línea 2</p>
+                        <p className="truncate text-xs text-muted-foreground">Manzana (Jucosa) — vista previa, sin parada real ahora</p>
+                      </div>
+                      <span className="num shrink-0 text-lg font-bold text-warning">{formatDuracion(14)}</span>
+                    </div>
+                  )}
+                </PanelCard>
+              </div>
 
-                {mermaEnvases && mermaSemielaborado && <MermaActualCard envases={mermaEnvases} semielaborado={mermaSemielaborado} />}
+              <div className="flex flex-col gap-4 xl:col-span-8">
+                <PanelCard
+                  className="rise-in"
+                  icon={Workflow}
+                  titulo="Líneas activas"
+                  meta={`${lineasActivas}/${lineasEstado.length} en marcha`}
+                >
+                  {filasLineas.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Esta área todavía no tiene líneas cargadas.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[660px]">
+                        <div className="linea-fila-grid border-b border-border px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <span>Línea</span>
+                          <span className="text-right">Cajas producidas</span>
+                          <span className="text-right">Litros producidos</span>
+                          <span className="text-right">Eficiencia</span>
+                          <span className="text-right">Tiempo detenida</span>
+                          <span className="text-right">Merma</span>
+                        </div>
+                        {filasLineas.map((f) => (
+                          <LineaFilaCompacta key={f.codigo} fila={f} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </PanelCard>
+
+                {/* ------- MERMA DE ENVASE · MERMA DE SEMIELABORADO ------- */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <MermaComparativaCard
+                    titulo="Merma de envase"
+                    pasado={turnoAnterior?.mermaPct ?? null}
+                    actual={mermaEnvases?.pct ?? null}
+                  />
+                  <MermaComparativaCard
+                    titulo="Merma de semielaborado"
+                    pasado={turnoAnterior?.mermaSemielaboradoPct ?? null}
+                    actual={mermaSemielaborado?.pct ?? null}
+                    max={MERMA_SEMIELABORADO_MAX}
+                  />
+                </div>
               </div>
             </div>
 
@@ -615,54 +697,10 @@ export default function PanelProduccion() {
               </SeccionColapsable>
 
               <SeccionColapsable
-                titulo="Mermas por línea"
-                descripcion="Envases de la llenadora (Contador) vs. Producto Terminado, por corrida — la merma real de cada línea/lote."
-              >
-                {mermasPorLinea.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Todavía no hay Contador y Producto Terminado cargados juntos para ninguna corrida.
-                  </p>
-                ) : (
-                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {mermasPorLinea.map((m) => {
-                      const nivel = nivelMerma(m.pct)
-                      return (
-                        <div key={m.turnoLineaId} className="rounded-xl border border-border bg-background/60 p-3">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              {m.nombreLinea}
-                              {m.lote ? ` · Lote ${m.lote}` : ""}
-                            </span>
-                            <Badge variant={badgeVariantPorNivel[nivel]}>{m.pct.toFixed(2)}%</Badge>
-                          </div>
-                          <p className="num mt-1 text-lg font-bold leading-none">
-                            {m.envasesProductoTerminado.toLocaleString("es-CO")}
-                            <span className="text-sm font-medium text-muted-foreground">
-                              {" "}
-                              / {m.envasesLlenadora.toLocaleString("es-CO")} envases
-                            </span>
-                          </p>
-                          <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                            <div
-                              className={cn(
-                                "h-full rounded-full transition-[width] duration-700",
-                                nivel === "danger" ? "bg-danger" : nivel === "warn" ? "bg-warning" : "bg-success",
-                              )}
-                              style={{ width: `${Math.min(100, (m.pct / MERMA_MAX) * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </SeccionColapsable>
-
-              <SeccionColapsable
-                titulo="Top Fallas y Paradas de Línea"
+                titulo="Paradas por línea"
                 descripcion="El catálogo de paradas todavía no existe — esto va a explicar la diferencia entre la meta esperada y lo producido."
               >
-                <TopFallasPlaceholder />
+                <ParadasPorLineaPlaceholder lineas={lineas} />
               </SeccionColapsable>
             </div>
           </>
@@ -792,33 +830,48 @@ function PanelCard({
   )
 }
 
-function LineaEstadoRow({ linea }: { linea: LineaConEstado }) {
-  const info = ESTADO_LINEA_INFO[linea.estado]
+/** Mock estable (mismo código = mismo número) para previsualizar "Tiempo detenida" mientras no hay ninguna línea realmente parada. */
+function mockMinutosDetenida(codigo: string): number {
+  let hash = 0
+  for (let i = 0; i < codigo.length; i++) hash = (hash * 31 + codigo.charCodeAt(i)) % 97
+  return hash % 40
+}
+
+/** Fila compacta de "Líneas activas": estado + producción + merma en una sola línea — reemplaza a la fila alta de antes + la tablita aparte del banner. */
+function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
+  const info = ESTADO_LINEA_INFO[fila.estado]
+  const nivelEficiencia: NivelMerma | null =
+    fila.eficienciaPct === null ? null : fila.eficienciaPct >= 90 ? "ok" : fila.eficienciaPct >= 60 ? "warn" : "danger"
+  const nivelMermaFila = fila.mermaPct === null ? null : nivelMerma(fila.mermaPct)
+  const colorPor = colorTextoPorNivel
+  const minutosDetenidaMock = fila.minutosParada ?? mockMinutosDetenida(fila.codigo)
+
   return (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors duration-300",
-        info.row,
-      )}
-    >
-      <div className="flex min-w-0 items-center gap-3">
+    <div className="linea-fila-grid border-b border-border/60 px-2 py-2.5 text-sm transition-colors last:border-b-0 hover:bg-muted/40">
+      <div className="flex min-w-0 items-center gap-2.5">
         <span className="relative flex size-2.5 shrink-0 items-center justify-center">
-          {linea.estado === "activa" && <span className={cn("dot-ring absolute size-2.5 rounded-full", info.ring)} />}
+          {fila.estado === "activa" && <span className={cn("dot-ring absolute size-2.5 rounded-full", info.ring)} />}
           <span className={cn("relative size-2.5 rounded-full", info.dot)} />
         </span>
         <div className="min-w-0">
-          <p className="truncate font-semibold text-foreground">{linea.nombre}</p>
-          {linea.corrida?.saborNombre ? (
-            <p className="truncate text-xs text-muted-foreground">
-              {linea.corrida.saborNombre}
-              {linea.corrida.lote ? ` · Lote ${linea.corrida.lote}` : ""}
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground/70">Sin corrida</p>
-          )}
+          <p className="truncate text-sm font-semibold text-foreground">{fila.nombre}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {info.label}
+            {fila.corrida?.saborNombre ? ` · ${fila.corrida.saborNombre}` : ""}
+          </p>
         </div>
       </div>
-      <Badge variant={info.badge}>{info.label}</Badge>
+      <p className="num text-right font-semibold text-foreground">{fila.cajas.toLocaleString("es-CO")}</p>
+      <p className="num text-right font-semibold text-foreground">{fila.litros.toLocaleString("es-CO")} L</p>
+      <p className={cn("num text-right font-semibold", colorPor(nivelEficiencia))}>
+        {fila.eficienciaPct !== null ? `${fila.eficienciaPct}%` : "—"}
+      </p>
+      <p className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning" : "italic text-muted-foreground/60")}>
+        {formatDuracion(minutosDetenidaMock)}
+      </p>
+      <p className={cn("num text-right font-semibold", colorPor(nivelMermaFila))}>
+        {fila.mermaPct !== null ? `${fila.mermaPct.toFixed(2)}%` : "—"}
+      </p>
     </div>
   )
 }
@@ -838,7 +891,15 @@ function TanqueCard({
   const listo = tanque.condicion === "LISTO"
   const standby = tanque.condicion === "STANDBY"
   const tieneLiquido = listo || standby
-  const color = colorSabor(tieneLiquido ? tanque.saborNombre : null)
+  const color = colorSabor(
+    tanque.condicion === "SUCIO"
+      ? tanque.ultimoSaborNombre
+      : enPreparacion
+        ? (ultimaPrep?.saborNombre ?? null)
+        : tieneLiquido
+          ? tanque.saborNombre
+          : null,
+  )
 
   return (
     <div
@@ -889,190 +950,102 @@ function TanqueCard({
   )
 }
 
-/** Solo la merma del turno anterior, en grande — rojo si supera la tolerancia. */
-function TurnoAnteriorCard({ resumen }: { resumen: ResumenTurnoAnterior }) {
-  const nivel = resumen.mermaPct === null ? null : nivelMerma(resumen.mermaPct)
-  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : undefined
+/**
+ * Comparativo Turno pasado vs. Turno actual para una merma — se usa
+ * dos veces (envase y semielaborado). "Pasado" viene de
+ * obtenerResumenTurnoAnterior(), "actual" de mermaEnvasesTurno()/
+ * mermaSemielaboradoTurno() en src/lib/panelProduccion.ts. Cada
+ * columna se colorea según su propio nivel de tolerancia.
+ */
+function MermaComparativaCard({
+  titulo,
+  pasado,
+  actual,
+  max = MERMA_MAX,
+}: {
+  titulo: string
+  pasado: number | null
+  actual: number | null
+  max?: number
+}) {
+  const nivelActual = actual === null ? null : nivelMerma(actual, max)
 
   return (
     <Card
       className={cn(
         "shadow-panel gap-0 overflow-hidden border py-0",
-        nivel === "danger" ? "border-danger/45" : nivel === "warn" ? "border-warning/40" : "border-border",
+        nivelActual === "danger" ? "border-danger/45" : nivelActual === "warn" ? "border-warning/40" : "border-border",
       )}
     >
-      <div
-        className={cn(
-          "flex items-center justify-between gap-2 border-b border-border/70 px-4 py-3",
-          nivel === "danger" ? "bg-danger-soft" : nivel === "warn" ? "bg-warning-soft" : "bg-surface",
-        )}
-      >
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <ScanLine className="size-4 text-primary" />
-          Merma turno anterior
-        </p>
-        {nivel && <Badge variant={badgeVariantPorNivel[nivel]}>Máx. {MERMA_MAX}%</Badge>}
-      </div>
-
-      <div className="p-4">
-        <p className={cn("num text-5xl font-bold leading-none tracking-tight", color)}>
-          {resumen.mermaPct !== null ? `${resumen.mermaPct.toFixed(2)}%` : "—"}
-        </p>
-
-        {resumen.mermaPct !== null && (
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-[width] duration-700",
-                nivel === "danger" ? "bg-danger" : nivel === "warn" ? "bg-warning" : "bg-success",
-              )}
-              style={{ width: `${Math.min(100, (resumen.mermaPct / MERMA_MAX) * 100)}%` }}
-            />
-          </div>
-        )}
-
-        {nivel === "danger" && (
-          <p className="mt-2 flex items-center gap-1 text-[11px] font-medium text-danger">
-            <AlertTriangle className="size-3" /> Fuera de tolerancia
-          </p>
-        )}
-
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3 text-xs">
-          <div>
-            <p className="text-muted-foreground">Litros</p>
-            <p className="num font-semibold text-foreground">{resumen.litrosProducidos.toLocaleString("es-CO")}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Cajas</p>
-            <p className="num font-semibold text-foreground">{resumen.cajasProducidas.toLocaleString("es-CO")}</p>
-          </div>
-        </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">Turno {resumen.turnoCodigo}</p>
-      </div>
-    </Card>
-  )
-}
-
-/**
- * Merma del turno EN CURSO, en dos mitades: Envases (llenadora vs.
- * paletizado — la de siempre) y Semielaborado (litros de tanque
- * consumidos vs. litros que salieron en Producto Terminado — la
- * pérdida de ANTES de la llenadora). Ver mermaEnvasesTurno()/
- * mermaSemielaboradoTurno() en src/lib/panelProduccion.ts.
- */
-function MermaActualCard({
-  envases,
-  semielaborado,
-}: {
-  envases: { pct: number | null }
-  semielaborado: { pct: number | null; litrosConsumidos: number; litrosProducidos: number }
-}) {
-  return (
-    <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
       <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-surface px-4 py-3">
         <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           <ScanLine className="size-4 text-primary" />
-          Merma del turno en curso
+          {titulo}
         </p>
-        <Badge variant="muted">Máx. {MERMA_MAX}%</Badge>
+        <Badge variant="muted">Máx. {max}%</Badge>
       </div>
 
       <div className="grid grid-cols-2 divide-x divide-border/70">
-        <MermaBloque titulo="Envases" pct={envases.pct} />
-        <MermaBloque titulo="Semielaborado" pct={semielaborado.pct} />
+        <MermaBloque titulo="Turno pasado" pct={pasado} max={max} />
+        <MermaBloque titulo="Turno actual" pct={actual} max={max} />
       </div>
 
-      <div className="border-t border-border/70 p-4 text-[11px] text-muted-foreground">
-        Semielaborado: {semielaborado.litrosProducidos.toLocaleString("es-CO")} L producidos de{" "}
-        {semielaborado.litrosConsumidos.toLocaleString("es-CO")} L consumidos de tanque.
-      </div>
+      {nivelActual === "danger" && (
+        <p className="flex items-center gap-1 border-t border-border/70 px-3 py-2 text-[11px] font-medium text-danger">
+          <AlertTriangle className="size-3" /> El turno actual está fuera de tolerancia.
+        </p>
+      )}
     </Card>
   )
 }
 
-function MermaBloque({ titulo, pct }: { titulo: string; pct: number | null }) {
-  const nivel = pct === null ? null : nivelMerma(pct)
+function MermaBloque({ titulo, pct, max = MERMA_MAX }: { titulo: string; pct: number | null; max?: number }) {
+  const nivel = pct === null ? null : nivelMerma(pct, max)
   const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : undefined
   return (
-    <div className="p-4">
+    <div className="min-w-0 px-3 py-5">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
-      <p className={cn("num mt-1 text-3xl font-bold leading-none", color)}>{pct !== null ? `${pct}%` : "—"}</p>
-      {nivel === "danger" && (
-        <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-danger">
-          <AlertTriangle className="size-3" /> Fuera de tolerancia
-        </p>
-      )}
+      <p className={cn("num mt-2 truncate text-3xl font-bold leading-none", color)}>{pct !== null ? `${pct}%` : "—"}</p>
     </div>
   )
 }
 
-/** Placeholder del top de fallas: la estructura ya está armada, sólo falta el catálogo de paradas. */
-function TopFallasPlaceholder() {
-  const filas = ["Falla mecánica", "Cambio de formato", "Falta de insumo", "Limpieza / CIP", "Corte eléctrico"]
+/** Placeholder de paradas por línea: la estructura ya está armada, solo falta el catálogo real de paradas. */
+function ParadasPorLineaPlaceholder({ lineas }: { lineas: LineaLive[] }) {
+  const motivosMock = [
+    ["Falla mecánica", 8],
+    ["Cambio de formato", 6],
+    ["Falta de insumo", 4],
+  ] as const
+  const totalMock = motivosMock.reduce((a, [, minutos]) => a + minutos, 0)
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Construction className="size-4 text-muted-foreground" />
-        <Badge variant="warning">Próximamente</Badge>
-        <span className="text-xs text-muted-foreground">Vista previa de cómo se va a ver cuando existan registros.</span>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        {filas.map((f, i) => (
-          <div
-            key={f}
-            className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-muted/30 px-3 py-2.5"
-          >
-            <span className="num grid size-6 shrink-0 place-items-center rounded-md bg-muted text-[11px] font-bold text-muted-foreground">
-              {i + 1}
-            </span>
-            <span className="text-sm text-muted-foreground">{f}</span>
-            <div className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-border" style={{ width: `${100 - i * 18}%` }} />
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {lineas
+        .filter((l) => l.activo)
+        .map((l) => (
+          <div key={l.codigo} className="rounded-xl border border-dashed border-border bg-muted/30 p-3">
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">{l.nombre}</h3>
+              <span className="num text-xs font-semibold text-danger">{totalMock} min</span>
             </div>
-            <span className="num w-12 text-right text-xs text-muted-foreground/70">— min</span>
+            <ol className="flex flex-col gap-1.5">
+              {motivosMock.map(([motivo, minutos], i) => (
+                <li key={motivo} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>
+                    <b className="num mr-1.5 text-primary">0{i + 1}</b>
+                    {motivo}
+                  </span>
+                  <span className="num shrink-0 text-foreground">{minutos} min</span>
+                </li>
+              ))}
+            </ol>
           </div>
         ))}
-      </div>
     </div>
   )
 }
 
-
-/** Fila por línea (catálogo completo) con cajas, eficiencia y litros juntos — vive dentro del banner, ver produccionPorLineaDe(). */
-function TablaProduccionPorLinea({ filas, lineas }: { filas: ProduccionLinea[]; lineas: LineaLive[] }) {
-  if (filas.length === 0) {
-    return <p className="text-xs text-muted-foreground">Esta área todavía no tiene líneas cargadas.</p>
-  }
-
-  return (
-    <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Cajas producidas</span>
-      <span className="text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Eficiencia</span>
-      <span className="text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Litros producidos</span>
-
-      {filas.map((f) => {
-        const eficiencia = f.eficienciaPct
-        const color = eficiencia === null ? "text-muted-foreground" : eficiencia >= 90 ? "text-success" : eficiencia >= 60 ? "text-warning" : "text-danger"
-        return (
-          <div key={f.linea} className="contents">
-            <span className="num flex items-baseline gap-1.5 border-t border-border/60 py-1 font-semibold text-foreground">
-              <span className="text-[10px] font-medium uppercase text-muted-foreground">{nombrePorCodigo(lineas, f.linea)}</span>
-              {f.cajas.toLocaleString("es-CO")}
-            </span>
-            <span className={cn("num border-t border-border/60 py-1 text-right font-semibold", color)}>
-              {eficiencia !== null ? `${eficiencia}%` : "—"}
-            </span>
-            <span className="num border-t border-border/60 py-1 text-right font-semibold text-foreground">
-              {f.litros.toLocaleString("es-CO")} L
-            </span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 /* ============================ RESUMEN DE PLANTA ============================ */
 
@@ -1094,7 +1067,7 @@ function ResumenPlanta({ areaCodigo }: { areaCodigo: AreaCodigo | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [areaCodigo])
 
-  const mermaProm = promedio(filas.map(mermaPct))
+  const mermaProm = mermaAgregada(filas)
   const horasTotales = filas.reduce((acc, f) => acc + (horasTurno(f) ?? 0), 0)
   const litrosTotales = filas.reduce((acc, f) => acc + f.litrosProducidos, 0)
 
@@ -1127,7 +1100,7 @@ function ResumenPlanta({ areaCodigo }: { areaCodigo: AreaCodigo | null }) {
       ) : (
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <EstadisticaMerma titulo="Merma (prom.)" pct={mermaProm} />
+            <EstadisticaMerma titulo="Merma real" pct={mermaProm} />
             <EstadisticaTile icon={Clock} label="Horas de producción" valor={`${Math.round(horasTotales)} h`} />
             <EstadisticaTile icon={Droplets} label="Litros producidos" valor={litrosTotales.toLocaleString("es-CO")} />
           </div>
@@ -1268,7 +1241,7 @@ function TablaPorGrupo({ filas }: { filas: FilaEstadistica[] }) {
       const filasGrupo = filas.filter((f) => f.grupo === grupo)
       return {
         grupo,
-        merma: promedio(filasGrupo.map(mermaPct)) ?? 0,
+        merma: mermaAgregada(filasGrupo) ?? 0,
         litros: filasGrupo.reduce((a, f) => a + f.litrosProducidos, 0),
         horas: filasGrupo.reduce((a, f) => a + (horasTurno(f) ?? 0), 0),
       }
@@ -1319,7 +1292,7 @@ function TablaPorSupervisor({ filas }: { filas: FilaEstadistica[] }) {
       return {
         usuario,
         nombre: filasSup[0]?.supervisorNombre ?? usuario,
-        merma: promedio(filasSup.map(mermaPct)) ?? 0,
+        merma: mermaAgregada(filasSup) ?? 0,
         litros: filasSup.reduce((a, f) => a + f.litrosProducidos, 0),
       }
     })

@@ -9,12 +9,15 @@ export function AppShell({
   title,
   description,
   fullWidth,
+  ocultarEstadoBanner,
   children,
 }: {
   title: string
   description?: string
   /** Usa todo el ancho disponible (sin max-w-6xl ni el padding lateral habitual) — para pantallas tipo dashboard que necesitan el espacio completo. */
   fullWidth?: boolean
+  /** Para pantallas que ya muestran Área/Supervisor/Turno en su propio banner (ej. Panel de Producción) — evita repetir esa misma info dos veces seguidas. */
+  ocultarEstadoBanner?: boolean
   children: ReactNode
 }) {
   return (
@@ -22,6 +25,7 @@ export function AppShell({
       <AppHeader
         title={title}
         description={description}
+        ocultarEstadoBanner={ocultarEstadoBanner}
         left={
           <>
             <Button variant="ghost" size="icon" className="shrink-0" asChild>

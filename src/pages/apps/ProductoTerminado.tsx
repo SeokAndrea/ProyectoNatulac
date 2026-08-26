@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { nombrePorCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
+import { nivelMerma } from "@/lib/estadisticas"
 import { cn } from "@/lib/utils"
 import { LIMITE_MERMA, useTurno, type LineaEnTurno, type ProductoTerminadoRegistro, type TurnoActivo } from "@/lib/turno"
 
@@ -288,6 +289,7 @@ function ListaCorridas({
             onRegistrarProducto={onRegistrarProducto}
             onRegistrarContador={onRegistrarContador}
             onEntregarCorrida={onEntregarCorrida}
+            onTerminarSabor={onTerminarSabor}
           />
         ))}
     </div>
@@ -349,10 +351,11 @@ function BotonCerrarLote({ lote, onTerminarSabor }: { lote: GrupoLote; onTermina
     <button
       type="button"
       title={`Cerrar Lote ${lote.lote ?? ""} — termina el sabor de sus ${activas.length} ${activas.length === 1 ? "línea" : "líneas"}`}
-      className="absolute -top-1.5 -right-1.5 z-10 rounded-full border border-border bg-background p-0.5 text-muted-foreground shadow-sm transition-colors hover:border-destructive/40 hover:text-destructive"
+      className="absolute -top-2.5 -right-2.5 z-10 flex items-center gap-1 rounded-full border border-destructive/40 bg-background px-2 py-1 text-destructive shadow-md transition-colors hover:bg-destructive/10"
       onClick={() => setConfirmando(true)}
     >
       <XCircle className="size-4" />
+      <span className="text-[10px] font-semibold">Cerrar</span>
     </button>
   )
 }
@@ -435,6 +438,7 @@ function FilaProductoTerminado({
   onRegistrarProducto,
   onRegistrarContador,
   onEntregarCorrida,
+  onTerminarSabor,
 }: {
   lineaTurno: LineaEnTurno
   nombreLinea: string
@@ -444,6 +448,7 @@ function FilaProductoTerminado({
   onRegistrarProducto: OnRegistrarProducto
   onRegistrarContador: OnRegistrarContador
   onEntregarCorrida: OnEntregarCorrida
+  onTerminarSabor: OnTerminarSabor
 }) {
   const saborId = registroExistente?.saborId ?? lineaTurno.saborId
   const corridaCerrada = !lineaTurno.activa && !lineaTurno.esperandoCierre
@@ -453,6 +458,7 @@ function FilaProductoTerminado({
   const [cajasSueltas, setCajasSueltas] = useState(registroExistente ? String(registroExistente.cajasSueltas) : "")
   const [justificacion, setJustificacion] = useState("")
   const [continuaSiguienteTurno, setContinuaSiguienteTurno] = useState(false)
+  const [terminoSabor, setTerminoSabor] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
@@ -462,6 +468,7 @@ function FilaProductoTerminado({
   const cajasXPaleta = presentacion?.cajasXPaleta ?? 0
   const cajasTotalPreview = nPaletas * cajasXPaleta + nCajasSueltas
   const envasesProducidos = presentacion ? cajasTotalPreview * presentacion.envasesXCaja : 0
+  const litrosPreview = presentacion ? (envasesProducidos * presentacion.volumenMl) / 1000 : 0
 
   const nuevoContador = envasesLlenadora === "" ? 0 : Number(envasesLlenadora)
   const contadorTotalPreview = contadorActual + nuevoContador
@@ -470,12 +477,14 @@ function FilaProductoTerminado({
     contadorTotalPreview > 0 && (paletas !== "" || cajasSueltas !== "")
       ? Math.round((1 - envasesProducidos / contadorTotalPreview) * 10000) / 100
       : null
-  const requiereJustificacion = mermaPct !== null && mermaPct > LIMITE_MERMA_PCT
+  const nivel = mermaPct === null ? null : nivelMerma(mermaPct, LIMITE_MERMA_PCT)
+  const requiereJustificacion = nivel === "danger"
 
   const hayContadorNuevo = envasesLlenadora !== "" && nuevoContador > 0
   const hayProducto = (paletas !== "" || cajasSueltas !== "") && nPaletas >= 0 && nCajasSueltas >= 0
   const valido =
-    (hayContadorNuevo || hayProducto || continuaSiguienteTurno) && (!requiereJustificacion || justificacion.trim() !== "")
+    (hayContadorNuevo || hayProducto || continuaSiguienteTurno || terminoSabor) &&
+    (!requiereJustificacion || justificacion.trim() !== "")
 
   async function guardar() {
     if (!valido) return
@@ -521,10 +530,20 @@ function FilaProductoTerminado({
       }
     }
 
+    if (terminoSabor) {
+      const resultado = await onTerminarSabor(lineaTurno.id)
+      if (!resultado.ok) {
+        setEnviando(false)
+        setError(resultado.error)
+        return
+      }
+    }
+
     setEnviando(false)
     setEnvasesLlenadora("")
     setJustificacion("")
     setContinuaSiguienteTurno(false)
+    setTerminoSabor(false)
   }
 
   return (
@@ -589,22 +608,25 @@ function FilaProductoTerminado({
 
         {presentacion && (paletas !== "" || cajasSueltas !== "") && (
           <p className="text-sm text-muted-foreground">
-            Total: <span className="font-medium text-foreground">{cajasTotalPreview.toLocaleString("es-CO")} cajas</span> (
-            {envasesProducidos.toLocaleString("es-CO")} envases).
+            Total: <span className="font-medium text-foreground">{cajasTotalPreview.toLocaleString("es-CO")} cajas</span>,{" "}
+            <span className="font-medium text-foreground">{envasesProducidos.toLocaleString("es-CO")} envases</span>,{" "}
+            <span className="font-medium text-foreground">{litrosPreview.toLocaleString("es-CO")} L</span>.
           </p>
         )}
 
         {mermaPct !== null && (
           <div
-            className={
-              "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm " +
-              (requiereJustificacion
-                ? "border-destructive/40 bg-destructive/10 text-destructive"
-                : "border-border bg-muted/40 text-muted-foreground")
-            }
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+              nivel === "danger"
+                ? "border-danger/40 bg-danger-soft text-danger"
+                : nivel === "warn"
+                  ? "border-warning/40 bg-warning-soft text-warning"
+                  : "border-success/35 bg-success-soft text-success",
+            )}
           >
             {requiereJustificacion && <AlertTriangle className="size-4 shrink-0" />}
-            Merma estimada: <span className="font-medium">{mermaPct}%</span>
+            Merma estimada: <span className="font-semibold">{mermaPct}%</span>
             {requiereJustificacion ? ` — supera el ${LIMITE_MERMA_PCT}%, requiere justificación.` : ` (límite ${LIMITE_MERMA_PCT}%)`}
           </div>
         )}
@@ -624,10 +646,28 @@ function FilaProductoTerminado({
               Entregada al siguiente turno a las {lineaTurno.entregadaEn.slice(11, 16)}.
             </p>
           ) : (
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Checkbox checked={continuaSiguienteTurno} onCheckedChange={(v) => setContinuaSiguienteTurno(v === true)} />
-              Esta línea va a continuar en el siguiente turno — cerrar mi parte con estos valores.
-            </label>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Checkbox
+                  checked={terminoSabor}
+                  onCheckedChange={(v) => {
+                    setTerminoSabor(v === true)
+                    if (v === true) setContinuaSiguienteTurno(false)
+                  }}
+                />
+                Ya terminé este sabor en esta línea — guardar estos valores y cerrar la corrida.
+              </label>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Checkbox
+                  checked={continuaSiguienteTurno}
+                  onCheckedChange={(v) => {
+                    setContinuaSiguienteTurno(v === true)
+                    if (v === true) setTerminoSabor(false)
+                  }}
+                />
+                Esta línea va a continuar en el siguiente turno — cerrar mi parte con estos valores.
+              </label>
+            </div>
           ))}
 
         {error && (
@@ -638,7 +678,7 @@ function FilaProductoTerminado({
 
         <Button size="sm" className="self-start" onClick={guardar} disabled={!valido || enviando}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageCheck className="size-3.5" />}
-          {registroExistente ? "Guardar cambios" : "Registrar"}
+          {terminoSabor ? "Registrar y cerrar" : registroExistente ? "Guardar cambios" : "Registrar"}
         </Button>
       </CardContent>
     </Card>

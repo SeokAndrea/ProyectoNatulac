@@ -114,7 +114,7 @@ export default function FinalizarTurno() {
 
           <SeccionColapsable
             titulo="Estado final de tanques"
-            descripcion="Confirmá o corregí el estado de cada tanque antes de cerrar el turno."
+            descripcion="Confirma o corrige el estado de cada tanque antes de cerrar el turno."
             abiertoPorDefecto={turnoActivo.tanques.some((t) => !t.confirmadoFinEn)}
           >
             <div className="flex flex-col gap-2">

@@ -75,6 +75,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
     continuarSiguienteLote,
     cambiarCondicionTanque,
     confirmarEstadoTanque,
+    confirmarEstadoLinea,
     iniciarPreparacion,
     liberarLote,
   } = useTurno()
@@ -128,6 +129,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
               onContinuar={continuarLinea}
               onTerminarSabor={terminarSaborLinea}
               onContinuarSiguienteLote={continuarSiguienteLote}
+              onConfirmarEstadoLinea={confirmarEstadoLinea}
             />
           ))}
       </TabsContent>
@@ -136,11 +138,11 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
 }
 
 const nombreCondicion: Record<CondicionTanque, string> = {
-  LISTO: "Listo (liberado)",
+  LISTO: "Listo",
   SUCIO: "Sucio",
   VACIO: "Vacío",
-  EN_PREPARACION: "En Preparación (no liberado)",
-  STANDBY: "Standby (resto del lote)",
+  EN_PREPARACION: "En Preparación",
+  STANDBY: "Standby",
 }
 const badgeVariantCondicion: Record<CondicionTanque, "success" | "warning" | "muted" | "secondary"> = {
   LISTO: "success",
@@ -180,8 +182,14 @@ function TanqueCard({
   const [mostrarFormPrep, setMostrarFormPrep] = useState(false)
   const [liberando, setLiberando] = useState(false)
 
-  const color = colorSabor(tanque.saborNombre)
   const loteAbierto = preparaciones.find((p) => !p.liberadoEn && !p.cerradoEn) ?? null
+  const color = colorSabor(
+    tanque.condicion === "SUCIO"
+      ? tanque.ultimoSaborNombre
+      : tanque.condicion === "EN_PREPARACION"
+        ? (loteAbierto?.saborNombre ?? null)
+        : tanque.saborNombre,
+  )
 
   return (
     <Card className="overflow-hidden border-border shadow-sm">
@@ -197,12 +205,14 @@ function TanqueCard({
           />
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
               <p className="flex items-center gap-1.5 text-sm font-semibold">
                 <Container className="size-4 text-muted-foreground" />
                 Tanque {tanque.numeroTanque}
               </p>
-              <Badge variant={badgeVariantCondicion[tanque.condicion]}>{nombreCondicion[tanque.condicion]}</Badge>
+              <Badge variant={badgeVariantCondicion[tanque.condicion]} className="shrink-0">
+                {nombreCondicion[tanque.condicion]}
+              </Badge>
             </div>
 
             {tanque.condicion === "LISTO" && (
@@ -220,8 +230,7 @@ function TanqueCard({
                 <p className="num mt-2 text-xl font-semibold">{(tanque.volumenL ?? 0).toLocaleString("es-CO")} L</p>
                 <p className="text-xs text-muted-foreground">
                   Resto de {tanque.saborNombre ?? "sabor sin datos"}
-                  {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — el lote ya se cerró. Desde Status, usa Corregir para guardarlo o
-                  marcarlo Sucio.
+                  {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — el lote ya se cerró.
                 </p>
               </>
             )}
@@ -426,6 +435,7 @@ function LineaCard({
   onContinuar,
   onTerminarSabor,
   onContinuarSiguienteLote,
+  onConfirmarEstadoLinea,
 }: {
   lineaCodigo: LineaCodigo
   nombreLinea: string
@@ -439,6 +449,7 @@ function LineaCard({
   onContinuar: (turnoLineaId: string) => Promise<Resultado>
   onTerminarSabor: (turnoLineaId: string) => Promise<Resultado>
   onContinuarSiguienteLote: (turnoLineaId: string) => Promise<Resultado>
+  onConfirmarEstadoLinea: (turnoLineaId: string) => Promise<Resultado>
 }) {
   const activa = lineaTurno !== null
   const pausada = lineaTurno?.pausadaEn != null
@@ -476,6 +487,7 @@ function LineaCard({
       presentacion,
       envasesHora: Number(envasesHora),
       numeroTanque,
+      confirmarInicio: modo === "status",
     })
     setGuardando(false)
     if (!resultado.ok) {
@@ -495,21 +507,152 @@ function LineaCard({
     if (!resultado.ok) setErrorAccion(resultado.error)
   }
 
+  /** "¿Parada momentánea o terminó el sabor?" — compartido entre Preparación y el "Detener" de Status. */
+  function renderDetenerConfirm() {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+        <p className="text-xs text-muted-foreground">¿Fue una parada momentánea o se terminó el sabor?</p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => accion(onPausar)} disabled={enviandoAccion}>
+            {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PauseCircle className="size-3.5" />}
+            Parada
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+            onClick={() => accion(onTerminarSabor)}
+            disabled={enviandoAccion}
+          >
+            <Square className="size-3.5" />
+            Terminó Sabor
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setDetener(false)} disabled={enviandoAccion}>
+            Cancelar
+          </Button>
+        </div>
+        {errorAccion && (
+          <p className="text-xs text-destructive" role="alert">
+            {errorAccion}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  /**
+   * Formulario de Activar/Cambiar corrida — compartido entre Preparación
+   * y el "Corregir"/"Editar" de Status. En Status, guardar además
+   * cuenta como revisión (confirmarInicio) — la corrida nueva que
+   * reemplaza a la anterior nace ya confirmada, en vez de quedar
+   * pendiente de revisar de nuevo apenas se corrige.
+   */
+  function renderFormularioEdicion() {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Select
+            value={numeroTanque === "" ? "" : String(numeroTanque)}
+            onValueChange={(v) => setNumeroTanque(Number(v) as 1 | 2 | 3)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={tanquesListos.length === 0 ? "Ningún tanque Listo" : "Tanque"} />
+            </SelectTrigger>
+            <SelectContent>
+              {tanquesListos.length === 0 ? (
+                <SelectItem value="__ninguno" disabled>
+                  Ningún tanque está Listo (liberado) todavía
+                </SelectItem>
+              ) : (
+                tanquesListos.map((t) => (
+                  <SelectItem key={t.numeroTanque} value={String(t.numeroTanque)}>
+                    Tanque {t.numeroTanque} · {t.saborNombre ?? "Sin sabor"}
+                    {t.lote ? ` · Lote ${t.lote}` : ""}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={presentacion}
+            onValueChange={(v) => {
+              setPresentacion(v)
+              setEnvasesHora("")
+            }}
+            disabled={presentacionesDisponibles.length === 0}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={presentacionesDisponibles.length === 0 ? "Sin datos" : "Presentación"} />
+            </SelectTrigger>
+            <SelectContent>
+              {presentacionesDisponibles.map((codigo) => (
+                <SelectItem key={codigo} value={codigo}>
+                  {nombrePorCodigo(presentaciones, codigo)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={envasesHora === "" ? "" : String(envasesHora)}
+            onValueChange={(v) => setEnvasesHora(Number(v))}
+            disabled={!presentacion || opcionesVelocidad.length === 0}
+          >
+            <SelectTrigger className="col-span-2 w-full">
+              <SelectValue placeholder="Velocidad" />
+            </SelectTrigger>
+            <SelectContent>
+              {opcionesVelocidad.map((v) => (
+                <SelectItem key={v.envasesHora} value={String(v.envasesHora)}>
+                  {v.envasesHora} env/h · {v.litrosHora} L/h
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {tanqueElegido && (
+          <p className="text-xs text-muted-foreground">
+            Toma {tanqueElegido.saborNombre ?? "sin sabor"}
+            {tanqueElegido.lote ? ` · Lote ${tanqueElegido.lote}` : ""} del Tanque {tanqueElegido.numeroTanque}.
+          </p>
+        )}
+
+        {error && (
+          <p className="text-xs text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <Button size="sm" disabled={!valido || guardando} onClick={guardar}>
+            {guardando ? <Loader2 className="size-3.5 animate-spin" /> : null}
+            Guardar
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditando(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <Card className="border-border shadow-sm">
       <CardContent className="flex flex-col gap-3 p-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <p className="flex items-center gap-1.5 text-sm font-semibold">
             <Factory className="size-4 text-muted-foreground" />
             {nombreLinea}
           </p>
-          <Badge variant={!activa ? "muted" : loteTerminado ? "warning" : pausada ? "warning" : "success"}>
+          <Badge variant={!activa ? "muted" : loteTerminado ? "warning" : pausada ? "warning" : "success"} className="shrink-0">
             {!activa ? "Detenida" : loteTerminado ? "Terminó el Lote" : pausada ? "Parada" : "Activa"}
           </Badge>
         </div>
 
         {activa && lineaTurno && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
               <p className="text-xs text-muted-foreground">Presentación</p>
               <p className="font-medium text-foreground">{lineaTurno.presentacion} ml</p>
@@ -530,15 +673,38 @@ function LineaCard({
 
         {modo === "preparacion" &&
           (!editando && loteTerminado && lineaTurno ? (
-          <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
-            <p className="text-xs text-foreground">
-              Se terminó el lote{lineaTurno.lote ? ` ${lineaTurno.lote}` : ""} que estaba usando esta corrida — ¿terminó el sabor
-              o sigue con el siguiente lote?
-            </p>
+            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
+              <p className="text-xs text-foreground">
+                Se terminó el lote{lineaTurno.lote ? ` ${lineaTurno.lote}` : ""} que estaba usando esta corrida — ¿terminó el
+                sabor o sigue con el siguiente lote?
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => accion(onContinuarSiguienteLote)} disabled={enviandoAccion}>
+                  {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                  Continuar al siguiente lote
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => accion(onTerminarSabor)}
+                  disabled={enviandoAccion}
+                >
+                  <Square className="size-3.5" />
+                  Terminó Sabor
+                </Button>
+              </div>
+              {errorAccion && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorAccion}
+                </p>
+              )}
+            </div>
+          ) : !editando && pausada && lineaTurno ? (
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => accion(onContinuarSiguienteLote)} disabled={enviandoAccion}>
+              <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion}>
                 {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
-                Continuar al siguiente lote
+                Continuar
               </Button>
               <Button
                 variant="outline"
@@ -551,158 +717,60 @@ function LineaCard({
                 Terminó Sabor
               </Button>
             </div>
-            {errorAccion && (
-              <p className="text-xs text-destructive" role="alert">
-                {errorAccion}
-              </p>
-            )}
-          </div>
-        ) : !editando && pausada && lineaTurno ? (
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion}>
-              {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
-              Continuar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-destructive/40 text-destructive hover:bg-destructive/10"
-              onClick={() => accion(onTerminarSabor)}
-              disabled={enviandoAccion}
-            >
-              <Square className="size-3.5" />
-              Terminó Sabor
-            </Button>
-          </div>
-        ) : !editando && !detener ? (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={empezarEdicion}>
-              <PenLine className="size-3.5" />
-              {activa ? "Cambiar" : "Activar corrida"}
-            </Button>
-            {activa && (
+          ) : !editando && !detener ? (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={empezarEdicion}>
+                <PenLine className="size-3.5" />
+                {activa ? "Cambiar" : "Activar corrida"}
+              </Button>
+              {activa && (
+                <Button variant="outline" size="sm" onClick={() => setDetener(true)}>
+                  <PauseCircle className="size-3.5" />
+                  Detener
+                </Button>
+              )}
+            </div>
+          ) : !editando && detener ? (
+            renderDetenerConfirm()
+          ) : (
+            renderFormularioEdicion()
+          ))}
+
+        {modo === "status" && lineaTurno && !editando && !detener && (
+          !lineaTurno.confirmadoInicioEn ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
+              <p className="text-sm text-foreground">{nombreLinea}: así quedó del turno anterior — confirma o corrige.</p>
+              <div className="flex gap-2">
+                <Button size="sm" disabled={enviandoAccion} onClick={() => accion(onConfirmarEstadoLinea)}>
+                  {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                  Confirmar
+                </Button>
+                <Button size="sm" variant="outline" onClick={empezarEdicion}>
+                  Corregir
+                </Button>
+              </div>
+              {errorAccion && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorAccion}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={empezarEdicion}>
+                <PenLine className="size-3.5" />
+                Corregir
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setDetener(true)}>
                 <PauseCircle className="size-3.5" />
                 Detener
               </Button>
-            )}
-          </div>
-        ) : !editando && detener ? (
-          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-            <p className="text-xs text-muted-foreground">¿Fue una parada momentánea o se terminó el sabor?</p>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => accion(onPausar)} disabled={enviandoAccion}>
-                {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PauseCircle className="size-3.5" />}
-                Parada
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                onClick={() => accion(onTerminarSabor)}
-                disabled={enviandoAccion}
-              >
-                <Square className="size-3.5" />
-                Terminó Sabor
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setDetener(false)} disabled={enviandoAccion}>
-                Cancelar
-              </Button>
             </div>
-            {errorAccion && (
-              <p className="text-xs text-destructive" role="alert">
-                {errorAccion}
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-            <div className="grid grid-cols-2 gap-2">
-              <Select
-                value={numeroTanque === "" ? "" : String(numeroTanque)}
-                onValueChange={(v) => setNumeroTanque(Number(v) as 1 | 2 | 3)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={tanquesListos.length === 0 ? "Ningún tanque Listo" : "Tanque"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tanquesListos.length === 0 ? (
-                    <SelectItem value="__ninguno" disabled>
-                      Ningún tanque está Listo (liberado) todavía
-                    </SelectItem>
-                  ) : (
-                    tanquesListos.map((t) => (
-                      <SelectItem key={t.numeroTanque} value={String(t.numeroTanque)}>
-                        Tanque {t.numeroTanque} · {t.saborNombre ?? "Sin sabor"}
-                        {t.lote ? ` · Lote ${t.lote}` : ""}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+          )
+        )}
 
-              <Select
-                value={presentacion}
-                onValueChange={(v) => {
-                  setPresentacion(v)
-                  setEnvasesHora("")
-                }}
-                disabled={presentacionesDisponibles.length === 0}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={presentacionesDisponibles.length === 0 ? "Sin datos" : "Presentación"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {presentacionesDisponibles.map((codigo) => (
-                    <SelectItem key={codigo} value={codigo}>
-                      {nombrePorCodigo(presentaciones, codigo)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={envasesHora === "" ? "" : String(envasesHora)}
-                onValueChange={(v) => setEnvasesHora(Number(v))}
-                disabled={!presentacion || opcionesVelocidad.length === 0}
-              >
-                <SelectTrigger className="col-span-2 w-full">
-                  <SelectValue placeholder="Velocidad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {opcionesVelocidad.map((v) => (
-                    <SelectItem key={v.envasesHora} value={String(v.envasesHora)}>
-                      {v.envasesHora} env/h · {v.litrosHora} L/h
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {tanqueElegido && (
-              <p className="text-xs text-muted-foreground">
-                Toma {tanqueElegido.saborNombre ?? "sin sabor"}
-                {tanqueElegido.lote ? ` · Lote ${tanqueElegido.lote}` : ""} del Tanque {tanqueElegido.numeroTanque}.
-              </p>
-            )}
-
-            {error && (
-              <p className="text-xs text-destructive" role="alert">
-                {error}
-              </p>
-            )}
-
-            <div className="flex gap-2">
-              <Button size="sm" disabled={!valido || guardando} onClick={guardar}>
-                {guardando ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                Guardar
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditando(false)}>
-                Cancelar
-              </Button>
-            </div>
-          </div>
-          ))}
+        {modo === "status" && lineaTurno && detener && renderDetenerConfirm()}
+        {modo === "status" && lineaTurno && editando && renderFormularioEdicion()}
       </CardContent>
     </Card>
   )

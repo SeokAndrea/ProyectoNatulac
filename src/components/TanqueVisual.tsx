@@ -1,6 +1,16 @@
-import { Layers } from "lucide-react"
+import { Clock3 } from "lucide-react"
 import type { CondicionTanque } from "@/lib/turno"
 import { cn } from "@/lib/utils"
+
+/** Posiciones fijas de las gotas/pegostes de Sucio — variadas para que no se vean en fila prolija, pero estables (no cambian en cada render). */
+const GOTAS_SUCIO = [
+  { left: "18%", bottom: "6%", size: 10 },
+  { left: "62%", bottom: "14%", size: 7 },
+  { left: "40%", bottom: "3%", size: 13 },
+  { left: "80%", bottom: "8%", size: 6 },
+  { left: "8%", bottom: "22%", size: 5 },
+  { left: "55%", bottom: "30%", size: 6 },
+]
 
 /**
  * "Vidrio" del tanque: líquido con olas/burbujas + marcas de nivel +
@@ -55,16 +65,41 @@ export function TanqueVisual({
       )}
 
       {condicion === "EN_PREPARACION" && (
-        <div className="absolute inset-0 grid place-items-center bg-warning-soft">
-          <Layers className="alert-pulse size-6 text-warning" />
+        <div
+          className="absolute inset-0 grid place-items-center"
+          style={{ backgroundColor: `color-mix(in oklab, ${color} 22%, var(--muted))` }}
+        >
+          <div
+            className={cn("mixing-vortex rounded-full border-2", square ? "size-10" : "size-14")}
+            style={{
+              borderColor: color,
+              background: `conic-gradient(from 20deg, transparent 0 16%, ${color} 18% 31%, transparent 34% 52%, ${color} 55% 68%, transparent 72%)`,
+            }}
+          />
+          <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full border border-warning/40 bg-background/85 text-warning">
+            <Clock3 className="size-3" aria-hidden="true" />
+          </span>
         </div>
       )}
 
-      {(condicion === "SUCIO" || condicion === "VACIO") && (
-        <div className="absolute inset-0 grid place-items-center">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {condicion === "SUCIO" ? "Sucio" : "Vacío"}
+      {condicion === "SUCIO" && (
+        <>
+          {GOTAS_SUCIO.map((g, i) => (
+            <span
+              key={i}
+              className="absolute rounded-full"
+              style={{ left: g.left, bottom: g.bottom, width: g.size, height: g.size, backgroundColor: color, opacity: 0.65 }}
+            />
+          ))}
+          <span className="absolute inset-x-0 top-2 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Sucio
           </span>
+        </>
+      )}
+
+      {condicion === "VACIO" && (
+        <div className="absolute inset-0 grid place-items-center">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Vacío</span>
         </div>
       )}
 

@@ -30,7 +30,7 @@ export default function Preparacion() {
 
   if (cargando || cargandoCatalogos) {
     return (
-      <AppShell title="Preparación" description="Tanques y líneas de la planta">
+      <AppShell title="Preparación y Producción" description="Tanques y líneas de la planta">
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
@@ -40,7 +40,7 @@ export default function Preparacion() {
 
   if (!turnoActivo) {
     return (
-      <AppShell title="Preparación" description="Tanques y líneas de la planta">
+      <AppShell title="Preparación y Producción" description="Tanques y líneas de la planta">
         <EmptyState
           icon={Beaker}
           title="Primero debes iniciar un turno"
@@ -56,7 +56,7 @@ export default function Preparacion() {
   }
 
   return (
-    <AppShell title="Preparación" description={`Turno ${turnoActivo.codigo}`}>
+    <AppShell title="Preparación y Producción" description={`Turno ${turnoActivo.codigo}`}>
       <EstadoPlantaTabs turno={turnoActivo} sabores={sabores} modo="preparacion" />
     </AppShell>
   )
