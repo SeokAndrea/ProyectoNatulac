@@ -1,5 +1,20 @@
 import type { LucideIcon } from "lucide-react"
-import { PlayCircle, PackageCheck, ClipboardCheck, ClipboardList, Calculator, Users, DatabaseZap, History, FileText, Beaker, RadioTower, CalendarClock, CalendarRange } from "lucide-react"
+import {
+  PlayCircle,
+  PackageCheck,
+  ClipboardCheck,
+  ClipboardList,
+  Calculator,
+  Users,
+  DatabaseZap,
+  History,
+  FileText,
+  Beaker,
+  RadioTower,
+  CalendarClock,
+  CalendarRange,
+  CalendarPlus,
+} from "lucide-react"
 import type { RolCodigo } from "@/lib/catalogos"
 
 export interface AppDef {
@@ -156,6 +171,15 @@ export const apps: AppDef[] = [
     icon: FileText,
     requiereTurno: false,
     rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"],
+  },
+  {
+    slug: "crear-turno",
+    title: "Crear Turno",
+    description: "Carga manual de un turno viejo desde su acta en papel.",
+    href: "/crear-turno",
+    icon: CalendarPlus,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
   },
   {
     slug: "edicion-datos",

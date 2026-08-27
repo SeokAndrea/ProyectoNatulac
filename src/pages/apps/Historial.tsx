@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ChevronLeft, Loader2, RotateCcw, Search, Trash2 } from "lucide-react"
+import { ChevronLeft, FileText, Loader2, RotateCcw, Search, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { generarActaPdf } from "@/lib/actaPdf"
 import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
@@ -14,10 +15,13 @@ import { construirHistorial } from "@/lib/historial"
 import { listarPersonal, type PersonalRegistrado } from "@/lib/personal"
 import {
   eliminarTurno,
+  listarActas,
   listarTurnosHistorial,
   obtenerTurnoDetalle,
   reabrirTurno,
+  subirYRegistrarActa,
   turnosActivosPorArea,
+  urlPublicaActa,
   type TurnoActivoArea,
   type TurnoResumen,
 } from "@/lib/historialTurnos"
@@ -54,6 +58,10 @@ export default function Historial() {
   const [reabriendo, setReabriendo] = useState(false)
   const [errorReabrir, setErrorReabrir] = useState<string | null>(null)
   const [reabierto, setReabierto] = useState(false)
+  const [tieneActa, setTieneActa] = useState<boolean | null>(null)
+  const [generandoActa, setGenerandoActa] = useState(false)
+  const [errorActa, setErrorActa] = useState<string | null>(null)
+  const [actaGeneradaUrl, setActaGeneradaUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -79,10 +87,44 @@ export default function Historial() {
     if (!session) return
     setSeleccionado(turno)
     setReabierto(false)
+    setTieneActa(null)
+    setErrorActa(null)
+    setActaGeneradaUrl(null)
     setCargandoDetalle(true)
     const t = await obtenerTurnoDetalle(session.username, turno.id)
     setDetalle(t)
     setCargandoDetalle(false)
+
+    if (turno.estado === "CERRADO") {
+      const actas = await listarActas(session.username, { areaCodigo: turno.area, fechaDesde: turno.fecha, fechaHasta: turno.fecha })
+      setTieneActa(actas.some((a) => a.turnoId === turno.id))
+    }
+  }
+
+  async function generarActaFaltante() {
+    if (!session || !seleccionado || !detalle) return
+    setGenerandoActa(true)
+    setErrorActa(null)
+    try {
+      const blob = generarActaPdf({
+        turno: detalle,
+        supervisorNombre: seleccionado.supervisorNombre,
+        area: seleccionado.area,
+        lineas,
+        presentaciones,
+      })
+      const resultado = await subirYRegistrarActa(session.username, detalle.id, seleccionado.area, detalle.codigo, blob)
+      if (!resultado.ok) {
+        setErrorActa(resultado.error)
+        return
+      }
+      setActaGeneradaUrl(urlPublicaActa(resultado.acta.storagePath))
+      setTieneActa(true)
+    } catch {
+      setErrorActa("No se pudo generar el PDF del acta. Intenta de nuevo.")
+    } finally {
+      setGenerandoActa(false)
+    }
   }
 
   function volver() {
@@ -160,6 +202,33 @@ export default function Historial() {
                   Turno reabierto — el supervisor ya lo puede corregir y volver a Finalizar (eso genera una nueva versión del acta).
                 </p>
               )}
+
+              {detalle.cierreAutomatico && tieneActa === false && !actaGeneradaUrl && (
+                <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
+                  <p className="text-sm text-foreground">
+                    Este turno se cerró solo por tiempo (nadie apretó Finalizar) — no tiene acta generada.
+                  </p>
+                  <Button size="sm" className="self-start" disabled={generandoActa} onClick={generarActaFaltante}>
+                    {generandoActa ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
+                    Generar Acta
+                  </Button>
+                  {errorActa && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errorActa}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {actaGeneradaUrl && (
+                <p className="text-sm text-success">
+                  Acta generada —{" "}
+                  <a href={actaGeneradaUrl} target="_blank" rel="noreferrer" className="underline">
+                    descargarla
+                  </a>
+                  .
+                </p>
+              )}
               {errorReabrir && (
                 <p className="text-sm text-destructive" role="alert">
                   {errorReabrir}
@@ -194,7 +263,7 @@ export default function Historial() {
               <div className="flex flex-col gap-2">
                 {construirHistorial(detalle, lineas, presentaciones).map((ev, i) => (
                   <div key={i} className="flex gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-                    <span className="num w-14 shrink-0 pt-0.5 text-xs text-muted-foreground">{ev.hora}</span>
+                    <span className="num w-16 shrink-0 pt-0.5 text-xs text-muted-foreground">{ev.hora}</span>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold tracking-wide text-foreground uppercase">{ev.seccion}</p>
                       <p className="text-muted-foreground">{ev.detalle}</p>

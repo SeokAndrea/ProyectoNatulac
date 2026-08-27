@@ -271,7 +271,7 @@ export default function PanelProduccion() {
       setTurnoAnterior(null)
       return
     }
-    setTurnoAnterior(await obtenerResumenTurnoAnterior(areaEfectiva, turnoActualId))
+    setTurnoAnterior(await obtenerResumenTurnoAnterior(areaEfectiva, turnoActualId, presentaciones))
   }
 
   /*

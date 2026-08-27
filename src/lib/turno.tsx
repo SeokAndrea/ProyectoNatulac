@@ -36,7 +36,7 @@ export interface LineaEnTurno {
    */
   loteTerminado: string | null
   finalizadaEn: string | null
-  /** Terminó Sabor ya se apretó (activa=false) pero todavía no se registró su contador — no está realmente cerrada. */
+  /** Terminar Lote ya se apretó (activa=false) pero todavía no se registró su contador — no está realmente cerrada. */
   esperandoCierre: boolean
   /** El supervisor ya cerró SU parte con "¿Va a continuar en el siguiente turno?" — la corrida sigue activa=true igual. */
   entregadaEn: string | null
@@ -182,6 +182,11 @@ export interface ProductoTerminadoRegistro {
   productoRetenido: boolean
   cajasRetenidas: number | null
   creadoEn: string
+  /** Quién lo cargó originalmente. */
+  registradoPorNombre: string | null
+  /** Si un admin lo corrigió después desde Editar Turno (ver corregirProductoTerminado en historialTurnos.ts) — null si nunca se tocó. */
+  editadoPorNombre: string | null
+  editadoEn: string | null
 }
 
 /** Foto fija de un tanque, tomada una sola vez cuando el supervisor termina de confirmar/corregir el inicio — ver capturar_tanques_encontrados_si_completo(). */
@@ -274,6 +279,8 @@ export interface DatosIniciarPreparacion {
   agua: number | null
   azucar: number | null
   acidoCitrico: number | null
+  /** Algo guardado (desvasado) a sumar — ver envasarTanque — null si no hay o no se eligió ninguna. */
+  reservaId: string | null
 }
 
 type Resultado = { ok: true } | { ok: false; error: string }
@@ -289,10 +296,14 @@ interface TurnoContextValue {
   registrarProductoTerminado: (datos: DatosProductoTerminado) => Promise<Resultado>
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   liberarLote: (loteId: string) => Promise<Resultado>
+  transferirTanque: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3) => Promise<Resultado>
+  envasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
+  reactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   activarLinea: (datos: DatosActivarLinea) => Promise<Resultado>
   pausarLinea: (turnoLineaId: string) => Promise<Resultado>
   continuarLinea: (turnoLineaId: string) => Promise<Resultado>
   terminarSaborLinea: (turnoLineaId: string) => Promise<Resultado>
+  terminarLinea: (turnoLineaId: string) => Promise<Resultado>
   continuarSiguienteLote: (turnoLineaId: string) => Promise<Resultado>
   entregarCorrida: (turnoLineaId: string) => Promise<Resultado>
   finalizarLote: (loteId: string) => Promise<Resultado>
@@ -384,6 +395,9 @@ interface FilaProductoTerminado {
   producto_retenido: boolean
   cajas_retenidas: number | null
   creado_en: string
+  registrado_por_nombre: string | null
+  editado_por_nombre: string | null
+  editado_en: string | null
 }
 
 interface FilaPreparacion {
@@ -539,6 +553,9 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       productoRetenido: p.producto_retenido,
       cajasRetenidas: p.cajas_retenidas,
       creadoEn: p.creado_en,
+      registradoPorNombre: p.registrado_por_nombre,
+      editadoPorNombre: p.editado_por_nombre,
+      editadoEn: p.editado_en,
     })),
     preparaciones: fila.preparaciones.map((p) => ({
       id: p.id,
@@ -713,6 +730,26 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
 
     if (error || !data) {
       return { ok: false, error: "No se pudo terminar el sabor. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  /** "Terminó Línea": para la corrida sin cerrar el tanque — a diferencia de terminarSaborLinea ("Terminó Lote"), que sí lo cierra. */
+  async function terminarLinea(turnoLineaId: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("terminar_linea", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_turno_linea_id: turnoLineaId,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo terminar la línea. Intenta de nuevo." }
     }
 
     setTurnoActivo(mapearTurno(data as FilaTurno))
@@ -953,6 +990,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_agua: datos.agua,
       p_azucar: datos.azucar,
       p_acido_citrico: datos.acidoCitrico,
+      p_reserva_id: datos.reservaId,
     })
 
     if (error || !data) {
@@ -982,6 +1020,64 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  async function transferirTanque(numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("transferir_tanque", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_numero_tanque_origen: numeroTanqueOrigen,
+      p_numero_tanque_destino: numeroTanqueDestino,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo transferir. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function reactivarLote(numeroTanque: 1 | 2 | 3): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("reactivar_lote", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_numero_tanque: numeroTanque,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo reactivar el lote. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
+  async function envasarTanque(numeroTanque: 1 | 2 | 3): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("envasar_tanque", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_numero_tanque: numeroTanque,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo envasar. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
   return (
     <TurnoContext.Provider
       value={{
@@ -994,10 +1090,14 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         registrarProductoTerminado,
         iniciarPreparacion,
         liberarLote,
+        transferirTanque,
+        envasarTanque,
+        reactivarLote,
         activarLinea,
         pausarLinea,
         continuarLinea,
         terminarSaborLinea,
+        terminarLinea,
         continuarSiguienteLote,
         entregarCorrida,
         finalizarLote,

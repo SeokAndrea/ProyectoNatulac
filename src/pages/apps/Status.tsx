@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { ClipboardList, Loader2 } from "lucide-react"
+import { CheckCircle2, ClipboardList, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { EstadoPlantaTabs } from "@/components/EstadoPlantaTabs"
@@ -11,13 +11,15 @@ import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useTurno } from "@/lib/turno"
 
 /*
- * Status: cómo quedaron tanques y líneas heredados del turno
- * anterior — el paso de revisión Confirmar/Editar (ver
- * ConfirmarEstadoTanque) y, si algo no coincide con la realidad
- * después, el escape hatch "Corregir" (ver
- * src/components/EstadoPlantaTabs.tsx, modo="status"). No tiene los
- * botones para arrancar algo nuevo (Iniciar Preparación, Activar
- * línea) — eso es Preparación (src/pages/apps/Preparacion.tsx).
+ * Status: cómo quedaron tanques y líneas heredados del turno anterior
+ * — el paso de revisión Confirmar/Editar de INICIO (ver
+ * ConfirmarEstadoTanque). Es de una sola vez: en cuanto los 3 tanques
+ * y toda línea con corrida activa quedan confirmados, se cierra el
+ * acceso — cualquier corrección de ahí en más (si algo no coincide con
+ * la realidad después) se hace desde Preparación, que tiene su propio
+ * "Corregir" con exactamente la misma acción (ver
+ * src/components/EstadoPlantaTabs.tsx, modo="preparacion"), así que no
+ * se pierde ninguna capacidad al cerrar Status.
  */
 export default function Status() {
   const { turnoActivo, cargando } = useTurno()
@@ -49,6 +51,27 @@ export default function Status() {
         <div className="mt-4 flex justify-center">
           <Button asChild>
             <Link to="/turno">Ir a Comenzar Turno</Link>
+          </Button>
+        </div>
+      </AppShell>
+    )
+  }
+
+  const revisionCompleta =
+    turnoActivo.tanques.every((t) => t.confirmadoInicioEn !== null) &&
+    turnoActivo.lineas.filter((l) => l.activa).every((l) => l.confirmadoInicioEn !== null)
+
+  if (revisionCompleta) {
+    return (
+      <AppShell title="Status" description={`Turno ${turnoActivo.codigo}`} fullWidth>
+        <EmptyState
+          icon={CheckCircle2}
+          title="Ya revisaste el inicio de este turno"
+          description="Status es de una sola vez, al arrancar el turno. Para corregir un tanque o una línea de acá en más, usa Preparación."
+        />
+        <div className="mt-4 flex justify-center">
+          <Button asChild>
+            <Link to="/preparacion">Ir a Preparación</Link>
           </Button>
         </div>
       </AppShell>

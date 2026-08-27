@@ -1,8 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
-import type { AreaCodigo } from "@/lib/catalogos"
 import type { PresentacionLive } from "@/lib/catalogosLive"
-import { envasesReales, litrosConsumidos, obtenerEstadisticas } from "@/lib/estadisticas"
 
 /*
  * Panel de Producción: estado actual de la planta (o histórico por
@@ -187,48 +185,51 @@ export interface ResumenTurnoAnterior {
   cajasProducidas: number
 }
 
-function haceDiasISO(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
-}
-
 /**
  * El último turno CERRADO de esta área (sin contar el turno en vivo
  * actual) — para mostrar su merma/litros/cajas final como referencia
  * ("cómo terminó el turno pasado") al lado de lo que va del turno en
- * curso. Reutiliza estadisticas_produccion() (ya trae estado + área
- * por fila), no hace falta una función nueva en Supabase.
+ * curso.
+ *
+ * OJO: antes esto se calculaba a mano desde estadisticas_produccion()
+ * (contador × volumenMl) — una fórmula DISTINTA a la que usa "turno
+ * actual" (mermaSemielaboradoTurno(), por tanque). Las dos vías podían
+ * dar números distintos para el MISMO turno ya cerrado, y alguna de
+ * las dos terminaba pasándose de 100% de Rendimiento sin sentido
+ * físico. Ahora turno_anterior_json() devuelve el turno_json()
+ * completo de ese turno y acá se corre por las MISMAS funciones
+ * (mermaEnvasesTurno/mermaSemielaboradoTurno) que usa el turno en
+ * vivo — es imposible que vuelvan a divergir, porque es literalmente
+ * el mismo código.
  */
 export async function obtenerResumenTurnoAnterior(
   areaCodigo: string,
   turnoActualId: string | null,
+  presentaciones: PresentacionLive[],
 ): Promise<ResumenTurnoAnterior | null> {
-  const filas = await obtenerEstadisticas({ fechaDesde: haceDiasISO(4), areaCodigo: areaCodigo as AreaCodigo })
-  const delArea = filas.filter((f) => f.estado === "CERRADO" && f.turnoId !== turnoActualId)
-  if (delArea.length === 0) return null
+  const { data, error } = await supabase.rpc("turno_anterior_json", {
+    p_area_codigo: areaCodigo,
+    p_turno_actual_id: turnoActualId,
+  })
+  if (error || !data) return null
 
-  const ultimoTurnoId = delArea.reduce((masReciente, f) =>
-    `${f.fecha} ${f.horaFin ?? f.horaInicio}` > `${masReciente.fecha} ${masReciente.horaFin ?? masReciente.horaInicio}` ? f : masReciente,
-  ).turnoId
-
-  const filasTurno = delArea.filter((f) => f.turnoId === ultimoTurnoId)
-  const llenadoraTotal = filasTurno.reduce((a, f) => a + f.envasesLlenadora, 0)
-  const envasesRealesTotal = filasTurno.reduce((a, f) => a + envasesReales(f), 0)
-  const mermaPct = llenadoraTotal === 0 ? null : Math.round((1 - envasesRealesTotal / llenadoraTotal) * 10000) / 100
-
-  const litrosConsumidosTotal = filasTurno.reduce((a, f) => a + litrosConsumidos(f), 0)
-  const litrosProducidosTotal = filasTurno.reduce((a, f) => a + f.litrosProducidos, 0)
-  const mermaSemielaboradoPct =
-    litrosConsumidosTotal === 0 ? null : Math.round((1 - litrosProducidosTotal / litrosConsumidosTotal) * 10000) / 100
+  const turno = mapearTurno(data as FilaTurno)
+  const mermaEnvases = mermaEnvasesTurno(turno, presentaciones)
+  const mermaSemielaborado = mermaSemielaboradoTurno(turno)
+  const litrosProducidos = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)
+  const cajasProducidas = turno.productoTerminado.reduce((a, p) => {
+    const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
+    const cajasXPaleta = pres?.cajasXPaleta ?? 0
+    return a + (p.paletas * cajasXPaleta + p.cajasSueltas)
+  }, 0)
 
   return {
-    turnoCodigo: filasTurno[0].turnoCodigo,
-    fecha: filasTurno[0].fecha,
-    horaFin: filasTurno[0].horaFin,
-    mermaPct,
-    mermaSemielaboradoPct,
-    litrosProducidos: litrosProducidosTotal,
-    cajasProducidas: filasTurno.reduce((a, f) => a + (f.paletas * f.cajasXPaleta + f.cajasSueltas), 0),
+    turnoCodigo: turno.codigo,
+    fecha: turno.fecha,
+    horaFin: turno.horaFin,
+    mermaPct: mermaEnvases.pct,
+    mermaSemielaboradoPct: mermaSemielaborado.pct,
+    litrosProducidos,
+    cajasProducidas,
   }
 }

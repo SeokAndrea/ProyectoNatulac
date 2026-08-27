@@ -11,6 +11,7 @@ import HistorialDia from "@/pages/apps/HistorialDia"
 import Calculadora from "@/pages/apps/Calculadora"
 import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
+import CrearTurno from "@/pages/apps/CrearTurno"
 import Historial from "@/pages/apps/Historial"
 import Actas from "@/pages/apps/Actas"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
@@ -114,6 +115,14 @@ export default function App() {
         element={
           <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
             <EdicionDatos />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/crear-turno"
+        element={
+          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <CrearTurno />
           </ProtectedRoute>
         }
       />

@@ -9,16 +9,30 @@ import { mermaCorrida, type TurnoActivo } from "@/lib/turno"
  * es una tabla nueva, es una vista combinada y ordenada por hora.
  */
 export interface EventoHistorial {
+  /** Epoch ms — SOLO para ordenar (ver construirHistorial). "hora" es lo que se muestra. */
+  momento: number
   hora: string
   seccion: string
   detalle: string
 }
 
-export function formatearHora(valor: string): string {
-  // turno.horaInicio ya viene como "HH:MM:SS" (hora local, ver
-  // src/lib/turno.tsx); los demás timestamps vienen completos (ISO).
-  if (/^\d{2}:\d{2}/.test(valor)) return valor.slice(0, 5)
-  return new Date(valor).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
+/**
+ * A partir de un timestamp completo (ISO) o de turno.horaInicio (bare
+ * "HH:MM:SS", hora local sin fecha — ver src/lib/turno.tsx) arma un
+ * Date real, ancorado en turno.fecha para el segundo caso. Un turno
+ * nocturno (ej. TURNO_3) cruza medianoche — sin esto, dos eventos de
+ * noches distintas del mismo turno no se pueden ordenar ni distinguir.
+ */
+function comoFecha(valor: string, fechaTurno: string): Date {
+  return /^\d{2}:\d{2}/.test(valor) ? new Date(`${fechaTurno}T${valor}`) : new Date(valor)
+}
+
+/** "23:50", o "27/08 00:10" si el evento cayó en una fecha distinta a la de inicio del turno (turno que cruzó medianoche). */
+function formatearHora(valor: string, fechaTurno: string): string {
+  const d = comoFecha(valor, fechaTurno)
+  const horaTexto = d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
+  const mismaFecha = d.toLocaleDateString("en-CA") === fechaTurno
+  return mismaFecha ? horaTexto : `${d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit" })} ${horaTexto}`
 }
 
 export function construirHistorial(
@@ -27,13 +41,12 @@ export function construirHistorial(
   presentaciones: PresentacionLive[],
 ): EventoHistorial[] {
   const eventos: EventoHistorial[] = []
-  const horaInicio = formatearHora(turno.horaInicio)
 
-  eventos.push({
-    hora: horaInicio,
-    seccion: "Comenzar Turno",
-    detalle: `${nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)} · ${nombrePorCodigo(GRUPOS, turno.grupo)}`,
-  })
+  function agregar(valor: string, seccion: string, detalle: string) {
+    eventos.push({ momento: comoFecha(valor, turno.fecha).getTime(), hora: formatearHora(valor, turno.fecha), seccion, detalle })
+  }
+
+  agregar(turno.horaInicio, "Comenzar Turno", `${nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)} · ${nombrePorCodigo(GRUPOS, turno.grupo)}`)
 
   // Líneas y tanques ya no se fijan al iniciar el turno: son estado
   // continuo (ver Preparación) que se activa/cambia en cualquier
@@ -44,17 +57,13 @@ export function construirHistorial(
   // segundo evento con su hora de cierre.
   for (const l of turno.lineas) {
     const lote = l.loteId ? turno.preparaciones.find((p) => p.id === l.loteId) : null
-    eventos.push({
-      hora: formatearHora(l.activadaEn),
-      seccion: "Líneas en uso",
-      detalle: `${nombrePorCodigo(lineas, l.linea)}: ${l.presentacion} ml · ${l.envasesHora} env/h${l.saborNombre ? ` · ${l.saborNombre}` : ""}${l.lote ? ` · Lote ${l.lote}` : ""}${lote ? ` · Tanque ${lote.numeroTanque}` : ""}`,
-    })
+    agregar(
+      l.activadaEn,
+      "Líneas en uso",
+      `${nombrePorCodigo(lineas, l.linea)}: ${l.presentacion} ml · ${l.envasesHora} env/h${l.saborNombre ? ` · ${l.saborNombre}` : ""}${l.lote ? ` · Lote ${l.lote}` : ""}${lote ? ` · Tanque ${lote.numeroTanque}` : ""}`,
+    )
     if (l.finalizadaEn) {
-      eventos.push({
-        hora: formatearHora(l.finalizadaEn),
-        seccion: "Líneas en uso",
-        detalle: `${nombrePorCodigo(lineas, l.linea)}: corrida finalizada`,
-      })
+      agregar(l.finalizadaEn, "Líneas en uso", `${nombrePorCodigo(lineas, l.linea)}: corrida finalizada`)
     }
   }
 
@@ -69,7 +78,7 @@ export function construirHistorial(
             : t.condicion === "LIMPIO"
               ? "Limpio"
               : "En Preparación"
-    eventos.push({ hora: formatearHora(t.activadaEn), seccion: "Tanques", detalle: `Tanque ${t.numeroTanque}: ${estado}` })
+    agregar(t.activadaEn, "Tanques", `Tanque ${t.numeroTanque}: ${estado}`)
   }
 
   for (const p of turno.preparaciones) {
@@ -80,37 +89,38 @@ export function construirHistorial(
     ]
       .filter(Boolean)
       .join(" · ")
-    eventos.push({
-      hora: formatearHora(p.creadoEn),
-      seccion: "Preparaciones",
-      detalle: `Tanque ${p.numeroTanque}: ${p.saborNombre ?? "sin sabor"}${p.lote ? ` · Lote ${p.lote}` : ""} · ${p.tambores} tambores${ajustes ? ` · ${ajustes}` : ""}`,
-    })
+    agregar(
+      p.creadoEn,
+      "Preparaciones",
+      `Tanque ${p.numeroTanque}: ${p.saborNombre ?? "sin sabor"}${p.lote ? ` · Lote ${p.lote}` : ""} · ${p.tambores} tambores${ajustes ? ` · ${ajustes}` : ""}`,
+    )
     if (p.liberadoEn) {
-      eventos.push({ hora: formatearHora(p.liberadoEn), seccion: "Preparaciones", detalle: `Tanque ${p.numeroTanque}: lote liberado (Listo)` })
+      agregar(p.liberadoEn, "Preparaciones", `Tanque ${p.numeroTanque}: lote liberado (Listo)`)
     }
     if (p.cerradoEn) {
-      eventos.push({ hora: formatearHora(p.cerradoEn), seccion: "Preparaciones", detalle: `Tanque ${p.numeroTanque}: lote finalizado` })
+      agregar(p.cerradoEn, "Preparaciones", `Tanque ${p.numeroTanque}: lote finalizado`)
     }
   }
 
   for (const c of turno.contadores) {
     const merma = c.turnoLineaId ? mermaCorrida(c.turnoLineaId, turno, presentaciones) : null
-    eventos.push({
-      hora: formatearHora(c.creadoEn),
-      seccion: "Contadores y Merma",
-      detalle: `${nombrePorCodigo(lineas, c.linea)}: ${c.envasesLlenadora} envases de la llenadora${merma !== null ? ` (${merma.pct}% merma)` : ""}`,
-    })
+    agregar(
+      c.creadoEn,
+      "Contadores y Merma",
+      `${nombrePorCodigo(lineas, c.linea)}: ${c.envasesLlenadora} envases de la llenadora${merma !== null ? ` (${merma.pct}% merma)` : ""}`,
+    )
   }
 
   for (const p of turno.productoTerminado) {
     const cajasXPaleta = presentaciones.find((pr) => pr.codigo === p.presentacion)?.cajasXPaleta ?? 0
     const cajasTotales = p.paletas * cajasXPaleta + p.cajasSueltas
-    eventos.push({
-      hora: formatearHora(p.creadoEn),
-      seccion: "Producto Terminado",
-      detalle: `${nombrePorCodigo(lineas, p.linea)}: ${p.paletas} paletas + ${p.cajasSueltas} cajas sueltas = ${cajasTotales} cajas (${p.saborNombre ?? "sin sabor"})`,
-    })
+    agregar(
+      p.editadoEn ?? p.creadoEn,
+      "Producto Terminado",
+      `${nombrePorCodigo(lineas, p.linea)}: ${p.paletas} paletas + ${p.cajasSueltas} cajas sueltas = ${cajasTotales} cajas (${p.saborNombre ?? "sin sabor"})` +
+        (p.editadoPorNombre ? ` — EDITADO POR: ${p.editadoPorNombre.toUpperCase()}` : ""),
+    )
   }
 
-  return eventos.sort((a, b) => a.hora.localeCompare(b.hora))
+  return eventos.sort((a, b) => a.momento - b.momento)
 }

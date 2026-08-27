@@ -262,7 +262,7 @@ function ListaCorridas({
 
 /**
  * "Cerrar" un lote entero: termina el sabor de todas sus líneas
- * activas de una sola vez (equivalente a apretar Terminó Sabor en
+ * activas de una sola vez (equivalente a apretar Terminar Lote en
  * cada una) — no borra ni oculta nada, las corridas cerradas se
  * siguen viendo igual que siempre en "Corridas cerradas", con la
  * misma información del turno.
@@ -696,7 +696,7 @@ function FilaProductoTerminado({
                     : "border-foreground/25 text-foreground hover:bg-muted/60",
                 )}
               >
-                Terminó Corrida
+                Terminar Lote
               </button>
               <button
                 type="button"

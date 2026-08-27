@@ -93,6 +93,31 @@ export async function reabrirTurno(
   return { ok: true }
 }
 
+/**
+ * Corregir Producto Terminado de un turno REAL (no solo los cargados
+ * por Crear Turno) desde la pestaña "Editar Turno" (src/pages/apps/CrearTurno.tsx)
+ * — ej. le faltó una paleta a un lote y el turno ya cerró. Reusa
+ * registrar_producto_terminado() del lado del servidor con los mismos
+ * datos que ya tenía la fila (línea/sabor/presentación/retenido), solo
+ * cambia paletas/cajas sueltas — ver
+ * supabase/migrations/20260958090000_corregir_producto_terminado_auditoria.sql.
+ */
+export async function corregirProductoTerminado(
+  usuarioSesion: string,
+  datos: { turnoLineaId: string; paletas: number; cajasSueltas: number },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc("corregir_producto_terminado_auditoria", {
+    p_usuario: usuarioSesion,
+    p_turno_linea_id: datos.turnoLineaId,
+    p_paletas: datos.paletas,
+    p_cajas_sueltas: datos.cajasSueltas,
+  })
+  if (error) {
+    return { ok: false, error: error.message || "No se pudo corregir. Intenta de nuevo." }
+  }
+  return { ok: true }
+}
+
 export interface Acta {
   id: string
   turnoId: string

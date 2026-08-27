@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, ClipboardCheck, Download, Loader2, Square 
 import { AppShell } from "@/components/AppShell"
 import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
 import { EmptyState } from "@/components/EmptyState"
+import { LineaVisual, type EstadoVisualLinea } from "@/components/LineaVisual"
 import { ResumenTurno } from "@/components/ResumenTurno"
 import { ListaContadores } from "@/components/ListaContadores"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
@@ -15,6 +16,15 @@ import { generarActaPdf } from "@/lib/actaPdf"
 import { subirYRegistrarActa, urlPublicaActa } from "@/lib/historialTurnos"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useTurno, type TurnoActivo } from "@/lib/turno"
+
+/** Mismo color estable por sabor que ya usan EstadoPlantaTabs.tsx y PanelProduccion.tsx. */
+const COLORES_SABOR = ["var(--flavor-orange)", "var(--flavor-green)", "var(--flavor-red)", "var(--flavor-yellow)"]
+function colorSabor(nombre: string | null): string {
+  if (!nombre) return "var(--muted-foreground)"
+  let hash = 0
+  for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) % 997
+  return COLORES_SABOR[hash % COLORES_SABOR.length]
+}
 
 /*
  * Finalizar Turno: el resumen formal del turno en curso (datos fijos
@@ -194,6 +204,32 @@ export default function FinalizarTurno() {
               {turnoActivo.tanques.every((t) => t.confirmadoFinEn) && (
                 <p className="text-sm text-muted-foreground">Los 3 tanques ya tienen su estado final confirmado.</p>
               )}
+            </div>
+          </SeccionColapsable>
+
+          <SeccionColapsable titulo="Estado de líneas" descripcion="Cómo quedó cada llenadora al cierre del turno.">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {lineas
+                .filter((l) => l.activo)
+                .map((l) => {
+                  const corrida = turnoActivo.lineas.find((tl) => tl.linea === l.codigo && tl.activa) ?? null
+                  const numeroLinea = Number(l.codigo.replace("LINEA_", "")) || 0
+                  const estadoVisual: EstadoVisualLinea = !corrida
+                    ? "libre"
+                    : corrida.loteTerminado != null
+                      ? "terminada"
+                      : corrida.pausadaEn != null
+                        ? "parada"
+                        : "corriendo"
+                  return (
+                    <div key={l.codigo} className="flex flex-col gap-1.5 rounded-xl border border-border bg-background/60 p-2.5">
+                      <LineaVisual numeroLinea={numeroLinea} estado={estadoVisual} color={colorSabor(corrida?.saborNombre ?? null)} square />
+                      <p className="text-center text-xs text-muted-foreground">
+                        {corrida ? `${corrida.saborNombre ?? "Sin sabor"} · ${corrida.presentacion} ml` : l.nombre}
+                      </p>
+                    </div>
+                  )
+                })}
             </div>
           </SeccionColapsable>
 
