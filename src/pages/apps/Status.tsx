@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { listarSabores, type Sabor } from "@/lib/sabores"
-import { useTurno } from "@/lib/turno"
+import { revisionInicioCompleta, useTurno } from "@/lib/turno"
 
 /*
  * Status: cómo quedaron tanques y líneas heredados del turno anterior
@@ -57,11 +57,7 @@ export default function Status() {
     )
   }
 
-  const revisionCompleta =
-    turnoActivo.tanques.every((t) => t.confirmadoInicioEn !== null) &&
-    turnoActivo.lineas.filter((l) => l.activa).every((l) => l.confirmadoInicioEn !== null)
-
-  if (revisionCompleta) {
+  if (revisionInicioCompleta(turnoActivo)) {
     return (
       <AppShell title="Status" description={`Turno ${turnoActivo.codigo}`} fullWidth>
         <EmptyState

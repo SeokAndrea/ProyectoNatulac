@@ -14,7 +14,7 @@ import { presentacionesPorLineaLive, useCatalogosLive, type PresentacionLive } f
 import { corregirProductoTerminado, obtenerTurnoDetalle, listarTurnosHistorial, type TurnoResumen } from "@/lib/historialTurnos"
 import { mermaEnvasesTurno, mermaSemielaboradoTurno } from "@/lib/panelProduccion"
 import { listarPersonal, type PersonalRegistrado } from "@/lib/personal"
-import { listarSabores, type Sabor } from "@/lib/sabores"
+import { listarSabores, nombreSaborConFamilia, type Sabor } from "@/lib/sabores"
 import { supabase } from "@/lib/supabase"
 import { fechaLocal, mermaCorrida, type TurnoActivo } from "@/lib/turno"
 import { agregarFilaTurnoManual, crearTurnoManual, editarFilaTurnoManual } from "@/lib/turnoManual"
@@ -431,7 +431,7 @@ function FormularioAgregarSabor({
             <SelectContent>
               {sabores.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.nombre} ({s.familiaNombre})
+                  {nombreSaborConFamilia(s.nombre, s.familiaNombre)}
                 </SelectItem>
               ))}
             </SelectContent>

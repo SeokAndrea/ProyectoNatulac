@@ -14,6 +14,18 @@ export interface Sabor {
   familiaNombre: string
 }
 
+/**
+ * Nombre de sabor para mostrar: agrega " (Familia)" solo cuando esa
+ * familia lo necesita para desambiguar (el mismo nombre existe en
+ * varias). Para Clásicos y Especiales no se agrega — mismo criterio
+ * que saborSinFamiliaOculta() en turno.tsx y sabor_display() en la
+ * migración 20260969.
+ */
+const FAMILIAS_SUFIJO_OCULTO = ["Clasicos", "Clásicos", "Especiales"]
+export function nombreSaborConFamilia(nombre: string, familiaNombre: string): string {
+  return FAMILIAS_SUFIJO_OCULTO.includes(familiaNombre) ? nombre : `${nombre} (${familiaNombre})`
+}
+
 /*
  * Sabores agrupados por familia, editables desde "Edición de Datos"
  * (SUPERADMINISTRADOR). Vive en las tablas "sabores" y

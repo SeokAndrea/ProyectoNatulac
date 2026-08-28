@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,7 +29,7 @@ import { useAuth } from "@/lib/auth"
 import { nombrePorCodigo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, presentacionesPorLineaLive, velocidadesParaLive } from "@/lib/catalogosLive"
 import { listarReservasTobos, type ReservaTobo } from "@/lib/reservasTobos"
-import type { Sabor } from "@/lib/sabores"
+import { nombreSaborConFamilia, type Sabor } from "@/lib/sabores"
 import { cn } from "@/lib/utils"
 import {
   useTurno,
@@ -204,12 +205,14 @@ const nombreCondicionLinea: Record<CondicionLinea, string> = {
   LISTA: "Lista para arrancar",
   CIP: "En CIP",
   CAMBIO_PRESENTACION: "Cambio de Presentación",
+  SIN_PROGRAMACION: "Sin programación",
 }
-const badgeVariantCondicionLinea: Record<CondicionLinea, "success" | "warning" | "muted"> = {
-  DETENIDA: "muted",
+const badgeVariantCondicionLinea: Record<CondicionLinea, "success" | "warning" | "muted" | "danger" | "info"> = {
+  DETENIDA: "danger",
   LISTA: "success",
   CIP: "warning",
   CAMBIO_PRESENTACION: "warning",
+  SIN_PROGRAMACION: "info",
 }
 
 type Resultado = { ok: true } | { ok: false; error: string }
@@ -418,7 +421,8 @@ function TanqueCard({
           )}
         </div>
 
-        {modo === "preparacion" && tanque.condicion === "EN_PREPARACION" && loteAbierto && (
+        {/* También en modo "status": si al editar el tanque queda En Preparación, se debe poder liberar aquí mismo sin ir a Preparación. */}
+        {(modo === "preparacion" || modo === "status") && tanque.condicion === "EN_PREPARACION" && loteAbierto && (
           <Button
             size="sm"
             className="self-start"
@@ -664,7 +668,7 @@ function FormularioIniciarPreparacion({
           <SelectContent>
             {sabores.map((s) => (
               <SelectItem key={s.id} value={s.id}>
-                {s.nombre} ({s.familiaNombre})
+                {nombreSaborConFamilia(s.nombre, s.familiaNombre)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -770,6 +774,9 @@ function LineaCard({
   const [editandoEstadoLinea, setEditandoEstadoLinea] = useState(false)
   const [enviandoEstadoLinea, setEnviandoEstadoLinea] = useState(false)
   const [errorEstadoLinea, setErrorEstadoLinea] = useState<string | null>(null)
+  /** DETENIDA lleva una nota libre (falla u observación, máx. 140): al elegirla no se guarda de inmediato, se muestra el textarea y luego se confirma. */
+  const [detenidaPendiente, setDetenidaPendiente] = useState(false)
+  const [observacionBorrador, setObservacionBorrador] = useState(lineaEstado?.observacion ?? "")
   const [presentacion, setPresentacion] = useState<PresentacionCodigo | "">(lineaTurno?.presentacion ?? "")
   const [envasesHora, setEnvasesHora] = useState<number | "">(lineaTurno?.envasesHora ?? "")
   const [numeroTanque, setNumeroTanque] = useState<1 | 2 | 3 | "">("")
@@ -821,20 +828,33 @@ function LineaCard({
     if (!resultado.ok) setErrorAccion(resultado.error)
   }
 
-  async function cambiarEstadoLinea(condicion: CondicionLinea) {
+  async function cambiarEstadoLinea(condicion: CondicionLinea, observacion?: string | null) {
     setEnviandoEstadoLinea(true)
     setErrorEstadoLinea(null)
-    const resultado = await onCambiarCondicionLinea({ linea: lineaCodigo, condicion })
+    const resultado = await onCambiarCondicionLinea({ linea: lineaCodigo, condicion, observacion })
     setEnviandoEstadoLinea(false)
     if (!resultado.ok) {
       setErrorEstadoLinea(resultado.error)
       return
     }
+    setDetenidaPendiente(false)
     setEditandoEstadoLinea(false)
   }
 
-  /** Control de estado continuo de la línea (sin corrida activa) — Select de las 4 condiciones + atajos de CIP con hora de inicio/fin. */
+  function elegirCondicionLinea(v: CondicionLinea) {
+    if (v === "DETENIDA") {
+      // No se guarda de inmediato: se muestra el textarea de falla/observación y se confirma con el botón.
+      setObservacionBorrador(lineaEstado?.observacion ?? "")
+      setDetenidaPendiente(true)
+      return
+    }
+    setDetenidaPendiente(false)
+    cambiarEstadoLinea(v)
+  }
+
+  /** Control de estado continuo de la línea (sin corrida activa) — Select de las condiciones + nota libre en DETENIDA + atajos de CIP. */
   function renderEstadoLinea() {
+    const mostrarNotaDetenida = detenidaPendiente || condicionLinea === "DETENIDA"
     return (
       <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
         {condicionLinea === "CIP" ? (
@@ -842,7 +862,10 @@ function LineaCard({
             Proceso de limpieza{lineaEstado?.cipIniciadoEn ? ` desde las ${lineaEstado.cipIniciadoEn.slice(11, 16)}` : ""}.
           </p>
         ) : (
-          <Select value={condicionLinea} onValueChange={(v) => cambiarEstadoLinea(v as CondicionLinea)}>
+          <Select
+            value={detenidaPendiente ? "DETENIDA" : condicionLinea}
+            onValueChange={(v) => elegirCondicionLinea(v as CondicionLinea)}
+          >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -850,8 +873,33 @@ function LineaCard({
               <SelectItem value="DETENIDA">Detenida</SelectItem>
               <SelectItem value="LISTA">Lista para arrancar</SelectItem>
               <SelectItem value="CAMBIO_PRESENTACION">Cambio de Presentación</SelectItem>
+              <SelectItem value="SIN_PROGRAMACION">Sin programación</SelectItem>
             </SelectContent>
           </Select>
+        )}
+
+        {condicionLinea !== "CIP" && mostrarNotaDetenida && (
+          <div className="flex flex-col gap-1.5">
+            <Textarea
+              value={observacionBorrador}
+              onChange={(e) => setObservacionBorrador(e.target.value.slice(0, 140))}
+              maxLength={140}
+              rows={2}
+              placeholder="Falla u observación (opcional) — se muestra en el dashboard"
+              className="text-sm"
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">{observacionBorrador.length}/140</span>
+              <Button
+                size="sm"
+                disabled={enviandoEstadoLinea}
+                onClick={() => cambiarEstadoLinea("DETENIDA", observacionBorrador)}
+              >
+                {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                {condicionLinea === "DETENIDA" && !detenidaPendiente ? "Guardar nota" : "Marcar Detenida"}
+              </Button>
+            </div>
+          </div>
         )}
 
         <div className="flex gap-2">
@@ -866,7 +914,15 @@ function LineaCard({
               Iniciar CIP
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => setEditandoEstadoLinea(false)} disabled={enviandoEstadoLinea}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setDetenidaPendiente(false)
+              setEditandoEstadoLinea(false)
+            }}
+            disabled={enviandoEstadoLinea}
+          >
             Cerrar
           </Button>
         </div>

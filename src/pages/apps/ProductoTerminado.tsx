@@ -245,7 +245,12 @@ function ListaCorridas({
               key={l.id}
               lineaTurno={l}
               nombreLinea={nombrePorCodigo(lineas, l.linea)}
-              contadorActual={turnoActivo.contadores.filter((c) => c.turnoLineaId === l.id).reduce((a, c) => a + c.envasesLlenadora, 0)}
+              contadorActual={turnoActivo.contadores
+                .filter((c) => c.turnoLineaId === l.id && !c.parcial)
+                .reduce((a, c) => a + c.envasesLlenadora, 0)}
+              contadorParcialRef={turnoActivo.contadores
+                .filter((c) => c.turnoLineaId === l.id && c.parcial)
+                .reduce((a, c) => a + c.envasesLlenadora, 0)}
               presentaciones={presentaciones}
               registroExistente={turnoActivo.productoTerminado.find((p) => p.turnoLineaId === l.id) ?? null}
               onRegistrarProducto={onRegistrarProducto}
@@ -383,6 +388,8 @@ type OnRegistrarProducto = (datos: {
   cajasSueltas: number
   productoRetenido: boolean
   cajasRetenidas: number | null
+  /** true = entrega parcial: paletas/cajas se suman al acumulado y la corrida queda abierta. */
+  parcial?: boolean
 }) => Promise<ResultadoAccion>
 
 type OnRegistrarContador = (datos: {
@@ -390,6 +397,8 @@ type OnRegistrarContador = (datos: {
   linea: LineaEnTurno["linea"]
   envasesLlenadora: number
   justificacion: string
+  /** true = lectura de referencia de una entrega parcial (no cuenta para merma). */
+  parcial?: boolean
 }) => Promise<ResultadoAccion>
 
 type OnEntregarCorrida = (turnoLineaId: string) => Promise<ResultadoAccion>
@@ -401,6 +410,7 @@ function FilaProductoTerminado({
   lineaTurno,
   nombreLinea,
   contadorActual,
+  contadorParcialRef,
   presentaciones,
   registroExistente,
   onRegistrarProducto,
@@ -411,6 +421,8 @@ function FilaProductoTerminado({
   lineaTurno: LineaEnTurno
   nombreLinea: string
   contadorActual: number
+  /** Suma de las lecturas de contador tomadas en entregas parciales — solo referencia, no cuenta para merma. */
+  contadorParcialRef: number
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   registroExistente: ProductoTerminadoRegistro | null
   onRegistrarProducto: OnRegistrarProducto
@@ -423,12 +435,24 @@ function FilaProductoTerminado({
   const estaCerrada = (!lineaTurno.activa && !lineaTurno.esperandoCierre) || lineaTurno.entregadaEn !== null
   /** Sigue corriendo y todavía no se decidió su próximo estado — acá se elige y se cierra de una. */
   const puedeElegirProximoEstado = lineaTurno.activa && lineaTurno.entregadaEn === null
+  /**
+   * La corrida ya usó "entrega parcial": desde acá Paletas/Cajas se
+   * cargan por INCREMENTO (lo nuevo desde la última entrega) y se
+   * suman al acumulado — no se edita el total.
+   */
+  const modoIncremental = registroExistente?.tieneParciales ?? false
+  const parciales = registroExistente?.parciales ?? []
 
   const [editandoError, setEditandoError] = useState(false)
   const [envasesLlenadora, setEnvasesLlenadora] = useState("")
-  /** Paletas/Cajas sueltas son el TOTAL actual — se editan (reemplazan lo que había), no se suman. */
-  const [paletas, setPaletas] = useState(registroExistente ? String(registroExistente.paletas) : "")
-  const [cajasSueltas, setCajasSueltas] = useState(registroExistente ? String(registroExistente.cajasSueltas) : "")
+  /**
+   * Sin parciales: Paletas/Cajas son el TOTAL actual (se editan, reemplazan).
+   * Con parciales (modoIncremental): arrancan vacías — son el incremento nuevo.
+   */
+  const [paletas, setPaletas] = useState(!modoIncremental && registroExistente ? String(registroExistente.paletas) : "")
+  const [cajasSueltas, setCajasSueltas] = useState(
+    !modoIncremental && registroExistente ? String(registroExistente.cajasSueltas) : "",
+  )
   const [justificacion, setJustificacion] = useState("")
   const [proximoEstado, setProximoEstado] = useState<ProximoEstado | null>(null)
   const [productoRetenido, setProductoRetenido] = useState(registroExistente?.productoRetenido ?? false)
@@ -442,29 +466,92 @@ function FilaProductoTerminado({
   const nPaletas = Number(paletas) || 0
   const nCajasSueltas = Number(cajasSueltas) || 0
   const cajasXPaleta = presentacion?.cajasXPaleta ?? 0
-  const cajasTotalPreview = nPaletas * cajasXPaleta + nCajasSueltas
-  const envasesProducidos = presentacion ? cajasTotalPreview * presentacion.envasesXCaja : 0
-  const litrosPreview = presentacion ? (envasesProducidos * presentacion.volumenMl) / 1000 : 0
+  /** Cajas de ESTE registro (el incremento, si es modo incremental). */
+  const cajasEsteRegistro = nPaletas * cajasXPaleta + nCajasSueltas
+  /** Paletas/cajas TOTALES de la corrida tras guardar (acumulado + incremento en modo incremental). */
+  const acumuladoPaletas = (modoIncremental ? (registroExistente?.paletas ?? 0) : 0) + nPaletas
+  const acumuladoCajasSueltas = (modoIncremental ? (registroExistente?.cajasSueltas ?? 0) : 0) + nCajasSueltas
+  const cajasAcumuladas = acumuladoPaletas * cajasXPaleta + acumuladoCajasSueltas
+  const envasesAcumulados = presentacion ? cajasAcumuladas * presentacion.envasesXCaja : 0
+  const litrosPreview = presentacion ? (cajasEsteRegistro * presentacion.envasesXCaja * presentacion.volumenMl) / 1000 : 0
 
   const nuevoContador = envasesLlenadora === "" ? 0 : Number(envasesLlenadora)
   const contadorTotalPreview = contadorActual + nuevoContador
 
   const mermaPct =
     contadorTotalPreview > 0 && (paletas !== "" || cajasSueltas !== "")
-      ? Math.round((1 - envasesProducidos / contadorTotalPreview) * 10000) / 100
+      ? Math.round((1 - envasesAcumulados / contadorTotalPreview) * 10000) / 100
       : null
   const nivel = mermaPct === null ? null : nivelMerma(mermaPct, LIMITE_MERMA_PCT)
   const requiereJustificacion = nivel === "danger"
+  /** Todavía no hay contador definitivo (solo lecturas de referencia): la merma que se ve es provisional. */
+  const mermaProvisional = mermaPct !== null && contadorActual === 0
 
   const hayContadorNuevo = envasesLlenadora !== "" && nuevoContador > 0
   const hayProducto = (paletas !== "" || cajasSueltas !== "") && nPaletas >= 0 && nCajasSueltas >= 0
+  const hayIncremento = nPaletas > 0 || nCajasSueltas > 0
   const hayDatos = hayContadorNuevo || hayProducto
   const modoCorreccion = estaCerrada && editandoError
   const valido =
     hayDatos &&
     (!puedeElegirProximoEstado || proximoEstado !== null) &&
     (!requiereJustificacion || justificacion.trim() !== "")
-  const textoBoton = modoCorreccion ? "Guardar corrección" : puedeElegirProximoEstado ? "Cerrar" : "Registrar"
+  /** "Entrega parcial": solo con un incremento de producto cargado, mientras la corrida sigue activa. */
+  const puedeEntregaParcial = puedeElegirProximoEstado && hayIncremento && (!requiereJustificacion || justificacion.trim() !== "")
+  const textoBoton = modoCorreccion
+    ? "Guardar corrección"
+    : puedeElegirProximoEstado
+      ? "Cierre definitivo"
+      : "Registrar"
+
+  function limpiarCampos() {
+    setPaletas("")
+    setCajasSueltas("")
+    setEnvasesLlenadora("")
+    setJustificacion("")
+  }
+
+  /** Registra una entrega parcial: suma el incremento, deja la corrida abierta. El contador va como referencia. */
+  async function entregarParcial() {
+    if (!puedeEntregaParcial || enviando) return
+    setEnviando(true)
+    setError(null)
+
+    if (hayContadorNuevo) {
+      const resultado = await onRegistrarContador({
+        turnoLineaId: lineaTurno.id,
+        linea: lineaTurno.linea,
+        envasesLlenadora: nuevoContador,
+        justificacion: justificacion.trim(),
+        parcial: true,
+      })
+      if (!resultado.ok) {
+        setEnviando(false)
+        setError(resultado.error)
+        return
+      }
+    }
+
+    const resultado = await onRegistrarProducto({
+      turnoLineaId: lineaTurno.id,
+      linea: lineaTurno.linea,
+      saborId: saborId || null,
+      presentacion: lineaTurno.presentacion,
+      paletas: nPaletas,
+      cajasSueltas: nCajasSueltas,
+      productoRetenido,
+      cajasRetenidas: productoRetenido && cajasRetenidas !== "" ? Number(cajasRetenidas) : null,
+      parcial: true,
+    })
+    if (!resultado.ok) {
+      setEnviando(false)
+      setError(resultado.error)
+      return
+    }
+
+    setEnviando(false)
+    limpiarCampos()
+  }
 
   async function guardar() {
     if (!valido) return
@@ -568,6 +655,13 @@ function FilaProductoTerminado({
             </div>
           </div>
 
+          {parciales.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {parciales.length} {parciales.length === 1 ? "entrega parcial" : "entregas parciales"}:{" "}
+              {parciales.map((p) => `+${p.paletas}`).join(" · ")} paletas.
+            </p>
+          )}
+
           <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setEditandoError(true)}>
             <PenLine className="size-3.5" />
             Editar un error
@@ -595,7 +689,9 @@ function FilaProductoTerminado({
       <CardContent className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`contador-${lineaTurno.id}`}>Envases llenadora (Contador)</Label>
+            <Label htmlFor={`contador-${lineaTurno.id}`}>
+              {modoIncremental ? "Envases llenadora (contador final)" : "Envases llenadora (Contador)"}
+            </Label>
             <Input
               id={`contador-${lineaTurno.id}`}
               type="number"
@@ -604,29 +700,35 @@ function FilaProductoTerminado({
               value={envasesLlenadora}
               onChange={(e) => setEnvasesLlenadora(e.target.value)}
             />
+            {modoIncremental && (
+              <p className="text-xs text-muted-foreground">
+                En una entrega parcial es solo de referencia. El que cuenta para la merma es el contador final.
+                {contadorParcialRef > 0 && ` Referencia parcial acumulada: ${contadorParcialRef.toLocaleString("es-CO")} envases.`}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-2">
             <Label>Sabor</Label>
             <p className="flex h-9 items-center text-sm text-foreground">{lineaTurno.saborNombre ?? "—"}</p>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`paletas-${lineaTurno.id}`}>Paletas</Label>
+            <Label htmlFor={`paletas-${lineaTurno.id}`}>{modoIncremental ? "Paletas nuevas" : "Paletas"}</Label>
             <Input
               id={`paletas-${lineaTurno.id}`}
               type="number"
               min={0}
-              placeholder="Paletas"
+              placeholder={modoIncremental ? "Paletas nuevas" : "Paletas"}
               value={paletas}
               onChange={(e) => setPaletas(e.target.value)}
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`resto-${lineaTurno.id}`}>Cajas sueltas</Label>
+            <Label htmlFor={`resto-${lineaTurno.id}`}>{modoIncremental ? "Cajas sueltas nuevas" : "Cajas sueltas"}</Label>
             <Input
               id={`resto-${lineaTurno.id}`}
               type="number"
               min={0}
-              placeholder="Cajas sueltas"
+              placeholder={modoIncremental ? "Cajas sueltas nuevas" : "Cajas sueltas"}
               value={cajasSueltas}
               onChange={(e) => setCajasSueltas(e.target.value)}
             />
@@ -635,9 +737,20 @@ function FilaProductoTerminado({
 
         {presentacion && (paletas !== "" || cajasSueltas !== "") && (
           <p className="text-sm text-muted-foreground">
-            Total: <span className="font-medium text-foreground">{cajasTotalPreview.toLocaleString("es-CO")} cajas</span>,{" "}
-            <span className="font-medium text-foreground">{envasesProducidos.toLocaleString("es-CO")} envases</span>,{" "}
+            {modoIncremental ? "Esta entrega" : "Total"}:{" "}
+            <span className="font-medium text-foreground">{cajasEsteRegistro.toLocaleString("es-CO")} cajas</span>,{" "}
             <span className="font-medium text-foreground">{litrosPreview.toLocaleString("es-CO")} L</span>.
+            {modoIncremental && (
+              <>
+                {" "}
+                Acumulado de la corrida:{" "}
+                <span className="font-medium text-foreground">
+                  {acumuladoPaletas.toLocaleString("es-CO")} paletas · {acumuladoCajasSueltas.toLocaleString("es-CO")} cajas sueltas ·{" "}
+                  {cajasAcumuladas.toLocaleString("es-CO")} cajas
+                </span>
+                .
+              </>
+            )}
           </p>
         )}
 
@@ -653,7 +766,8 @@ function FilaProductoTerminado({
             )}
           >
             {requiereJustificacion && <AlertTriangle className="size-4 shrink-0" />}
-            Merma estimada: <span className="font-semibold">{mermaPct}%</span>
+            {mermaProvisional ? "Merma provisional (contra el contador de referencia)" : "Merma estimada"}:{" "}
+            <span className="font-semibold">{mermaPct}%</span>
             {requiereJustificacion ? ` — supera el ${LIMITE_MERMA_PCT}%, requiere justificación.` : ` (límite ${LIMITE_MERMA_PCT}%)`}
           </div>
         )}
@@ -681,6 +795,48 @@ function FilaProductoTerminado({
             />
           )}
         </div>
+
+        {parciales.length > 0 && (
+          <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
+            <p className="font-medium text-foreground">
+              Entregas parciales ({parciales.length}) — acumulado {registroExistente?.paletas ?? 0} paletas ·{" "}
+              {registroExistente?.cajasSueltas ?? 0} cajas sueltas
+            </p>
+            {parciales.map((p) => (
+              <p key={p.id} className="text-muted-foreground">
+                + {p.paletas} paletas
+                {p.cajasSueltas > 0 ? ` · ${p.cajasSueltas} cajas sueltas` : ""}
+                {" · "}
+                {p.creadoEn.slice(11, 16)}
+                {p.usuarioNombre ? ` · ${p.usuarioNombre}` : ""}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {puedeElegirProximoEstado && (
+          <div className="flex flex-col gap-1.5">
+            <Label>Entrega parcial</Label>
+            <button
+              type="button"
+              onClick={entregarParcial}
+              disabled={!puedeEntregaParcial || enviando}
+              title="Suma solo las paletas nuevas al acumulado y deja la corrida abierta"
+              className={cn(
+                "flex w-full items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors",
+                "border-foreground/25 text-foreground hover:bg-muted/60",
+                "disabled:pointer-events-none disabled:opacity-40",
+              )}
+            >
+              {enviando && <Loader2 className="size-3.5 animate-spin" />}
+              Sumar paletas y continuar lote
+            </button>
+            <p className="text-xs text-muted-foreground">
+              Carga solo las paletas nuevas desde la última entrega. El contador queda como referencia; el que cuenta es el del
+              cierre definitivo.
+            </p>
+          </div>
+        )}
 
         {puedeElegirProximoEstado && (
           <div className="flex flex-col gap-1.5">
@@ -720,7 +876,7 @@ function FilaProductoTerminado({
           </p>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" className="self-start" onClick={guardar} disabled={!valido || enviando}>
             {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageCheck className="size-3.5" />}
             {textoBoton}

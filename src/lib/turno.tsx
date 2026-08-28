@@ -53,7 +53,25 @@ export type CondicionTanque = "LISTO" | "SUCIO" | "EN_PREPARACION" | "STANDBY" |
  * LineaEnTurno más abajo. Esta condición solo importa cuando no hay
  * corrida corriendo.
  */
-export type CondicionLinea = "DETENIDA" | "LISTA" | "CIP" | "CAMBIO_PRESENTACION"
+export type CondicionLinea = "DETENIDA" | "LISTA" | "CIP" | "CAMBIO_PRESENTACION" | "SIN_PROGRAMACION"
+
+/**
+ * El sufijo de familia entre paréntesis ("Manzana (Jucosa)") solo hace
+ * falta donde el mismo nombre de sabor se repite en varias familias.
+ * Para Clásicos y Especiales se saca — queda "Manzana" a secas. La
+ * fuente de verdad es sabor_display() en la migración 20260969; esto
+ * aplica el mismo criterio del lado del cliente para que valga aunque
+ * la migración todavía no esté en el servidor (una vez aplicada,
+ * sabor_nombre ya viene sin el sufijo y esto no hace nada).
+ */
+const FAMILIAS_SUFIJO_OCULTO = ["Clasicos", "Clásicos", "Especiales"]
+export function saborSinFamiliaOculta(nombre: string | null): string | null {
+  if (!nombre) return nombre
+  for (const fam of FAMILIAS_SUFIJO_OCULTO) {
+    if (nombre.endsWith(` (${fam})`)) return nombre.slice(0, -(fam.length + 3))
+  }
+  return nombre
+}
 
 /**
  * Estado de uno de los 3 tanques de materia prima. Es estado continuo
@@ -114,6 +132,8 @@ export interface LineaEstado {
   activadaEn: string
   cipIniciadoEn: string | null
   cipFinalizadoEn: string | null
+  /** Falla u observación libre (máx. 140) que se carga al dejar la línea en DETENIDA — se muestra en el Panel. null si no hay. */
+  observacion: string | null
 }
 
 /**
@@ -158,6 +178,8 @@ export interface ContadorRegistro {
   turnoLineaId: string | null
   envasesLlenadora: number
   justificacion: string
+  /** Lectura tomada en una entrega parcial: solo referencia, NO cuenta para merma/estadística. El que cuenta es el del cierre definitivo. */
+  parcial: boolean
   creadoEn: string
 }
 
@@ -168,6 +190,16 @@ export interface ContadorRegistro {
  * activa), pero una corrida nueva (lote nuevo) genera un registro
  * nuevo en vez de pisar el de la corrida anterior.
  */
+/** Una entrega parcial de lote: el incremento de paletas/cajas cargado en ese momento (append-only, para auditoría). */
+export interface EntregaParcial {
+  id: string
+  paletas: number
+  cajasSueltas: number
+  litros: number
+  usuarioNombre: string | null
+  creadoEn: string
+}
+
 export interface ProductoTerminadoRegistro {
   id: string
   linea: LineaCodigo
@@ -175,12 +207,17 @@ export interface ProductoTerminadoRegistro {
   saborId: string | null
   saborNombre: string | null
   presentacion: PresentacionCodigo
+  /** Total acumulado de la corrida (suma de las entregas parciales + la carga final). */
   paletas: number
   cajasSueltas: number
   litrosProducidos: number
   /** Dato extra, sin uso todavía (no afecta litros/merma/acta). */
   productoRetenido: boolean
   cajasRetenidas: number | null
+  /** true si la corrida usó "entrega parcial" — desde ahí paletas/cajas se cargan por incremento, no como total. */
+  tieneParciales: boolean
+  /** Detalle de cada entrega parcial, más nueva al final. Vacío si nunca se usó. */
+  parciales: EntregaParcial[]
   creadoEn: string
   /** Quién lo cargó originalmente. */
   registradoPorNombre: string | null
@@ -223,6 +260,20 @@ export interface TurnoActivo {
   preparaciones: PreparacionRegistro[]
 }
 
+/**
+ * El paso Status (revisión de INICIO: Confirmar/Editar) ya está
+ * completo: los 3 tanques y toda línea con corrida activa quedaron
+ * confirmados. Cuando es true, Status se comporta como "una sola vez"
+ * — se bloquea igual que Comenzar Turno cuando ya hay un turno (ver
+ * Hub.tsx) y muestra su pantalla de "ya revisado" (ver Status.tsx).
+ */
+export function revisionInicioCompleta(turno: TurnoActivo): boolean {
+  return (
+    turno.tanques.every((t) => t.confirmadoInicioEn !== null) &&
+    turno.lineas.filter((l) => l.activa).every((l) => l.confirmadoInicioEn !== null)
+  )
+}
+
 export interface DatosNuevoTurno {
   turnoTipo: TurnoTipoCodigo
   grupo: GrupoCodigo
@@ -251,6 +302,8 @@ export interface DatosCambiarTanque {
 export interface DatosCambiarLinea {
   linea: LineaCodigo
   condicion: CondicionLinea
+  /** Solo se usa con condicion === "DETENIDA": falla u observación libre, máx. 140. */
+  observacion?: string | null
 }
 
 interface DatosNuevoContador {
@@ -258,6 +311,8 @@ interface DatosNuevoContador {
   linea: LineaCodigo
   envasesLlenadora: number
   justificacion: string
+  /** Lectura de una entrega parcial: se guarda como referencia, no cuenta para merma. */
+  parcial?: boolean
 }
 
 interface DatosProductoTerminado {
@@ -269,6 +324,8 @@ interface DatosProductoTerminado {
   cajasSueltas: number
   productoRetenido: boolean
   cajasRetenidas: number | null
+  /** true = entrega parcial: paletas/cajas son un incremento que se SUMA y la corrida queda abierta. */
+  parcial?: boolean
 }
 
 export interface DatosIniciarPreparacion {
@@ -371,6 +428,7 @@ interface FilaLineaEstado {
   activada_en: string
   cip_iniciado_en: string | null
   cip_finalizado_en: string | null
+  observacion: string | null
 }
 
 interface FilaContador {
@@ -379,6 +437,7 @@ interface FilaContador {
   turno_linea_id: string | null
   envases_llenadora: number
   justificacion: string | null
+  parcial: boolean
   creado_en: string
 }
 
@@ -394,6 +453,15 @@ interface FilaProductoTerminado {
   litros_producidos: number
   producto_retenido: boolean
   cajas_retenidas: number | null
+  tiene_parciales: boolean
+  parciales: Array<{
+    id: string
+    paletas: number
+    cajas_sueltas: number
+    litros: number
+    usuario_nombre: string | null
+    creado_en: string
+  }>
   creado_en: string
   registrado_por_nombre: string | null
   editado_por_nombre: string | null
@@ -483,7 +551,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
         numeroTanque: t.numero_tanque as 1 | 2 | 3,
         condicion: t.condicion,
         volumenL: t.volumen_l,
-        saborNombre: t.sabor_nombre,
+        saborNombre: saborSinFamiliaOculta(t.sabor_nombre),
         lote: t.lote,
       })) ?? null,
     turnoTipo: fila.turno_tipo_codigo as TurnoTipoCodigo,
@@ -496,7 +564,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       presentacion: String(l.presentacion_volumen_ml ?? ""),
       envasesHora: l.envases_hora ?? 0,
       saborId: l.sabor_id,
-      saborNombre: l.sabor_nombre,
+      saborNombre: saborSinFamiliaOculta(l.sabor_nombre),
       lote: l.lote,
       loteId: l.lote_id,
       activa: l.activa,
@@ -511,14 +579,14 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
     tanques: fila.tanques.map((t) => ({
       numeroTanque: t.numero_tanque as 1 | 2 | 3,
       saborId: t.sabor_id,
-      saborNombre: t.sabor_nombre,
+      saborNombre: saborSinFamiliaOculta(t.sabor_nombre),
       condicion: t.condicion,
       volumenL: t.volumen_l,
       volumenInicialL: t.volumen_inicial_l,
       lote: t.lote,
       activadaEn: t.activada_en,
       ultimoSaborId: t.ultimo_sabor_id,
-      ultimoSaborNombre: t.ultimo_sabor_nombre,
+      ultimoSaborNombre: saborSinFamiliaOculta(t.ultimo_sabor_nombre),
       ultimoLote: t.ultimo_lote,
       confirmadoInicioEn: t.confirmado_inicio_en,
       confirmadoFinEn: t.confirmado_fin_en,
@@ -531,6 +599,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       activadaEn: le.activada_en,
       cipIniciadoEn: le.cip_iniciado_en,
       cipFinalizadoEn: le.cip_finalizado_en,
+      observacion: le.observacion ?? null,
     })),
     contadores: fila.contadores.map((c) => ({
       id: c.id,
@@ -538,6 +607,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       turnoLineaId: c.turno_linea_id,
       envasesLlenadora: c.envases_llenadora,
       justificacion: c.justificacion ?? "",
+      parcial: c.parcial ?? false,
       creadoEn: c.creado_en,
     })),
     productoTerminado: fila.producto_terminado.map((p) => ({
@@ -545,13 +615,22 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       linea: p.linea_codigo as LineaCodigo,
       turnoLineaId: p.turno_linea_id,
       saborId: p.sabor_id,
-      saborNombre: p.sabor_nombre,
+      saborNombre: saborSinFamiliaOculta(p.sabor_nombre),
       presentacion: String(p.presentacion_volumen_ml),
       paletas: p.paletas,
       cajasSueltas: p.cajas_sueltas,
       litrosProducidos: p.litros_producidos,
       productoRetenido: p.producto_retenido,
       cajasRetenidas: p.cajas_retenidas,
+      tieneParciales: p.tiene_parciales ?? false,
+      parciales: (p.parciales ?? []).map((pp) => ({
+        id: pp.id,
+        paletas: pp.paletas,
+        cajasSueltas: pp.cajas_sueltas,
+        litros: pp.litros,
+        usuarioNombre: pp.usuario_nombre,
+        creadoEn: pp.creado_en,
+      })),
       creadoEn: p.creado_en,
       registradoPorNombre: p.registrado_por_nombre,
       editadoPorNombre: p.editado_por_nombre,
@@ -561,7 +640,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       id: p.id,
       numeroTanque: p.numero_tanque as 1 | 2 | 3,
       saborId: p.sabor_id,
-      saborNombre: p.sabor_nombre,
+      saborNombre: saborSinFamiliaOculta(p.sabor_nombre),
       lote: p.lote,
       volumenL: p.volumen_l,
       volumenInicialL: p.volumen_inicial_l,
@@ -587,8 +666,9 @@ export function mermaCorrida(
   turno: Pick<TurnoActivo, "contadores" | "productoTerminado">,
   presentaciones: PresentacionLive[],
 ): { envasesLlenadora: number; envasesProductoTerminado: number; pct: number } | null {
+  // Los contadores "parciales" son solo referencia de una entrega parcial — la merma se mide contra el contador definitivo.
   const llenadora = turno.contadores
-    .filter((c) => c.turnoLineaId === turnoLineaId)
+    .filter((c) => c.turnoLineaId === turnoLineaId && !c.parcial)
     .reduce((a, c) => a + c.envasesLlenadora, 0)
   const pt = turno.productoTerminado.find((p) => p.turnoLineaId === turnoLineaId)
   if (llenadora === 0 || !pt) return null
@@ -846,6 +926,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_turno_id: turnoActivo.id,
       p_linea_codigo: datos.linea,
       p_condicion: datos.condicion,
+      p_observacion: datos.condicion === "DETENIDA" ? (datos.observacion?.trim() || null) : null,
     })
 
     if (error || !data) {
@@ -918,6 +999,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_envases_llenadora: datos.envasesLlenadora,
       p_justificacion: datos.justificacion,
       p_usuario: usuario,
+      p_parcial: datos.parcial ?? false,
     })
 
     if (error || !data) {
@@ -965,6 +1047,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_usuario: usuario,
       p_producto_retenido: datos.productoRetenido,
       p_cajas_retenidas: datos.cajasRetenidas,
+      p_parcial: datos.parcial ?? false,
     })
 
     if (error || !data) {

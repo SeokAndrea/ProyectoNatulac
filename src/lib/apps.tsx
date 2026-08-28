@@ -41,6 +41,8 @@ export interface AppDef {
   atajo?: boolean
   /** Se bloquea (gris) cuando SÍ hay un turno en curso — lo opuesto de requiereTurno (ver Comenzar Turno). */
   bloqueaConTurno?: boolean
+  /** Se bloquea (gris) una vez completada la revisión de INICIO — es "de una sola vez", como Comenzar Turno (ver Status y revisionInicioCompleta en turno.tsx). */
+  bloqueaConRevisionInicio?: boolean
   /** Se resalta en rojo cuando hay un turno en curso, para que sea obvio el siguiente paso (ver Finalizar Turno). */
   resaltarConTurno?: boolean
   /** Color fijo del ícono/tarjeta (por defecto: primary) — para distinguir a simple vista pasos como Comenzar/Preparación/Finalizar. */
@@ -80,6 +82,7 @@ export const apps: AppDef[] = [
     icon: ClipboardList,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
+    bloqueaConRevisionInicio: true,
   },
   {
     slug: "preparacion",
@@ -132,7 +135,8 @@ export const apps: AppDef[] = [
   {
     slug: "programacion",
     title: "Programación",
-    description: "Qué se va a producir en el día — todavía sin construir.",
+    description: "Qué se planificó producir en la jornada, por sabor y en cajas.",
+    href: "/programacion",
     icon: CalendarRange,
     requiereTurno: false,
     atajo: true,

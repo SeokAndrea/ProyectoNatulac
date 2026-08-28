@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { Sabor } from "@/lib/sabores"
+import { nombreSaborConFamilia, type Sabor } from "@/lib/sabores"
 import type { CondicionTanque, DatosCambiarTanque, TanqueRecepcion } from "@/lib/turno"
 
 type Resultado = { ok: true } | { ok: false; error: string }
@@ -89,7 +89,7 @@ export function TanqueEditForm({
             <SelectContent>
               {sabores.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.nombre} ({s.familiaNombre})
+                  {nombreSaborConFamilia(s.nombre, s.familiaNombre)}
                 </SelectItem>
               ))}
             </SelectContent>

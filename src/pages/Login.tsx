@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Logo } from "@/components/Logo"
 import { useAuth } from "@/lib/auth"
 import { Loader2 } from "lucide-react"
 
@@ -30,32 +28,40 @@ export default function Login() {
   }
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-10">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-32 -left-24 size-96 rounded-full bg-primary/20 blur-3xl"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-32 -right-24 size-96 rounded-full bg-secondary/60 blur-3xl"
-      />
+    <div className="grid min-h-svh place-items-center bg-muted md:p-6">
+      <div className="grid min-h-svh w-full max-w-[980px] overflow-hidden md:min-h-[560px] md:grid-cols-2 md:rounded-[28px] md:shadow-2xl">
+        {/* Panel de marca */}
+        <div
+          className="relative flex flex-col items-center justify-end gap-4 overflow-hidden rounded-b-[28px] bg-primary bg-cover bg-center px-8 pb-14 pt-12 md:rounded-none"
+          style={{ backgroundImage: "url(/fondo.webp)" }}
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/70"
+          />
+          <img src="/Logo.webp" alt="Natulac" className="relative z-10 h-24 w-auto drop-shadow" />
+          <p className="relative z-10 text-2xl font-semibold tracking-wide text-white [text-shadow:0_1px_4px_rgb(0_0_0/0.55)]">
+            Aséptico
+          </p>
+        </div>
 
-      <div className="relative z-10 flex w-full max-w-sm flex-col items-center">
-        <Logo className="mb-8" markClassName="size-10" />
+        {/* Formulario */}
+        <div className="relative z-10 -mt-7 flex items-center justify-center bg-background px-6 py-8 md:mt-0 md:px-10 md:py-12">
+          <form
+            onSubmit={handleSubmit}
+            className="w-full max-w-[360px] rounded-3xl bg-card p-7 shadow-lg md:rounded-none md:bg-transparent md:p-0 md:shadow-none"
+          >
+            <h1 className="text-3xl font-bold text-foreground">Bienvenido</h1>
+            <p className="mb-7 mt-2 text-sm text-muted-foreground">Ingresa a tu cuenta para continuar</p>
 
-        <Card className="w-full border-border/70 shadow-lg shadow-primary/5">
-          <CardHeader>
-            <CardTitle className="text-xl">Portal de planta</CardTitle>
-            <CardDescription>Ingresa tus credenciales para acceder al hub de aplicaciones.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="username">Usuario</Label>
                 <Input
                   id="username"
                   autoComplete="username"
                   placeholder="ej. kgomez"
+                  className="h-11 rounded-full border-transparent bg-primary/[0.06] px-5"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   autoFocus
@@ -67,7 +73,8 @@ export default function Login() {
                   id="password"
                   type="password"
                   autoComplete="current-password"
-                  placeholder="••••••••"
+                  placeholder="Mínimo 4 dígitos"
+                  className="h-11 rounded-full border-transparent bg-primary/[0.06] px-5"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -79,17 +86,17 @@ export default function Login() {
                 </p>
               )}
 
-              <Button type="submit" className="mt-2 w-full" disabled={loading}>
+              <Button type="submit" className="mt-2 h-12 w-full rounded-full text-base" disabled={loading}>
                 {loading && <Loader2 className="size-4 animate-spin" />}
-                Iniciar sesión
+                {loading ? "Ingresando…" : "Iniciar sesión"}
               </Button>
-            </form>
-          </CardContent>
-        </Card>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Mensaje placeholder para link al manual
-        </p>
+              <p className="text-center text-sm text-muted-foreground">
+                Mensaje placeholder para link al manual
+              </p>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )

@@ -15,6 +15,34 @@ export async function obtenerEstadoPlantaActual(areaCodigo: string | null): Prom
   return mapearTurno(data as FilaTurno)
 }
 
+/**
+ * Producción HECHA en toda la jornada (los 3 turnos con esa
+ * turnos.fecha en el área), por sabor + presentación. El banner del
+ * Panel usa esto para las cifras "del día" en vez de las del turno en
+ * vivo — que arrancan en 0 cada vez que un supervisor abre su turno.
+ * Mismo criterio de nombre (sabor_display) que obtenerProgramacionDia(),
+ * así el carrusel cruza plan vs. hecho por la misma clave.
+ */
+export interface ProduccionDiaItem {
+  saborNombre: string
+  presentacionMl: number | null
+  cajas: number
+  litros: number
+}
+
+export async function obtenerProduccionDia(areaCodigo: string, fecha: string): Promise<ProduccionDiaItem[]> {
+  const { data, error } = await supabase.rpc("produccion_dia_de", { p_area_codigo: areaCodigo, p_fecha: fecha })
+  if (error || !data) return []
+  return (data as Array<{ sabor_nombre: string | null; presentacion_volumen_ml: number | null; cajas: number | string; litros: number | string }>).map(
+    (r) => ({
+      saborNombre: r.sabor_nombre ?? "—",
+      presentacionMl: r.presentacion_volumen_ml ?? null,
+      cajas: Number(r.cajas) || 0,
+      litros: Number(r.litros) || 0,
+    }),
+  )
+}
+
 export async function obtenerTurnoDeFechaTipo(fecha: string, turnoTipo: string, areaCodigo: string | null): Promise<TurnoActivo | null> {
   const { data, error } = await supabase.rpc("turno_de_fecha_tipo", {
     p_fecha: fecha,
@@ -56,7 +84,9 @@ export function calcularMeta(
       const cajasHora = pres && pres.envasesXCaja > 0 ? l.envasesHora / pres.envasesXCaja : 0
       const cajasEsperadas = Math.round(cajasHora * horas)
 
-      const envasesLlenadora = turno.contadores.filter((c) => c.turnoLineaId === l.id).reduce((a, c) => a + c.envasesLlenadora, 0)
+      const envasesLlenadora = turno.contadores
+        .filter((c) => c.turnoLineaId === l.id && !c.parcial)
+        .reduce((a, c) => a + c.envasesLlenadora, 0)
       const cajasReales = pres && pres.envasesXCaja > 0 ? Math.round(envasesLlenadora / pres.envasesXCaja) : 0
 
       return { linea: l.linea, cajasEsperadas, cajasReales }
@@ -94,7 +124,7 @@ export interface MermaEnvasesTurno {
  * Antes se sumaban TODOS los contadores del turno contra el PT que
  * hubiera cargado en ese momento, con la única guarda de que el total
  * de contadores no fuera 0. Mientras faltaba PT, el número saltaba a
- * ~100% y volvía a ~1.5% recién cuando estaba todo cargado.
+ * ~100% y volvía a ~1.5% solo cuando estaba todo cargado.
  */
 function mermaEnvasesDeCorridas(
   turnoLineaIds: Iterable<string>,

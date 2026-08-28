@@ -7,6 +7,7 @@ import Preparacion from "@/pages/apps/Preparacion"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
+import Programacion from "@/pages/apps/Programacion"
 import HistorialDia from "@/pages/apps/HistorialDia"
 import Calculadora from "@/pages/apps/Calculadora"
 import Personal from "@/pages/apps/Personal"
@@ -83,6 +84,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <PanelProduccion />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/programacion"
+        element={
+          <ProtectedRoute>
+            <Programacion />
           </ProtectedRoute>
         }
       />

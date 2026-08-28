@@ -3,13 +3,14 @@ import { Lock } from "lucide-react"
 import { AppHeader } from "@/components/AppHeader"
 import { Logo } from "@/components/Logo"
 import { useAuth } from "@/lib/auth"
-import { useTurno } from "@/lib/turno"
+import { revisionInicioCompleta, useTurno } from "@/lib/turno"
 import { apps, type AppDef } from "@/lib/apps"
 import { cn } from "@/lib/utils"
 
 export default function Hub() {
   const { session } = useAuth()
   const { turnoActivo } = useTurno()
+  const revisionInicioHecha = turnoActivo ? revisionInicioCompleta(turnoActivo) : false
   const appsVisibles = apps.filter((app) => !app.rolesPermitidos || (session && app.rolesPermitidos.includes(session.rol)))
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
@@ -42,7 +43,7 @@ export default function Hub() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {principales.map((app) => (
-            <TarjetaApp key={app.slug} app={app} turnoActivo={turnoActivo !== null} />
+            <TarjetaApp key={app.slug} app={app} turnoActivo={turnoActivo !== null} revisionInicioHecha={revisionInicioHecha} />
           ))}
         </div>
       </main>
@@ -59,9 +60,19 @@ const COLOR_BORDE_HOVER: Record<NonNullable<AppDef["color"]>, string> = {
   blue: "hover:border-blue-500/50",
 }
 
-function TarjetaApp({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean }) {
+function TarjetaApp({
+  app,
+  turnoActivo,
+  revisionInicioHecha,
+}: {
+  app: AppDef
+  turnoActivo: boolean
+  revisionInicioHecha: boolean
+}) {
   const Icon = app.icon
-  const bloqueada = !app.href || (app.requiereTurno && !turnoActivo) || (app.bloqueaConTurno && turnoActivo)
+  const bloqueadaPorRevision = !!app.bloqueaConRevisionInicio && revisionInicioHecha
+  const bloqueada =
+    !app.href || (app.requiereTurno && !turnoActivo) || (app.bloqueaConTurno && turnoActivo) || bloqueadaPorRevision
   const resaltada = app.resaltarConTurno && turnoActivo && !bloqueada
 
   const iconoWrap = (
@@ -91,9 +102,11 @@ function TarjetaApp({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean })
           ? "Próximamente."
           : app.bloqueaConTurno && turnoActivo
             ? "Ya tienes un turno en curso."
-            : app.requiereTurno && !turnoActivo
-              ? "Se habilita al iniciar un turno."
-              : app.description}
+            : bloqueadaPorRevision
+              ? "Ya revisaste el inicio del turno."
+              : app.requiereTurno && !turnoActivo
+                ? "Se habilita al iniciar un turno."
+                : app.description}
       </p>
     </div>
   )
@@ -107,7 +120,9 @@ function TarjetaApp({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean })
             ? "Todavía no está construido"
             : app.bloqueaConTurno && turnoActivo
               ? "Ya tienes un turno en curso"
-              : "Inicia un turno para habilitar esta sección"
+              : bloqueadaPorRevision
+                ? "Status es de una sola vez, al arrancar el turno"
+                : "Inicia un turno para habilitar esta sección"
         }
         className="flex cursor-not-allowed flex-col justify-between gap-6 rounded-2xl border border-border/50 bg-card/60 p-5 opacity-70"
       >

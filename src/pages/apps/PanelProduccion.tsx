@@ -54,11 +54,14 @@ import {
   mermaLineaTurno,
   mermaSemielaboradoTurno,
   obtenerEstadoPlantaActual,
+  obtenerProduccionDia,
   obtenerResumenTurnoAnterior,
   obtenerTurnoDeFechaTipo,
+  type ProduccionDiaItem,
   type ResumenTurnoAnterior,
 } from "@/lib/panelProduccion"
 import { type TurnoActivo } from "@/lib/turno"
+import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { cn } from "@/lib/utils"
 
 /** La merma de semielaborado tiene su propia tolerancia, más estricta que la de envases — amarillo/rojo proporcionales a ese máximo, en vez de los umbrales fijos (3%/5%) de la merma de envase. */
@@ -114,6 +117,8 @@ interface LineaConEstado {
   nombre: string
   estado: EstadoLinea
   corrida: TurnoActivo["lineas"][number] | null
+  /** Falla u observación cargada al dejar la línea en DETENIDA — solo cuando aplica. null si no hay. */
+  observacion: string | null
 }
 
 /** Fila de la tabla "Líneas activas": estado + producción + merma, todo junto. */
@@ -133,6 +138,13 @@ interface FilaLineaCompacta extends LineaConEstado {
    */
   minutosProduccion: number | null
 }
+
+/** DEV: ejemplo de observación de ~140 caracteres para ver cómo cae en la fila de la línea. Nunca llega al build. */
+const MOCK_OBSERVACION_LINEA =
+  "Falla en la selladora: recalienta y corta el film cada 15 minutos. Mantenimiento revisó, falta repuesto del termostato — llega mañana.".slice(
+    0,
+    140,
+  )
 
 /** "125 min" hasta la hora, "2h 5min" de ahí para arriba. */
 function formatDuracion(minutos: number): string {
@@ -174,15 +186,19 @@ function ultimaAccionDeTurno(turno: TurnoActivo): Date | null {
 function estadoDeLineas(turno: TurnoActivo, lineasCatalogo: LineaLive[]): LineaConEstado[] {
   return lineasCatalogo.map((lc) => {
     const corridas = turno.lineas.filter((l) => l.linea === lc.codigo)
+    const estadoContinuo = turno.lineasEstado.find((e) => e.linea === lc.codigo)
+    // La nota solo tiene sentido mostrarla cuando la línea está DETENIDA y sin corrida activa.
+    const observacion = estadoContinuo?.condicion === "DETENIDA" ? estadoContinuo.observacion : null
+
     const activa = corridas.find((l) => l.activa)
     if (activa) {
-      return { codigo: lc.codigo, nombre: lc.nombre, estado: activa.pausadaEn ? "parada" : "activa", corrida: activa }
+      return { codigo: lc.codigo, nombre: lc.nombre, estado: activa.pausadaEn ? "parada" : "activa", corrida: activa, observacion: null }
     }
     const esperandoCierre = corridas.find((l) => l.esperandoCierre)
     if (esperandoCierre) {
-      return { codigo: lc.codigo, nombre: lc.nombre, estado: "esperando_cierre", corrida: esperandoCierre }
+      return { codigo: lc.codigo, nombre: lc.nombre, estado: "esperando_cierre", corrida: esperandoCierre, observacion }
     }
-    return { codigo: lc.codigo, nombre: lc.nombre, estado: "libre", corrida: null }
+    return { codigo: lc.codigo, nombre: lc.nombre, estado: "libre", corrida: null, observacion }
   })
 }
 
@@ -252,6 +268,14 @@ export default function PanelProduccion() {
   const [turnoAnterior, setTurnoAnterior] = useState<ResumenTurnoAnterior | null>(null)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [ahora, setAhora] = useState(() => new Date())
+  const [planDia, setPlanDia] = useState<PlanDiaItem[]>([])
+  /*
+   * Producción acumulada de la jornada (los 3 turnos del día), solo en
+   * modo EN VIVO. El banner la usa para Cajas / Litros y el "hecho" del
+   * carrusel, para que al abrir un turno nuevo no caiga todo a 0 —
+   * arranca mostrando lo que ya dejó el turno anterior.
+   */
+  const [produccionDia, setProduccionDia] = useState<ProduccionDiaItem[]>([])
   /*
    * Solo el Super Administrador tiene session.area === null ("ve
    * todas las áreas") — sin este filtro, "en vivo" mostraba el turno
@@ -266,6 +290,34 @@ export default function PanelProduccion() {
     const id = setInterval(() => setAhora(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    let vivo = true
+    if (!areaEfectiva) {
+      setPlanDia([])
+      return
+    }
+    obtenerProgramacionDia(areaEfectiva, fechaJornada()).then((items) => {
+      if (vivo) setPlanDia(items)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [areaEfectiva])
+
+  useEffect(() => {
+    let vivo = true
+    if (!areaEfectiva || !enVivo) {
+      setProduccionDia([])
+      return
+    }
+    obtenerProduccionDia(areaEfectiva, fechaJornada()).then((items) => {
+      if (vivo) setProduccionDia(items)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [areaEfectiva, enVivo, turno?.id])
 
   async function cargarTurnoAnterior(turnoActualId: string | null) {
     if (!areaEfectiva) {
@@ -324,40 +376,71 @@ export default function PanelProduccion() {
   const lineasEstado = turno ? estadoDeLineas(turno, lineas) : []
   const produccionPorLinea = turno ? produccionPorLineaDe(turno, lineas, presentaciones, velocidades) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
+  /*
+   * "Producción del turno": Cajas / Litros del banner son SIEMPRE del
+   * turno cargado — se mueven con lo que carga el supervisor activo. El
+   * acumulado de la jornada (los 3 turnos) solo lo usa el carrusel de
+   * Programación diaria, para cruzarlo contra el plan del día.
+   */
+  const usarDiario = enVivo && produccionDia.length > 0
   const mermaEnvases = turno ? mermaEnvasesTurno(turno, presentaciones) : null
   const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno) : null
   /*
-   * Programación: por ahora arma la lista de sabores desde el Producto
-   * Terminado del turno (lo REAL), con el objetivo del día (plan) en
-   * null hasta que exista el módulo de Programación diario (7am-7am).
-   * El carrusel del banner rota esta lista cada 1.5s.
+   * Programación diaria: el carrusel del banner cruza el PLAN del día
+   * (módulo Programación, por sabor y en cajas) con lo HECHO (cajas de
+   * Producto Terminado del turno, agrupadas por sabor). Primero van los
+   * sabores del plan; después, cualquier sabor producido que no estaba
+   * planificado (plan = null).
    */
   const programacionItems = useMemo<ProgramacionItem[]>(() => {
-    if (!turno) return []
-    const porSabor = new Map<string, number>()
-    for (const p of turno.productoTerminado) {
-      const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
-      const cajas = p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
-      const nombre = p.saborNombre ?? "—"
-      porSabor.set(nombre, (porSabor.get(nombre) ?? 0) + cajas)
+    // Cajas hechas por (sabor + presentación en ml). En vivo se toma el
+    // acumulado de la jornada (produccion_dia_de, ya agrupado por
+    // sabor+ml); si no, el Producto Terminado del turno cargado — que
+    // trae la presentación como string de volumen_ml en p.presentacion.
+    const hecho = new Map<string, number>()
+    const claveDe = (sabor: string, ml: number | null) => `${sabor}|${ml ?? ""}`
+    if (usarDiario) {
+      for (const p of produccionDia) {
+        const k = claveDe(p.saborNombre, p.presentacionMl)
+        hecho.set(k, (hecho.get(k) ?? 0) + p.cajas)
+      }
+    } else {
+      for (const p of turno?.productoTerminado ?? []) {
+        const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
+        const cajas = p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
+        const k = claveDe(p.saborNombre ?? "—", Number(p.presentacion) || null)
+        hecho.set(k, (hecho.get(k) ?? 0) + cajas)
+      }
     }
-    const items: ProgramacionItem[] = [...porSabor.entries()]
-      .map(([sabor, hecho]) => ({ sabor, hecho, plan: null }))
-      .sort((a, b) => b.hecho - a.hecho)
 
-    // DEV: datos de ejemplo SOLO en `npm run dev` para ver el carrusel
-    // girar mientras no exista el módulo de Programación. En el build
-    // `import.meta.env.DEV` es false, así que esto nunca llega al
-    // server de pruebas. Borrar cuando el módulo real esté conectado.
+    const delPlan: ProgramacionItem[] = planDia.map((p) => ({
+      sabor: p.saborNombre,
+      presentacionMl: p.presentacionMl,
+      hecho: hecho.get(claveDe(p.saborNombre, p.presentacionMl)) ?? 0,
+      plan: p.cajasPlan,
+    }))
+    const clavesPlan = new Set(planDia.map((p) => claveDe(p.saborNombre, p.presentacionMl)))
+    const extra: ProgramacionItem[] = [...hecho.entries()]
+      .filter(([k]) => !clavesPlan.has(k))
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, cajas]) => {
+        const [sabor, ml] = k.split("|")
+        return { sabor, presentacionMl: ml ? Number(ml) : null, hecho: cajas, plan: null }
+      })
+
+    const items = [...delPlan, ...extra]
+
+    // DEV: ejemplo SOLO en `npm run dev` para ver el carrusel girar
+    // cuando no hay plan ni producción cargados. Nunca llega al build.
     if (import.meta.env.DEV && items.length < 2) {
       return [
-        { sabor: "Pera", hecho: 0, plan: 2000 },
-        { sabor: "Manzana", hecho: 300, plan: 1200 },
+        { sabor: "Manzana", presentacionMl: 1000, hecho: 300, plan: 4000 },
+        { sabor: "Pera", presentacionMl: 250, hecho: 0, plan: 2000 },
       ]
     }
 
     return items
-  }, [turno, presentaciones])
+  }, [turno, presentaciones, planDia, produccionDia, usarDiario])
   /*
    * DEV: números de ejemplo para Cajas / Litros del banner cuando el
    * turno en vivo todavía no produjo nada. `import.meta.env.DEV` es
@@ -390,6 +473,13 @@ export default function PanelProduccion() {
       minutosProduccion,
     }
   })
+  // DEV: si ninguna línea trae observación real, mete el ejemplo en la
+  // primera que no esté activa (solo en `npm run dev`) para ver cómo se
+  // ve la nota larga en el dashboard.
+  if (import.meta.env.DEV && !filasLineas.some((f) => f.observacion)) {
+    const objetivo = filasLineas.find((f) => f.estado !== "activa") ?? filasLineas[0]
+    if (objetivo) objetivo.observacion = MOCK_OBSERVACION_LINEA
+  }
   const lineaParadaHaceMas = [...filasLineas]
     .filter((f) => f.minutosParada !== null)
     .sort((a, b) => (b.minutosParada ?? 0) - (a.minutosParada ?? 0))[0] ?? null
@@ -507,7 +597,7 @@ export default function PanelProduccion() {
                 </BannerCelda>
 
                 {/* PRODUCCIÓN — cajas + litros compactados en una sola celda para dejar libre la de Programación */}
-                <BannerCelda icon={Boxes} label="Producción" acento centrado>
+                <BannerCelda icon={Boxes} label="Producción del turno" acento centrado>
                   <div className="flex items-stretch divide-x divide-border/70">
                     <div className="flex flex-1 flex-col items-center px-3">
                       <p className="num text-3xl font-bold leading-none tracking-tight text-foreground">
@@ -782,17 +872,18 @@ function TituloSeccion({ children }: { children: React.ReactNode }) {
 
 interface ProgramacionItem {
   sabor: string
+  /** Presentación en ml — null si es un sabor producido sin presentación identificable. */
+  presentacionMl: number | null
   /** Cajas ya producidas (real). */
   hecho: number
-  /** Objetivo del día — null hasta que exista el módulo de Programación diario. */
+  /** Objetivo del día en cajas — null si se produjo un sabor+presentación que no estaba en el plan. */
   plan: number | null
 }
 
 /**
- * Carrusel del banner: rota la lista de sabores programados cada 2.5s,
- * mostrando "SABOR  hecho / plan". Pensado para el módulo de
- * Programación diario (jornada 7am-7am); mientras tanto la lista sale
- * del Producto Terminado del turno y el plan se muestra como "—".
+ * Carrusel del banner: rota los renglones del plan del día cada 2.5s,
+ * mostrando "SABOR · 1000 ml  hecho / plan" (plan del módulo
+ * Programación; hecho del Producto Terminado del turno).
  */
 function ProgramacionCarrusel({ items }: { items: ProgramacionItem[] }) {
   const [idx, setIdx] = useState(0)
@@ -818,7 +909,12 @@ function ProgramacionCarrusel({ items }: { items: ProgramacionItem[] }) {
   return (
     <div>
       <div key={activo} className="carrusel-slide">
-        <p className="truncate text-sm font-semibold uppercase tracking-wide text-primary">{item.sabor}</p>
+        <p className="truncate text-sm font-semibold uppercase tracking-wide text-primary">
+          {item.sabor}
+          {item.presentacionMl !== null && (
+            <span className="font-medium text-muted-foreground"> · {item.presentacionMl} ml</span>
+          )}
+        </p>
         <p className="num mt-0.5 text-2xl font-bold leading-none tracking-tight text-foreground">
           {item.hecho.toLocaleString("es-CO")}
           <span className="text-base font-semibold text-muted-foreground">
@@ -976,6 +1072,12 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
             {info.label}
             {fila.minutosProduccion !== null ? ` - TP: ${formatDuracion(fila.minutosProduccion)}` : ""}
           </p>
+          {fila.observacion && (
+            <p className="mt-1 flex items-start gap-1 text-xs leading-snug text-danger">
+              <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+              <span>{fila.observacion}</span>
+            </p>
+          )}
         </div>
       </div>
       <p className="num text-right font-semibold text-foreground">{fila.cajas.toLocaleString("es-CO")}</p>
@@ -1061,7 +1163,9 @@ function TanqueCard({
               En Preparación
             </Badge>
             <p className="truncate text-[10px] text-muted-foreground">
-              {ultimaPrep ? `${ultimaPrep.tambores}t · ${ultimaPrep.saborNombre ?? "Sin sabor"}` : "Sin registrar aún."}
+              {ultimaPrep
+                ? `${ultimaPrep.tambores}t · ${ultimaPrep.saborNombre ?? "Sin sabor"}${tanque.lote ? ` · Lote ${tanque.lote}` : ""}`
+                : "Sin registrar aún."}
             </p>
           </>
         ) : (

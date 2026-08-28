@@ -101,7 +101,7 @@ export function generarActaPdf(params: {
         const merma = mermaCorrida(corrida.id, turno, presentaciones)
         if (merma) {
           mermas.push(merma.pct)
-          const contadorConJustificacion = turno.contadores.find((c) => c.turnoLineaId === corrida.id && c.justificacion)
+          const contadorConJustificacion = turno.contadores.find((c) => c.turnoLineaId === corrida.id && c.justificacion && !c.parcial)
           if (merma.pct > LIMITE_MERMA * 100 && contadorConJustificacion) {
             justificaciones.push(contadorConJustificacion.justificacion)
           }
