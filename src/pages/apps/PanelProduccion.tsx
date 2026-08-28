@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Activity,
   AlertTriangle,
@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  ClipboardList,
   Clock,
   Container,
   Droplets,
@@ -325,6 +326,45 @@ export default function PanelProduccion() {
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   const mermaEnvases = turno ? mermaEnvasesTurno(turno, presentaciones) : null
   const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno) : null
+  /*
+   * Programación: por ahora arma la lista de sabores desde el Producto
+   * Terminado del turno (lo REAL), con el objetivo del día (plan) en
+   * null hasta que exista el módulo de Programación diario (7am-7am).
+   * El carrusel del banner rota esta lista cada 1.5s.
+   */
+  const programacionItems = useMemo<ProgramacionItem[]>(() => {
+    if (!turno) return []
+    const porSabor = new Map<string, number>()
+    for (const p of turno.productoTerminado) {
+      const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
+      const cajas = p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
+      const nombre = p.saborNombre ?? "—"
+      porSabor.set(nombre, (porSabor.get(nombre) ?? 0) + cajas)
+    }
+    const items: ProgramacionItem[] = [...porSabor.entries()]
+      .map(([sabor, hecho]) => ({ sabor, hecho, plan: null }))
+      .sort((a, b) => b.hecho - a.hecho)
+
+    // DEV: datos de ejemplo SOLO en `npm run dev` para ver el carrusel
+    // girar mientras no exista el módulo de Programación. En el build
+    // `import.meta.env.DEV` es false, así que esto nunca llega al
+    // server de pruebas. Borrar cuando el módulo real esté conectado.
+    if (import.meta.env.DEV && items.length < 2) {
+      return [
+        { sabor: "Pera", hecho: 0, plan: 2000 },
+        { sabor: "Manzana", hecho: 300, plan: 1200 },
+      ]
+    }
+
+    return items
+  }, [turno, presentaciones])
+  /*
+   * DEV: números de ejemplo para Cajas / Litros del banner cuando el
+   * turno en vivo todavía no produjo nada. `import.meta.env.DEV` es
+   * false en el build, así que nunca sale del `npm run dev`.
+   */
+  const cajasDisplay = import.meta.env.DEV && cajasProducidasTotal === 0 ? 1840 : cajasProducidasTotal
+  const litrosDisplay = import.meta.env.DEV && litrosProducidos === 0 ? 24680 : litrosProducidos
   /** Una fila por línea: estado + producción + merma juntos (antes vivían en 3 lugares separados de la pantalla). */
   const filasLineas: FilaLineaCompacta[] = lineasEstado.map((le) => {
     const prod = produccionPorLinea.find((p) => p.linea === le.codigo)
@@ -466,23 +506,32 @@ export default function PanelProduccion() {
                   </p>
                 </BannerCelda>
 
-                {/* CAJAS */}
-                <BannerCelda icon={Boxes} label="Cajas producidas" acento centrado>
-                  <p className="num text-4xl font-bold leading-none tracking-tight text-foreground">
-                    {cajasProducidasTotal.toLocaleString("es-CO")}
-                  </p>
+                {/* PRODUCCIÓN — cajas + litros compactados en una sola celda para dejar libre la de Programación */}
+                <BannerCelda icon={Boxes} label="Producción" acento centrado>
+                  <div className="flex items-stretch divide-x divide-border/70">
+                    <div className="flex flex-1 flex-col items-center px-3">
+                      <p className="num text-3xl font-bold leading-none tracking-tight text-foreground">
+                        {cajasDisplay.toLocaleString("es-CO")}
+                      </p>
+                      <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Cajas</p>
+                    </div>
+                    <div className="flex flex-1 flex-col items-center px-3">
+                      <p className="num text-3xl font-bold leading-none tracking-tight text-info">
+                        {litrosDisplay.toLocaleString("es-CO")}
+                        <span className="ml-0.5 text-sm font-semibold text-info/60">L</span>
+                      </p>
+                      <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Litros</p>
+                    </div>
+                  </div>
                 </BannerCelda>
 
-                {/* LITROS */}
-                <BannerCelda icon={Droplets} label="Litros producidos" centrado>
-                  <p className="num text-4xl font-bold leading-none tracking-tight text-foreground">
-                    {litrosProducidos.toLocaleString("es-CO")}
-                    <span className="ml-1 text-lg font-semibold text-muted-foreground">L</span>
-                  </p>
+                {/* PROGRAMACIÓN — carrusel de sabores del día, rota cada 2.5s (plan diario pendiente de módulo) */}
+                <BannerCelda icon={ClipboardList} label="Programación diaria" centrado>
+                  <ProgramacionCarrusel items={programacionItems} />
                 </BannerCelda>
 
                 {/* META */}
-                <BannerCelda icon={Target} label="Cumplimiento de meta">
+                <BannerCelda icon={Target} label="Cumplimiento de meta" centrado>
                   <MetaAnillo pct={meta.pctCumplimiento} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
                 </BannerCelda>
               </div>
@@ -731,6 +780,67 @@ function TituloSeccion({ children }: { children: React.ReactNode }) {
   )
 }
 
+interface ProgramacionItem {
+  sabor: string
+  /** Cajas ya producidas (real). */
+  hecho: number
+  /** Objetivo del día — null hasta que exista el módulo de Programación diario. */
+  plan: number | null
+}
+
+/**
+ * Carrusel del banner: rota la lista de sabores programados cada 2.5s,
+ * mostrando "SABOR  hecho / plan". Pensado para el módulo de
+ * Programación diario (jornada 7am-7am); mientras tanto la lista sale
+ * del Producto Terminado del turno y el plan se muestra como "—".
+ */
+function ProgramacionCarrusel({ items }: { items: ProgramacionItem[] }) {
+  const [idx, setIdx] = useState(0)
+
+  useEffect(() => {
+    if (items.length <= 1) return
+    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 2500)
+    return () => clearInterval(t)
+  }, [items.length])
+
+  if (items.length === 0) {
+    return (
+      <div>
+        <p className="text-lg font-bold uppercase tracking-[0.14em] text-muted-foreground">Por programar</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">Módulo en preparación</p>
+      </div>
+    )
+  }
+
+  const activo = idx % items.length
+  const item = items[activo]
+
+  return (
+    <div>
+      <div key={activo} className="carrusel-slide">
+        <p className="truncate text-sm font-semibold uppercase tracking-wide text-primary">{item.sabor}</p>
+        <p className="num mt-0.5 text-2xl font-bold leading-none tracking-tight text-foreground">
+          {item.hecho.toLocaleString("es-CO")}
+          <span className="text-base font-semibold text-muted-foreground">
+            {" / "}
+            {item.plan !== null ? item.plan.toLocaleString("es-CO") : "—"}
+          </span>
+        </p>
+      </div>
+      {items.length > 1 && (
+        <div className="mt-2 flex justify-center gap-1">
+          {items.map((it, i) => (
+            <span
+              key={it.sabor}
+              className={cn("size-1 rounded-full transition-colors", i === activo ? "bg-primary" : "bg-border")}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BannerCelda({
   icon: Icon,
   label,
@@ -775,7 +885,7 @@ function MetaAnillo({ pct, reales, esperadas }: { pct: number | null; reales: nu
   const color = clamped >= 90 ? "var(--success)" : clamped >= 60 ? "var(--warning)" : "var(--danger)"
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center justify-center gap-2.5">
       <div
         className="relative grid size-11 shrink-0 place-items-center rounded-full transition-all duration-700"
         style={{ background: `conic-gradient(${color} ${clamped * 3.6}deg, color-mix(in oklab, var(--muted) 90%, transparent) 0deg)` }}

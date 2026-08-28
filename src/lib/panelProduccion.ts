@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
+import { mapearTurno, mermaCorrida, type FilaTurno, type TurnoActivo } from "@/lib/turno"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 
 /*
@@ -85,6 +85,39 @@ export interface MermaEnvasesTurno {
 }
 
 /**
+ * Merma de ENVASES sumando SOLO las corridas que ya tienen los dos
+ * lados cargados (contador Y Producto Terminado), reusando
+ * mermaCorrida() de turno.tsx. Una corrida con contador pero sin PT
+ * todavía NO cuenta como "100% de merma": queda afuera hasta que se
+ * cargue el PT. Si ninguna corrida es comparable todavía → null ("—").
+ *
+ * Antes se sumaban TODOS los contadores del turno contra el PT que
+ * hubiera cargado en ese momento, con la única guarda de que el total
+ * de contadores no fuera 0. Mientras faltaba PT, el número saltaba a
+ * ~100% y volvía a ~1.5% recién cuando estaba todo cargado.
+ */
+function mermaEnvasesDeCorridas(
+  turnoLineaIds: Iterable<string>,
+  turno: Pick<TurnoActivo, "contadores" | "productoTerminado">,
+  presentaciones: PresentacionLive[],
+): { pct: number | null } {
+  let llenadora = 0
+  let reales = 0
+  let algunaComparable = false
+
+  for (const id of new Set(turnoLineaIds)) {
+    const m = mermaCorrida(id, turno, presentaciones)
+    if (!m) continue
+    algunaComparable = true
+    llenadora += m.envasesLlenadora
+    reales += m.envasesProductoTerminado
+  }
+
+  const pct = !algunaComparable || llenadora === 0 ? null : Math.round((1 - reales / llenadora) * 10000) / 100
+  return { pct }
+}
+
+/**
  * Merma de ENVASES de todo el turno (todas las corridas juntas):
  * envases de Producto Terminado contra los que sumaron los
  * contadores. Ya no existe una "merma teórica" aparte (dependía de
@@ -93,47 +126,22 @@ export interface MermaEnvasesTurno {
  * de turno.tsx.
  */
 export function mermaEnvasesTurno(turno: TurnoActivo, presentaciones: PresentacionLive[]): MermaEnvasesTurno {
-  const llenadoraTotal = turno.contadores.reduce((a, c) => a + c.envasesLlenadora, 0)
-
-  const envasesRealesTotal = turno.productoTerminado.reduce((a, p) => {
-    const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
-    const cajasXPaleta = pres?.cajasXPaleta ?? 0
-    const envasesXCaja = pres?.envasesXCaja ?? 0
-    return a + (p.paletas * cajasXPaleta + p.cajasSueltas) * envasesXCaja
-  }, 0)
-  const pct = llenadoraTotal === 0 ? null : Math.round((1 - envasesRealesTotal / llenadoraTotal) * 10000) / 100
-
-  return { pct }
+  const corridaIds = turno.contadores.map((c) => c.turnoLineaId).filter((id): id is string => id !== null)
+  return mermaEnvasesDeCorridas(corridaIds, turno, presentaciones)
 }
 
 /**
- * Merma de ENVASES de una línea puntual, sumando TODAS sus corridas
- * del turno (no solo la corrida activa ahora mismo) — mismo criterio
- * de "sumar todo y recién ahí dividir" que mermaEnvasesTurno(), pero
- * acotado a las corridas de esa línea. Si la línea ya cerró un lote y
- * arrancó uno nuevo en el mismo turno (ej. preparó encima de un
- * tanque en Standby), el lote nuevo recién arranca sin contador propio
- * todavía — sin esto, el dashboard de la línea individual mostraba "—"
- * en vez de la merma real acumulada de esa línea en el turno.
+ * Merma de ENVASES de una línea puntual, agregando TODAS sus corridas
+ * del turno que ya sean comparables (contador + PT), mismo criterio
+ * que mermaEnvasesTurno() pero acotado a esa línea. Si la línea ya
+ * cerró un lote y arrancó uno nuevo en el mismo turno (ej. preparó
+ * encima de un tanque en Standby), la corrida nueva todavía sin PT no
+ * arrastra la merma a ~100%: simplemente no suma hasta tener sus dos
+ * lados, y la línea muestra la merma real que ya lleva acumulada.
  */
 export function mermaLineaTurno(turno: TurnoActivo, lineaCodigo: string, presentaciones: PresentacionLive[]): { pct: number | null } {
-  const corridaIds = new Set(turno.lineas.filter((l) => l.linea === lineaCodigo).map((l) => l.id))
-
-  const llenadora = turno.contadores
-    .filter((c) => c.turnoLineaId && corridaIds.has(c.turnoLineaId))
-    .reduce((a, c) => a + c.envasesLlenadora, 0)
-
-  const envasesReales = turno.productoTerminado
-    .filter((p) => p.turnoLineaId && corridaIds.has(p.turnoLineaId))
-    .reduce((a, p) => {
-      const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
-      const cajasXPaleta = pres?.cajasXPaleta ?? 0
-      const envasesXCaja = pres?.envasesXCaja ?? 0
-      return a + (p.paletas * cajasXPaleta + p.cajasSueltas) * envasesXCaja
-    }, 0)
-
-  const pct = llenadora === 0 ? null : Math.round((1 - envasesReales / llenadora) * 10000) / 100
-  return { pct }
+  const corridaIds = turno.lineas.filter((l) => l.linea === lineaCodigo).map((l) => l.id)
+  return mermaEnvasesDeCorridas(corridaIds, turno, presentaciones)
 }
 
 export interface MermaSemielaboradoTurno {
@@ -159,6 +167,12 @@ export interface MermaSemielaboradoTurno {
  * mano (Corregir) o sumar un resto de Standby — el volumen real del
  * tanque, no el contador, es la única fuente confiable de "cuánto
  * salió".
+ *
+ * Para un turno YA CERRADO, volumenL viene CONGELADO al valor que
+ * tenía al cierre (turno_json() lo saca de turnos.volumenes_lote_cierre,
+ * ver 20260968090000): si el turno dejó un lote de preparación continua
+ * abierto, el turno siguiente le sigue bajando el volumen_l vivo y sin
+ * esto la merma del turno pasado cambiaba en cada refresco del Panel.
  */
 export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoTurno {
   const loteIds = new Set(turno.lineas.map((l) => l.loteId).filter((id): id is string => id !== null))
