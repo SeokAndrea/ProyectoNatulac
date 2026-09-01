@@ -27,6 +27,19 @@ export function nombreSaborConFamilia(nombre: string, familiaNombre: string): st
 }
 
 /*
+ * Selecto, Mango y "35%" se preparan por KITS (1 kit = 2 tambores); el
+ * resto, por tambores. sabores.volumen ya viene por unidad de
+ * preparación (por kit para estos, por tambor para el resto), así que
+ * el cálculo cantidad × volumen NO cambia — solo el rótulo del campo.
+ */
+const PREPARACION_POR_KIT = /selecto|mango|35\s?%/i
+
+/** "kits" o "tambores" según el sabor. Recibe el nombre del sabor (con o sin familia). */
+export function unidadPreparacion(saborNombreOFamilia: string | null | undefined): "kits" | "tambores" {
+  return saborNombreOFamilia && PREPARACION_POR_KIT.test(saborNombreOFamilia) ? "kits" : "tambores"
+}
+
+/*
  * Sabores agrupados por familia, editables desde "Edición de Datos"
  * (SUPERADMINISTRADOR). Vive en las tablas "sabores" y
  * "familias_producto" de Supabase — ver

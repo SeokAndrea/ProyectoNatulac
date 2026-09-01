@@ -60,7 +60,7 @@
 #   esp_merma_envase_turno_pct     Merma de envase de TODO el turno
 #                                  (cargala en una fila del caso).
 #   esp_rendimiento_turno_pct      Merma de semielaborado del turno
-#                                  (litros consumidos vs. producidos).
+#                                  (1 − pt_litros ÷ litros que salieron del tanque).
 #   esp_cajas_esperadas            Cajas que debía sacar la corrida.
 #   esp_cajas_reales               Cajas que sacó la corrida.
 #   esp_cumplimiento_turno_pct     Cajas reales ÷ esperadas del turno.
@@ -71,8 +71,9 @@
 #   horas             = hora_fin - hora_inicio
 #   cajas_esperadas   = velocidad_envases_hora / envases_x_caja * horas   (redondeado)
 #   cajas_reales      = contador_envases / envases_x_caja                 (redondeado)
-#   litros_consumidos = suma por lote de (litros_iniciales - litros_finales)
-#   rendimiento_%     = (1 - suma(pt_litros) / litros_consumidos) * 100
+#   litros_salidos    = suma por lote de (litros_iniciales - litros_finales)
+#   merma_semi_%      = (1 - suma(pt_litros) / litros_salidos) * 100
+#                       (rendimiento = 100 - merma_semi_%)
 #   cumplimiento_%    = suma(cajas_reales activas) / suma(cajas_esperadas activas) * 100
 #
 # Los % se comparan con 0.5 puntos de tolerancia y las cajas con 1 de

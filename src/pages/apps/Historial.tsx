@@ -6,17 +6,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { generarActaPdf } from "@/lib/actaPdf"
-import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { AREAS, CARGOS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
 import { datasetACsv, descargarCsv } from "@/lib/dataset"
 import { obtenerEstadisticas } from "@/lib/estadisticas"
 import { listarSabores, nombreSaborConFamilia } from "@/lib/sabores"
-import { listarProgramacionHistorial, type CambioProgramacion } from "@/lib/programacion"
+import { listarAuditoria, type RegistroAuditoria } from "@/lib/auditoria"
 import { construirHistorial } from "@/lib/historial"
-import { listarPersonal, type PersonalRegistrado } from "@/lib/personal"
 import {
   eliminarTurno,
   listarActas,
@@ -47,9 +47,8 @@ export default function Historial() {
   const { session } = useAuth()
   const { lineas, presentaciones } = useCatalogosLive()
   const [turnosActivos, setTurnosActivos] = useState<TurnoActivoArea[]>([])
-  const [supervisores, setSupervisores] = useState<PersonalRegistrado[]>([])
-  /** "__todos__" = sin filtro por supervisor; si no, el usuario elegido. */
-  const [supervisorUsuario, setSupervisorUsuario] = useState("__todos__")
+  /** Texto libre para filtrar por persona (nombre o usuario), en turnos y en el registro de actividad — de cualquier área y rol. */
+  const [busquedaPersona, setBusquedaPersona] = useState("")
   const [fechaDesde, setFechaDesde] = useState(() => fechaLocal(new Date()))
   const [fechaHasta, setFechaHasta] = useState(() => fechaLocal(new Date()))
   /** "Ver todo": ignora el rango de fechas y trae el histórico completo. */
@@ -77,16 +76,14 @@ export default function Historial() {
   const esSuperadmin = session?.rol === "SUPERADMINISTRADOR"
   const [familiaPorSabor, setFamiliaPorSabor] = useState<Map<string, string>>(new Map())
   const [exportando, setExportando] = useState(false)
-  /* Cambios de la programación diaria (alta/cambio/baja de renglones del
-   * plan), por fecha de edición. Solo SUPERADMINISTRADOR — necesita la
-   * migración 20260977; sin ella el RPC devuelve []. */
-  const [cambiosProg, setCambiosProg] = useState<CambioProgramacion[]>([])
-  const [soloMisCambios, setSoloMisCambios] = useState(true)
+  /* Registro de actividad (auditoría universal). Solo SUPERADMINISTRADOR;
+   * necesita la migración de auditoría — sin ella el RPC devuelve []. */
+  const [auditoria, setAuditoria] = useState<RegistroAuditoria[]>([])
+  const [filtroAccion, setFiltroAccion] = useState("TODAS")
 
   useEffect(() => {
     if (!session) return
     turnosActivosPorArea(session.username).then(setTurnosActivos)
-    listarPersonal(session.username).then((lista) => setSupervisores(lista.filter((p) => p.rol === "SUPERVISOR" && p.activo)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.username])
 
@@ -100,15 +97,21 @@ export default function Historial() {
   /** Rango a mandar a los RPC: undefined cuando "Ver todo" está activo (los RPC lo tratan como "sin filtro"). */
   const rangoBusqueda = () =>
     verTodo ? { fechaDesde: undefined, fechaHasta: undefined } : { fechaDesde, fechaHasta }
-  /** Supervisor elegido, o undefined para "Todos los supervisores". */
-  const supFiltro = supervisorUsuario === "__todos__" ? undefined : supervisorUsuario
+  /** ¿La persona (nombre + usuario) coincide con lo que se escribió en "Buscar persona"? Vacío = todos. */
+  const coincidePersona = (nombre: string | null | undefined, usuario: string | null | undefined) => {
+    const q = busquedaPersona.trim().toLowerCase()
+    return !q || `${nombre ?? ""} ${usuario ?? ""}`.toLowerCase().includes(q)
+  }
 
   async function exportarDataset() {
     setExportando(true)
     try {
       let filas = await obtenerEstadisticas({ ...rangoBusqueda(), areaCodigo: null })
-      if (supFiltro) filas = filas.filter((f) => f.supervisorUsuario === supFiltro)
-      const sufijo = [verTodo ? "historico-completo" : `${fechaDesde}_${fechaHasta}`, supFiltro ?? "todos"].join("_")
+      filas = filas.filter((f) => coincidePersona(f.supervisorNombre, f.supervisorUsuario))
+      const sufijo = [
+        verTodo ? "historico-completo" : `${fechaDesde}_${fechaHasta}`,
+        busquedaPersona.trim() ? busquedaPersona.trim().replace(/\s+/g, "-") : "todos",
+      ].join("_")
       descargarCsv(`dataset-produccion_${sufijo}.csv`, datasetACsv(filas, familiaPorSabor))
     } finally {
       setExportando(false)
@@ -118,10 +121,10 @@ export default function Historial() {
   async function buscar() {
     if (!session) return
     setCargando(true)
-    const lista = await listarTurnosHistorial(session.username, { supervisorUsuario: supFiltro, ...rangoBusqueda() })
+    const lista = await listarTurnosHistorial(session.username, rangoBusqueda())
     setTurnos(lista)
     if (esSuperadmin) {
-      setCambiosProg(await listarProgramacionHistorial(session.username, rangoBusqueda()))
+      setAuditoria(await listarAuditoria(session.username, rangoBusqueda()))
     }
     setCargando(false)
   }
@@ -211,7 +214,24 @@ export default function Historial() {
     buscar()
   }
 
-  const cambiosVisibles = cambiosProg.filter((c) => !soloMisCambios || c.usuarioUsuario === session?.username)
+  const accionesAuditoria = [...new Set(auditoria.map((r) => r.accion))].sort()
+  const turnosVisibles = turnos.filter((t) => coincidePersona(t.supervisorNombre, t.supervisorUsuario))
+  const auditoriaVisible = auditoria.filter(
+    (r) => (filtroAccion === "TODAS" || r.accion === filtroAccion) && coincidePersona(r.usuarioNombre, r.usuario),
+  )
+  /** Registro agrupado por día (más nuevo primero, como viene). */
+  const auditoriaPorDia = auditoriaVisible.reduce<{ dia: string; registros: RegistroAuditoria[] }[]>((acc, r) => {
+    const dia = new Date(r.ocurridoEn).toLocaleDateString("es-CO", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    })
+    const grupo = acc[acc.length - 1]
+    if (grupo && grupo.dia === dia) grupo.registros.push(r)
+    else acc.push({ dia, registros: [r] })
+    return acc
+  }, [])
 
   if (seleccionado) {
     return (
@@ -356,20 +376,13 @@ export default function Historial() {
           <CardContent className="flex flex-col gap-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="flex flex-col gap-2">
-                <Label>Supervisor</Label>
-                <Select value={supervisorUsuario} onValueChange={setSupervisorUsuario}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__todos__">Todos los supervisores</SelectItem>
-                    {supervisores.map((s) => (
-                      <SelectItem key={s.id} value={s.usuario}>
-                        {s.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="buscar-persona">Buscar</Label>
+                <Input
+                  id="buscar-persona"
+                  placeholder="Nombre o usuario (cualquier área)"
+                  value={busquedaPersona}
+                  onChange={(e) => setBusquedaPersona(e.target.value)}
+                />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="fecha-desde">Desde</Label>
@@ -423,35 +436,47 @@ export default function Historial() {
         </Card>
 
         {esSuperadmin && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle>Cambios de programación</CardTitle>
-              <label className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={soloMisCambios}
-                  onChange={(e) => setSoloMisCambios(e.target.checked)}
-                  className="size-3.5 accent-primary"
-                />
-                Solo míos
-              </label>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              <p className="text-xs text-muted-foreground">
-                Altas, cambios y bajas del plan diario · por fecha de edición{" "}
-                {verTodo ? "· todo el histórico" : `(${fechaDesde} → ${fechaHasta})`}.
-              </p>
-              {cargando ? null : cambiosVisibles.length === 0 ? (
+          <SeccionColapsable
+            titulo={`Registro de actividad${auditoriaVisible.length ? ` (${auditoriaVisible.length})` : ""}`}
+            descripcion={`Registro diario de toda mutación (crear / editar / borrar): quién, cuándo, en qué página y los valores antes/después · ${
+              verTodo ? "todo el histórico" : `${fechaDesde} → ${fechaHasta}`
+            }.`}
+          >
+            <div className="flex flex-col gap-3">
+              <Select value={filtroAccion} onValueChange={setFiltroAccion}>
+                <SelectTrigger className="h-8 w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODAS">Todas las acciones</SelectItem>
+                  {accionesAuditoria.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {cargando ? null : auditoriaVisible.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">
-                  {cambiosProg.length === 0
-                    ? "No hay cambios de programación en ese rango."
-                    : "No hay cambios tuyos en ese rango."}
+                  {auditoria.length === 0
+                    ? "Sin actividad registrada en ese rango (o la migración de auditoría todavía no está aplicada)."
+                    : "Nada coincide con ese filtro."}
                 </p>
               ) : (
-                cambiosVisibles.map((c, i) => <FilaCambioProg key={i} c={c} />)
+                auditoriaPorDia.map(({ dia, registros }) => (
+                  <div key={dia} className="flex flex-col gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {dia} · {registros.length}
+                    </p>
+                    {registros.map((r, i) => (
+                      <FilaAuditoria key={i} r={r} />
+                    ))}
+                  </div>
+                ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SeccionColapsable>
         )}
 
         <div className="flex flex-col gap-2">
@@ -459,10 +484,10 @@ export default function Historial() {
             <div className="flex justify-center py-8 text-muted-foreground">
               <Loader2 className="size-5 animate-spin" />
             </div>
-          ) : turnos.length === 0 ? (
+          ) : turnosVisibles.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No se encontraron turnos con esos filtros.</p>
           ) : (
-            turnos.map((t) => (
+            turnosVisibles.map((t) => (
               <button
                 key={t.id}
                 onClick={() => verDetalle(t)}
@@ -489,33 +514,53 @@ export default function Historial() {
   )
 }
 
-const ACCION_PROG: Record<CambioProgramacion["accion"], { texto: string; variant: "success" | "warning" | "danger" }> = {
-  ALTA: { texto: "Agregó", variant: "success" },
-  CAMBIO: { texto: "Cambió", variant: "warning" },
-  BAJA: { texto: "Quitó", variant: "danger" },
+const ACCION_AUDIT: Record<string, "success" | "warning" | "danger" | "muted" | "secondary"> = {
+  CREAR: "success",
+  ACTIVAR: "success",
+  EDITAR: "warning",
+  DESACTIVAR: "muted",
+  RESET_PASSWORD: "secondary",
+  ELIMINAR: "danger",
 }
 
-function FilaCambioProg({ c }: { c: CambioProgramacion }) {
-  const a = ACCION_PROG[c.accion]
-  const cajas =
-    c.accion === "ALTA"
-      ? `${c.cajasDespues ?? 0} cajas`
-      : c.accion === "BAJA"
-        ? `${c.cajasAntes ?? 0} cajas → —`
-        : `${c.cajasAntes ?? 0} → ${c.cajasDespues ?? 0} cajas`
+function valorLegible(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—"
+  if (typeof v === "object") return JSON.stringify(v)
+  return String(v)
+}
+
+function FilaAuditoria({ r }: { r: RegistroAuditoria }) {
+  const variant = ACCION_AUDIT[r.accion] ?? "outline"
+  const claves = [...new Set([...Object.keys(r.antes ?? {}), ...Object.keys(r.despues ?? {})])]
+  const diffs = claves
+    .map((k) => ({ k, antes: r.antes?.[k], despues: r.despues?.[k] }))
+    .filter((x) => JSON.stringify(x.antes ?? null) !== JSON.stringify(x.despues ?? null))
+
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <p className="font-medium text-foreground">
-          {c.saborNombre}
-          {c.presentacionMl ? ` · ${c.presentacionMl} ml` : ""} — {cajas}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {nombrePorCodigo(AREAS, c.areaCodigo)} · jornada {c.fechaJornada} · {c.usuarioNombre ?? c.usuarioUsuario ?? "—"} ·{" "}
-          {new Date(c.creadoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
-        </p>
+    <div className="flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={variant}>{r.accion}</Badge>
+        <span className="font-medium text-foreground">{r.resumen ?? `${r.accion} · ${r.entidad}`}</span>
       </div>
-      <Badge variant={a.variant}>{a.texto}</Badge>
+      <p className="text-xs text-muted-foreground">
+        {r.usuarioNombre ?? r.usuario ?? "—"}
+        {r.usuarioCargo ? ` (${nombrePorCodigo(CARGOS, r.usuarioCargo)})` : ""} ·{" "}
+        {new Date(r.ocurridoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+        {r.pagina ? ` · ${r.pagina}` : ""}
+      </p>
+      {diffs.length > 0 && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-muted-foreground">Ver valores</summary>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {diffs.map((x) => (
+              <li key={x.k}>
+                <span className="text-muted-foreground">{x.k}:</span> {valorLegible(x.antes)}{" "}
+                <span className="text-muted-foreground">→</span> {valorLegible(x.despues)}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   )
 }

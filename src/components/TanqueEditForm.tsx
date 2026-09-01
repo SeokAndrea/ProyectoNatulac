@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { nombreSaborConFamilia, type Sabor } from "@/lib/sabores"
+import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
 import type { CondicionTanque, DatosCambiarTanque, TanqueRecepcion } from "@/lib/turno"
 
 type Resultado = { ok: true } | { ok: false; error: string }
@@ -38,25 +38,47 @@ export function TanqueEditForm({
   const [condicion, setCondicion] = useState<CondicionTanque>(tanque.condicion)
   const [saborId, setSaborId] = useState(tanque.saborId ?? "")
   const [volumenL, setVolumenL] = useState(tanque.volumenL !== null ? String(tanque.volumenL) : "")
+  const [tambores, setTambores] = useState("")
   const [lote, setLote] = useState(tanque.lote ?? "")
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  /** Standby (resto del lote que se cerró solo) también necesita sabor/volumen/lote — igual que Listo. */
+  /** Listo y Standby (resto del lote) piden sabor/volumen/lote. */
   const requiereDatos = condicion === "LISTO" || condicion === "STANDBY"
-  const volumenValido =
-    !requiereDatos || (saborId !== "" && volumenL !== "" && Number(volumenL) > 0 && Number(volumenL) <= 20000 && lote.trim() !== "")
+  /*
+   * "En Preparación (no liberado)" también permite cargar la
+   * preparación (sabor + tambores + lote) sin liberarla — igual que
+   * Iniciar Preparación; el volumen sale de tambores × volumen del
+   * sabor. Es opcional: se puede dejar el tanque En Preparación sin
+   * datos (los 3 campos vacíos).
+   */
+  const esPrepConDatos = condicion === "EN_PREPARACION" && (saborId !== "" || tambores !== "" || lote.trim() !== "")
+  const saborElegido = sabores.find((s) => s.id === saborId) ?? null
+  const unidadPrep = unidadPreparacion(saborElegido ? `${saborElegido.nombre} ${saborElegido.familiaNombre}` : null)
+  const volumenDeTambores =
+    saborElegido?.volumen && tambores !== "" ? Math.round(Number(tambores) * saborElegido.volumen) : null
+
+  const datosValidos =
+    (!requiereDatos && !esPrepConDatos) ||
+    (requiereDatos &&
+      saborId !== "" &&
+      volumenL !== "" &&
+      Number(volumenL) > 0 &&
+      Number(volumenL) <= 20000 &&
+      lote.trim() !== "") ||
+    (esPrepConDatos && saborId !== "" && tambores !== "" && Number(tambores) > 0 && lote.trim() !== "")
 
   async function guardar() {
-    if (!volumenValido) return
+    if (!datosValidos) return
     setGuardando(true)
     setError(null)
     const resultado = await onGuardar({
       numeroTanque: tanque.numeroTanque,
       condicion,
-      saborId: requiereDatos ? saborId : null,
+      saborId: requiereDatos || esPrepConDatos ? saborId : null,
       volumenL: requiereDatos ? Number(volumenL) : null,
-      lote: requiereDatos ? normalizarLote(lote) : null,
+      tambores: esPrepConDatos ? Number(tambores) : null,
+      lote: requiereDatos || esPrepConDatos ? normalizarLote(lote) : null,
     })
     setGuardando(false)
     if (!resultado.ok) {
@@ -80,7 +102,7 @@ export function TanqueEditForm({
         </SelectContent>
       </Select>
 
-      {requiereDatos && (
+      {(requiereDatos || condicion === "EN_PREPARACION") && (
         <div className="grid grid-cols-2 gap-2">
           <Select value={saborId} onValueChange={setSaborId}>
             <SelectTrigger className="w-full">
@@ -94,15 +116,32 @@ export function TanqueEditForm({
               ))}
             </SelectContent>
           </Select>
-          <Input
-            type="number"
-            min={0}
-            max={20000}
-            placeholder="Volumen (L)"
-            value={volumenL}
-            onChange={(e) => setVolumenL(e.target.value)}
-          />
+          {condicion === "EN_PREPARACION" ? (
+            <Input
+              type="number"
+              min={0}
+              placeholder={unidadPrep === "kits" ? "Kits" : "Tambores"}
+              value={tambores}
+              onChange={(e) => setTambores(e.target.value)}
+            />
+          ) : (
+            <Input
+              type="number"
+              min={0}
+              max={20000}
+              placeholder="Volumen (L)"
+              value={volumenL}
+              onChange={(e) => setVolumenL(e.target.value)}
+            />
+          )}
           <Input className="col-span-2" placeholder="Lote" value={lote} onChange={(e) => setLote(e.target.value)} />
+          {condicion === "EN_PREPARACION" && (
+            <p className="col-span-2 text-[11px] text-muted-foreground">
+              {volumenDeTambores !== null
+                ? `≈ ${volumenDeTambores.toLocaleString("es-CO")} L (${unidadPrep} × volumen del sabor). Se guarda sin liberar.`
+                : `Sabor + ${unidadPrep} + lote — o deja los 3 vacíos para marcar el tanque En Preparación sin datos.`}
+            </p>
+          )}
         </div>
       )}
 
@@ -113,7 +152,7 @@ export function TanqueEditForm({
       )}
 
       <div className="flex gap-2">
-        <Button size="sm" disabled={!volumenValido || guardando} onClick={guardar}>
+        <Button size="sm" disabled={!datosValidos || guardando} onClick={guardar}>
           {guardando ? <Loader2 className="size-3.5 animate-spin" /> : null}
           {guardarTexto}
         </Button>

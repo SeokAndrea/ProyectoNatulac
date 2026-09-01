@@ -97,6 +97,7 @@ export default function Programacion() {
       area,
       fecha,
       validas.map((f) => ({ saborId: saborIdDe(f.saborTexto), presentacionId: f.presentacionId, cajasPlan: Number(f.cajas) })),
+      "Programación",
     )
     setGuardando(false)
     if (!resultado.ok) {

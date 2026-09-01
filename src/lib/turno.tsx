@@ -295,6 +295,8 @@ export interface DatosCambiarTanque {
   saborId: string | null
   volumenL: number | null
   lote: string | null
+  /** Solo para condicion "EN_PREPARACION" con datos: crea la preparación abierta (el volumen sale de tambores × volumen del sabor). */
+  tambores?: number | null
   /** Si viene, además de guardar los datos marca el tanque como revisado para ese momento del turno. */
   momento?: "INICIO" | "FIN"
 }
@@ -906,6 +908,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_volumen_l: datos.volumenL,
       p_lote: datos.lote,
       p_momento: datos.momento ?? null,
+      p_tambores: datos.tambores ?? null,
     })
 
     if (error || !data) {
@@ -1000,6 +1003,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_justificacion: datos.justificacion,
       p_usuario: usuario,
       p_parcial: datos.parcial ?? false,
+      p_pagina: "Producto Terminado y Contador",
     })
 
     if (error || !data) {
@@ -1048,6 +1052,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_producto_retenido: datos.productoRetenido,
       p_cajas_retenidas: datos.cajasRetenidas,
       p_parcial: datos.parcial ?? false,
+      p_pagina: "Producto Terminado y Contador",
     })
 
     if (error || !data) {

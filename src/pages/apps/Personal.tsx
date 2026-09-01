@@ -15,7 +15,7 @@ export default function Personal() {
   return (
     <AppShell title="Personal" description="Alta, edición y baja de personal de tu área">
       <div className="mx-auto max-w-3xl">
-        <PersonalPanel />
+        <PersonalPanel pagina="Personal" />
       </div>
     </AppShell>
   )

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
+import type { AreaCodigo, CargoCodigo, RolCodigo } from "@/lib/catalogos"
 
 export interface PersonalRegistrado {
   id: string
@@ -7,7 +7,11 @@ export interface PersonalRegistrado {
   nombre: string
   cedula: string | null
   area: AreaCodigo | null
+  /** De dónde es la persona en realidad, cuando está cubriendo otra área temporalmente (ej. reemplazo). null = sin reemplazo. Es solo informativo, no afecta permisos ni scoping — ver migración 20260979. */
+  areaOrigen: AreaCodigo | null
   rol: RolCodigo
+  /** Título del puesto, solo visual — no afecta permisos (ver migración 20260982). null = sin cargo cargado. */
+  cargo: CargoCodigo | null
   activo: boolean
 }
 
@@ -36,6 +40,8 @@ interface FilaPersonal {
   cedula: string | null
   rol_codigo: string
   area_codigo: string | null
+  area_origen_codigo: string | null
+  cargo: string | null
   activo: boolean
 }
 
@@ -48,14 +54,25 @@ export async function listarPersonal(usuarioSesion: string): Promise<PersonalReg
     nombre: fila.nombre ?? fila.usuario,
     cedula: fila.cedula,
     area: fila.area_codigo as AreaCodigo | null,
+    areaOrigen: fila.area_origen_codigo as AreaCodigo | null,
     rol: fila.rol_codigo as RolCodigo,
+    cargo: fila.cargo as CargoCodigo | null,
     activo: fila.activo,
   }))
 }
 
 export async function editarPersonal(
   usuarioSesion: string,
-  datos: { id: string; nombre: string; cedula: string; area: AreaCodigo; rol: RolCodigo },
+  datos: {
+    id: string
+    nombre: string
+    cedula: string
+    area: AreaCodigo
+    areaOrigen: AreaCodigo | null
+    rol: RolCodigo
+    cargo: CargoCodigo | null
+  },
+  pagina: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await supabase.rpc("editar_personal", {
     p_creador_usuario: usuarioSesion,
@@ -64,6 +81,9 @@ export async function editarPersonal(
     p_cedula: datos.cedula,
     p_area_codigo: datos.area,
     p_rol_codigo: datos.rol,
+    p_area_origen_codigo: datos.areaOrigen,
+    p_cargo: datos.cargo,
+    p_pagina: pagina,
   })
   if (error) {
     return { ok: false, error: error.message || "No se pudo editar el personal. Intenta de nuevo." }
@@ -71,22 +91,36 @@ export async function editarPersonal(
   return { ok: true }
 }
 
-export async function restablecerPassword(usuarioSesion: string, id: string, nuevaPassword: string): Promise<boolean> {
+export async function restablecerPassword(
+  usuarioSesion: string,
+  id: string,
+  nuevaPassword: string,
+  pagina: string,
+): Promise<boolean> {
   const { error } = await supabase.rpc("restablecer_password", {
     p_creador_usuario: usuarioSesion,
     p_usuario_id: id,
     p_password: nuevaPassword,
+    p_pagina: pagina,
   })
   return !error
 }
 
-export async function desactivarPersonal(usuarioSesion: string, id: string): Promise<boolean> {
-  const { error } = await supabase.rpc("desactivar_personal", { p_creador_usuario: usuarioSesion, p_usuario_id: id })
+export async function desactivarPersonal(usuarioSesion: string, id: string, pagina: string): Promise<boolean> {
+  const { error } = await supabase.rpc("desactivar_personal", {
+    p_creador_usuario: usuarioSesion,
+    p_usuario_id: id,
+    p_pagina: pagina,
+  })
   return !error
 }
 
-export async function reactivarPersonal(usuarioSesion: string, id: string): Promise<boolean> {
-  const { error } = await supabase.rpc("reactivar_personal", { p_creador_usuario: usuarioSesion, p_usuario_id: id })
+export async function reactivarPersonal(usuarioSesion: string, id: string, pagina: string): Promise<boolean> {
+  const { error } = await supabase.rpc("reactivar_personal", {
+    p_creador_usuario: usuarioSesion,
+    p_usuario_id: id,
+    p_pagina: pagina,
+  })
   return !error
 }
 
@@ -100,11 +134,13 @@ export async function eliminarPersonal(
   usuarioSesion: string,
   id: string,
   forzar = false,
+  pagina = "",
 ): Promise<{ ok: true } | { ok: false; error: string; tieneRegistros?: boolean }> {
   const { error } = await supabase.rpc("eliminar_personal", {
     p_creador_usuario: usuarioSesion,
     p_usuario_id: id,
     p_forzar: forzar,
+    p_pagina: pagina,
   })
   if (error) {
     if (error.code === "23503") {
@@ -121,7 +157,17 @@ export async function eliminarPersonal(
 
 export async function agregarPersonal(
   usuarioSesion: string,
-  datos: { usuario: string; nombre: string; cedula: string; password: string; area: AreaCodigo; rol: RolCodigo },
+  datos: {
+    usuario: string
+    nombre: string
+    cedula: string
+    password: string
+    area: AreaCodigo
+    areaOrigen: AreaCodigo | null
+    rol: RolCodigo
+    cargo: CargoCodigo | null
+  },
+  pagina: string,
 ): Promise<{ ok: true; personal: PersonalRegistrado } | { ok: false; error: string }> {
   const { data, error } = await supabase.rpc("crear_usuario", {
     p_creador_usuario: usuarioSesion,
@@ -131,6 +177,9 @@ export async function agregarPersonal(
     p_area_codigo: datos.area,
     p_nombre: datos.nombre,
     p_cedula: datos.cedula,
+    p_area_origen_codigo: datos.areaOrigen,
+    p_cargo: datos.cargo,
+    p_pagina: pagina,
   })
 
   if (error) {
@@ -149,7 +198,9 @@ export async function agregarPersonal(
       nombre: datos.nombre,
       cedula: datos.cedula,
       area: datos.area,
+      areaOrigen: datos.areaOrigen,
       rol: datos.rol,
+      cargo: datos.cargo,
       activo: true,
     },
   }

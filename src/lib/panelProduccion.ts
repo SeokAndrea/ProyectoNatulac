@@ -43,6 +43,49 @@ export async function obtenerProduccionDia(areaCodigo: string, fecha: string): P
   )
 }
 
+export interface AjusteSemielaborado {
+  lote: string | null
+  sabor: string
+  volumenTeorico: number
+  volumenReal: number
+  /** real − teórico. Negativo = faltaron litros ("al aire"). */
+  diferencia: number
+  usuarioNombre: string | null
+  creadoEn: string
+}
+
+/** Correcciones manuales de volumen de lote del turno (teórico vs. real). [] si la migración 20260988 no está aplicada. */
+export async function ajustesSemielaboradoTurno(turnoId: string): Promise<AjusteSemielaborado[]> {
+  const { data, error } = await supabase.rpc("ajustes_semielaborado_turno", { p_turno_id: turnoId })
+  if (error || !data) return []
+  return (
+    data as Array<{
+      lote: string | null
+      sabor: string
+      volumen_teorico: number | string
+      volumen_real: number | string
+      diferencia: number | string
+      usuario_nombre: string | null
+      creado_en: string
+    }>
+  ).map((r) => ({
+    lote: r.lote,
+    sabor: r.sabor,
+    volumenTeorico: Number(r.volumen_teorico) || 0,
+    volumenReal: Number(r.volumen_real) || 0,
+    diferencia: Number(r.diferencia) || 0,
+    usuarioNombre: r.usuario_nombre,
+    creadoEn: r.creado_en,
+  }))
+}
+
+/** Cargo (rótulo del puesto) de un usuario, para mostrarlo junto al nombre del supervisor. null si no tiene o si el RPC no existe todavía. */
+export async function cargoDeUsuario(usuario: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc("cargo_de_usuario", { p_usuario: usuario })
+  if (error) return null
+  return (data as string | null) ?? null
+}
+
 export async function obtenerTurnoDeFechaTipo(fecha: string, turnoTipo: string, areaCodigo: string | null): Promise<TurnoActivo | null> {
   const { data, error } = await supabase.rpc("turno_de_fecha_tipo", {
     p_fecha: fecha,
@@ -185,47 +228,50 @@ export function mermaLineaTurno(turno: TurnoActivo, lineaCodigo: string, present
 
 export interface MermaSemielaboradoTurno {
   pct: number | null
+  /** Σ (volumen inicial − volumen final) de cada lote — litros que salieron del tanque. Es el denominador de la merma. */
   litrosConsumidos: number
+  /** Σ litros de Producto Terminado del turno — lo que efectivamente se envasó. */
   litrosProducidos: number
+  /** Σ volumen inicial preparado de cada lote (informativo). */
+  volumenInicial: number
 }
 
 /**
- * Merma de SEMIELABORADO: litros que salieron REALMENTE de los
- * tanques — por cada lote (preparación) que tocó alguna corrida de
- * este turno, volumenInicialL - volumenL actual — contra los litros
- * que efectivamente salieron en Producto Terminado. Es la merma de
- * ANTES de la llenadora (jarabe/mezcla que no llegó a envasarse) —
- * complementa a mermaEnvasesTurno(), que mide la de DESPUÉS (llenadora
- * vs. paletizado).
+ * Merma de SEMIELABORADO: de los litros que REALMENTE salieron del
+ * tanque (volumen inicial − volumen final, por lote), cuántos NO
+ * llegaron a Producto Terminado — jarabe/mezcla que se fue en drenaje,
+ * espuma, línea, etc.
  *
- * OJO: no se calcula desde el Contador (envasesLlenadora × volumenMl)
- * — ese cálculo asumía que registrar_contador() seguía descontando del
- * lote, pero eso se sacó en 20260928090000_cerrar_corrida_desde_contador_o_producto.sql
- * (el único que descuenta volumen_l hoy es Producto Terminado, ver
- * registrar_producto_terminado()). Además el tanque puede corregirse a
- * mano (Corregir) o sumar un resto de Standby — el volumen real del
- * tanque, no el contador, es la única fuente confiable de "cuánto
- * salió".
+ *   merma % = 1 − (litros de Producto Terminado ÷ litros que salieron del tanque)
  *
- * Para un turno YA CERRADO, volumenL viene CONGELADO al valor que
- * tenía al cierre (turno_json() lo saca de turnos.volumenes_lote_cierre,
- * ver 20260968090000): si el turno dejó un lote de preparación continua
- * abierto, el turno siguiente le sigue bajando el volumen_l vivo y sin
- * esto la merma del turno pasado cambiaba en cada refresco del Panel.
+ * Ej.: del tanque salieron 18.380 L y el Producto Terminado suma
+ * 11.016 L → merma 40,1 %, y el "rendimiento" que muestra el Panel =
+ * 100 − eso = 59,9 %.
+ *
+ * NO se usa el volumen inicial preparado como denominador: un lote
+ * preparado y casi no usado en el turno sumaría sus miles de litros
+ * ahí e inflaría la merma. Lo que importa es lo que salió del tanque.
+ *
+ * Para un turno YA CERRADO, los volúmenes vienen CONGELADOS al valor
+ * que tenían al cierre (turno_json() los saca de
+ * turnos.volumenes_lote_cierre, ver 20260968090000).
  */
 export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoTurno {
   const loteIds = new Set(turno.lineas.map((l) => l.loteId).filter((id): id is string => id !== null))
 
-  const litrosConsumidos = [...loteIds].reduce((a, loteId) => {
+  let volumenInicial = 0
+  let litrosConsumidos = 0
+  for (const loteId of loteIds) {
     const lote = turno.preparaciones.find((p) => p.id === loteId)
-    if (!lote || lote.volumenInicialL === null) return a
-    return a + (lote.volumenInicialL - (lote.volumenL ?? 0))
-  }, 0)
+    if (!lote || lote.volumenInicialL === null) continue
+    volumenInicial += lote.volumenInicialL
+    litrosConsumidos += lote.volumenInicialL - (lote.volumenL ?? 0)
+  }
 
   const litrosProducidos = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)
-  const pct = litrosConsumidos === 0 ? null : Math.round((1 - litrosProducidos / litrosConsumidos) * 10000) / 100
+  const pct = litrosConsumidos <= 0 ? null : Math.round((1 - litrosProducidos / litrosConsumidos) * 10000) / 100
 
-  return { pct, litrosConsumidos, litrosProducidos }
+  return { pct, litrosConsumidos, litrosProducidos, volumenInicial }
 }
 
 export interface ResumenTurnoAnterior {

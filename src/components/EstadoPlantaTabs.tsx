@@ -29,7 +29,7 @@ import { useAuth } from "@/lib/auth"
 import { nombrePorCodigo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, presentacionesPorLineaLive, velocidadesParaLive } from "@/lib/catalogosLive"
 import { listarReservasTobos, type ReservaTobo } from "@/lib/reservasTobos"
-import { nombreSaborConFamilia, type Sabor } from "@/lib/sabores"
+import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
 import { cn } from "@/lib/utils"
 import {
   useTurno,
@@ -399,7 +399,7 @@ function TanqueCard({
           {tanque.condicion === "EN_PREPARACION" && (
             <p className="text-sm text-muted-foreground">
               {loteAbierto
-                ? `${loteAbierto.saborNombre ?? "Sin sabor"}${loteAbierto.lote ? ` · Lote ${loteAbierto.lote}` : ""} · ${loteAbierto.tambores} tambores${loteAbierto.volumenL ? ` · ${loteAbierto.volumenL} L` : ""}`
+                ? `${loteAbierto.saborNombre ?? "Sin sabor"}${loteAbierto.lote ? ` · Lote ${loteAbierto.lote}` : ""} · ${loteAbierto.tambores} ${unidadPreparacion(loteAbierto.saborNombre)}${loteAbierto.volumenL ? ` · ${loteAbierto.volumenL} L` : ""}`
                 : "Sin datos de la preparación."}
             </p>
           )}
@@ -625,6 +625,7 @@ function FormularioIniciarPreparacion({
   }, [saborId, areaCodigo, usuarioSesion])
 
   const saborElegido = sabores.find((s) => s.id === saborId)
+  const unidadPrep = unidadPreparacion(saborElegido ? `${saborElegido.nombre} ${saborElegido.familiaNombre}` : null)
   const reservaElegida = reservas.find((r) => r.id === reservaId)
   const litrosEstimados =
     saborElegido?.volumen && tambores !== "" && Number(tambores) > 0
@@ -674,7 +675,13 @@ function FormularioIniciarPreparacion({
           </SelectContent>
         </Select>
         <Input placeholder="Lote" value={lote} onChange={(e) => setLote(e.target.value)} />
-        <Input type="number" min={0} placeholder="Tambores" value={tambores} onChange={(e) => setTambores(e.target.value)} />
+        <Input
+          type="number"
+          min={0}
+          placeholder={unidadPrep === "kits" ? "Kits" : "Tambores"}
+          value={tambores}
+          onChange={(e) => setTambores(e.target.value)}
+        />
         <Input type="number" min={0} placeholder="Agua (L)" value={agua} onChange={(e) => setAgua(e.target.value)} />
         <Input type="number" min={0} placeholder="Azúcar (kg)" value={azucar} onChange={(e) => setAzucar(e.target.value)} />
         <Input

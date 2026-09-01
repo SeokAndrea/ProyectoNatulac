@@ -105,12 +105,14 @@ export async function reabrirTurno(
 export async function corregirProductoTerminado(
   usuarioSesion: string,
   datos: { turnoLineaId: string; paletas: number; cajasSueltas: number },
+  pagina = "Editar Turno",
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await supabase.rpc("corregir_producto_terminado_auditoria", {
     p_usuario: usuarioSesion,
     p_turno_linea_id: datos.turnoLineaId,
     p_paletas: datos.paletas,
     p_cajas_sueltas: datos.cajasSueltas,
+    p_pagina: pagina,
   })
   if (error) {
     return { ok: false, error: error.message || "No se pudo corregir. Intenta de nuevo." }

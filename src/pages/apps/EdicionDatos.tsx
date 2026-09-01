@@ -63,7 +63,7 @@ export default function EdicionDatos() {
           <SaboresTab />
         </TabsContent>
         <TabsContent value="personal">
-          <PersonalPanel />
+          <PersonalPanel pagina="Edición de Datos → Personal" />
         </TabsContent>
         <TabsContent value="presentaciones">
           <PresentacionesTab />

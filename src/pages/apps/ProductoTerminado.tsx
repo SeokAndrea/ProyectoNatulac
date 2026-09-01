@@ -433,6 +433,8 @@ function FilaProductoTerminado({
   const saborId = registroExistente?.saborId ?? lineaTurno.saborId
   /** Ya se decidió el destino de esta corrida (Terminó Corrida o Entregada al siguiente turno) — queda bloqueada salvo "Editar un error". */
   const estaCerrada = (!lineaTurno.activa && !lineaTurno.esperandoCierre) || lineaTurno.entregadaEn !== null
+  /** Corrida en pausa (parada reversible): no se puede cargar producto terminado hasta reanudarla. */
+  const estaPausada = lineaTurno.pausadaEn !== null && !estaCerrada
   /** Sigue corriendo y todavía no se decidió su próximo estado — acá se elige y se cierra de una. */
   const puedeElegirProximoEstado = lineaTurno.activa && lineaTurno.entregadaEn === null
   /**
@@ -613,6 +615,56 @@ function FilaProductoTerminado({
     setJustificacion("")
     setProximoEstado(null)
     setEditandoError(false)
+  }
+
+  // Línea parada: no se carga producto terminado hasta reanudarla (desde Preparación).
+  if (estaPausada && !editandoError) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <span className="rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">
+                {nombreLinea}
+              </span>
+              {lineaTurno.lote && <span className="text-sm font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
+            </CardTitle>
+            <Badge variant="warning">Parada</Badge>
+          </div>
+          <CardDescription>{presentacion?.nombre ?? `${lineaTurno.presentacion} ml`}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            La línea está parada. Reanúdala en Preparación para poder cargar su producto terminado.
+          </p>
+          {registroExistente && (
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Paletas · Cajas sueltas</p>
+                <p className="font-medium text-foreground">
+                  {registroExistente.paletas} · {registroExistente.cajasSueltas}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Litros producidos</p>
+                <p className="font-medium text-foreground">
+                  {(registroExistente.litrosProducidos ?? 0).toLocaleString("es-CO")} L
+                </p>
+              </div>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="self-start text-muted-foreground"
+            onClick={() => setEditandoError(true)}
+          >
+            <PenLine className="size-3.5" />
+            Editar un error
+          </Button>
+        </CardContent>
+      </Card>
+    )
   }
 
   // Ya cerrada (Terminó Corrida o Entregada) y no se está corrigiendo un error: vista bloqueada, solo lectura.

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 import {
   Activity,
   AlertTriangle,
@@ -34,7 +35,7 @@ import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/c
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth } from "@/lib/auth"
-import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
+import { AREAS, CARGOS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, velocidadesParaLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
 import {
   badgeVariantPorNivel,
@@ -50,6 +51,9 @@ import {
 } from "@/lib/estadisticas"
 import {
   calcularMeta,
+  ajustesSemielaboradoTurno,
+  cargoDeUsuario,
+  type AjusteSemielaborado,
   mermaEnvasesTurno,
   mermaLineaTurno,
   mermaSemielaboradoTurno,
@@ -267,6 +271,8 @@ function produccionPorLineaDe(
  */
 export default function PanelProduccion() {
   const { session } = useAuth()
+  /** Para el supervisor, tanques y líneas del panel llevan a Preparación (donde puede tocarlos). */
+  const esSupervisor = session?.rol === "SUPERVISOR"
   const { lineas, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -275,6 +281,8 @@ export default function PanelProduccion() {
   const [turnoTipo, setTurnoTipo] = useState(() => turnoTipoActual())
   const [buscado, setBuscado] = useState(false)
   const [turnoAnterior, setTurnoAnterior] = useState<ResumenTurnoAnterior | null>(null)
+  /** Cargo (rótulo del puesto) del supervisor del turno, para mostrarlo junto al nombre. */
+  const [supervisorCargo, setSupervisorCargo] = useState<string | null>(null)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [ahora, setAhora] = useState(() => new Date())
   /** Sube cada REFRESCO_EN_VIVO_MS; dispara la recarga silenciosa del turno en vivo y de los datos de la jornada. */
@@ -319,6 +327,20 @@ export default function PanelProduccion() {
     const id = setInterval(() => setTickRefresco((n) => n + 1), REFRESCO_EN_VIVO_MS)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    let vivo = true
+    if (!turno?.supervisorUsuario) {
+      setSupervisorCargo(null)
+      return
+    }
+    cargoDeUsuario(turno.supervisorUsuario).then((c) => {
+      if (vivo) setSupervisorCargo(c)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [turno?.supervisorUsuario])
 
   useEffect(() => {
     let vivo = true
@@ -609,6 +631,9 @@ export default function PanelProduccion() {
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
                   <UserRound className="size-3.5 text-primary" />
                   {turno.supervisorNombre}
+                  {supervisorCargo && (
+                    <span className="text-muted-foreground">· {nombrePorCodigo(CARGOS, supervisorCargo)}</span>
+                  )}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Turno {turno.codigo} · {nombrePorCodigo(GRUPOS, turno.grupo)}
@@ -753,9 +778,20 @@ export default function PanelProduccion() {
               <div className="rise-in flex flex-col gap-4 xl:col-span-4">
                 <PanelCard icon={Container} titulo="Tanques" meta={`${tanquesListos}/${turno.tanques.length} listos`}>
                   <div className="grid grid-cols-3 gap-3">
-                    {turno.tanques.map((t) => (
-                      <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={turno.preparaciones} />
-                    ))}
+                    {turno.tanques.map((t) =>
+                      esSupervisor ? (
+                        <Link
+                          key={t.numeroTanque}
+                          to="/preparacion"
+                          className="rounded-xl outline-none transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-ring"
+                          title="Ir a Preparación"
+                        >
+                          <TanqueCard tanque={t} preparaciones={turno.preparaciones} />
+                        </Link>
+                      ) : (
+                        <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={turno.preparaciones} />
+                      ),
+                    )}
                   </div>
                 </PanelCard>
 
@@ -804,9 +840,15 @@ export default function PanelProduccion() {
                           <span className="text-right">Tiempo detenida</span>
                           <span className="text-right">Merma</span>
                         </div>
-                        {filasLineas.map((f) => (
-                          <LineaFilaCompacta key={f.codigo} fila={f} />
-                        ))}
+                        {filasLineas.map((f) =>
+                          esSupervisor ? (
+                            <Link key={f.codigo} to="/preparacion" className="block" title="Ir a Preparación y Producción">
+                              <LineaFilaCompacta fila={f} />
+                            </Link>
+                          ) : (
+                            <LineaFilaCompacta key={f.codigo} fila={f} />
+                          ),
+                        )}
                       </div>
                     </div>
                   )}
@@ -1359,8 +1401,23 @@ function ParadasPorLineaPlaceholder({ lineas }: { lineas: LineaLive[] }) {
 function DesgloseCalculosPanel({ turno }: { turno: TurnoActivo }) {
   const { lineas, presentaciones, cargando } = useCatalogosLive()
   const d = desglosarCalculos(turno, presentaciones)
+  const [ajustes, setAjustes] = useState<AjusteSemielaborado[]>([])
+
+  useEffect(() => {
+    let vivo = true
+    ajustesSemielaboradoTurno(turno.id).then((a) => {
+      if (vivo) setAjustes(a)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [turno.id])
+
+  const totalAjuste = ajustes.reduce((a, x) => a + x.diferencia, 0)
 
   const fmt = (n: number | null, suf = "") => (n === null ? "—" : `${n.toLocaleString("es-CO")}${suf}`)
+  const fmtSigno = (n: number, suf = "") =>
+    `${n > 0 ? "+" : ""}${Math.round(n).toLocaleString("es-CO")}${suf}`
 
   if (cargando) {
     return <p className="text-sm text-muted-foreground">Cargando catálogos…</p>
@@ -1414,20 +1471,32 @@ function DesgloseCalculosPanel({ turno }: { turno: TurnoActivo }) {
           formula="1 − (Σ envases prod. term. ÷ Σ envases llenadora)"
         />
         <DesgloseDato
-          etiqueta="Litros consumidos del tanque"
+          etiqueta="Litros que salieron del tanque"
           valor={fmt(d.litrosConsumidos, " L")}
-          formula="Σ (litros iniciales − litros finales), por lote"
+          formula="Σ (volumen inicial − volumen final), por lote"
         />
         <DesgloseDato
-          etiqueta="Litros producidos (prod. term.)"
+          etiqueta="Litros de Producto Terminado"
           valor={fmt(d.litrosProducidos, " L")}
-          formula="Σ litros de Producto Terminado"
+          formula="Σ litros envasados en Producto Terminado"
         />
         <DesgloseDato
-          etiqueta="Rendimiento (merma semielaborado)"
-          valor={fmt(d.rendimientoTurnoPct, " %")}
-          formula="1 − (litros producidos ÷ litros consumidos)"
+          etiqueta="Rendimiento del semielaborado"
+          valor={d.rendimientoTurnoPct === null ? "—" : `${Math.round((100 - d.rendimientoTurnoPct) * 100) / 100} %`}
+          formula="litros de Producto Terminado ÷ litros que salieron del tanque"
         />
+        <DesgloseDato
+          etiqueta="Merma de semielaborado"
+          valor={fmt(d.rendimientoTurnoPct, " %")}
+          formula="1 − (litros de Producto Terminado ÷ litros que salieron del tanque)"
+        />
+        {ajustes.length > 0 && (
+          <DesgloseDato
+            etiqueta="Ajuste teórico vs. real"
+            valor={fmtSigno(totalAjuste, " L")}
+            formula="correcciones manuales de volumen de lote (negativo = litros que faltaron)"
+          />
+        )}
         <DesgloseDato
           etiqueta="Cajas reales / esperadas"
           valor={`${fmt(d.cajasRealesTotal)} / ${fmt(d.cajasEsperadasTotal)}`}
@@ -1439,6 +1508,31 @@ function DesgloseCalculosPanel({ turno }: { turno: TurnoActivo }) {
           formula="cajas reales ÷ cajas esperadas"
         />
       </div>
+
+      {ajustes.length > 0 && (
+        <div className="rounded-xl border border-border bg-background/60 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Correcciones de volumen (teórico → real)
+          </p>
+          <ul className="mt-1.5 flex flex-col gap-1 text-xs">
+            {ajustes.map((a, i) => (
+              <li key={i} className="text-foreground">
+                {a.sabor}
+                {a.lote ? ` · Lote ${a.lote}` : ""}: {Math.round(a.volumenTeorico).toLocaleString("es-CO")} L →{" "}
+                {Math.round(a.volumenReal).toLocaleString("es-CO")} L{" "}
+                <span className={a.diferencia < 0 ? "text-danger" : "text-muted-foreground"}>
+                  ({fmtSigno(a.diferencia, " L")})
+                </span>
+                <span className="text-muted-foreground">
+                  {" · "}
+                  {a.usuarioNombre ?? "—"} ·{" "}
+                  {new Date(a.creadoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }

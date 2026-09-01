@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom"
+import { useAuth } from "@/lib/auth"
 import Login from "@/pages/Login"
+import PrimerIngreso from "@/pages/PrimerIngreso"
 import Hub from "@/pages/Hub"
 import ComenzarTurno from "@/pages/apps/ComenzarTurno"
 import Status from "@/pages/apps/Status"
@@ -28,6 +30,15 @@ import { ProtectedRoute } from "@/components/ProtectedRoute"
  * hub, sumarla aquí y en src/lib/apps.tsx.
  */
 export default function App() {
+  const { session } = useAuth()
+
+  // Primer ingreso (o clave que no cumple la política): se muestra SOLO
+  // la pantalla para corroborar datos + definir clave, cualquiera sea
+  // la URL, hasta completarlo (ver src/lib/auth.tsx).
+  if (session?.debeCompletarPerfil) {
+    return <PrimerIngreso />
+  }
+
   return (
     <Routes>
       <Route path="/" element={<Login />} />

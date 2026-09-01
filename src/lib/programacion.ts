@@ -51,76 +51,18 @@ export async function obtenerProgramacionDia(areaCodigo: string, fecha: string):
   return mapear(data as FilaProgramacion[])
 }
 
-export type AccionProgramacion = "ALTA" | "CAMBIO" | "BAJA"
-
-/** Un cambio en la programación diaria (para Auditoría). Append-only: ver la migración 20260977. */
-export interface CambioProgramacion {
-  /** Cuándo se hizo la edición (timestamptz ISO). */
-  creadoEn: string
-  usuarioNombre: string | null
-  usuarioUsuario: string | null
-  areaCodigo: string
-  /** Jornada que se estaba planificando. */
-  fechaJornada: string
-  saborNombre: string
-  presentacionMl: number | null
-  accion: AccionProgramacion
-  /** null en ALTA. */
-  cajasAntes: number | null
-  /** null en BAJA. */
-  cajasDespues: number | null
-}
-
-interface FilaCambioProgramacion {
-  creado_en: string
-  usuario_nombre: string | null
-  usuario_usuario: string | null
-  area_codigo: string
-  fecha_jornada: string
-  sabor_nombre: string
-  presentacion_volumen_ml: number | null
-  accion: string
-  cajas_antes: number | null
-  cajas_despues: number | null
-}
-
-/**
- * Historial de cambios de la programación diaria, por fecha de EDICIÓN
- * (no de jornada), más nuevo primero. Solo SUPERADMINISTRADOR (el RPC
- * lo valida). Si la migración 20260977 todavía no está aplicada, el
- * RPC no existe y esto devuelve [].
+/*
+ * Los cambios de la programación diaria se auditan en la tabla común
+ * `auditoria` (entidad "programacion_dia") desde guardar_programacion_dia —
+ * ver la migración 20260981. Se leen con listarAuditoria() en
+ * src/lib/auditoria.ts, no hay un RPC propio.
  */
-export async function listarProgramacionHistorial(
-  usuario: string,
-  filtros: { fechaDesde?: string; fechaHasta?: string },
-): Promise<CambioProgramacion[]> {
-  const { data, error } = await supabase.rpc("listar_programacion_historial", {
-    p_usuario: usuario,
-    p_fecha_desde: filtros.fechaDesde || null,
-    p_fecha_hasta: filtros.fechaHasta || null,
-  })
-  if (error || !data) return []
-  return (data as FilaCambioProgramacion[]).map((r) => ({
-    creadoEn: r.creado_en,
-    usuarioNombre: r.usuario_nombre,
-    usuarioUsuario: r.usuario_usuario,
-    areaCodigo: r.area_codigo,
-    fechaJornada: r.fecha_jornada,
-    saborNombre: r.sabor_nombre,
-    presentacionMl: r.presentacion_volumen_ml,
-    accion: (["ALTA", "CAMBIO", "BAJA"] as const).includes(r.accion as AccionProgramacion)
-      ? (r.accion as AccionProgramacion)
-      : "CAMBIO",
-    cajasAntes: r.cajas_antes,
-    cajasDespues: r.cajas_despues,
-  }))
-}
-
 export async function guardarProgramacionDia(
   usuario: string,
   areaCodigo: string,
   fecha: string,
   items: { saborId: string; presentacionId: string; cajasPlan: number }[],
+  pagina: string,
 ): Promise<{ ok: true; items: ProgramacionItem[] } | { ok: false; error: string }> {
   const { data, error } = await supabase.rpc("guardar_programacion_dia", {
     p_usuario: usuario,
@@ -131,6 +73,7 @@ export async function guardarProgramacionDia(
       presentacion_id: i.presentacionId,
       cajas_plan: Math.max(0, Math.round(i.cajasPlan)),
     })),
+    p_pagina: pagina,
   })
   if (error || !data) return { ok: false, error: error?.message ?? "No se pudo guardar la programación." }
   return { ok: true, items: mapear(data as FilaProgramacion[]) }

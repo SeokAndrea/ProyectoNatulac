@@ -31,6 +31,23 @@ export const ROLES = [
 
 export type RolCodigo = (typeof ROLES)[number]["codigo"]
 
+/*
+ * CARGOS: título del puesto, SOLO visual. No tiene efecto en permisos
+ * (eso lo decide el rol de arriba). El mismo cargo puede ir sobre
+ * roles distintos — ej. "Analista de Producción" siendo SUPERADMINISTRADOR
+ * en Aséptico o SUPERVISOR en Vacío. Espejo de usuarios.cargo (texto),
+ * ver supabase/migrations/20260982090000_cargo_personal.sql. Para
+ * sumar un cargo nuevo, agregar acá una línea.
+ */
+export const CARGOS = [
+  { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción" },
+  { codigo: "SUBJEFE", nombre: "Subjefe" },
+  { codigo: "ANALISTA_PRODUCCION", nombre: "Analista de Producción" },
+  { codigo: "SUPERVISOR", nombre: "Supervisor" },
+] as const
+
+export type CargoCodigo = (typeof CARGOS)[number]["codigo"]
+
 export const TURNO_TIPOS = [
   { codigo: "TURNO_1", nombre: "Turno 1", horario: "7:00 a 15:00" },
   { codigo: "TURNO_2", nombre: "Turno 2", horario: "15:00 a 22:30" },

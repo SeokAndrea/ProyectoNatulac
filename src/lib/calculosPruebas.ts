@@ -53,11 +53,13 @@ export interface DesgloseCalculos {
   porCorrida: DesgloseCorrida[]
   /** mermaEnvasesTurno(): todas las corridas comparables juntas. */
   mermaEnvaseTurnoPct: number | null
-  /** Σ (litros iniciales − litros finales) por lote (sin repetir lote). */
+  /** Σ (litros iniciales − litros finales) por lote (sin repetir lote) — litros que salieron del tanque. Denominador de la merma. */
   litrosConsumidos: number
+  /** Σ volumen inicial preparado por lote (sin repetir lote) — informativo. */
+  volumenInicial: number
   /** Σ litros de Producto Terminado del turno. */
   litrosProducidos: number
-  /** mermaSemielaboradoTurno(): 1 − (litros producidos ÷ litros consumidos), en %. */
+  /** mermaSemielaboradoTurno(): merma = 1 − (litros de Producto Terminado ÷ litros que salieron del tanque), en %. */
   rendimientoTurnoPct: number | null
   cajasEsperadasTotal: number
   cajasRealesTotal: number
@@ -107,6 +109,7 @@ export function desglosarCalculos(turno: TurnoActivo, presentaciones: Presentaci
     porCorrida,
     mermaEnvaseTurnoPct: mermaEnvase.pct,
     litrosConsumidos: mermaSemi.litrosConsumidos,
+    volumenInicial: mermaSemi.volumenInicial,
     litrosProducidos: mermaSemi.litrosProducidos,
     rendimientoTurnoPct: mermaSemi.pct,
     cajasEsperadasTotal: meta.totalEsperadas,
