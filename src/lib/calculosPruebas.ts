@@ -53,14 +53,16 @@ export interface DesgloseCalculos {
   porCorrida: DesgloseCorrida[]
   /** mermaEnvasesTurno(): todas las corridas comparables juntas. */
   mermaEnvaseTurnoPct: number | null
-  /** Σ (litros iniciales − litros finales) por lote (sin repetir lote) — litros que salieron del tanque. Denominador de la merma. */
+  /** Σ (litros iniciales − litros finales) de TODOS los lotes del turno — informativo, NO entra en el %. */
   litrosConsumidos: number
-  /** Σ volumen inicial preparado por lote (sin repetir lote) — informativo. */
+  /** Σ volumen inicial preparado de los lotes CERRADOS — denominador de la merma de semielaborado. */
   volumenInicial: number
-  /** Σ litros de Producto Terminado del turno. */
+  /** Σ litros de Producto Terminado de las corridas de esos lotes cerrados — numerador. */
   litrosProducidos: number
-  /** mermaSemielaboradoTurno(): merma = 1 − (litros de Producto Terminado ÷ litros que salieron del tanque), en %. */
+  /** mermaSemielaboradoTurno(): merma = 1 − (litros PT ÷ volumen inicial preparado), sobre lotes CERRADOS. null si ninguno cerró. */
   rendimientoTurnoPct: number | null
+  /** true si algún lote sigue abierto (su merma todavía no se puede juzgar). */
+  hayLoteAbierto: boolean
   cajasEsperadasTotal: number
   cajasRealesTotal: number
   /** calcularMeta(): cajas reales ÷ cajas esperadas, en %. */
@@ -112,6 +114,7 @@ export function desglosarCalculos(turno: TurnoActivo, presentaciones: Presentaci
     volumenInicial: mermaSemi.volumenInicial,
     litrosProducidos: mermaSemi.litrosProducidos,
     rendimientoTurnoPct: mermaSemi.pct,
+    hayLoteAbierto: mermaSemi.hayLoteAbierto,
     cajasEsperadasTotal: meta.totalEsperadas,
     cajasRealesTotal: meta.totalReales,
     cumplimientoTurnoPct: meta.pctCumplimiento,
@@ -133,6 +136,7 @@ export const COLUMNAS_CSV = [
   "lote",
   "litros_iniciales",
   "litros_finales",
+  "lote_cerrado",
   "linea",
   "presentacion_ml",
   "envases_x_caja",
@@ -161,6 +165,7 @@ export interface FilaCaso {
   lote: string
   litrosIniciales: number | null
   litrosFinales: number | null
+  loteCerrado: boolean
   linea: string
   presentacionMl: number
   envasesXCaja: number
@@ -255,6 +260,7 @@ export function filasCasoDe(texto: string): FilaCaso[] {
         lote: r.lote.trim(),
         litrosIniciales: numOpt(r.litros_iniciales),
         litrosFinales: numOpt(r.litros_finales),
+        loteCerrado: bool(r.lote_cerrado),
         linea: r.linea.trim(),
         presentacionMl: num(r.presentacion_ml),
         envasesXCaja: num(r.envases_x_caja),
@@ -340,7 +346,7 @@ function construirCaso(nombre: string, filas: FilaCaso[]): CasoPrueba {
         acidoCitrico: null,
         creadoEn: "",
         liberadoEn: "",
-        cerradoEn: null,
+        cerradoEn: f.loteCerrado ? "2026-01-01T12:00:00Z" : null,
       })
     }
 

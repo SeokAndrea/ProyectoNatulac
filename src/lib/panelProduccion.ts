@@ -228,50 +228,67 @@ export function mermaLineaTurno(turno: TurnoActivo, lineaCodigo: string, present
 
 export interface MermaSemielaboradoTurno {
   pct: number | null
-  /** Σ (volumen inicial − volumen final) de cada lote — litros que salieron del tanque. Es el denominador de la merma. */
-  litrosConsumidos: number
-  /** Σ litros de Producto Terminado del turno — lo que efectivamente se envasó. */
-  litrosProducidos: number
-  /** Σ volumen inicial preparado de cada lote (informativo). */
+  /** Σ volumen inicial preparado de los lotes CERRADOS que entraron al cálculo. Denominador de la merma. */
   volumenInicial: number
+  /** Σ litros de Producto Terminado de las corridas de esos lotes cerrados. Numerador. */
+  litrosProducidos: number
+  /** Σ (volumen inicial − volumen final) de TODOS los lotes del turno — informativo, NO entra en el %. */
+  litrosConsumidos: number
+  /** true si algún lote del turno sigue abierto (su merma todavía no se puede juzgar). */
+  hayLoteAbierto: boolean
 }
 
 /**
- * Merma de SEMIELABORADO: de los litros que REALMENTE salieron del
- * tanque (volumen inicial − volumen final, por lote), cuántos NO
- * llegaron a Producto Terminado — jarabe/mezcla que se fue en drenaje,
- * espuma, línea, etc.
+ * Merma de SEMIELABORADO: de lo que se PREPARÓ (volumen inicial =
+ * tambores/kits × volumen del sabor), cuánto NO llegó a Producto
+ * Terminado.
  *
- *   merma % = 1 − (litros de Producto Terminado ÷ litros que salieron del tanque)
+ *   merma % = 1 − (litros de Producto Terminado del lote ÷ volumen inicial preparado del lote)
  *
- * Ej.: del tanque salieron 18.380 L y el Producto Terminado suma
- * 11.016 L → merma 40,1 %, y el "rendimiento" que muestra el Panel =
- * 100 − eso = 59,9 %.
+ * Se calcula SOLO sobre lotes ya CERRADOS (tanque drenado / "Terminó
+ * Sabor"): mientras el lote sigue abierto, lo que "falta" puede estar
+ * todavía en el tanque y no es merma. Y se suma POR LOTE — sumar el
+ * volumen inicial de todos los lotes juntos infla el número cuando hay
+ * un tanque preparado que casi no se usó en el turno.
  *
- * NO se usa el volumen inicial preparado como denominador: un lote
- * preparado y casi no usado en el turno sumaría sus miles de litros
- * ahí e inflaría la merma. Lo que importa es lo que salió del tanque.
+ * NO se usa `volumen_l` (final del tanque) en la cuenta: ese valor
+ * NO es una medición física, sale de restarle a `volumen_inicial_l`
+ * los litros del PT (ver registrar_producto_terminado), así que
+ * `volumen_inicial_l − volumen_l` es idénticamente igual a los litros
+ * del PT y cualquier fórmula con él da 0 %. La diferencia real
+ * teórico-vs-físico se registra aparte, con Corregir → preparaciones_ajuste.
  *
- * Para un turno YA CERRADO, los volúmenes vienen CONGELADOS al valor
- * que tenían al cierre (turno_json() los saca de
- * turnos.volumenes_lote_cierre, ver 20260968090000).
+ * Para un turno YA CERRADO los volúmenes vienen CONGELADOS al cierre
+ * (turno_json() los saca de turnos.volumenes_lote_cierre, ver 20260968).
  */
 export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoTurno {
   const loteIds = new Set(turno.lineas.map((l) => l.loteId).filter((id): id is string => id !== null))
 
   let volumenInicial = 0
+  let litrosProducidos = 0
   let litrosConsumidos = 0
+  let hayLoteAbierto = false
+
   for (const loteId of loteIds) {
     const lote = turno.preparaciones.find((p) => p.id === loteId)
     if (!lote || lote.volumenInicialL === null) continue
-    volumenInicial += lote.volumenInicialL
     litrosConsumidos += lote.volumenInicialL - (lote.volumenL ?? 0)
+
+    if (lote.cerradoEn === null) {
+      hayLoteAbierto = true
+      continue
+    }
+    const corridasDelLote = new Set(turno.lineas.filter((l) => l.loteId === loteId).map((l) => l.id))
+    const ptLote = turno.productoTerminado
+      .filter((p) => p.turnoLineaId !== null && corridasDelLote.has(p.turnoLineaId))
+      .reduce((a, p) => a + p.litrosProducidos, 0)
+    volumenInicial += lote.volumenInicialL
+    litrosProducidos += ptLote
   }
 
-  const litrosProducidos = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)
-  const pct = litrosConsumidos <= 0 ? null : Math.round((1 - litrosProducidos / litrosConsumidos) * 10000) / 100
+  const pct = volumenInicial === 0 ? null : Math.round((1 - litrosProducidos / volumenInicial) * 10000) / 100
 
-  return { pct, litrosConsumidos, litrosProducidos, volumenInicial }
+  return { pct, volumenInicial, litrosProducidos, litrosConsumidos, hayLoteAbierto }
 }
 
 export interface ResumenTurnoAnterior {
