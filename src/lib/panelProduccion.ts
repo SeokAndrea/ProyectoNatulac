@@ -102,9 +102,18 @@ export function calcularMeta(
 /** Horas transcurridas desde el inicio del turno (hasta ahora si sigue abierto, o hasta el cierre si ya cerró). */
 export function horasTranscurridasTurno(turno: TurnoActivo): number {
   const [h1, m1] = turno.horaInicio.split(":").map(Number)
-  const ahora = new Date()
-  const horaActual = `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}:${String(ahora.getSeconds()).padStart(2, "0")}`
-  const [h2, m2] = horaActual.split(":").map(Number)
+  // Turno cerrado: se mide hasta su hora de cierre (dato fijo), no
+  // hasta "ahora". Así la meta de un turno viejo deja de moverse en
+  // cada refresco del Panel y se puede reproducir/verificar contra un
+  // valor cargado a mano (ver src/lib/calculosPruebas.ts y su CSV).
+  const finReloj =
+    turno.estado === "CERRADO" && turno.horaFin
+      ? turno.horaFin
+      : (() => {
+          const ahora = new Date()
+          return `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}:${String(ahora.getSeconds()).padStart(2, "0")}`
+        })()
+  const [h2, m2] = finReloj.split(":").map(Number)
   let minutos = h2 * 60 + m2 - (h1 * 60 + m1)
   if (minutos < 0) minutos += 24 * 60
   return Math.max(minutos / 60, 0.1)

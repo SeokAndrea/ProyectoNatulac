@@ -61,6 +61,7 @@ import {
   type ResumenTurnoAnterior,
 } from "@/lib/panelProduccion"
 import { type TurnoActivo } from "@/lib/turno"
+import { desglosarCalculos } from "@/lib/calculosPruebas"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { cn } from "@/lib/utils"
 
@@ -68,6 +69,14 @@ import { cn } from "@/lib/utils"
 const MERMA_SEMIELABORADO_MAX = 1.5
 const MERMA_SEMIELABORADO_WARN = (MERMA_SEMIELABORADO_MAX * 2) / 3
 const TANK_CAPACITY = 20000
+
+/**
+ * Cada cuánto el Panel se refresca solo cuando está EN VIVO, para que
+ * nadie quede mirando datos viejos si deja la pestaña abierta. Es un
+ * refresco silencioso (sin spinner de pantalla completa). No aplica
+ * cuando se está viendo un turno histórico elegido a mano.
+ */
+const REFRESCO_EN_VIVO_MS = 30 * 60 * 1000
 
 /** El Área de Pruebas nunca debe verse desde el Panel de Producción — ni como selección explícita. */
 const AREAS_SELECCIONABLES = AREAS.filter((a) => a.codigo !== "PRUEBAS")
@@ -268,6 +277,8 @@ export default function PanelProduccion() {
   const [turnoAnterior, setTurnoAnterior] = useState<ResumenTurnoAnterior | null>(null)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [ahora, setAhora] = useState(() => new Date())
+  /** Sube cada REFRESCO_EN_VIVO_MS; dispara la recarga silenciosa del turno en vivo y de los datos de la jornada. */
+  const [tickRefresco, setTickRefresco] = useState(0)
   const [planDia, setPlanDia] = useState<PlanDiaItem[]>([])
   /*
    * Producción acumulada de la jornada (los 3 turnos del día), solo en
@@ -286,8 +297,26 @@ export default function PanelProduccion() {
   const [areaFiltro, setAreaFiltro] = useState<AreaCodigo | "TODAS">(session?.area ?? "ASEPTICO")
   const areaEfectiva = session?.area ?? (areaFiltro === "TODAS" ? null : areaFiltro)
 
+  /*
+   * Jornada (día de planta 7am→7am) que corresponde a lo que se está
+   * viendo. Se toma de turnos.fecha del turno cargado — el backend lo
+   * estampa al crear el turno y es el MISMO para los 3 turnos de la
+   * jornada, así que no depende del reloj ni se rompe en el borde de
+   * las 7am (ej. un Turno 3 que cierra 07:05 sigue siendo su jornada).
+   * Solo si todavía no hay turno se cae al reloj (fechaJornada(ahora)),
+   * que además rota solo al pasar las 7am con el Panel abierto.
+   * Es un string "YYYY-MM-DD": los efectos que dependen de él se
+   * re-disparan únicamente cuando cambia el día, no en cada tick.
+   */
+  const fechaJornadaPanel = turno?.fecha ?? fechaJornada(ahora)
+
   useEffect(() => {
     const id = setInterval(() => setAhora(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => setTickRefresco((n) => n + 1), REFRESCO_EN_VIVO_MS)
     return () => clearInterval(id)
   }, [])
 
@@ -297,13 +326,13 @@ export default function PanelProduccion() {
       setPlanDia([])
       return
     }
-    obtenerProgramacionDia(areaEfectiva, fechaJornada()).then((items) => {
+    obtenerProgramacionDia(areaEfectiva, fechaJornadaPanel).then((items) => {
       if (vivo) setPlanDia(items)
     })
     return () => {
       vivo = false
     }
-  }, [areaEfectiva])
+  }, [areaEfectiva, fechaJornadaPanel, tickRefresco])
 
   useEffect(() => {
     let vivo = true
@@ -311,13 +340,13 @@ export default function PanelProduccion() {
       setProduccionDia([])
       return
     }
-    obtenerProduccionDia(areaEfectiva, fechaJornada()).then((items) => {
+    obtenerProduccionDia(areaEfectiva, fechaJornadaPanel).then((items) => {
       if (vivo) setProduccionDia(items)
     })
     return () => {
       vivo = false
     }
-  }, [areaEfectiva, enVivo, turno?.id])
+  }, [areaEfectiva, enVivo, turno?.id, fechaJornadaPanel, tickRefresco])
 
   async function cargarTurnoAnterior(turnoActualId: string | null) {
     if (!areaEfectiva) {
@@ -334,8 +363,8 @@ export default function PanelProduccion() {
    * continuo — tienen que verse igual en el hueco entre que un
    * supervisor finaliza su turno y el siguiente arranca el suyo.
    */
-  async function cargarEnVivo() {
-    setCargando(true)
+  async function cargarEnVivo(silencioso = false) {
+    if (!silencioso) setCargando(true)
     const t = await obtenerEstadoPlantaActual(areaEfectiva)
     if (t) {
       setTurno(t)
@@ -348,7 +377,7 @@ export default function PanelProduccion() {
     }
     await cargarTurnoAnterior(t?.id ?? null)
     setBuscado(true)
-    setCargando(false)
+    if (!silencioso) setCargando(false)
   }
 
   async function buscarFechaTipo(f: string, tt: string) {
@@ -369,6 +398,15 @@ export default function PanelProduccion() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [areaEfectiva])
+
+  // Refresco periódico (cada REFRESCO_EN_VIVO_MS): solo en modo EN VIVO
+  // y silencioso — no saca de pantalla lo que se ve. El turno histórico
+  // elegido a mano no se toca.
+  useEffect(() => {
+    if (tickRefresco === 0 || !enVivo) return
+    cargarEnVivo(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickRefresco])
 
   const meta = turno ? calcularMeta(turno, presentaciones) : null
   const horario = HORARIOS[turnoTipo]
@@ -686,7 +724,7 @@ export default function PanelProduccion() {
                 />
               </div>
 
-              <Button variant="outline" size="sm" onClick={cargarEnVivo} disabled={cargando}>
+              <Button variant="outline" size="sm" onClick={() => cargarEnVivo()} disabled={cargando}>
                 {cargando ? <Loader2 className="size-3.5 animate-spin" /> : <RadioTower className="size-3.5" />}
                 Ver en vivo
               </Button>
@@ -844,6 +882,15 @@ export default function PanelProduccion() {
               >
                 <ParadasPorLineaPlaceholder lineas={lineas} />
               </SeccionColapsable>
+
+              {(areaEfectiva === "PRUEBAS" || areaEfectiva === "ASEPTICO") && (
+                <SeccionColapsable
+                  titulo="Desglose de cálculo"
+                  descripcion="Números crudos detrás de cada merma y meta — envases, litros y cajas que alimentan cada porcentaje del turno."
+                >
+                  <DesgloseCalculosPanel turno={turno} />
+                </SeccionColapsable>
+              )}
             </div>
           </>
         )}
@@ -1295,6 +1342,113 @@ function ParadasPorLineaPlaceholder({ lineas }: { lineas: LineaLive[] }) {
             </ol>
           </div>
         ))}
+    </div>
+  )
+}
+
+
+/* ===================== DESGLOSE DE CÁLCULO (ÁREA DE PRUEBAS) ===================== */
+
+/**
+ * Los mismos números que verifica src/lib/calculosPruebas.test.ts, pero
+ * sobre el turno que se está viendo: envases de llenadora vs. Producto
+ * Terminado por corrida, litros consumidos vs. producidos, cajas reales
+ * vs. esperadas. Se muestra en Aséptico y en el Área de Pruebas (ver la
+ * condición sobre areaEfectiva en el render del Panel).
+ */
+function DesgloseCalculosPanel({ turno }: { turno: TurnoActivo }) {
+  const { lineas, presentaciones, cargando } = useCatalogosLive()
+  const d = desglosarCalculos(turno, presentaciones)
+
+  const fmt = (n: number | null, suf = "") => (n === null ? "—" : `${n.toLocaleString("es-CO")}${suf}`)
+
+  if (cargando) {
+    return <p className="text-sm text-muted-foreground">Cargando catálogos…</p>
+  }
+
+  return (
+    <div className="flex flex-col gap-4 text-sm">
+      <p className="text-xs text-muted-foreground">
+        Horas transcurridas del turno:{" "}
+        <span className="num font-semibold text-foreground">{d.horasTranscurridas}</span>{" "}
+        {turno.estado === "CERRADO" ? "(hasta la hora de cierre)" : "(hasta ahora)"}
+      </p>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-border text-left uppercase tracking-wide text-muted-foreground">
+              <th className="py-1.5 pr-3 font-semibold">Corrida</th>
+              <th className="py-1.5 pr-3 font-semibold">Lote</th>
+              <th className="py-1.5 pr-3 text-right font-semibold">Env. llenadora</th>
+              <th className="py-1.5 pr-3 text-right font-semibold">Env. prod. term.</th>
+              <th className="py-1.5 pr-3 text-right font-semibold">Merma envase</th>
+              <th className="py-1.5 pr-3 text-right font-semibold">Cajas reales</th>
+              <th className="py-1.5 pr-3 text-right font-semibold">Cajas esperadas</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.porCorrida.map((c) => (
+              <tr key={c.turnoLineaId} className="border-b border-border/60">
+                <td className="py-1.5 pr-3">
+                  {nombrePorCodigo(lineas, c.linea)}
+                  {c.presentacionMl ? <span className="text-muted-foreground"> · {c.presentacionMl} ml</span> : null}
+                  {!c.activa ? <span className="text-muted-foreground"> · finalizada</span> : null}
+                </td>
+                <td className="py-1.5 pr-3">{c.lote ?? "—"}</td>
+                <td className="num py-1.5 pr-3 text-right">{fmt(c.envasesLlenadora)}</td>
+                <td className="num py-1.5 pr-3 text-right">{fmt(c.envasesProductoTerminado)}</td>
+                <td className="num py-1.5 pr-3 text-right">{fmt(c.mermaEnvasePct, " %")}</td>
+                <td className="num py-1.5 pr-3 text-right">{fmt(c.cajasReales)}</td>
+                <td className="num py-1.5 pr-3 text-right">{fmt(c.cajasEsperadas)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <DesgloseDato
+          etiqueta="Merma de envase — turno"
+          valor={fmt(d.mermaEnvaseTurnoPct, " %")}
+          formula="1 − (Σ envases prod. term. ÷ Σ envases llenadora)"
+        />
+        <DesgloseDato
+          etiqueta="Litros consumidos del tanque"
+          valor={fmt(d.litrosConsumidos, " L")}
+          formula="Σ (litros iniciales − litros finales), por lote"
+        />
+        <DesgloseDato
+          etiqueta="Litros producidos (prod. term.)"
+          valor={fmt(d.litrosProducidos, " L")}
+          formula="Σ litros de Producto Terminado"
+        />
+        <DesgloseDato
+          etiqueta="Rendimiento (merma semielaborado)"
+          valor={fmt(d.rendimientoTurnoPct, " %")}
+          formula="1 − (litros producidos ÷ litros consumidos)"
+        />
+        <DesgloseDato
+          etiqueta="Cajas reales / esperadas"
+          valor={`${fmt(d.cajasRealesTotal)} / ${fmt(d.cajasEsperadasTotal)}`}
+          formula="corridas activas: velocidad ÷ envases por caja × horas"
+        />
+        <DesgloseDato
+          etiqueta="Cumplimiento de meta"
+          valor={fmt(d.cumplimientoTurnoPct, " %")}
+          formula="cajas reales ÷ cajas esperadas"
+        />
+      </div>
+    </div>
+  )
+}
+
+function DesgloseDato({ etiqueta, valor, formula }: { etiqueta: string; valor: string; formula: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-background/60 p-3">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{etiqueta}</p>
+      <p className="num mt-1 text-xl font-bold leading-none text-foreground">{valor}</p>
+      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{formula}</p>
     </div>
   )
 }

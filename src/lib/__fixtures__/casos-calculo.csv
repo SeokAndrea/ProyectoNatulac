@@ -1,0 +1,86 @@
+# ============================================================================
+# CASOS REALES PARA VERIFICAR LAS FÓRMULAS DE PRODUCCIÓN
+# ============================================================================
+#
+# Cada fila = UNA corrida de línea (un lote envasándose en una línea).
+# Las filas con el mismo valor en la columna "caso" forman un turno
+# completo y se evalúan juntas.
+#
+# Lo corre  src/lib/calculosPruebas.test.ts  con  npm test :
+#   arma un turno con estas filas, pasa por las MISMAS funciones que el
+#   Panel de Producción (src/lib/panelProduccion.ts / src/lib/turno.tsx)
+#   y compara el resultado contra las columnas esp_* de abajo.
+#
+# REGLAS DEL ARCHIVO
+#   - Las líneas que empiezan con "#" y las vacías se ignoran.
+#   - La primera línea que quede es el encabezado: no lo muevas ni le
+#     cambies los nombres.
+#   - Separador: coma. No pongas comas dentro de un valor.
+#   - Decimales con punto (9.5, no 9,5).
+#   - Celda vacía = "ese dato no aplica / no lo verifico".
+#
+# COLUMNAS
+#   caso                  Nombre del caso (agrupa las filas de un turno).
+#   turno_estado          ABIERTO o CERRADO. Para verificar la META tiene
+#                         que ser CERRADO y traer hora_fin (si está
+#                         ABIERTO la meta depende del reloj y no se puede
+#                         reproducir).
+#   hora_inicio           HH:MM en que arrancó el turno.
+#   hora_fin              HH:MM en que cerró (vacío si sigue abierto).
+#
+#   --- Tanque / lote: "cómo se recibió y cómo se dejó" ---
+#   tanque                Nº de tanque (1, 2 o 3).
+#   sabor                 Sabor del lote (texto libre, solo informativo).
+#   lote                  Código del lote. Si dos corridas usan el MISMO
+#                         lote (preparación continua), repetí el mismo
+#                         código y los mismos litros_iniciales/finales:
+#                         el semielaborado se cuenta una sola vez por lote.
+#   litros_iniciales      Litros con los que se liberó el tanque.
+#   litros_finales        Litros que quedaron en el tanque al cerrar.
+#
+#   --- Corrida / línea ---
+#   linea                 Código de línea (LINEA_T1 / LINEA_T2 / LINEA_T3
+#                         en el Área de Pruebas).
+#   presentacion_ml       Volumen del envase en ml (1000, 250, ...).
+#   envases_x_caja        Envases que entran en una caja de esa presentación.
+#   cajas_x_paleta        Cajas que entran en una paleta.
+#   velocidad_envases_hora  Velocidad elegida al comenzar turno (envases/h).
+#   corrida_activa         si / no. La META solo cuenta las corridas que
+#                          seguían activas al cierre.
+#   contador_envases       Lectura del contador definitivo (envases que
+#                          pasaron por la llenadora).
+#
+#   --- Producto Terminado de la corrida ---
+#   pt_paletas             Paletas paletizadas.
+#   pt_cajas_sueltas       Cajas sueltas (resto que no completó paleta).
+#   pt_litros              Litros que registró Producto Terminado.
+#
+#   --- Valores esperados (lo que verificás; dejá vacío lo que no) ---
+#   esp_merma_envase_corrida_pct   Merma de envase de ESA corrida.
+#   esp_merma_envase_turno_pct     Merma de envase de TODO el turno
+#                                  (cargala en una fila del caso).
+#   esp_rendimiento_turno_pct      Merma de semielaborado del turno
+#                                  (litros consumidos vs. producidos).
+#   esp_cajas_esperadas            Cajas que debía sacar la corrida.
+#   esp_cajas_reales               Cajas que sacó la corrida.
+#   esp_cumplimiento_turno_pct     Cajas reales ÷ esperadas del turno.
+#
+# Cómo calcular a mano cada esperado (para cargar datos nuevos):
+#   envases_pt        = (pt_paletas * cajas_x_paleta + pt_cajas_sueltas) * envases_x_caja
+#   merma_envase_%    = (1 - envases_pt / contador_envases) * 100
+#   horas             = hora_fin - hora_inicio
+#   cajas_esperadas   = velocidad_envases_hora / envases_x_caja * horas   (redondeado)
+#   cajas_reales      = contador_envases / envases_x_caja                 (redondeado)
+#   litros_consumidos = suma por lote de (litros_iniciales - litros_finales)
+#   rendimiento_%     = (1 - suma(pt_litros) / litros_consumidos) * 100
+#   cumplimiento_%    = suma(cajas_reales activas) / suma(cajas_esperadas activas) * 100
+#
+# Los % se comparan con 0.5 puntos de tolerancia y las cajas con 1 de
+# tolerancia (redondeos). Borrá los dos casos de ejemplo cuando cargues
+# los reales, o dejalos: son válidos y sirven de guía.
+# ============================================================================
+caso,turno_estado,hora_inicio,hora_fin,tanque,sabor,lote,litros_iniciales,litros_finales,linea,presentacion_ml,envases_x_caja,cajas_x_paleta,velocidad_envases_hora,corrida_activa,contador_envases,pt_paletas,pt_cajas_sueltas,pt_litros,esp_merma_envase_corrida_pct,esp_merma_envase_turno_pct,esp_rendimiento_turno_pct,esp_cajas_esperadas,esp_cajas_reales,esp_cumplimiento_turno_pct
+ejemplo-2lineas,CERRADO,07:00,15:00,1,Manzana,L-101,10000,400,LINEA_T1,1000,12,60,9000,si,72000,98,40,9550,1.33,1.19,0.57,6000,6000,97.5
+ejemplo-2lineas,CERRADO,07:00,15:00,2,Pera,L-102,8000,200,LINEA_T2,250,24,100,12000,si,90000,37,10,7750,1.07,,,4000,3750,
+ejemplo-lote-compartido,CERRADO,15:00,22:30,1,Naranja,L-200,12000,5700,LINEA_T1,1000,12,60,8400,no,40000,55,30,3990,0.1,0.32,2.06,,,34.9
+ejemplo-lote-compartido,CERRADO,15:00,22:30,1,Naranja,L-200,12000,5700,LINEA_T1,1000,12,60,8400,si,22000,30,20,2180,0.73,,,5250,1833,

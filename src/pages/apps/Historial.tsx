@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ChevronLeft, FileText, Loader2, RotateCcw, Search, Trash2 } from "lucide-react"
+import { ChevronLeft, Download, FileText, Loader2, RotateCcw, Search, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,10 @@ import { generarActaPdf } from "@/lib/actaPdf"
 import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
+import { datasetACsv, descargarCsv } from "@/lib/dataset"
+import { obtenerEstadisticas } from "@/lib/estadisticas"
+import { listarSabores, nombreSaborConFamilia } from "@/lib/sabores"
+import { listarProgramacionHistorial, type CambioProgramacion } from "@/lib/programacion"
 import { construirHistorial } from "@/lib/historial"
 import { listarPersonal, type PersonalRegistrado } from "@/lib/personal"
 import {
@@ -44,9 +48,12 @@ export default function Historial() {
   const { lineas, presentaciones } = useCatalogosLive()
   const [turnosActivos, setTurnosActivos] = useState<TurnoActivoArea[]>([])
   const [supervisores, setSupervisores] = useState<PersonalRegistrado[]>([])
-  const [supervisorUsuario, setSupervisorUsuario] = useState("")
+  /** "__todos__" = sin filtro por supervisor; si no, el usuario elegido. */
+  const [supervisorUsuario, setSupervisorUsuario] = useState("__todos__")
   const [fechaDesde, setFechaDesde] = useState(() => fechaLocal(new Date()))
   const [fechaHasta, setFechaHasta] = useState(() => fechaLocal(new Date()))
+  /** "Ver todo": ignora el rango de fechas y trae el histórico completo. */
+  const [verTodo, setVerTodo] = useState(false)
   const [turnos, setTurnos] = useState<TurnoResumen[]>([])
   const [cargando, setCargando] = useState(true)
   const [seleccionado, setSeleccionado] = useState<TurnoResumen | null>(null)
@@ -62,6 +69,19 @@ export default function Historial() {
   const [generandoActa, setGenerandoActa] = useState(false)
   const [errorActa, setErrorActa] = useState<string | null>(null)
   const [actaGeneradaUrl, setActaGeneradaUrl] = useState<string | null>(null)
+  /* Exportar dataset de producción: solo SUPERADMINISTRADOR (ver el
+   * botón más abajo). Usa el mismo rango de fechas de la búsqueda y
+   * trae todas las áreas menos Pruebas (obtenerEstadisticas con
+   * areaCodigo null). El mapa sabor -> familia es para la columna
+   * `familia` del CSV. */
+  const esSuperadmin = session?.rol === "SUPERADMINISTRADOR"
+  const [familiaPorSabor, setFamiliaPorSabor] = useState<Map<string, string>>(new Map())
+  const [exportando, setExportando] = useState(false)
+  /* Cambios de la programación diaria (alta/cambio/baja de renglones del
+   * plan), por fecha de edición. Solo SUPERADMINISTRADOR — necesita la
+   * migración 20260977; sin ella el RPC devuelve []. */
+  const [cambiosProg, setCambiosProg] = useState<CambioProgramacion[]>([])
+  const [soloMisCambios, setSoloMisCambios] = useState(true)
 
   useEffect(() => {
     if (!session) return
@@ -70,11 +90,39 @@ export default function Historial() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.username])
 
+  useEffect(() => {
+    if (!esSuperadmin) return
+    listarSabores().then((sabores) =>
+      setFamiliaPorSabor(new Map(sabores.map((s) => [nombreSaborConFamilia(s.nombre, s.familiaNombre), s.familiaNombre]))),
+    )
+  }, [esSuperadmin])
+
+  /** Rango a mandar a los RPC: undefined cuando "Ver todo" está activo (los RPC lo tratan como "sin filtro"). */
+  const rangoBusqueda = () =>
+    verTodo ? { fechaDesde: undefined, fechaHasta: undefined } : { fechaDesde, fechaHasta }
+  /** Supervisor elegido, o undefined para "Todos los supervisores". */
+  const supFiltro = supervisorUsuario === "__todos__" ? undefined : supervisorUsuario
+
+  async function exportarDataset() {
+    setExportando(true)
+    try {
+      let filas = await obtenerEstadisticas({ ...rangoBusqueda(), areaCodigo: null })
+      if (supFiltro) filas = filas.filter((f) => f.supervisorUsuario === supFiltro)
+      const sufijo = [verTodo ? "historico-completo" : `${fechaDesde}_${fechaHasta}`, supFiltro ?? "todos"].join("_")
+      descargarCsv(`dataset-produccion_${sufijo}.csv`, datasetACsv(filas, familiaPorSabor))
+    } finally {
+      setExportando(false)
+    }
+  }
+
   async function buscar() {
     if (!session) return
     setCargando(true)
-    const lista = await listarTurnosHistorial(session.username, { supervisorUsuario, fechaDesde, fechaHasta })
+    const lista = await listarTurnosHistorial(session.username, { supervisorUsuario: supFiltro, ...rangoBusqueda() })
     setTurnos(lista)
+    if (esSuperadmin) {
+      setCambiosProg(await listarProgramacionHistorial(session.username, rangoBusqueda()))
+    }
     setCargando(false)
   }
 
@@ -162,6 +210,8 @@ export default function Historial() {
     setReabierto(true)
     buscar()
   }
+
+  const cambiosVisibles = cambiosProg.filter((c) => !soloMisCambios || c.usuarioUsuario === session?.username)
 
   if (seleccionado) {
     return (
@@ -309,9 +359,10 @@ export default function Historial() {
                 <Label>Supervisor</Label>
                 <Select value={supervisorUsuario} onValueChange={setSupervisorUsuario}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Todos" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__todos__">Todos los supervisores</SelectItem>
                     {supervisores.map((s) => (
                       <SelectItem key={s.id} value={s.usuario}>
                         {s.nombre}
@@ -322,19 +373,86 @@ export default function Historial() {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="fecha-desde">Desde</Label>
-                <Input id="fecha-desde" type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+                <Input
+                  id="fecha-desde"
+                  type="date"
+                  value={fechaDesde}
+                  onChange={(e) => setFechaDesde(e.target.value)}
+                  disabled={verTodo}
+                />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="fecha-hasta">Hasta</Label>
-                <Input id="fecha-hasta" type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+                <Input
+                  id="fecha-hasta"
+                  type="date"
+                  value={fechaHasta}
+                  onChange={(e) => setFechaHasta(e.target.value)}
+                  disabled={verTodo}
+                />
               </div>
             </div>
-            <Button className="self-start" onClick={buscar} disabled={cargando}>
-              {cargando ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-              Buscar
-            </Button>
+            <label className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={verTodo}
+                onChange={(e) => setVerTodo(e.target.checked)}
+                className="size-3.5 accent-primary"
+              />
+              Ver todo (sin rango de fechas)
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button className="self-start" onClick={buscar} disabled={cargando}>
+                {cargando ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+                Buscar
+              </Button>
+              {esSuperadmin && (
+                <Button variant="outline" onClick={exportarDataset} disabled={exportando}>
+                  {exportando ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                  Exportar dataset (CSV)
+                </Button>
+              )}
+            </div>
+            {esSuperadmin && (
+              <p className="text-xs text-muted-foreground">
+                Una fila por corrida {verTodo ? "de todo el histórico" : "del rango de fechas"} · todas las áreas menos
+                Pruebas.
+              </p>
+            )}
           </CardContent>
         </Card>
+
+        {esSuperadmin && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Cambios de programación</CardTitle>
+              <label className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={soloMisCambios}
+                  onChange={(e) => setSoloMisCambios(e.target.checked)}
+                  className="size-3.5 accent-primary"
+                />
+                Solo míos
+              </label>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">
+                Altas, cambios y bajas del plan diario · por fecha de edición{" "}
+                {verTodo ? "· todo el histórico" : `(${fechaDesde} → ${fechaHasta})`}.
+              </p>
+              {cargando ? null : cambiosVisibles.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  {cambiosProg.length === 0
+                    ? "No hay cambios de programación en ese rango."
+                    : "No hay cambios tuyos en ese rango."}
+                </p>
+              ) : (
+                cambiosVisibles.map((c, i) => <FilaCambioProg key={i} c={c} />)
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex flex-col gap-2">
           {cargando ? (
@@ -368,5 +486,36 @@ export default function Historial() {
         </div>
       </div>
     </AppShell>
+  )
+}
+
+const ACCION_PROG: Record<CambioProgramacion["accion"], { texto: string; variant: "success" | "warning" | "danger" }> = {
+  ALTA: { texto: "Agregó", variant: "success" },
+  CAMBIO: { texto: "Cambió", variant: "warning" },
+  BAJA: { texto: "Quitó", variant: "danger" },
+}
+
+function FilaCambioProg({ c }: { c: CambioProgramacion }) {
+  const a = ACCION_PROG[c.accion]
+  const cajas =
+    c.accion === "ALTA"
+      ? `${c.cajasDespues ?? 0} cajas`
+      : c.accion === "BAJA"
+        ? `${c.cajasAntes ?? 0} cajas → —`
+        : `${c.cajasAntes ?? 0} → ${c.cajasDespues ?? 0} cajas`
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="font-medium text-foreground">
+          {c.saborNombre}
+          {c.presentacionMl ? ` · ${c.presentacionMl} ml` : ""} — {cajas}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {nombrePorCodigo(AREAS, c.areaCodigo)} · jornada {c.fechaJornada} · {c.usuarioNombre ?? c.usuarioUsuario ?? "—"} ·{" "}
+          {new Date(c.creadoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+        </p>
+      </div>
+      <Badge variant={a.variant}>{a.texto}</Badge>
+    </div>
   )
 }
