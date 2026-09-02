@@ -47,6 +47,16 @@ export interface LineaEnTurno {
 export type CondicionTanque = "LISTO" | "SUCIO" | "EN_PREPARACION" | "STANDBY" | "CIP" | "LIMPIO"
 
 /**
+ * Al transferir, cuál identidad de lote sobrevive (plan-rework-tanques-
+ * lineas-recepcion.md, diseño de Transferir): LIQUIDO — el lote del
+ * tanque destino conserva su identidad y absorbe el volumen del
+ * origen (comportamiento de siempre). LOTE — el lote del tanque origen
+ * conserva su identidad y absorbe lo que ya tenía el destino. Ningún
+ * litro se pierde en ninguno de los dos casos.
+ */
+export type ModoTransferencia = "LIQUIDO" | "LOTE"
+
+/**
  * Condición continua de una línea SIN corrida activa — igual patrón
  * que CondicionTanque, pero "Corriendo" no es un valor acá: se deriva
  * de que la línea tenga una corrida activa (turno_lineas.activa), ver
@@ -358,8 +368,9 @@ interface TurnoContextValue {
   actualizarJustificacionContador: (contadorId: string, justificacion: string) => Promise<Resultado>
   registrarProductoTerminado: (datos: DatosProductoTerminado) => Promise<Resultado>
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
+  descartarRestoTanque: (numeroTanque: 1 | 2 | 3, motivo: string) => Promise<Resultado>
   liberarLote: (loteId: string) => Promise<Resultado>
-  transferirTanque: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3) => Promise<Resultado>
+  transferirTanque: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3, modo: ModoTransferencia) => Promise<Resultado>
   envasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   reactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   activarLinea: (datos: DatosActivarLinea) => Promise<Resultado>
@@ -1126,6 +1137,33 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  /**
+   * Guardrail #1, opción "Descartar" (plan-rework-tanques-lineas-recepcion.md
+   * §6): cierra el lote actual del tanque SIN sumarlo a nada — el resto
+   * pasa a ser merma real de ese lote, a propósito, con el motivo
+   * anotado. Deja el tanque en Sucio, listo para limpiar o preparar de
+   * cero.
+   */
+  async function descartarRestoTanque(numeroTanque: 1 | 2 | 3, motivo: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("descartar_resto_tanque", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_numero_tanque: numeroTanque,
+      p_motivo: motivo.trim() || null,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo descartar. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
   async function liberarLote(loteId: string): Promise<Resultado> {
     if (!turnoActivo || !usuario) {
       return { ok: false, error: "No hay un turno en curso." }
@@ -1145,7 +1183,11 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
-  async function transferirTanque(numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3): Promise<Resultado> {
+  async function transferirTanque(
+    numeroTanqueOrigen: 1 | 2 | 3,
+    numeroTanqueDestino: 1 | 2 | 3,
+    modo: ModoTransferencia,
+  ): Promise<Resultado> {
     if (!turnoActivo || !usuario) {
       return { ok: false, error: "No hay un turno en curso." }
     }
@@ -1155,6 +1197,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_turno_id: turnoActivo.id,
       p_numero_tanque_origen: numeroTanqueOrigen,
       p_numero_tanque_destino: numeroTanqueDestino,
+      p_modo: modo,
     })
 
     if (error || !data) {
@@ -1214,6 +1257,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         actualizarJustificacionContador,
         registrarProductoTerminado,
         iniciarPreparacion,
+        descartarRestoTanque,
         liberarLote,
         transferirTanque,
         envasarTanque,

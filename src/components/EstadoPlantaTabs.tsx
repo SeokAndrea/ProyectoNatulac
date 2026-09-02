@@ -29,6 +29,7 @@ import { TanqueVisual } from "@/components/TanqueVisual"
 import { useAuth } from "@/lib/auth"
 import { nombrePorCodigo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, presentacionesPorLineaLive, velocidadesParaLive } from "@/lib/catalogosLive"
+import { obtenerUltimaConfiguracionLinea } from "@/lib/lineas"
 import { listarReservasTobos, type ReservaTobo } from "@/lib/reservasTobos"
 import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
 import { cn } from "@/lib/utils"
@@ -41,6 +42,7 @@ import {
   type DatosIniciarPreparacion,
   type LineaEnTurno,
   type LineaEstado,
+  type ModoTransferencia,
   type PreparacionRegistro,
   type TanqueRecepcion,
   type TurnoActivo,
@@ -48,8 +50,14 @@ import {
 
 const TANK_CAPACITY = 20000
 
-/** Desvase (guardar el resto de un tanque aparte, ver envasarTanque en src/lib/turno.tsx) está listo pero oculto — todavía no se va a usar. La función/migración quedan tal cual para cuando se habilite. */
-const DESVASE_HABILITADO = false
+/**
+ * Desvase (guardar el resto de un tanque aparte, ver envasarTanque en
+ * src/lib/turno.tsx) estaba pausado porque no tenía un uso claro.
+ * Ahora sí lo tiene: es una de las 3 alternativas del guardrail #1
+ * (plan-rework-tanques-lineas-recepcion.md §6) para cuando NO se
+ * quiere sumar el resto al lote nuevo.
+ */
+const DESVASE_HABILITADO = true
 
 /** Color estable por sabor (mismo sabor = mismo color siempre). */
 const COLORES_SABOR = ["var(--flavor-orange)", "var(--flavor-green)", "var(--flavor-red)", "var(--flavor-yellow)"]
@@ -106,6 +114,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
     terminarSaborLinea,
     terminarLinea,
     detenerLineaPorFalla,
+    descartarRestoTanque,
     continuarSiguienteLote,
     cambiarCondicionTanque,
     cambiarCondicionLinea,
@@ -152,6 +161,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
             onTransferir={transferirTanque}
             onEnvasar={envasarTanque}
             onReactivarLote={reactivarLote}
+            onDescartarResto={descartarRestoTanque}
           />
         ))}
       </TabsContent>
@@ -165,6 +175,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
               lineaCodigo={l.codigo}
               nombreLinea={l.nombre}
               modo={modo}
+              areaCodigo={session?.area ?? null}
               lineaTurno={turno.lineas.find((tl) => tl.linea === l.codigo && tl.activa) ?? null}
               lineaEstado={turno.lineasEstado.find((le) => le.linea === l.codigo) ?? null}
               tanquesListos={tanquesListos}
@@ -257,6 +268,7 @@ function TanqueCard({
   onTransferir,
   onEnvasar,
   onReactivarLote,
+  onDescartarResto,
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
@@ -270,9 +282,10 @@ function TanqueCard({
   onConfirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
   onIniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onLiberarLote: (loteId: string) => Promise<Resultado>
-  onTransferir: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3) => Promise<Resultado>
+  onTransferir: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3, modo: ModoTransferencia) => Promise<Resultado>
   onEnvasar: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   onReactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
+  onDescartarResto: (numeroTanque: 1 | 2 | 3, motivo: string) => Promise<Resultado>
 }) {
   const [editando, setEditando] = useState(false)
   const [mostrarFormPrep, setMostrarFormPrep] = useState(false)
@@ -280,6 +293,7 @@ function TanqueCard({
   const [cambiandoCip, setCambiandoCip] = useState(false)
   const [mostrarTransferir, setMostrarTransferir] = useState(false)
   const [tanqueDestino, setTanqueDestino] = useState<1 | 2 | 3 | "">("")
+  const [modoTransferencia, setModoTransferencia] = useState<ModoTransferencia>("LIQUIDO")
   const [confirmandoRedireccion, setConfirmandoRedireccion] = useState(false)
   const [transfiriendo, setTransfiriendo] = useState(false)
   const [errorTransferir, setErrorTransferir] = useState<string | null>(null)
@@ -288,6 +302,24 @@ function TanqueCard({
   const [confirmandoEnvasar, setConfirmandoEnvasar] = useState(false)
   const [envasando, setEnvasando] = useState(false)
   const [errorEnvasar, setErrorEnvasar] = useState<string | null>(null)
+  /** Guardrail #1, opción "Descartar" (plan-rework-tanques-lineas-recepcion.md §6). */
+  const [mostrarDescartar, setMostrarDescartar] = useState(false)
+  const [motivoDescarte, setMotivoDescarte] = useState("")
+  const [descartando, setDescartando] = useState(false)
+  const [errorDescartar, setErrorDescartar] = useState<string | null>(null)
+
+  async function confirmarDescarte() {
+    setDescartando(true)
+    setErrorDescartar(null)
+    const resultado = await onDescartarResto(tanque.numeroTanque, motivoDescarte)
+    setDescartando(false)
+    if (!resultado.ok) {
+      setErrorDescartar(resultado.error)
+      return
+    }
+    setMostrarDescartar(false)
+    setMotivoDescarte("")
+  }
 
   async function cambiarCip(condicion: "CIP" | "LIMPIO") {
     setCambiandoCip(true)
@@ -298,6 +330,8 @@ function TanqueCard({
   const loteAbierto = preparaciones.find((p) => !p.liberadoEn && !p.cerradoEn) ?? null
   const loteActivo = preparaciones.find((p) => p.liberadoEn && !p.cerradoEn) ?? null
   const corridaActivaEnEsteTanque = loteActivo ? (lineasDelTurno.find((l) => l.loteId === loteActivo.id && l.activa) ?? null) : null
+  /** Guardrail #1: el tanque tiene producto sin usar — al preparar encima, se suma solo por default (ver iniciar_preparacion). */
+  const tieneResto = (tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") && (tanque.volumenL ?? 0) > 0
   const destinosDisponibles = tanquesDelTurno.filter(
     (t) =>
       t.numeroTanque !== tanque.numeroTanque &&
@@ -312,7 +346,7 @@ function TanqueCard({
     }
     setTransfiriendo(true)
     setErrorTransferir(null)
-    const resultado = await onTransferir(tanque.numeroTanque, tanqueDestino)
+    const resultado = await onTransferir(tanque.numeroTanque, tanqueDestino, modoTransferencia)
     setTransfiriendo(false)
     if (!resultado.ok) {
       setErrorTransferir(resultado.error)
@@ -320,8 +354,13 @@ function TanqueCard({
     }
     setMostrarTransferir(false)
     setTanqueDestino("")
+    setModoTransferencia("LIQUIDO")
     setConfirmandoRedireccion(false)
   }
+
+  /** El destino ya tiene su propio lote (Listo o Con Restos) — ahí sí hace falta elegir qué identidad sobrevive. Si está Limpio, los dos modos dan lo mismo. */
+  const tanqueDestinoElegido = destinosDisponibles.find((t) => t.numeroTanque === tanqueDestino) ?? null
+  const destinoConLotePropio = tanqueDestinoElegido !== null && tanqueDestinoElegido.condicion !== "LIMPIO"
 
   async function envasar() {
     if (!confirmandoEnvasar) {
@@ -471,7 +510,9 @@ function TanqueCard({
             <FormularioIniciarPreparacion
               numeroTanque={tanque.numeroTanque}
               sabores={sabores}
-              volumenRestante={tanque.condicion === "STANDBY" ? (tanque.volumenL ?? 0) : 0}
+              volumenRestante={
+                tanque.condicion === "LISTO" || tanque.condicion === "STANDBY" ? (tanque.volumenL ?? 0) : 0
+              }
               areaCodigo={areaCodigo}
               usuarioSesion={usuarioSesion}
               onIniciar={async (datos) => {
@@ -481,33 +522,90 @@ function TanqueCard({
               }}
               onCancelar={() => setMostrarFormPrep(false)}
             />
+          ) : mostrarDescartar ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+              <p className="text-xs text-foreground">
+                Se van a descartar los {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L de {tanque.saborNombre} — quedan
+                como merma de este lote. Contá qué pasó (opcional).
+              </p>
+              <Textarea
+                value={motivoDescarte}
+                onChange={(e) => setMotivoDescarte(e.target.value.slice(0, 140))}
+                maxLength={140}
+                rows={2}
+                placeholder="Motivo del descarte"
+                className="text-sm"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">{motivoDescarte.length}/140</span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setMostrarDescartar(false)} disabled={descartando}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                    variant="outline"
+                    onClick={confirmarDescarte}
+                    disabled={descartando}
+                  >
+                    {descartando ? <Loader2 className="size-3.5 animate-spin" /> : <TriangleAlert className="size-3.5" />}
+                    Confirmar descarte
+                  </Button>
+                </div>
+              </div>
+              {errorDescartar && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorDescartar}
+                </p>
+              )}
+            </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setMostrarFormPrep(true)}>
-                <Beaker className="size-3.5" />
-                {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
-              </Button>
-              <Button size="sm" variant="outline" disabled={cambiandoCip} onClick={() => cambiarCip("CIP")}>
-                {cambiandoCip ? <Loader2 className="size-3.5 animate-spin" /> : <BroomSparkles className="size-3.5" />}
-                Iniciar CIP
-              </Button>
-              {(tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") && destinosDisponibles.length > 0 && (
-                <Button size="sm" variant="outline" onClick={() => setMostrarTransferir(true)}>
-                  <ArrowRightLeft className="size-3.5" />
-                  Transferir
-                </Button>
+            <div className="flex flex-col gap-2">
+              {tieneResto && (
+                <p className="text-xs text-muted-foreground">
+                  Quedan {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L de {tanque.saborNombre} sin usar — si preparás
+                  encima, se suman solos al lote nuevo. Si preferís otra cosa: Transferir, Desvase, o Descartar.
+                </p>
               )}
-              {DESVASE_HABILITADO && (tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") && (
-                <Button size="sm" variant="outline" onClick={envasar} disabled={envasando}>
-                  {envasando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageOpen className="size-3.5" />}
-                  {confirmandoEnvasar ? "¿Seguro? Sí, desvasar" : "Desvase"}
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => setMostrarFormPrep(true)}>
+                  <Beaker className="size-3.5" />
+                  {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
                 </Button>
-              )}
-              {DESVASE_HABILITADO && confirmandoEnvasar && (
-                <Button size="sm" variant="ghost" onClick={() => setConfirmandoEnvasar(false)} disabled={envasando}>
-                  Cancelar
+                <Button size="sm" variant="outline" disabled={cambiandoCip} onClick={() => cambiarCip("CIP")}>
+                  {cambiandoCip ? <Loader2 className="size-3.5 animate-spin" /> : <BroomSparkles className="size-3.5" />}
+                  Iniciar CIP
                 </Button>
-              )}
+                {tieneResto && destinosDisponibles.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setMostrarTransferir(true)}>
+                    <ArrowRightLeft className="size-3.5" />
+                    Transferir
+                  </Button>
+                )}
+                {DESVASE_HABILITADO && tieneResto && (
+                  <Button size="sm" variant="outline" onClick={envasar} disabled={envasando}>
+                    {envasando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageOpen className="size-3.5" />}
+                    {confirmandoEnvasar ? "¿Seguro? Sí, desvasar" : "Desvase"}
+                  </Button>
+                )}
+                {DESVASE_HABILITADO && confirmandoEnvasar && (
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmandoEnvasar(false)} disabled={envasando}>
+                    Cancelar
+                  </Button>
+                )}
+                {tieneResto && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                    onClick={() => setMostrarDescartar(true)}
+                  >
+                    <TriangleAlert className="size-3.5" />
+                    Descartar
+                  </Button>
+                )}
+              </div>
             </div>
           ))}
 
@@ -537,6 +635,32 @@ function TanqueCard({
                 ))}
               </SelectContent>
             </Select>
+
+            {destinoConLotePropio && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs text-muted-foreground">
+                  El tanque destino ya tiene su propio lote — ¿cuál de los dos identidades se queda?
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={modoTransferencia === "LIQUIDO" ? "default" : "outline"}
+                    onClick={() => setModoTransferencia("LIQUIDO")}
+                  >
+                    Líquido — se suma al lote del destino
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={modoTransferencia === "LOTE" ? "default" : "outline"}
+                    onClick={() => setModoTransferencia("LOTE")}
+                  >
+                    Lote — este lote se queda con lo que ya tenía el destino
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {confirmandoRedireccion && corridaActivaEnEsteTanque && (
               <p className="text-xs text-warning">
@@ -760,6 +884,7 @@ function LineaCard({
   lineaCodigo,
   nombreLinea,
   modo,
+  areaCodigo,
   lineaTurno,
   lineaEstado,
   tanquesListos,
@@ -778,6 +903,7 @@ function LineaCard({
   lineaCodigo: LineaCodigo
   nombreLinea: string
   modo: ModoEstadoPlanta
+  areaCodigo: string | null
   lineaTurno: LineaEnTurno | null
   lineaEstado: LineaEstado | null
   tanquesListos: TanqueRecepcion[]
@@ -819,12 +945,41 @@ function LineaCard({
   const opcionesVelocidad = presentacion ? velocidadesParaLive(velocidades, lineaCodigo, presentacion) : []
   const tanqueElegido = tanquesListos.find((t) => t.numeroTanque === numeroTanque) ?? null
 
-  function empezarEdicion() {
-    setPresentacion(lineaTurno?.presentacion ?? "")
-    setEnvasesHora(lineaTurno?.envasesHora ?? "")
+  /**
+   * Prellena presentación/velocidad con lo que la línea ya tenía
+   * (si hay una corrida activa) o, si no, con lo ÚLTIMO que esa línea
+   * usó (plan-rework-tanques-lineas-recepcion.md §12) — así el
+   * supervisor no tiene que retipear lo mismo cada vez que arranca una
+   * corrida nueva. Solo se prellena si el valor sigue siendo válido
+   * para esta línea (el catálogo pudo haber cambiado).
+   */
+  async function empezarEdicion() {
     setNumeroTanque("")
     setError(null)
     setEditando(true)
+
+    if (lineaTurno) {
+      setPresentacion(lineaTurno.presentacion)
+      setEnvasesHora(lineaTurno.envasesHora)
+      return
+    }
+
+    setPresentacion("")
+    setEnvasesHora("")
+    if (!areaCodigo) return
+
+    const ultima = await obtenerUltimaConfiguracionLinea(areaCodigo, lineaCodigo)
+    if (!ultima || ultima.presentacionVolumenMl === null) return
+
+    const presentacionCodigo = String(ultima.presentacionVolumenMl)
+    if (!presentacionesDisponibles.includes(presentacionCodigo)) return
+    setPresentacion(presentacionCodigo)
+
+    if (ultima.envasesHora === null) return
+    const opciones = velocidadesParaLive(velocidades, lineaCodigo, presentacionCodigo)
+    if (opciones.some((o) => o.envasesHora === ultima.envasesHora)) {
+      setEnvasesHora(ultima.envasesHora)
+    }
   }
 
   const valido = presentacion !== "" && envasesHora !== "" && numeroTanque !== ""
