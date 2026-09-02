@@ -13,6 +13,7 @@ import {
   PlayCircle,
   RefreshCw,
   Square,
+  TriangleAlert,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -104,6 +105,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
     continuarLinea,
     terminarSaborLinea,
     terminarLinea,
+    detenerLineaPorFalla,
     continuarSiguienteLote,
     cambiarCondicionTanque,
     cambiarCondicionLinea,
@@ -173,6 +175,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
               onContinuar={continuarLinea}
               onTerminarSabor={terminarSaborLinea}
               onTerminarLinea={terminarLinea}
+              onDetenerLineaPorFalla={detenerLineaPorFalla}
               onContinuarSiguienteLote={continuarSiguienteLote}
               onConfirmarEstadoLinea={confirmarEstadoLinea}
               onCambiarCondicionLinea={cambiarCondicionLinea}
@@ -183,13 +186,29 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
   )
 }
 
-const nombreCondicion: Record<CondicionTanque, string> = {
-  LISTO: "Listo",
-  SUCIO: "Sucio",
-  EN_PREPARACION: "En Preparación",
-  STANDBY: "Con restos",
-  CIP: "En CIP",
-  LIMPIO: "Limpio",
+/*
+ * Rename de estados (plan-rework-tanques-lineas-recepcion.md §9): "Sucio"
+ * deja de existir como palabra propia — un tanque que se drenó del todo
+ * es conceptualmente "Con Restos", solo que con 0 L. "Listo" pasa a
+ * llamarse "Liberado" (ya no hace falta el prefijo "En Preparación").
+ * El código interno (CondicionTanque, recepcion_tanques.condicion) NO
+ * cambia — es solo el rótulo que ve el supervisor.
+ */
+function nombreCondicionTanque(condicion: CondicionTanque, volumenL: number | null): string {
+  switch (condicion) {
+    case "LISTO":
+      return "Liberado"
+    case "SUCIO":
+      return "Con Restos 0 L"
+    case "EN_PREPARACION":
+      return "En Preparación No Liberado"
+    case "STANDBY":
+      return `Con Restos ${volumenL != null ? volumenL.toLocaleString("es-CO") : "—"} L`
+    case "CIP":
+      return "En CIP"
+    case "LIMPIO":
+      return "Limpio"
+  }
 }
 const badgeVariantCondicion: Record<CondicionTanque, "success" | "warning" | "muted" | "secondary"> = {
   LISTO: "success",
@@ -345,7 +364,7 @@ function TanqueCard({
             Tanque {tanque.numeroTanque}
           </span>
           <Badge variant={badgeVariantCondicion[tanque.condicion]} className="shrink-0">
-            {nombreCondicion[tanque.condicion]}
+            {nombreCondicionTanque(tanque.condicion, tanque.volumenL)}
           </Badge>
         </div>
 
@@ -751,6 +770,7 @@ function LineaCard({
   onContinuar,
   onTerminarSabor,
   onTerminarLinea,
+  onDetenerLineaPorFalla,
   onContinuarSiguienteLote,
   onConfirmarEstadoLinea,
   onCambiarCondicionLinea,
@@ -768,6 +788,7 @@ function LineaCard({
   onContinuar: (turnoLineaId: string) => Promise<Resultado>
   onTerminarSabor: (turnoLineaId: string) => Promise<Resultado>
   onTerminarLinea: (turnoLineaId: string) => Promise<Resultado>
+  onDetenerLineaPorFalla: (turnoLineaId: string, motivo: string) => Promise<Resultado>
   onContinuarSiguienteLote: (turnoLineaId: string) => Promise<Resultado>
   onConfirmarEstadoLinea: (turnoLineaId: string) => Promise<Resultado>
   onCambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>
@@ -778,6 +799,8 @@ function LineaCard({
   const condicionLinea = lineaEstado?.condicion ?? "DETENIDA"
   const [editando, setEditando] = useState(false)
   const [detener, setDetener] = useState(false)
+  /** "Falla" en Detener: a diferencia de Parada/Terminó, pide motivo antes de confirmar — igual que DETENIDA más abajo. */
+  const [fallaPendiente, setFallaPendiente] = useState(false)
   const [editandoEstadoLinea, setEditandoEstadoLinea] = useState(false)
   const [enviandoEstadoLinea, setEnviandoEstadoLinea] = useState(false)
   const [errorEstadoLinea, setErrorEstadoLinea] = useState<string | null>(null)
@@ -835,6 +858,22 @@ function LineaCard({
     if (!resultado.ok) setErrorAccion(resultado.error)
   }
 
+  /** "Detener por falla": termina la corrida y anota el motivo en un solo paso — ver detenerLineaPorFalla en turno.tsx. */
+  async function confirmarFalla() {
+    if (!lineaTurno) return
+    setEnviandoAccion(true)
+    setErrorAccion(null)
+    const resultado = await onDetenerLineaPorFalla(lineaTurno.id, observacionBorrador)
+    setEnviandoAccion(false)
+    if (!resultado.ok) {
+      setErrorAccion(resultado.error)
+      return
+    }
+    setFallaPendiente(false)
+    setDetener(false)
+    setObservacionBorrador("")
+  }
+
   async function cambiarEstadoLinea(condicion: CondicionLinea, observacion?: string | null) {
     setEnviandoEstadoLinea(true)
     setErrorEstadoLinea(null)
@@ -877,8 +916,10 @@ function LineaCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              {/* "Lista" no se ofrece para elegir a mano — nadie la usa en la
+                  planta (plan-rework-tanques-lineas-recepcion.md §12). Sigue
+                  existiendo por dentro como destino de "Terminó CIP". */}
               <SelectItem value="DETENIDA">Detenida</SelectItem>
-              <SelectItem value="LISTA">Lista para arrancar</SelectItem>
               <SelectItem value="CAMBIO_PRESENTACION">Cambio de Presentación</SelectItem>
               <SelectItem value="SIN_PROGRAMACION">Sin programación</SelectItem>
             </SelectContent>
@@ -943,17 +984,65 @@ function LineaCard({
     )
   }
 
-  /** "¿Parada momentánea, terminó el lote, o solo la línea?" — compartido entre Preparación y el "Detener" de Status. */
+  /** "¿Parada momentánea, terminó el lote, falla, o solo la línea?" — compartido entre Preparación y el "Detener" de Status. */
   function renderDetenerConfirm() {
+    // "Falla" pide motivo antes de confirmar (plan-rework-tanques-lineas-recepcion.md §12:
+    // corta la corrida Y anota el motivo en un solo paso, no dos que se pueden desincronizar).
+    if (fallaPendiente) {
+      return (
+        <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+          <p className="text-xs text-foreground">
+            La línea se detiene y el tanque se conserva para cuando se retome. Contá qué pasó (opcional).
+          </p>
+          <Textarea
+            value={observacionBorrador}
+            onChange={(e) => setObservacionBorrador(e.target.value.slice(0, 140))}
+            maxLength={140}
+            rows={2}
+            placeholder="Falla — se muestra en el dashboard"
+            className="text-sm"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">{observacionBorrador.length}/140</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setFallaPendiente(false)} disabled={enviandoAccion}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={confirmarFalla} disabled={enviandoAccion}>
+                {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <TriangleAlert className="size-3.5" />}
+                Confirmar falla
+              </Button>
+            </div>
+          </div>
+          {errorAccion && (
+            <p className="text-xs text-destructive" role="alert">
+              {errorAccion}
+            </p>
+          )}
+        </div>
+      )
+    }
+
     return (
       <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
         <p className="text-xs text-muted-foreground">
-          ¿Fue una parada momentánea, se terminó el lote, o solo se para la línea (el tanque sigue Listo)?
+          ¿Fue una parada momentánea, una falla que corta la corrida, se terminó el lote, o solo se para la línea (el
+          tanque sigue Listo)?
         </p>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => accion(onPausar)} disabled={enviandoAccion}>
             {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PauseCircle className="size-3.5" />}
             Parada
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-warning/40 text-warning-foreground hover:bg-warning-soft/40"
+            onClick={() => setFallaPendiente(true)}
+            disabled={enviandoAccion}
+          >
+            <TriangleAlert className="size-3.5" />
+            Falla
           </Button>
           <Button
             size="sm"

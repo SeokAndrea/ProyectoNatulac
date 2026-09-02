@@ -367,6 +367,7 @@ interface TurnoContextValue {
   continuarLinea: (turnoLineaId: string) => Promise<Resultado>
   terminarSaborLinea: (turnoLineaId: string) => Promise<Resultado>
   terminarLinea: (turnoLineaId: string) => Promise<Resultado>
+  detenerLineaPorFalla: (turnoLineaId: string, motivo: string) => Promise<Resultado>
   continuarSiguienteLote: (turnoLineaId: string) => Promise<Resultado>
   entregarCorrida: (turnoLineaId: string) => Promise<Resultado>
   finalizarLote: (loteId: string) => Promise<Resultado>
@@ -846,6 +847,34 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  /**
+   * "Detener por falla": una sola acción atómica para cuando la línea
+   * sufre una falla que corta la corrida (no una pausa breve) —
+   * termina la corrida conservando el tanque Y deja el motivo anotado
+   * en Detenida, las dos cosas juntas. Antes eran 2 pasos separados
+   * (terminarLinea + cambiarCondicionLinea) y si el segundo no se
+   * hacía, el motivo de la falla se perdía.
+   */
+  async function detenerLineaPorFalla(turnoLineaId: string, motivo: string): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("detener_linea_por_falla", {
+      p_usuario: usuario,
+      p_turno_id: turnoActivo.id,
+      p_turno_linea_id: turnoLineaId,
+      p_motivo: motivo.trim() || null,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: "No se pudo detener la línea. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
   async function continuarSiguienteLote(turnoLineaId: string): Promise<Resultado> {
     if (!turnoActivo || !usuario) {
       return { ok: false, error: "No hay un turno en curso." }
@@ -1194,6 +1223,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         continuarLinea,
         terminarSaborLinea,
         terminarLinea,
+        detenerLineaPorFalla,
         continuarSiguienteLote,
         entregarCorrida,
         finalizarLote,
