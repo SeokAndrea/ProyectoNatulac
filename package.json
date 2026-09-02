@@ -9,8 +9,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview",
-    "deploy": "tsc -b && vite build --base=/ProyectoNatulac/ && gh-pages -d dist"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "^5.3.0",
@@ -36,7 +35,6 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
-    "gh-pages": "^6.3.0",
     "oxlint": "^1.75.0",
     "supabase": "^2.115.0",
     "typescript": "~6.0.2",
