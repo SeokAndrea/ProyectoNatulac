@@ -216,20 +216,45 @@ síntoma de cómo se carga el dato en Producto Terminado, no una falla de diseñ
 Queda colgado del futuro debugging de **Producto Terminado** (punto 11) en vez de ser su propio
 tema urgente.
 
-## 11. Pendientes generales (para retomar)
+## 11. Construido y YA DESPLEGADO A PRODUCCIÓN (2026-09-02)
 
+Sin prueba local previa (esta laptop no tiene Docker) — subido directo por decisión del dueño,
+sin pasar primero por Área de Pruebas. Si algo se ve raro en ASEPTICO, empezar a revisar por acá.
+
+| Migración | Qué hace |
+| --- | --- |
+| `20260993` | "Detener por falla" — un solo paso atómico (termina la corrida + anota el motivo) |
+| `20260994` | `ultima_configuracion_linea()` — prellenado de velocidad/presentación por línea |
+| `20260995` | `transferir_tanque` con modo LIQUIDO/LOTE — el supervisor elige qué identidad de lote sobrevive |
+| `20260996` | **La más riesgosa.** `iniciar_preparacion` unificado: el resto SIEMPRE se suma (antes solo en Con Restos), y de paso corrige el doble conteo del §12 (el lote que entrega se descuenta). Nueva `descartar_resto_tanque()` para la opción "Descartar con motivo". `DESVASE_HABILITADO` pasó a `true`. |
+
+Frontend: rename de estados (Sucio→"Con Restos 0 L", Listo→"Liberado", etc.), "Lista" sacada del
+selector de líneas, botón "Descartar" + aviso en el tanque cuando tiene resto, selector Líquido/Lote
+en Transferir.
+
+## 12. Pendientes generales (para retomar)
+
+- **Verificar en producción** que `iniciar_preparacion` (guardrail #1) se comporta bien la primera
+  vez que alguien prepare sobre un tanque con resto — es el cambio de mayor riesgo, sin prueba local.
 - Diseñar la vista combinada tanque↔línea (punto 8, tema propio).
+- **Propuesta grande sin resolver:** separar "tanque físico" de "semielaborado/lote" — un tanque
+  podría sostener 2 lotes a la vez (ver conversación 2026-09-02, motivada por un caso real de
+  manifold). Si se confirma que resuelve el asunto #1 de raíz, el guardrail recién construido podría
+  dejar de hacer falta. Pendiente: confirmar si es coexistencia física real o solo una transición de
+  contabilidad, antes de diseñar nada.
 - Arrancar el debugging de **Producto Terminado** como flujo completo — incluye cuantificar la
-  merma de envases (bajada de prioridad, ver punto 10).
+  merma de envases (bajada de prioridad, ver punto 10; el dueño está hablando con el equipo sobre
+  cómo resolverlo más allá de un simple aviso).
 - Reporte de la Fase C histórica (`scripts/reporte-fase-c-candidatos.sql`) — turnos viejos, decidido
   dejarlos como están, sigue documentado por si cambia la decisión.
-- Construir la línea única "Detener por falla" (punto 12) — diseño cerrado, falta implementar.
-- Construir el prellenado de velocidad/presentación por línea (punto 12) — diseño cerrado, falta
-  implementar.
 - Catálogo de paradas (razones estandarizadas para "Detenida") — todavía no existe, es su propio
-  tema futuro (ver punto 12).
+  tema futuro (ver punto 12 original de Líneas).
 
-## 12. Líneas — hallazgos y decisiones (2026-09-02)
+## 13. Líneas — hallazgos y decisiones (2026-09-02)
+
+*(Nota: las referencias a "§12" más abajo en esta sección y en el punto 6 apuntan a ESTA sección de
+Líneas, numerada 13 desde el reordenamiento del punto 11-12 — no se corrigieron todas por falta de
+tiempo, pero es la única con contenido de Líneas en el documento, así que no hay ambigüedad real.)*
 
 **Dónde vive todo esto: PREPARACIÓN, no Recepción.** Recepción (punto 8) es el candado de una sola
 vez al arrancar el turno — ahí solo hace falta el Confirmar/Editar por línea que ya estaba en el
