@@ -1471,30 +1471,28 @@ function DesgloseCalculosPanel({ turno }: { turno: TurnoActivo }) {
           formula="1 − (Σ envases prod. term. ÷ Σ envases llenadora)"
         />
         <DesgloseDato
-          etiqueta="Volumen inicial preparado (lotes cerrados)"
+          etiqueta="Consumo de semielaborado del turno"
           valor={fmt(d.volumenInicial, " L")}
-          formula="Σ volumen inicial de cada lote ya cerrado del turno"
+          formula="Σ (volumen del lote al inicio del turno − al final)"
         />
         <DesgloseDato
-          etiqueta="Litros de Producto Terminado (lotes cerrados)"
+          etiqueta="Litros de Producto Terminado del turno"
           valor={fmt(d.litrosProducidos, " L")}
-          formula="Σ litros de Producto Terminado de las corridas de esos lotes"
+          formula="Σ litros de Producto Terminado de todas las corridas del turno"
         />
         <DesgloseDato
           etiqueta="Rendimiento del semielaborado"
           valor={
             d.rendimientoTurnoPct === null
-              ? d.hayLoteAbierto
-                ? "— (lote abierto)"
-                : "—"
+              ? "—"
               : `${Math.round((100 - d.rendimientoTurnoPct) * 100) / 100} %`
           }
-          formula="litros de Producto Terminado ÷ volumen inicial preparado"
+          formula="litros de Producto Terminado del turno ÷ consumo del turno"
         />
         <DesgloseDato
           etiqueta="Merma de semielaborado"
-          valor={d.rendimientoTurnoPct === null ? (d.hayLoteAbierto ? "— (lote abierto)" : "—") : fmt(d.rendimientoTurnoPct, " %")}
-          formula="1 − (litros de Producto Terminado ÷ volumen inicial preparado), solo lotes cerrados"
+          valor={d.rendimientoTurnoPct === null ? "—" : fmt(d.rendimientoTurnoPct, " %")}
+          formula="1 − (Producto Terminado del turno ÷ consumo del turno)"
         />
         {ajustes.length > 0 && (
           <DesgloseDato

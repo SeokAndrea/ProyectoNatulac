@@ -503,7 +503,7 @@ function FilaProductoTerminado({
   const textoBoton = modoCorreccion
     ? "Guardar corrección"
     : puedeElegirProximoEstado
-      ? "Cierre definitivo"
+      ? "Cerrar"
       : "Registrar"
 
   function limpiarCampos() {
@@ -627,7 +627,7 @@ function FilaProductoTerminado({
               <span className="rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">
                 {nombreLinea}
               </span>
-              {lineaTurno.lote && <span className="text-sm font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
+              {lineaTurno.lote && <span className="text-lg font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
             </CardTitle>
             <Badge variant="warning">Parada</Badge>
           </div>
@@ -677,7 +677,7 @@ function FilaProductoTerminado({
               <span className="rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">
                 {nombreLinea}
               </span>
-              {lineaTurno.lote && <span className="text-sm font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
+              {lineaTurno.lote && <span className="text-lg font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
             </CardTitle>
             <Badge variant="muted">Cerrada</Badge>
           </div>
@@ -729,7 +729,7 @@ function FilaProductoTerminado({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex flex-wrap items-center gap-2">
             <span className="rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">{nombreLinea}</span>
-            {lineaTurno.lote && <span className="text-sm font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
+            {lineaTurno.lote && <span className="text-lg font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
             {registroExistente && <Check className="size-3.5 text-muted-foreground" />}
           </CardTitle>
           <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">

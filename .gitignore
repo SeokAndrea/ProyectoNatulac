@@ -26,3 +26,7 @@ supabase/.branches
 *.njsproj
 *.sln
 *.sw?
+
+# backups locales de configuración (contienen credenciales)
+*.bak
+.env.*.bak

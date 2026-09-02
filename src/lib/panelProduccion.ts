@@ -228,67 +228,78 @@ export function mermaLineaTurno(turno: TurnoActivo, lineaCodigo: string, present
 
 export interface MermaSemielaboradoTurno {
   pct: number | null
-  /** Σ volumen inicial preparado de los lotes CERRADOS que entraron al cálculo. Denominador de la merma. */
-  volumenInicial: number
-  /** Σ litros de Producto Terminado de las corridas de esos lotes cerrados. Numerador. */
+  /** Denominador: Σ (volumen del lote al INICIO del turno − volumen al FINAL) de cada lote que el turno tocó. Lo que ese turno consumió de semielaborado. */
+  consumo: number
+  /** Numerador: Σ litros de Producto Terminado de TODAS las corridas del turno. */
   litrosProducidos: number
-  /** Σ (volumen inicial − volumen final) de TODOS los lotes del turno — informativo, NO entra en el %. */
+  /** Alias de `consumo` — se mantiene por compatibilidad con el desglose. */
   litrosConsumidos: number
-  /** true si algún lote del turno sigue abierto (su merma todavía no se puede juzgar). */
+  /** true si algún lote que el turno tocó sigue abierto. Informativo: la merma se muestra igual (mide el tramo de este turno, no espera a que el lote se drene). */
   hayLoteAbierto: boolean
 }
 
 /**
- * Merma de SEMIELABORADO: de lo que se PREPARÓ (volumen inicial =
- * tambores/kits × volumen del sabor), cuánto NO llegó a Producto
- * Terminado.
+ * Merma de SEMIELABORADO — modelo REPARTIDO POR TURNO
+ * (ver plan-debug-merma-semielaborado.md §23, §33, §41; decisión de la jefa: opción b).
  *
- *   merma % = 1 − (litros de Producto Terminado del lote ÷ volumen inicial preparado del lote)
+ *   consumo(turno)  = Σ_lotes  (volumen al INICIO del turno − volumen al FINAL del turno)
+ *   merma(turno)    = consumo(turno) − PT(turno)
+ *   merma %         = merma(turno) ÷ consumo(turno)
  *
- * Se calcula SOLO sobre lotes ya CERRADOS (tanque drenado / "Terminó
- * Sabor"): mientras el lote sigue abierto, lo que "falta" puede estar
- * todavía en el tanque y no es merma. Y se suma POR LOTE — sumar el
- * volumen inicial de todos los lotes juntos infla el número cuando hay
- * un tanque preparado que casi no se usó en el turno.
+ * Cada turno se lleva SOLO el tramo que consumió, no el lote entero.
+ * Así:
+ *  - un lote heredado ya no le carga su volumen inicial completo al
+ *    turno que lo produjo a medias (antes: merma inflada / "—"),
+ *  - una relectura de volumen del tanque deja de "borrar" la merma
+ *    (antes: volumen_inicial_l se pisaba con PT + real; ahora es
+ *    inmutable — ver migración 20260989),
+ *  - las transferencias internas se cancelan solas al sumar por turno.
  *
- * NO se usa `volumen_l` (final del tanque) en la cuenta: ese valor
- * NO es una medición física, sale de restarle a `volumen_inicial_l`
- * los litros del PT (ver registrar_producto_terminado), así que
- * `volumen_inicial_l − volumen_l` es idénticamente igual a los litros
- * del PT y cualquier fórmula con él da 0 %. La diferencia real
- * teórico-vs-físico se registra aparte, con Corregir → preparaciones_ajuste.
+ * Datos (los pone turno_json, migración 20260992):
+ *  - `volumenLInicio`: volumen_l del lote cuando este turno empezó a
+ *    tocarlo. Si el lote nació en este turno → su volumen inicial
+ *    preparado. Si es heredado → el volumen_l congelado al cierre del
+ *    último turno anterior que lo tenía.
+ *  - `volumenL`: volumen_l al final. Para un turno CERRADO viene
+ *    congelado (turnos.volumenes_lote_cierre); para el turno en vivo
+ *    es el valor actual.
  *
- * Para un turno YA CERRADO los volúmenes vienen CONGELADOS al cierre
- * (turno_json() los saca de turnos.volumenes_lote_cierre, ver 20260968).
+ * Nota: si en un turno nadie llegó a medir el tanque, `volumenL` sigue
+ * siendo un derivado del PT y el consumo de ese tramo da ≈ PT (merma
+ * ≈ 0). No se pierde: la pérdida aparece en el turno que sí mide, o
+ * cuando el lote se cierra drenado. El número nunca se infla ni sale
+ * negativo.
  */
 export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoTurno {
-  const loteIds = new Set(turno.lineas.map((l) => l.loteId).filter((id): id is string => id !== null))
+  // Lotes que este turno tocó: los que alimentaron una corrida, más
+  // los que nacieron en el turno (preparados aunque todavía sin correr).
+  const loteIds = new Set<string>()
+  for (const l of turno.lineas) if (l.loteId !== null) loteIds.add(l.loteId)
+  for (const p of turno.preparaciones) if (p.turnoId === turno.id) loteIds.add(p.id)
 
-  let volumenInicial = 0
-  let litrosProducidos = 0
-  let litrosConsumidos = 0
+  let consumo = 0
   let hayLoteAbierto = false
 
   for (const loteId of loteIds) {
     const lote = turno.preparaciones.find((p) => p.id === loteId)
-    if (!lote || lote.volumenInicialL === null) continue
-    litrosConsumidos += lote.volumenInicialL - (lote.volumenL ?? 0)
+    if (!lote) continue
 
-    if (lote.cerradoEn === null) {
-      hayLoteAbierto = true
-      continue
-    }
-    const corridasDelLote = new Set(turno.lineas.filter((l) => l.loteId === loteId).map((l) => l.id))
-    const ptLote = turno.productoTerminado
-      .filter((p) => p.turnoLineaId !== null && corridasDelLote.has(p.turnoLineaId))
-      .reduce((a, p) => a + p.litrosProducidos, 0)
-    volumenInicial += lote.volumenInicialL
-    litrosProducidos += ptLote
+    const inicio = lote.volumenLInicio ?? lote.volumenInicialL
+    if (inicio === null) continue
+    const fin = lote.volumenL ?? 0
+
+    // clamp a 0: un tramo no puede "des-consumir" (pasa si el tanque
+    // se rellenó/transfirió durante el turno — eso lo cubre otro lote).
+    consumo += Math.max(inicio - fin, 0)
+
+    if (lote.cerradoEn === null) hayLoteAbierto = true
   }
 
-  const pct = volumenInicial === 0 ? null : Math.round((1 - litrosProducidos / volumenInicial) * 10000) / 100
+  const litrosProducidos = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)
 
-  return { pct, volumenInicial, litrosProducidos, litrosConsumidos, hayLoteAbierto }
+  const pct = consumo <= 0 ? null : Math.round((1 - litrosProducidos / consumo) * 10000) / 100
+
+  return { pct, consumo, litrosProducidos, litrosConsumidos: consumo, hayLoteAbierto }
 }
 
 export interface ResumenTurnoAnterior {

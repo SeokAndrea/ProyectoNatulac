@@ -149,6 +149,8 @@ export interface LineaEstado {
  */
 export interface PreparacionRegistro {
   id: string
+  /** Turno en el que se creó este lote. Si coincide con el turno que se está viendo, el lote NACIÓ acá (su inicio es volumenInicialL). */
+  turnoId: string | null
   numeroTanque: 1 | 2 | 3
   saborId: string | null
   saborNombre: string | null
@@ -156,6 +158,8 @@ export interface PreparacionRegistro {
   volumenL: number | null
   /** Volumen con el que se armó este lote — junto con volumenL, permite calcular cuánto salió realmente del tanque (ver mermaSemielaboradoTurno). */
   volumenInicialL: number | null
+  /** volumen_l del lote al INICIO de este turno: volumenInicialL si nació acá, o el volumen congelado al cierre del último turno anterior que lo tenía. Denominador del modelo repartido por turno (ver mermaSemielaboradoTurno). */
+  volumenLInicio: number | null
   tambores: number
   agua: number | null
   azucar: number | null
@@ -472,12 +476,14 @@ interface FilaProductoTerminado {
 
 interface FilaPreparacion {
   id: string
+  turno_id: string | null
   numero_tanque: number
   sabor_id: string | null
   sabor_nombre: string | null
   lote: string | null
   volumen_l: number | null
   volumen_inicial_l: number | null
+  volumen_l_inicio: number | null
   tambores: number
   agua: number | null
   azucar: number | null
@@ -640,12 +646,14 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
     })),
     preparaciones: fila.preparaciones.map((p) => ({
       id: p.id,
+      turnoId: p.turno_id ?? null,
       numeroTanque: p.numero_tanque as 1 | 2 | 3,
       saborId: p.sabor_id,
       saborNombre: saborSinFamiliaOculta(p.sabor_nombre),
       lote: p.lote,
       volumenL: p.volumen_l,
       volumenInicialL: p.volumen_inicial_l,
+      volumenLInicio: p.volumen_l_inicio ?? p.volumen_inicial_l,
       tambores: p.tambores,
       agua: p.agua,
       azucar: p.azucar,

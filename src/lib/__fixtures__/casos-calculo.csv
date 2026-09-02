@@ -36,10 +36,10 @@
 #                         código y los mismos litros_iniciales/finales:
 #                         el semielaborado se cuenta una sola vez por lote.
 #   litros_iniciales      Litros con los que se liberó el tanque (volumen inicial preparado).
-#   litros_finales        Litros que quedaron en el tanque al cerrar (informativo).
-#   lote_cerrado          si / no. La merma de semielaborado SOLO se calcula
-#                         sobre lotes cerrados (tanque drenado / "Terminó
-#                         Sabor"). Si no hay ninguno cerrado → merma = "—".
+#   litros_finales        Litros MEDIDOS que quedaron en el tanque al cerrar.
+#                         Ahora ENTRA en el cálculo: consumo = iniciales − finales.
+#   lote_cerrado          si / no. Informativo — el modelo repartido por
+#                         turno calcula la merma aunque el lote siga abierto.
 #
 #   --- Corrida / línea ---
 #   linea                 Código de línea (LINEA_T1 / LINEA_T2 / LINEA_T3
@@ -74,7 +74,8 @@
 #   horas             = hora_fin - hora_inicio
 #   cajas_esperadas   = velocidad_envases_hora / envases_x_caja * horas   (redondeado)
 #   cajas_reales      = contador_envases / envases_x_caja                 (redondeado)
-#   merma_semi_%      = (1 - suma(pt_litros de lotes cerrados) / suma(litros_iniciales de lotes cerrados)) * 100
+#   consumo_turno     = suma(litros_iniciales - litros_finales) de cada lote del turno
+#   merma_semi_%      = (1 - suma(pt_litros del turno) / consumo_turno) * 100
 #                       (rendimiento = 100 - merma_semi_%)
 #   cumplimiento_%    = suma(cajas_reales activas) / suma(cajas_esperadas activas) * 100
 #
@@ -83,7 +84,7 @@
 # los reales, o dejalos: son válidos y sirven de guía.
 # ============================================================================
 caso,turno_estado,hora_inicio,hora_fin,tanque,sabor,lote,litros_iniciales,litros_finales,lote_cerrado,linea,presentacion_ml,envases_x_caja,cajas_x_paleta,velocidad_envases_hora,corrida_activa,contador_envases,pt_paletas,pt_cajas_sueltas,pt_litros,esp_merma_envase_corrida_pct,esp_merma_envase_turno_pct,esp_rendimiento_turno_pct,esp_cajas_esperadas,esp_cajas_reales,esp_cumplimiento_turno_pct
-ejemplo-2lineas,CERRADO,07:00,15:00,1,Manzana,L-101,10000,400,si,LINEA_T1,1000,12,60,9000,si,72000,98,40,9550,1.33,1.19,3.89,6000,6000,97.5
+ejemplo-2lineas,CERRADO,07:00,15:00,1,Manzana,L-101,10000,400,si,LINEA_T1,1000,12,60,9000,si,72000,98,40,9550,1.33,1.19,0.57,6000,6000,97.5
 ejemplo-2lineas,CERRADO,07:00,15:00,2,Pera,L-102,8000,200,si,LINEA_T2,250,24,100,12000,si,90000,37,10,7750,1.07,,,4000,3750,
-ejemplo-lote-compartido,CERRADO,15:00,22:30,1,Naranja,L-200,12000,5700,si,LINEA_T1,1000,12,60,8400,no,40000,55,30,3990,0.1,0.32,48.58,,,34.9
+ejemplo-lote-compartido,CERRADO,15:00,22:30,1,Naranja,L-200,12000,5700,si,LINEA_T1,1000,12,60,8400,no,40000,55,30,3990,0.1,0.32,2.06,,,34.9
 ejemplo-lote-compartido,CERRADO,15:00,22:30,1,Naranja,L-200,12000,5700,si,LINEA_T1,1000,12,60,8400,si,22000,30,20,2180,0.73,,,5250,1833,

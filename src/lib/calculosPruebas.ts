@@ -53,15 +53,15 @@ export interface DesgloseCalculos {
   porCorrida: DesgloseCorrida[]
   /** mermaEnvasesTurno(): todas las corridas comparables juntas. */
   mermaEnvaseTurnoPct: number | null
-  /** Σ (litros iniciales − litros finales) de TODOS los lotes del turno — informativo, NO entra en el %. */
+  /** Consumo del turno: Σ (volumen del lote al inicio del turno − al final). Denominador de la merma de semielaborado. */
   litrosConsumidos: number
-  /** Σ volumen inicial preparado de los lotes CERRADOS — denominador de la merma de semielaborado. */
+  /** Igual que litrosConsumidos (el modelo repartido por turno usa el consumo como denominador). */
   volumenInicial: number
-  /** Σ litros de Producto Terminado de las corridas de esos lotes cerrados — numerador. */
+  /** Σ litros de Producto Terminado de TODAS las corridas del turno — numerador. */
   litrosProducidos: number
-  /** mermaSemielaboradoTurno(): merma = 1 − (litros PT ÷ volumen inicial preparado), sobre lotes CERRADOS. null si ninguno cerró. */
+  /** mermaSemielaboradoTurno(): merma = 1 − (PT del turno ÷ consumo del turno). null si el consumo es 0. */
   rendimientoTurnoPct: number | null
-  /** true si algún lote sigue abierto (su merma todavía no se puede juzgar). */
+  /** true si algún lote que el turno tocó sigue abierto (informativo; la merma se muestra igual). */
   hayLoteAbierto: boolean
   cajasEsperadasTotal: number
   cajasRealesTotal: number
@@ -111,7 +111,7 @@ export function desglosarCalculos(turno: TurnoActivo, presentaciones: Presentaci
     porCorrida,
     mermaEnvaseTurnoPct: mermaEnvase.pct,
     litrosConsumidos: mermaSemi.litrosConsumidos,
-    volumenInicial: mermaSemi.volumenInicial,
+    volumenInicial: mermaSemi.consumo,
     litrosProducidos: mermaSemi.litrosProducidos,
     rendimientoTurnoPct: mermaSemi.pct,
     hayLoteAbierto: mermaSemi.hayLoteAbierto,
@@ -334,12 +334,16 @@ function construirCaso(nombre: string, filas: FilaCaso[]): CasoPrueba {
     if (loteId && !preparacionesMap.has(loteId)) {
       preparacionesMap.set(loteId, {
         id: loteId,
+        // El CSV modela un turno completo; sus lotes nacen en ese turno.
+        turnoId: nombre,
         numeroTanque: ((Number(f.tanque) || 1) as 1 | 2 | 3),
         saborId: null,
         saborNombre: f.sabor || null,
         lote: f.lote || null,
         volumenL: f.litrosFinales,
         volumenInicialL: f.litrosIniciales,
+        // Nació en este turno → su inicio es el volumen inicial preparado.
+        volumenLInicio: f.litrosIniciales,
         tambores: 0,
         agua: null,
         azucar: null,
