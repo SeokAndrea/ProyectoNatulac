@@ -1398,8 +1398,39 @@ T2 pasaría a mostrar los 4.700 L como merma de su tramo → total T1+T2 = 7.364
    guarda en tobos / se reusa y no habría que contarlo?
 2. Cuando el residuo se descarta, ¿la pérdida es del turno que **cerró** el lote o del que lo
    **preparó**? (la propuesta dice: el que lo cerró.)
-3. El pasteurizador (§271) sigue sin existir en el modelo — los litros que quedan ahí en tránsito
-   nunca se descuentan. ¿Se agrega como un "tanque" más, o se asume que siempre vuelven?
+3. ~~El pasteurizador (§271) sigue sin existir en el modelo...~~ **RESPONDIDO por el dueño
+   (2026-09-02): lo que queda en el pasteurizador siempre aparece contabilizado en el ÚLTIMO
+   lote — nunca se pierde ahí.** No hace falta modelarlo aparte ni agregarlo como un "tanque" más:
+   el hueco del §271 no es tal, el sistema ya lo cubre porque ese litro termina apareciendo en el
+   PT del último lote que se envasó.
 4. ¿Querés además un dato aparte "pérdida definitiva del lote" (= preparado − PT, disponible solo
    cuando el lote cierra del todo), al lado de la "merma del turno"? Serían dos indicadores
    legítimos y distintos (§265).
+
+### Nota — caso real de transferencia mal deshecha (2026-09-02)
+
+Revisando la auditoría del turno de Deivis (T2, después de Danny) para este mismo lote 0001:
+no se "tiró" el residuo al limpiar — se **transfirió** al tanque 2 (lote 0002, sabor sumado
+14.704→19.404 L) y un minuto después una "corrección" lo devolvió a 14.704, borrando la
+transferencia del papel sin poder deshacer el líquido ya mezclado (mismo mecanismo del bug de
+Danny, aplicado a una transferencia en vez de a una relectura). **Conclusión: esos 4.700 L
+probablemente NO se perdieron, quedaron mezclados en el lote 0002.** Deja pendiente un gap de
+UX real: hace falta una forma de "deshacer una transferencia" que no sea reutilizar "Corregir"
+(que es para relecturas físicas, no para revertir un movimiento entre tanques).
+
+### Guardrails a considerar (dueño, 2026-09-02: "hay que estandarizar y bloquear cosas para que no hagan locuras")
+
+Ninguno implementado — para hablar con el equipo junto con lo de arriba. Cada uno nace de un caso
+real ya documentado en este plan:
+
+1. **Avisar / bloquear "Iniciar Preparación" sobre un tanque LISTO con producto adentro** (§16,
+   caso 1B) — hoy el botón se ofrece sin avisar que el resto se va a descartar de la cuenta. Al
+   mínimo, un aviso: "Quedan X L en el tanque — ¿pasar a STANDBY para conservarlos, o seguir?".
+2. **Una acción propia para "deshacer una transferencia"** (ver nota de arriba) — que "Corregir"
+   no pueda tocar un lote que acaba de recibir una transferencia, o que exista un botón separado
+   que sí sepa revertirla de verdad (mover los litros de vuelta, no solo pisar el número).
+3. **Que "Corregir" muestre el ajuste ANTES de guardar** — con la Fase A ya aplicada, cada
+   corrección genera una fila de `preparaciones_ajuste`; mostrarle al supervisor "esto se va a
+   registrar como −X L de merma" en el momento, no solo dejarlo en un reporte que nadie mira.
+4. **Terminar un lote pidiendo la medición final** (§32, caso 7) — `finalizar_lote()` hoy no
+   pregunta nada; capturar cuánto quedó de verdad cierra el hueco que menciona el §33.
