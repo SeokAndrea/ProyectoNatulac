@@ -265,7 +265,12 @@ sistema.
 | sabor_id | FK a `sabores` |
 | lote | texto libre |
 | tambores | entero, obligatorio |
-| agua, azucar, acido_citrico | numéricos, opcionales, sin unidad forzada en la base (la interfaz sugiere L / kg / kg) |
+| agua, azucar, acido_citrico | numéricos, opcionales, sin unidad forzada en la base (la interfaz sugiere L / kg / kg). NO entran al volumen (ver migración 20260997 / `ajustar_preparacion`) |
+| volumen_l, volumen_inicial_l, volumen_l_inicio | litros del lote (actual / preparado / al inicio del turno) — modelo de merma de semielaborado |
+
+**`ajustar_preparacion(lote_id, litros, detalle)`** (migración 20260997): antes de liberar, suma
+`litros` de jugo/agua a `volumen_l` y `volumen_inicial_l` (1:1) y deja una fila en
+`preparaciones_ajuste_volumen`. Rechaza si el lote ya está liberado o cerrado.
 
 ### `turno_lineas` (ampliada)
 Además de la relación turno↔línea original, ahora guarda la

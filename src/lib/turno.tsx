@@ -370,6 +370,8 @@ interface TurnoContextValue {
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   descartarRestoTanque: (numeroTanque: 1 | 2 | 3, motivo: string) => Promise<Resultado>
   liberarLote: (loteId: string) => Promise<Resultado>
+  /** Suma litros de jugo/agua al volumen del lote — solo antes de liberar. */
+  ajustarPreparacion: (loteId: string, litros: number, detalle: string | null) => Promise<Resultado>
   transferirTanque: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3, modo: ModoTransferencia) => Promise<Resultado>
   envasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   reactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
@@ -1183,6 +1185,26 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  async function ajustarPreparacion(loteId: string, litros: number, detalle: string | null): Promise<Resultado> {
+    if (!turnoActivo || !usuario) {
+      return { ok: false, error: "No hay un turno en curso." }
+    }
+
+    const { data, error } = await supabase.rpc("ajustar_preparacion", {
+      p_usuario: usuario,
+      p_lote_id: loteId,
+      p_litros: litros,
+      p_detalle: detalle,
+    })
+
+    if (error || !data) {
+      return { ok: false, error: error?.message ?? "No se pudo registrar el ajuste. Intenta de nuevo." }
+    }
+
+    setTurnoActivo(mapearTurno(data as FilaTurno))
+    return { ok: true }
+  }
+
   async function transferirTanque(
     numeroTanqueOrigen: 1 | 2 | 3,
     numeroTanqueDestino: 1 | 2 | 3,
@@ -1259,6 +1281,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         iniciarPreparacion,
         descartarRestoTanque,
         liberarLote,
+        ajustarPreparacion,
         transferirTanque,
         envasarTanque,
         reactivarLote,

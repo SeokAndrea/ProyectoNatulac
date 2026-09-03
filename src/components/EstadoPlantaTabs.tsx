@@ -122,6 +122,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
     confirmarEstadoLinea,
     iniciarPreparacion,
     liberarLote,
+    ajustarPreparacion,
     transferirTanque,
     envasarTanque,
     reactivarLote,
@@ -158,6 +159,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
             onConfirmarEstadoTanque={confirmarEstadoTanque}
             onIniciarPreparacion={iniciarPreparacion}
             onLiberarLote={liberarLote}
+            onAjustar={ajustarPreparacion}
             onTransferir={transferirTanque}
             onEnvasar={envasarTanque}
             onReactivarLote={reactivarLote}
@@ -265,6 +267,7 @@ function TanqueCard({
   onConfirmarEstadoTanque,
   onIniciarPreparacion,
   onLiberarLote,
+  onAjustar,
   onTransferir,
   onEnvasar,
   onReactivarLote,
@@ -282,6 +285,7 @@ function TanqueCard({
   onConfirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
   onIniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onLiberarLote: (loteId: string) => Promise<Resultado>
+  onAjustar: (loteId: string, litros: number, detalle: string | null) => Promise<Resultado>
   onTransferir: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3, modo: ModoTransferencia) => Promise<Resultado>
   onEnvasar: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   onReactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
@@ -290,6 +294,11 @@ function TanqueCard({
   const [editando, setEditando] = useState(false)
   const [mostrarFormPrep, setMostrarFormPrep] = useState(false)
   const [liberando, setLiberando] = useState(false)
+  const [mostrarAjuste, setMostrarAjuste] = useState(false)
+  const [litrosAjuste, setLitrosAjuste] = useState("")
+  const [detalleAjuste, setDetalleAjuste] = useState("")
+  const [ajustando, setAjustando] = useState(false)
+  const [errorAjuste, setErrorAjuste] = useState<string | null>(null)
   const [cambiandoCip, setCambiandoCip] = useState(false)
   const [mostrarTransferir, setMostrarTransferir] = useState(false)
   const [tanqueDestino, setTanqueDestino] = useState<1 | 2 | 3 | "">("")
@@ -481,19 +490,83 @@ function TanqueCard({
 
         {/* También en modo "status": si al editar el tanque queda En Preparación, se debe poder liberar aquí mismo sin ir a Preparación. */}
         {(modo === "preparacion" || modo === "status") && tanque.condicion === "EN_PREPARACION" && loteAbierto && (
-          <Button
-            size="sm"
-            className="self-start"
-            disabled={liberando}
-            onClick={async () => {
-              setLiberando(true)
-              await onLiberarLote(loteAbierto.id)
-              setLiberando(false)
-            }}
-          >
-            {liberando ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-            Liberar (marcar Listo)
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button
+              size="sm"
+              className="self-start"
+              disabled={liberando || ajustando}
+              onClick={async () => {
+                setLiberando(true)
+                await onLiberarLote(loteAbierto.id)
+                setLiberando(false)
+              }}
+            >
+              {liberando ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+              Liberar (marcar Listo)
+            </Button>
+
+            {mostrarAjuste ? (
+              <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2.5">
+                <p className="text-xs text-muted-foreground">Sumar jugo o agua al volumen del lote (antes de liberar).</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    placeholder="Litros"
+                    className="h-8 w-24"
+                    value={litrosAjuste}
+                    onChange={(e) => setLitrosAjuste(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Detalle (opcional)"
+                    className="h-8 w-40"
+                    value={detalleAjuste}
+                    onChange={(e) => setDetalleAjuste(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={ajustando || !(Number(litrosAjuste) > 0)}
+                    onClick={async () => {
+                      setAjustando(true)
+                      setErrorAjuste(null)
+                      const r = await onAjustar(loteAbierto.id, Number(litrosAjuste), detalleAjuste.trim() || null)
+                      setAjustando(false)
+                      if (!r.ok) {
+                        setErrorAjuste(r.error)
+                        return
+                      }
+                      setLitrosAjuste("")
+                      setDetalleAjuste("")
+                      setMostrarAjuste(false)
+                    }}
+                  >
+                    {ajustando ? <Loader2 className="size-3.5 animate-spin" /> : "Sumar"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={ajustando}
+                    onClick={() => {
+                      setMostrarAjuste(false)
+                      setErrorAjuste(null)
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+                {errorAjuste && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {errorAjuste}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" className="self-start" onClick={() => setMostrarAjuste(true)}>
+                Ajustar
+              </Button>
+            )}
+          </div>
         )}
 
         {modo === "preparacion" && tanque.condicion === "CIP" && (
