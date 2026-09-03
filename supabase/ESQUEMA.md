@@ -268,9 +268,12 @@ sistema.
 | agua, azucar, acido_citrico | numéricos, opcionales, sin unidad forzada en la base (la interfaz sugiere L / kg / kg). NO entran al volumen (ver migración 20260997 / `ajustar_preparacion`) |
 | volumen_l, volumen_inicial_l, volumen_l_inicio | litros del lote (actual / preparado / al inicio del turno) — modelo de merma de semielaborado |
 
-**`ajustar_preparacion(lote_id, litros, detalle)`** (migración 20260997): antes de liberar, suma
-`litros` de jugo/agua a `volumen_l` y `volumen_inicial_l` (1:1) y deja una fila en
-`preparaciones_ajuste_volumen`. Rechaza si el lote ya está liberado o cerrado.
+Dos tablas de ajuste de un lote, distintas:
+
+| Tabla | Cuándo | Qué guarda |
+|---|---|---|
+| `preparaciones_ajuste_volumen` (20260997) | **antes de liberar**, con el botón "Ajustar" | litros de jugo/agua que se suman al volumen — `ajustar_preparacion(lote_id, litros, detalle)` hace `volumen_l += litros` y `volumen_inicial_l += litros`. Rechaza si el lote ya está liberado o cerrado |
+| `preparaciones_ajuste` (20260988) | **después**, al "Corregir (mismo lote)" en Recepción | la relectura física del tanque: volumen teórico vs. real y la diferencia (litros "al aire"). Lo dispara un trigger cuando una corrección mueve a la vez `volumen_inicial_l` y `volumen_l` |
 
 ### `turno_lineas` (ampliada)
 Además de la relación turno↔línea original, ahora guarda la

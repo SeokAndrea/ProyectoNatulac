@@ -126,7 +126,7 @@ export function desglosarCalculos(turno: TurnoActivo, presentaciones: Presentaci
  * ================================================================== */
 
 /** Columnas del CSV (ver src/lib/__fixtures__/casos-calculo.csv). */
-export const COLUMNAS_CSV = [
+const COLUMNAS_CSV = [
   "caso",
   "turno_estado",
   "hora_inicio",
@@ -212,7 +212,7 @@ export interface ResultadoCaso {
  * `#` (comentarios). La primera línea que quede es el encabezado. No
  * soporta comas dentro de un valor — no hacen falta acá.
  */
-export function parseCsv(texto: string): Array<Record<string, string>> {
+function parseCsv(texto: string): Array<Record<string, string>> {
   const lineas = texto
     .split(/\r?\n/)
     .map((l) => l.trim())
