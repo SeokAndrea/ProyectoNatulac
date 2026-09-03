@@ -114,10 +114,15 @@ export function construirHistorial(
   for (const p of turno.productoTerminado) {
     const cajasXPaleta = presentaciones.find((pr) => pr.codigo === p.presentacion)?.cajasXPaleta ?? 0
     const cajasTotales = p.paletas * cajasXPaleta + p.cajasSueltas
+    // El lote no vive en la fila de Producto Terminado: sale de la
+    // corrida que la generó (turnoLineaId → LineaEnTurno.lote). Se
+    // muestra junto al sabor para que un auditor lo pueda rastrear y
+    // buscar (ver coincideBusqueda en src/lib/auditoriaVista.ts).
+    const lote = p.turnoLineaId ? (turno.lineas.find((l) => l.id === p.turnoLineaId)?.lote ?? null) : null
     agregar(
       p.editadoEn ?? p.creadoEn,
       "Producto Terminado",
-      `${nombrePorCodigo(lineas, p.linea)}: ${p.paletas} paletas + ${p.cajasSueltas} cajas sueltas = ${cajasTotales} cajas (${p.saborNombre ?? "sin sabor"})` +
+      `${nombrePorCodigo(lineas, p.linea)}: ${p.paletas} paletas + ${p.cajasSueltas} cajas sueltas = ${cajasTotales} cajas · ${p.saborNombre ?? "sin sabor"}${lote ? ` · Lote ${lote}` : ""}` +
         (p.editadoPorNombre ? ` — EDITADO POR: ${p.editadoPorNombre.toUpperCase()}` : ""),
     )
   }

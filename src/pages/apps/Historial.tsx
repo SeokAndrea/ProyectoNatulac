@@ -1,21 +1,20 @@
 import { useEffect, useState } from "react"
-import { ChevronLeft, Download, FileText, Loader2, RotateCcw, Search, Trash2 } from "lucide-react"
+import { ChevronLeft, Download, FileText, Loader2, RotateCcw, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
+import { AuditoriaTurnos, type TurnoAuditoria } from "@/components/AuditoriaTurnos"
+import { RegistroCambios } from "@/components/RegistroCambios"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { generarActaPdf } from "@/lib/actaPdf"
-import { AREAS, CARGOS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { AREAS, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
 import { datasetACsv, descargarCsv } from "@/lib/dataset"
 import { obtenerEstadisticas } from "@/lib/estadisticas"
 import { listarSabores, nombreSaborConFamilia } from "@/lib/sabores"
 import { listarAuditoria, type RegistroAuditoria } from "@/lib/auditoria"
+import { rangoDePreset, type RangoFecha } from "@/lib/auditoriaVista"
 import { construirHistorial } from "@/lib/historial"
 import {
   eliminarTurno,
@@ -26,35 +25,40 @@ import {
   subirYRegistrarActa,
   turnosActivosPorArea,
   urlPublicaActa,
+  type Acta,
   type TurnoActivoArea,
   type TurnoResumen,
 } from "@/lib/historialTurnos"
-import { fechaLocal, type TurnoActivo } from "@/lib/turno"
+import type { TurnoActivo } from "@/lib/turno"
 
 /*
- * Auditoría: registro cronológico de acciones de cualquier turno
- * (Hora - Sección - Qué), buscable por supervisor y/o fecha — para
- * Super Administrador (todas las áreas menos PRUEBAS) y Administrador
- * de Área (acotado a la suya, ver rol_y_area_de() del lado del
- * servidor). El PDF del acta vive aparte, en su propia app (ver
- * src/pages/apps/Actas.tsx) — esto es solo el registro de acciones,
- * no el documento de cierre.
+ * Auditoría: para el auditor ISO 9001 y el jefe de producción — qué
+ * hizo cada supervisor, en orden cronológico, turno por turno, con el
+ * resumen (sabores/lotes, cajas y las dos mermas) de un vistazo y la
+ * línea de tiempo por hora al abrir cada fila. Ver plan-rework-auditoria.md.
  *
- * Arriba de la búsqueda, un vistazo rápido de qué área tiene un turno
- * activo ahora mismo y quién es el supervisor.
+ * La grilla la arma <AuditoriaTurnos>; esta página trae los datos del
+ * rango que ese componente pide (filtro de fecha) y aporta las
+ * acciones por turno (acta, reabrir, eliminar). Abajo, colapsados:
+ * el registro de cambios (auditoría universal), las actas de todas las
+ * versiones y la exportación del dataset — todo para SUPERADMINISTRADOR
+ * y Administrador de Área, en su alcance.
  */
 export default function Historial() {
   const { session } = useAuth()
   const { lineas, presentaciones } = useCatalogosLive()
+  const esSuperadmin = session?.rol === "SUPERADMINISTRADOR"
+
   const [turnosActivos, setTurnosActivos] = useState<TurnoActivoArea[]>([])
-  /** Texto libre para filtrar por persona (nombre o usuario), en turnos y en el registro de actividad — de cualquier área y rol. */
-  const [busquedaPersona, setBusquedaPersona] = useState("")
-  const [fechaDesde, setFechaDesde] = useState(() => fechaLocal(new Date()))
-  const [fechaHasta, setFechaHasta] = useState(() => fechaLocal(new Date()))
-  /** "Ver todo": ignora el rango de fechas y trae el histórico completo. */
-  const [verTodo, setVerTodo] = useState(false)
-  const [turnos, setTurnos] = useState<TurnoResumen[]>([])
+  const [rango, setRango] = useState<RangoFecha>(() => rangoDePreset("HOY", ""))
+  const [turnos, setTurnos] = useState<TurnoAuditoria[]>([])
+  const [actasPorTurno, setActasPorTurno] = useState<Map<string, Acta>>(new Map())
+  const [actasRango, setActasRango] = useState<Acta[]>([])
+  const [auditoria, setAuditoria] = useState<RegistroAuditoria[]>([])
   const [cargando, setCargando] = useState(true)
+
+  /* Detalle de un turno: pantalla aparte con Reabrir / Eliminar /
+   * Generar Acta faltante. Se abre desde el botón "Abrir" de la fila. */
   const [seleccionado, setSeleccionado] = useState<TurnoResumen | null>(null)
   const [detalle, setDetalle] = useState<TurnoActivo | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
@@ -68,18 +72,12 @@ export default function Historial() {
   const [generandoActa, setGenerandoActa] = useState(false)
   const [errorActa, setErrorActa] = useState<string | null>(null)
   const [actaGeneradaUrl, setActaGeneradaUrl] = useState<string | null>(null)
-  /* Exportar dataset de producción: solo SUPERADMINISTRADOR (ver el
-   * botón más abajo). Usa el mismo rango de fechas de la búsqueda y
-   * trae todas las áreas menos Pruebas (obtenerEstadisticas con
-   * areaCodigo null). El mapa sabor -> familia es para la columna
-   * `familia` del CSV. */
-  const esSuperadmin = session?.rol === "SUPERADMINISTRADOR"
+
+  /* Exportar dataset de producción (solo SUPERADMINISTRADOR): mismo
+   * rango del filtro, todas las áreas menos Pruebas. El mapa
+   * sabor -> familia es para la columna `familia` del CSV. */
   const [familiaPorSabor, setFamiliaPorSabor] = useState<Map<string, string>>(new Map())
   const [exportando, setExportando] = useState(false)
-  /* Registro de actividad (auditoría universal). Solo SUPERADMINISTRADOR;
-   * necesita la migración de auditoría — sin ella el RPC devuelve []. */
-  const [auditoria, setAuditoria] = useState<RegistroAuditoria[]>([])
-  const [filtroAccion, setFiltroAccion] = useState("TODAS")
 
   useEffect(() => {
     if (!session) return
@@ -94,45 +92,48 @@ export default function Historial() {
     )
   }, [esSuperadmin])
 
-  /** Rango a mandar a los RPC: undefined cuando "Ver todo" está activo (los RPC lo tratan como "sin filtro"). */
-  const rangoBusqueda = () =>
-    verTodo ? { fechaDesde: undefined, fechaHasta: undefined } : { fechaDesde, fechaHasta }
-  /** ¿La persona (nombre + usuario) coincide con lo que se escribió en "Buscar persona"? Vacío = todos. */
-  const coincidePersona = (nombre: string | null | undefined, usuario: string | null | undefined) => {
-    const q = busquedaPersona.trim().toLowerCase()
-    return !q || `${nombre ?? ""} ${usuario ?? ""}`.toLowerCase().includes(q)
+  async function cargar(r: RangoFecha) {
+    if (!session) return
+    setCargando(true)
+    const filtros = { fechaDesde: r.desde, fechaHasta: r.hasta }
+    const resumenes = await listarTurnosHistorial(session.username, filtros)
+    const detalles = await Promise.all(resumenes.map((t) => obtenerTurnoDetalle(session.username, t.id)))
+    setTurnos(
+      resumenes
+        .map((resumen, i) => ({ resumen, detalle: detalles[i] }))
+        .filter((x): x is TurnoAuditoria => x.detalle !== null),
+    )
+
+    const actas = await listarActas(session.username, filtros)
+    setActasRango(actas)
+    const vigentes = new Map<string, Acta>()
+    for (const a of actas) if (a.estado === "VIGENTE") vigentes.set(a.turnoId, a)
+    setActasPorTurno(vigentes)
+
+    if (esSuperadmin) setAuditoria(await listarAuditoria(session.username, filtros))
+    setCargando(false)
+  }
+
+  useEffect(() => {
+    cargar(rango)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.username])
+
+  function handleRangoChange(r: RangoFecha) {
+    if (r.desde === rango.desde && r.hasta === rango.hasta) return
+    setRango(r)
+    cargar(r)
   }
 
   async function exportarDataset() {
     setExportando(true)
     try {
-      let filas = await obtenerEstadisticas({ ...rangoBusqueda(), areaCodigo: null })
-      filas = filas.filter((f) => coincidePersona(f.supervisorNombre, f.supervisorUsuario))
-      const sufijo = [
-        verTodo ? "historico-completo" : `${fechaDesde}_${fechaHasta}`,
-        busquedaPersona.trim() ? busquedaPersona.trim().replace(/\s+/g, "-") : "todos",
-      ].join("_")
-      descargarCsv(`dataset-produccion_${sufijo}.csv`, datasetACsv(filas, familiaPorSabor))
+      const filas = await obtenerEstadisticas({ fechaDesde: rango.desde, fechaHasta: rango.hasta, areaCodigo: null })
+      descargarCsv(`dataset-produccion_${rango.desde}_${rango.hasta}.csv`, datasetACsv(filas, familiaPorSabor))
     } finally {
       setExportando(false)
     }
   }
-
-  async function buscar() {
-    if (!session) return
-    setCargando(true)
-    const lista = await listarTurnosHistorial(session.username, rangoBusqueda())
-    setTurnos(lista)
-    if (esSuperadmin) {
-      setAuditoria(await listarAuditoria(session.username, rangoBusqueda()))
-    }
-    setCargando(false)
-  }
-
-  useEffect(() => {
-    buscar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.username])
 
   async function verDetalle(turno: TurnoResumen) {
     if (!session) return
@@ -147,8 +148,7 @@ export default function Historial() {
     setCargandoDetalle(false)
 
     if (turno.estado === "CERRADO") {
-      const actas = await listarActas(session.username, { areaCodigo: turno.area, fechaDesde: turno.fecha, fechaHasta: turno.fecha })
-      setTieneActa(actas.some((a) => a.turnoId === turno.id))
+      setTieneActa(actasPorTurno.has(turno.id))
     }
   }
 
@@ -184,6 +184,7 @@ export default function Historial() {
     setConfirmandoEliminar(false)
     setErrorEliminar(null)
     setErrorReabrir(null)
+    cargar(rango)
   }
 
   async function handleEliminar() {
@@ -197,7 +198,6 @@ export default function Historial() {
       return
     }
     volver()
-    buscar()
   }
 
   async function handleReabrir() {
@@ -211,27 +211,7 @@ export default function Historial() {
       return
     }
     setReabierto(true)
-    buscar()
   }
-
-  const accionesAuditoria = [...new Set(auditoria.map((r) => r.accion))].sort()
-  const turnosVisibles = turnos.filter((t) => coincidePersona(t.supervisorNombre, t.supervisorUsuario))
-  const auditoriaVisible = auditoria.filter(
-    (r) => (filtroAccion === "TODAS" || r.accion === filtroAccion) && coincidePersona(r.usuarioNombre, r.usuario),
-  )
-  /** Registro agrupado por día (más nuevo primero, como viene). */
-  const auditoriaPorDia = auditoriaVisible.reduce<{ dia: string; registros: RegistroAuditoria[] }[]>((acc, r) => {
-    const dia = new Date(r.ocurridoEn).toLocaleDateString("es-CO", {
-      weekday: "long",
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    })
-    const grupo = acc[acc.length - 1]
-    if (grupo && grupo.dia === dia) grupo.registros.push(r)
-    else acc.push({ dia, registros: [r] })
-    return acc
-  }, [])
 
   if (seleccionado) {
     return (
@@ -333,7 +313,7 @@ export default function Historial() {
               <div className="flex flex-col gap-2">
                 {construirHistorial(detalle, lineas, presentaciones).map((ev, i) => (
                   <div key={i} className="flex gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-                    <span className="num w-16 shrink-0 pt-0.5 text-xs text-muted-foreground">{ev.hora}</span>
+                    <span className="num w-20 shrink-0 pt-0.5 text-xs text-muted-foreground">{ev.hora}</span>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold tracking-wide text-foreground uppercase">{ev.seccion}</p>
                       <p className="text-muted-foreground">{ev.detalle}</p>
@@ -349,8 +329,8 @@ export default function Historial() {
   }
 
   return (
-    <AppShell title="Auditoría" description="Registro de acciones por supervisor y fecha">
-      <div className="mx-auto flex max-w-2xl flex-col gap-4">
+    <AppShell title="Auditoría" description="Qué hizo cada supervisor, turno por turno">
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {turnosActivos.length > 0 && (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {turnosActivos.map((t) => (
@@ -369,198 +349,96 @@ export default function Historial() {
           </div>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Buscar</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="buscar-persona">Buscar</Label>
-                <Input
-                  id="buscar-persona"
-                  placeholder="Nombre o usuario (cualquier área)"
-                  value={busquedaPersona}
-                  onChange={(e) => setBusquedaPersona(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="fecha-desde">Desde</Label>
-                <Input
-                  id="fecha-desde"
-                  type="date"
-                  value={fechaDesde}
-                  onChange={(e) => setFechaDesde(e.target.value)}
-                  disabled={verTodo}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="fecha-hasta">Hasta</Label>
-                <Input
-                  id="fecha-hasta"
-                  type="date"
-                  value={fechaHasta}
-                  onChange={(e) => setFechaHasta(e.target.value)}
-                  disabled={verTodo}
-                />
-              </div>
-            </div>
-            <label className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={verTodo}
-                onChange={(e) => setVerTodo(e.target.checked)}
-                className="size-3.5 accent-primary"
-              />
-              Ver todo (sin rango de fechas)
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button className="self-start" onClick={buscar} disabled={cargando}>
-                {cargando ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-                Buscar
-              </Button>
-              {esSuperadmin && (
-                <Button variant="outline" onClick={exportarDataset} disabled={exportando}>
-                  {exportando ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-                  Exportar dataset (CSV)
-                </Button>
-              )}
-            </div>
-            {esSuperadmin && (
-              <p className="text-xs text-muted-foreground">
-                Una fila por corrida {verTodo ? "de todo el histórico" : "del rango de fechas"} · todas las áreas menos
-                Pruebas.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <AuditoriaTurnos
+          turnos={turnos}
+          lineas={lineas}
+          presentaciones={presentaciones}
+          cargando={cargando}
+          onRangoChange={handleRangoChange}
+          accionesTurno={(t) => (
+            <AccionesTurno acta={actasPorTurno.get(t.resumen.id)} onAbrir={() => verDetalle(t.resumen)} />
+          )}
+        />
 
         {esSuperadmin && (
           <SeccionColapsable
-            titulo={`Registro de actividad${auditoriaVisible.length ? ` (${auditoriaVisible.length})` : ""}`}
-            descripcion={`Registro diario de toda mutación (crear / editar / borrar): quién, cuándo, en qué página y los valores antes/después · ${
-              verTodo ? "todo el histórico" : `${fechaDesde} → ${fechaHasta}`
-            }.`}
+            titulo={`Registro de cambios (auditoría)${auditoria.length ? ` · ${auditoria.length}` : ""}`}
+            descripcion="Toda mutación (crear / editar / borrar) del rango: cuándo, qué se tocó y quién. El antes/después detrás de «ver valores»."
           >
-            <div className="flex flex-col gap-3">
-              <Select value={filtroAccion} onValueChange={setFiltroAccion}>
-                <SelectTrigger className="h-8 w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TODAS">Todas las acciones</SelectItem>
-                  {accionesAuditoria.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {cargando ? null : auditoriaVisible.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  {auditoria.length === 0
-                    ? "Sin actividad registrada en ese rango (o la migración de auditoría todavía no está aplicada)."
-                    : "Nada coincide con ese filtro."}
-                </p>
-              ) : (
-                auditoriaPorDia.map(({ dia, registros }) => (
-                  <div key={dia} className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {dia} · {registros.length}
-                    </p>
-                    {registros.map((r, i) => (
-                      <FilaAuditoria key={i} r={r} />
-                    ))}
-                  </div>
-                ))
-              )}
-            </div>
+            <RegistroCambios registros={auditoria} />
           </SeccionColapsable>
         )}
 
-        <div className="flex flex-col gap-2">
-          {cargando ? (
-            <div className="flex justify-center py-8 text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
-          ) : turnosVisibles.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No se encontraron turnos con esos filtros.</p>
+        <SeccionColapsable
+          titulo={`Actas del rango${actasRango.length ? ` · ${actasRango.length}` : ""}`}
+          descripcion="El PDF de cierre de cada turno, todas las versiones (vigentes y anuladas)."
+        >
+          {actasRango.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">Sin actas en ese rango.</p>
           ) : (
-            turnosVisibles.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => verDetalle(t)}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left text-sm transition-colors hover:border-primary/40"
-              >
-                <div>
-                  <p className="font-medium text-foreground">
-                    {t.supervisorNombre} · {t.fecha}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {nombrePorCodigo(AREAS, t.area)} · {nombrePorCodigo(TURNO_TIPOS, t.turnoTipo)} ·{" "}
-                    {nombrePorCodigo(GRUPOS, t.grupo)} · Código {t.codigo}
-                  </p>
+            <div className="flex flex-col gap-2">
+              {actasRango.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="truncate font-mono font-medium text-foreground">{a.codigo}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {a.supervisorNombre} · {a.fecha} · {nombrePorCodigo(AREAS, a.area)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant={a.estado === "VIGENTE" ? "success" : "muted"}>
+                      {a.estado === "VIGENTE" ? "Vigente" : "Anulada"}
+                    </Badge>
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={urlPublicaActa(a.storagePath)} target="_blank" rel="noreferrer">
+                        <Download className="size-3.5" />
+                        PDF
+                      </a>
+                    </Button>
+                  </div>
                 </div>
-                <Badge variant={t.estado === "ABIERTO" ? "secondary" : "outline"}>
-                  {t.estado === "ABIERTO" ? "Abierto" : "Cerrado"}
-                </Badge>
-              </button>
-            ))
+              ))}
+            </div>
           )}
-        </div>
+        </SeccionColapsable>
+
+        {esSuperadmin && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={exportarDataset} disabled={exportando}>
+              {exportando ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Exportar dataset (CSV)
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Una fila por corrida del rango · todas las áreas menos Pruebas.
+            </span>
+          </div>
+        )}
       </div>
     </AppShell>
   )
 }
 
-const ACCION_AUDIT: Record<string, "success" | "warning" | "danger" | "muted" | "secondary"> = {
-  CREAR: "success",
-  ACTIVAR: "success",
-  EDITAR: "warning",
-  DESACTIVAR: "muted",
-  RESET_PASSWORD: "secondary",
-  ELIMINAR: "danger",
-}
-
-function valorLegible(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—"
-  if (typeof v === "object") return JSON.stringify(v)
-  return String(v)
-}
-
-function FilaAuditoria({ r }: { r: RegistroAuditoria }) {
-  const variant = ACCION_AUDIT[r.accion] ?? "outline"
-  const claves = [...new Set([...Object.keys(r.antes ?? {}), ...Object.keys(r.despues ?? {})])]
-  const diffs = claves
-    .map((k) => ({ k, antes: r.antes?.[k], despues: r.despues?.[k] }))
-    .filter((x) => JSON.stringify(x.antes ?? null) !== JSON.stringify(x.despues ?? null))
-
+/** Acciones de una fila de supervisor: link al acta vigente (si hay) y "Abrir" el detalle del turno. */
+function AccionesTurno({ acta, onAbrir }: { acta?: Acta; onAbrir: () => void }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={variant}>{r.accion}</Badge>
-        <span className="font-medium text-foreground">{r.resumen ?? `${r.accion} · ${r.entidad}`}</span>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {r.usuarioNombre ?? r.usuario ?? "—"}
-        {r.usuarioCargo ? ` (${nombrePorCodigo(CARGOS, r.usuarioCargo)})` : ""} ·{" "}
-        {new Date(r.ocurridoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
-        {r.pagina ? ` · ${r.pagina}` : ""}
-      </p>
-      {diffs.length > 0 && (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-muted-foreground">Ver valores</summary>
-          <ul className="mt-1 flex flex-col gap-0.5">
-            {diffs.map((x) => (
-              <li key={x.k}>
-                <span className="text-muted-foreground">{x.k}:</span> {valorLegible(x.antes)}{" "}
-                <span className="text-muted-foreground">→</span> {valorLegible(x.despues)}
-              </li>
-            ))}
-          </ul>
-        </details>
+    <div className="flex shrink-0 items-center gap-1.5">
+      {acta && (
+        <Button size="sm" variant="ghost" asChild>
+          <a href={urlPublicaActa(acta.storagePath)} target="_blank" rel="noreferrer">
+            <FileText className="size-3.5" />
+            Acta
+          </a>
+        </Button>
       )}
+      <Button size="sm" variant="outline" onClick={onAbrir}>
+        Abrir
+      </Button>
     </div>
   )
 }

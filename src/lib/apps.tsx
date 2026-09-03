@@ -161,7 +161,7 @@ export const apps: AppDef[] = [
   {
     slug: "auditoria",
     title: "Auditoría",
-    description: "Historial de turnos por supervisor y fecha.",
+    description: "Qué hizo cada supervisor, turno por turno: resumen, línea de tiempo, actas y registro de cambios.",
     href: "/auditoria",
     icon: History,
     requiereTurno: false,

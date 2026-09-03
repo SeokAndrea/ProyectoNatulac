@@ -17,6 +17,7 @@ import EdicionDatos from "@/pages/apps/EdicionDatos"
 import CrearTurno from "@/pages/apps/CrearTurno"
 import Historial from "@/pages/apps/Historial"
 import Actas from "@/pages/apps/Actas"
+import AuditoriaDemo from "@/pages/apps/AuditoriaDemo"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 /*
@@ -162,6 +163,8 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      {/* Preview de diseño sin login ni DB — se puede borrar (ver plan-rework-auditoria.md). */}
+      <Route path="/auditoria-demo" element={<AuditoriaDemo />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
