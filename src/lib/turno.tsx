@@ -68,17 +68,21 @@ export type CondicionLinea = "DETENIDA" | "LISTA" | "CIP" | "CAMBIO_PRESENTACION
 /**
  * El sufijo de familia entre paréntesis ("Manzana (Jucosa)") solo hace
  * falta donde el mismo nombre de sabor se repite en varias familias.
- * Para Clásicos y Especiales se saca — queda "Manzana" a secas. La
- * fuente de verdad es sabor_display() en la migración 20260969; esto
- * aplica el mismo criterio del lado del cliente para que valga aunque
- * la migración todavía no esté en el servidor (una vez aplicada,
- * sabor_nombre ya viene sin el sufijo y esto no hace nada).
+ * Para Clásicos y Especiales se saca — queda "Manzana" a secas.
+ * Para Selecto se cambia por "35%" — "Manzana (Selecto)" → "Manzana 35%".
+ * La fuente de verdad es sabor_display() en las migraciones 20260969 /
+ * 20261002; esto aplica el mismo criterio del lado del cliente para
+ * turnos viejos o si la migración todavía no está en el servidor.
  */
 const FAMILIAS_SUFIJO_OCULTO = ["Clasicos", "Clásicos", "Especiales"]
 export function saborSinFamiliaOculta(nombre: string | null): string | null {
   if (!nombre) return nombre
   for (const fam of FAMILIAS_SUFIJO_OCULTO) {
     if (nombre.endsWith(` (${fam})`)) return nombre.slice(0, -(fam.length + 3))
+  }
+  if (nombre.endsWith(" (Selecto)")) {
+    const base = nombre.slice(0, -" (Selecto)".length)
+    return /35\s*%/.test(base) ? base : `${base} 35%`
   }
   return nombre
 }
