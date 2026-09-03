@@ -78,28 +78,36 @@ export function ValidarLista({
     return r
   }, [filas, rango, soloPendientes, q])
 
-  /** fecha → supervisor → filas (los del mismo supervisor van juntos). */
+  /**
+   * fecha → turno → filas. Se agrupa por TURNO (no por supervisor): dos
+   * turnos del mismo día (p. ej. T1 y el T3 que cruza medianoche) comparten
+   * `fecha`, así que juntarlos por supervisor los mezclaba en un solo bloque.
+   * Cada `turnoCodigo` es su propia tarjeta, con su acta de tanques.
+   */
   const porFecha = useMemo(() => {
     const orden = [...visibles].sort(
       (a, b) =>
         b.fecha.localeCompare(a.fecha) ||
-        a.supervisorNombre.localeCompare(b.supervisorNombre) ||
         a.turnoCodigo.localeCompare(b.turnoCodigo) ||
+        a.supervisorNombre.localeCompare(b.supervisorNombre) ||
         a.linea.localeCompare(b.linea),
     )
-    const dias: { fecha: string; supervisores: { nombre: string; area: string; filas: FilaValidacion[] }[] }[] = []
+    const dias: {
+      fecha: string
+      turnos: { codigo: string; supervisor: string; area: string; filas: FilaValidacion[] }[]
+    }[] = []
     for (const f of orden) {
       let dia = dias[dias.length - 1]
       if (!dia || dia.fecha !== f.fecha) {
-        dia = { fecha: f.fecha, supervisores: [] }
+        dia = { fecha: f.fecha, turnos: [] }
         dias.push(dia)
       }
-      let sup = dia.supervisores[dia.supervisores.length - 1]
-      if (!sup || sup.nombre !== f.supervisorNombre) {
-        sup = { nombre: f.supervisorNombre, area: f.areaNombre, filas: [] }
-        dia.supervisores.push(sup)
+      let tur = dia.turnos[dia.turnos.length - 1]
+      if (!tur || tur.codigo !== f.turnoCodigo) {
+        tur = { codigo: f.turnoCodigo, supervisor: f.supervisorNombre, area: f.areaNombre, filas: [] }
+        dia.turnos.push(tur)
       }
-      sup.filas.push(f)
+      tur.filas.push(f)
     }
     return dias
   }, [visibles])
@@ -170,31 +178,27 @@ export function ValidarLista({
               : "Sin corridas en ese rango."}
         </p>
       ) : (
-        porFecha.map(({ fecha, supervisores }) => (
+        porFecha.map(({ fecha, turnos }) => (
           <div key={fecha} className="flex flex-col gap-6">
             <p className="-mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               {formatearFecha(fecha)}
             </p>
-            {supervisores.map((sup) => {
-              const codigos = [...new Set(sup.filas.map((f) => f.turnoCodigo))]
-              return (
-                <div
-                  key={sup.nombre}
-                  className="flex flex-col gap-2 rounded-xl border-2 border-[var(--info)]/50 bg-[var(--info)]/[0.04] p-3"
-                >
-                  <p className="text-lg font-bold text-foreground">
-                    {sup.nombre}{" "}
-                    <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">{sup.area}</span>
-                  </p>
-                  {codigos.map((cod) =>
-                    tanquesPorTurno[cod] ? <PanelTanques key={cod} tanques={tanquesPorTurno[cod]} /> : null,
-                  )}
-                  {sup.filas.map((f) => (
-                    <FilaCorrida key={f.turnoLineaId} fila={f} onConfirmar={onConfirmar} onEditar={onEditar} />
-                  ))}
-                </div>
-              )
-            })}
+            {turnos.map((tur) => (
+              <div
+                key={tur.codigo}
+                className="flex flex-col gap-2 rounded-xl border-2 border-[var(--info)]/50 bg-[var(--info)]/[0.04] p-3"
+              >
+                <p className="text-lg font-bold text-foreground">
+                  {tur.supervisor}{" "}
+                  <span className="text-sm font-semibold text-[var(--info)]">· {etiquetaTurno(tur.codigo)}</span>{" "}
+                  <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">{tur.area}</span>
+                </p>
+                {tanquesPorTurno[tur.codigo] ? <PanelTanques tanques={tanquesPorTurno[tur.codigo]} /> : null}
+                {tur.filas.map((f) => (
+                  <FilaCorrida key={f.turnoLineaId} fila={f} onConfirmar={onConfirmar} onEditar={onEditar} />
+                ))}
+              </div>
+            ))}
           </div>
         ))
       )}
@@ -463,6 +467,13 @@ function pct(v: number | null): string {
 
 function efectivoLote(fila: FilaValidacion): string {
   return fila.estado === "EDITADO" && fila.overrides?.lote ? fila.overrides.lote : (fila.lote ?? "")
+}
+
+/** "P20260902_T1G1" → "Turno 1" (o "Turno 1 · Grupo 2" si hay más de un grupo). */
+function etiquetaTurno(codigo: string): string {
+  const m = codigo.match(/_T(\d+)G(\d+)$/i)
+  if (!m) return codigo
+  return `Turno ${m[1]}${m[2] !== "1" ? ` · Grupo ${m[2]}` : ""}`
 }
 
 function formatearFecha(fecha: string): string {
