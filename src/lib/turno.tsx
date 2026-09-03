@@ -1136,7 +1136,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     })
 
     if (error || !data) {
-      return { ok: false, error: "No se pudo iniciar la preparación. Intenta de nuevo." }
+      return { ok: false, error: error?.message ?? "No se pudo iniciar la preparación. Intenta de nuevo." }
     }
 
     setTurnoActivo(mapearTurno(data as FilaTurno))

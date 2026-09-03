@@ -275,6 +275,12 @@ Dos tablas de ajuste de un lote, distintas:
 | `preparaciones_ajuste_volumen` (20260997) | **antes de liberar**, con el botón "Ajustar" | litros de jugo/agua que se suman al volumen — `ajustar_preparacion(lote_id, litros, detalle)` hace `volumen_l += litros` y `volumen_inicial_l += litros`. Rechaza si el lote ya está liberado o cerrado |
 | `preparaciones_ajuste` (20260988) | **después**, al "Corregir (mismo lote)" en Recepción | la relectura física del tanque: volumen teórico vs. real y la diferencia (litros "al aire"). Lo dispara un trigger cuando una corrección mueve a la vez `volumen_inicial_l` y `volumen_l` |
 
+**Antiduplicados** (migración 20261003):
+- `iniciar_preparacion()` rechaza un número de lote ya abierto para ese sabor en otro tanque de
+  la misma área (re-preparar el mismo tanque con el mismo número sigue bien).
+- `activar_linea()` rechaza volver a activar una línea sobre un lote que esa línea ya corrió y
+  cerró este turno (era lo que duplicaba el PT). Distintas líneas del mismo lote siguen OK.
+
 ### `turno_lineas` (ampliada)
 Además de la relación turno↔línea original, ahora guarda la
 presentación y velocidad elegidas **por línea** (dos líneas pueden
