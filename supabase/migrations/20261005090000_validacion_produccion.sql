@@ -123,7 +123,8 @@ begin
     ) cont on true
     left join validacion_produccion v on v.turno_linea_id = tl.id
     left join usuarios vu on vu.id = v.validado_por
-    where (p_fecha_desde is null or t.fecha >= p_fecha_desde)
+    where t.fecha >= date '2026-09-02'  -- la validación arranca desde el 02/09/2026; lo anterior no se revisa
+      and (p_fecha_desde is null or t.fecha >= p_fecha_desde)
       and (p_fecha_hasta is null or t.fecha <= p_fecha_hasta)
       and (pt.turno_linea_id is not null or cont.llenadora is not null)
   ) x;

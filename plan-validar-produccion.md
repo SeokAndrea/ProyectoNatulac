@@ -60,7 +60,8 @@ el checkbox "¿Hay producto retenido?" y el input de cajas retenidas. Las column
 - **Qué edita Daniela:** todo — paletas, cajas sueltas, contador (`envases_llenadora`), litros
   consumidos, **el lote**, y puede **pisar los % de merma** a mano si el cálculo no le cierra
   (por default se recalculan de los valores duros).
-- **Cuándo:** solo turnos **CERRADOS**.
+- **Cuándo:** solo turnos **CERRADOS**, y solo desde el **02/09/2026** en adelante (lo
+  anterior no se revisa — piso fijo en `listar_validacion_produccion`).
 - **KPIs:** una corrida `PENDIENTE` (sin validar) **NO cuenta** para KPIs. Entra recién cuando
   Daniela hace SÍ o EDITAR.
 - **Alcance:** todas las áreas menos Pruebas (igual que Auditoría).
