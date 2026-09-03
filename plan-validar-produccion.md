@@ -1,8 +1,18 @@
 # Plan — Módulo VALIDAR + candado de edición de Producto Terminado
 
 Arrancado 2026-09-03. Tres cosas relacionadas: (1) el PT del supervisor se congela 1 h después
-de cargado, (2) se oculta "producto retenido", (3) módulo nuevo VALIDAR para que Daniela
-(SUPERADMINISTRADOR) fije los valores buenos que van a alimentar el dashboard de KPIs.
+de cargado, (2) se oculta "producto retenido", (3) módulo nuevo VALIDAR (SUPERADMINISTRADOR) que
+fija los valores buenos que van a alimentar el dashboard de KPIs.
+
+**Estado — implementado 2026-09-03** (sin aplicar migraciones todavía):
+- Candado 1 h: migración `20261004` (`registrar_producto_terminado` + guarda por `p_auditar`).
+- Producto retenido: sacado de la UI de `ProductoTerminado.tsx` (columnas de la base se quedan).
+- VALIDAR: migración `20261005` (tabla `validacion_produccion` + `listar_validacion_produccion`
+  / `confirmar_produccion` / `editar_produccion_validada` / `tanques_de_turnos`), `src/lib/validacion.ts`
+  con los wrappers, `src/pages/apps/Validar.tsx` (página real), ruta `/validar` + tarjeta del hub
+  (`ListChecks`, solo SUPERADMINISTRADOR). El diseño lo comparte `<ValidarLista>` con `/validar-demo`.
+- **Falta:** `supabase db push` + probar en `:4035`; el helper `produccion_efectiva_kpi(...)` para
+  el dashboard futuro; borrar `/validar-demo` cuando esté validado.
 
 ---
 

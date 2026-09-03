@@ -19,7 +19,6 @@ import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -457,10 +456,6 @@ function FilaProductoTerminado({
   )
   const [justificacion, setJustificacion] = useState("")
   const [proximoEstado, setProximoEstado] = useState<ProximoEstado | null>(null)
-  const [productoRetenido, setProductoRetenido] = useState(registroExistente?.productoRetenido ?? false)
-  const [cajasRetenidas, setCajasRetenidas] = useState(
-    registroExistente?.cajasRetenidas != null ? String(registroExistente.cajasRetenidas) : "",
-  )
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
@@ -541,8 +536,8 @@ function FilaProductoTerminado({
       presentacion: lineaTurno.presentacion,
       paletas: nPaletas,
       cajasSueltas: nCajasSueltas,
-      productoRetenido,
-      cajasRetenidas: productoRetenido && cajasRetenidas !== "" ? Number(cajasRetenidas) : null,
+      productoRetenido: false,
+      cajasRetenidas: null,
       parcial: true,
     })
     if (!resultado.ok) {
@@ -582,8 +577,8 @@ function FilaProductoTerminado({
         presentacion: lineaTurno.presentacion,
         paletas: nPaletas,
         cajasSueltas: nCajasSueltas,
-        productoRetenido,
-        cajasRetenidas: productoRetenido && cajasRetenidas !== "" ? Number(cajasRetenidas) : null,
+        productoRetenido: false,
+        cajasRetenidas: null,
       })
       if (!resultado.ok) {
         setEnviando(false)
@@ -831,22 +826,6 @@ function FilaProductoTerminado({
             onChange={(e) => setJustificacion(e.target.value)}
           />
         )}
-
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Checkbox checked={productoRetenido} onCheckedChange={(v) => setProductoRetenido(v === true)} />
-            ¿Hay producto retenido?
-          </label>
-          {productoRetenido && (
-            <Input
-              type="number"
-              min={0}
-              placeholder="¿Cuántas cajas?"
-              value={cajasRetenidas}
-              onChange={(e) => setCajasRetenidas(e.target.value)}
-            />
-          )}
-        </div>
 
         {parciales.length > 0 && (
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
