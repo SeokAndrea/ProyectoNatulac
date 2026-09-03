@@ -191,7 +191,7 @@ describe("guardrails — merma de semielaborado", () => {
     expect(r.mermaSemielaboradoPct!).toBeGreaterThanOrEqual(0)
   })
 
-  it("un lote cuyo PT excede su volumen preparado (+20%) queda fuera del %", () => {
+  it("un lote cuyo PT excede su volumen preparado (margen de redondeo) queda fuera del %", () => {
     const turno = turnoDemo({
       ...BASE,
       preparaciones: [
@@ -211,7 +211,7 @@ describe("guardrails — merma de semielaborado", () => {
       ],
     })
     const r = resumenTurno(turno, LINEAS_DEMO, PRESENTACIONES_DEMO)
-    // Σ PT del lote = 19.440 > 10.000 × 1,2 → no medible → todo sin contrastar
+    // Σ PT del lote = 19.440 > 10.000 × 1,05 → no medible → todo sin contrastar
     expect(r.mermaSemielaboradoParcial).toBe(true)
     expect(r.mermaSemielaboradoPct).toBeNull()
   })

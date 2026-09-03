@@ -163,10 +163,11 @@ turnos del rango. Con texto → la lista se filtra, la cuenta va en el rótulo d
   El fallback por `turnoLineaId` en el frontend ya cubre el caso común (corrida del mismo turno).
 - [ ] Tipos: `lote: string | null` en `ProductoTerminadoRegistro` / `FilaProductoTerminado` /
   `mapearTurno` (para consumir la migración; opcional mientras el fallback alcance).
-- [ ] **Actas standalone (`/actas`):** la vista de actas del rango ya vive dentro de Auditoría. Falta
-  decidir si se retira la app `/actas` (una línea en [apps.tsx](src/lib/apps.tsx) + [App.tsx](src/App.tsx))
-  o si Auditoría suma un "ver todas" sin filtro de fecha para no perder la lista histórica completa.
-- [ ] `deploy_servidor_pruebas` y probar en `:4035` con un día real de 3 turnos.
+- [x] **Actas standalone (`/actas`):** retirada — la app, la ruta y la tarjeta del hub. La vista de
+  actas del rango vive dentro de Auditoría. Si hace falta "todas las actas" se agranda el rango o
+  se suma un toggle más adelante.
+- [ ] `deploy_servidor_pruebas` y probar en `:4035` con un día real de 3 turnos (incluye las
+  migraciones nuevas 20260997 y 20260998).
 - [ ] Cuando esté validado: borrar `AuditoriaDemo.tsx` + ruta demo (el fixture se queda, lo usan los tests).
 
 ---
@@ -219,13 +220,11 @@ Es función **compartida** con Panel de Producción (`CrearTurno.tsx`, `PanelPro
 prep ~10.000 L, PT 810 + 810 cajas × 12 = 19.440 L). Un lote que lo viola → **no medible** (7.1) y
 se muestra con flag `PT excede el volumen del lote (posible duplicado)`.
 
-**El efecto de los ajustes (recordatorio):** hoy `VI = tambores × volumen_por_tambor` y **NO
-incluye** el agua / jugo que se agrega como ajuste antes de liberar (ver
-`plan-debug-merma-semielaborado`). Un lote con ajustes tiene más litros reales que su `VI`
-registrado, así que un `Σ PT > VI` estricto daría **falsos positivos**. Por eso el guardrail
-usa **tolerancia**: solo marca cuando `Σ PT litros > VI × 1,20` (o un margen absoluto). Cuando el
-botón "Ajustar" sume los ajustes al `VI` (RPC `ajustar_preparacion` + `volumen_l`/`volumen_inicial_l
-+= litros`, ver el otro plan), la tolerancia se puede apretar.
+**El efecto de los ajustes (recordatorio):** el jugo/agua que se agrega antes de liberar SÍ entra
+al `VI` cuando se registra con el botón **"Ajustar"** (`ajustar_preparacion` → `volumen_l` y
+`volumen_inicial_l += litros`, migración 20260997). Por eso el chequeo usa solo `VI × 1,05` —
+`MARGEN_REDONDEO`, para el ruido de `litros_x_caja` y paletas parciales. Si el PT supera eso: o es
+un duplicado, o se agregó jugo sin usar "Ajustar" (feedback accionable, no un fudge para tapar).
 
 ### 7.3 Vista — no mostrar un número imposible
 
@@ -242,12 +241,18 @@ En `AuditoriaTurnos` (la fila del supervisor):
 - Corridas stub (0 cajas + `merma —`) con una hermana productiva del mismo lote → no mostrarlas
   como fila (o listarlas aparte como "corridas sin producción").
 
-### 7.5 Data (fuera del rework — `plan-debug-merma-semielaborado`)
+### 7.5 Data
 
-- `continuar_siguiente_lote`: matchear el lote siguiente por `sabor_id` además del string; 0
-  candidatos → mensaje claro sin forzar; >1 → que el supervisor elija (no `limit 1`).
-- Botón "Ajustar" bajo "Liberar" en la tarjeta de tanque `EN_PREPARACION`: `ajustar_preparacion(
-  lote_id, litros, detalle)` — rechaza si `liberado_en`, hace `volumen_l += litros` y
-  `volumen_inicial_l += litros`, guarda la fila del ajuste. Y `iniciar_preparacion` que sume el
-  `p_agua` inicial también.
+- ✅ **`continuar_siguiente_lote`** (migración 20260998): matchea el lote siguiente por `sabor_id`
+  además del string. 0 candidatos → mensaje claro sin forzar; >1 → se niega y pide activar la
+  línea a mano eligiendo el tanque.
+- ✅ **Botón "Ajustar"** bajo "Liberar" en la tarjeta de tanque `EN_PREPARACION` (migración 20260997):
+  `ajustar_preparacion(lote_id, litros, detalle)` — rechaza si `liberado_en` / `cerrado_en`, hace
+  `volumen_l += litros` y `volumen_inicial_l += litros`, guarda la fila del ajuste + auditoría.
+- ⬜ `iniciar_preparacion` que sume el `p_agua` inicial al volumen — depende de si `sabores.volumen`
+  ya incluye la dilución estándar (sin confirmar).
+- ⬜ Guard en `registrar_producto_terminado` / UI contra una 2ª corrida productiva sobre la misma
+  línea+lote+presentación con totales idénticos.
+- ⬜ "Medir tanque" — acción de primera clase para el volumen real del tanque.
+- ⬜ Script puntual: lotes con `Σ PT litros > volumen_inicial_l` para revisión de la jefa.
 - Script puntual: lotes con `Σ PT litros > volumen_inicial_l` para revisión de la jefa.

@@ -282,11 +282,13 @@ export interface MermaSemielaboradoTurno {
  * sale negativo por la asimetría; cuando algo quedó afuera, `pct` es
  * PARCIAL (`hayLoteSinContraste`).
  *
- * `VI × 1,20`: tolerancia porque hoy `volumen_inicial_l` NO incluye el
- * agua/jugo que se agrega como ajuste antes de liberar. Cuando la RPC
- * `ajustar_preparacion` sume los ajustes al VI, se aprieta.
+ * El PT de un lote no puede superar el volumen que ese lote tuvo
+ * (`volumen_inicial_l`, que ya incluye los ajustes de jugo/agua hechos
+ * con "Ajustar" — ver ajustar_preparacion). MARGEN_REDONDEO cubre el
+ * ruido de litros_x_caja y paletas parciales; si el PT lo supera, o es
+ * un duplicado, o se agregó jugo sin registrarlo con "Ajustar".
  */
-const TOLERANCIA_PT_SOBRE_VI = 1.2
+const MARGEN_REDONDEO = 1.05
 
 export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoTurno {
   // Lotes que este turno tocó: los que alimentaron una corrida, más
@@ -328,7 +330,7 @@ export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoT
     const fin = lote.volumenL ?? 0
     const vi = lote.volumenInicialL // volumen preparado, para el chequeo físico
     const tramo = inicio === null ? null : inicio - fin
-    const ptExcedeVi = vi !== null && vi > 0 && ptLote > vi * TOLERANCIA_PT_SOBRE_VI
+    const ptExcedeVi = vi !== null && vi > 0 && ptLote > vi * MARGEN_REDONDEO
 
     if (tramo === null || tramo <= 0 || ptExcedeVi) {
       litrosSinContraste += ptLote
