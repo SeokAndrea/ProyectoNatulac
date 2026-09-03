@@ -4,7 +4,6 @@ import {
   PackageCheck,
   ClipboardCheck,
   ClipboardList,
-  Calculator,
   Users,
   DatabaseZap,
   History,
@@ -12,7 +11,6 @@ import {
   RadioTower,
   CalendarClock,
   CalendarRange,
-  CalendarPlus,
 } from "lucide-react"
 import type { RolCodigo } from "@/lib/catalogos"
 
@@ -141,14 +139,6 @@ export const apps: AppDef[] = [
     atajo: true,
   },
   {
-    slug: "calculadora",
-    title: "Calculadora",
-    description: "Herramienta de cálculo para producción.",
-    href: "/calculadora",
-    icon: Calculator,
-    requiereTurno: true,
-  },
-  {
     slug: "personal",
     title: "Personal",
     description: "Alta, edición y baja de personal de tu área.",
@@ -165,15 +155,6 @@ export const apps: AppDef[] = [
     icon: History,
     requiereTurno: false,
     rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"],
-  },
-  {
-    slug: "crear-turno",
-    title: "Crear Turno",
-    description: "Carga manual de un turno viejo desde su acta en papel.",
-    href: "/crear-turno",
-    icon: CalendarPlus,
-    requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
   },
   {
     slug: "edicion-datos",

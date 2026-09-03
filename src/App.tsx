@@ -11,10 +11,8 @@ import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
 import Programacion from "@/pages/apps/Programacion"
 import HistorialDia from "@/pages/apps/HistorialDia"
-import Calculadora from "@/pages/apps/Calculadora"
 import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
-import CrearTurno from "@/pages/apps/CrearTurno"
 import Historial from "@/pages/apps/Historial"
 import AuditoriaDemo from "@/pages/apps/AuditoriaDemo"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
@@ -115,14 +113,6 @@ export default function App() {
         }
       />
       <Route
-        path="/calculadora"
-        element={
-          <ProtectedRoute>
-            <Calculadora />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/personal"
         element={
           <ProtectedRoute rolesPermitidos={["ADMINISTRADOR_AREA"]}>
@@ -135,14 +125,6 @@ export default function App() {
         element={
           <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
             <EdicionDatos />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/crear-turno"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
-            <CrearTurno />
           </ProtectedRoute>
         }
       />
