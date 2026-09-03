@@ -13,7 +13,7 @@ import { PersonalPanel } from "@/components/PersonalPanel"
  */
 export default function Personal() {
   return (
-    <AppShell title="Personal" description="Alta, edición y baja de personal de tu área">
+    <AppShell title="Personal" description="Para agregar o cambiar personal.">
       <div className="mx-auto max-w-3xl">
         <PersonalPanel pagina="Personal" />
       </div>
