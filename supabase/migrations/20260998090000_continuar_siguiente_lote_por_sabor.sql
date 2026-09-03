@@ -62,10 +62,10 @@ begin
     and sabor_id is not distinct from v_actual.sabor_id;
 
   if v_candidatos = 0 then
-    raise exception 'No hay ningún tanque Listo con el Lote % del mismo sabor. Activá la línea a mano si corresponde.', v_lote_siguiente;
+    raise exception 'No hay ningún tanque Listo con el Lote % del mismo sabor. Activa la línea manualmente si corresponde.', v_lote_siguiente;
   end if;
   if v_candidatos > 1 then
-    raise exception 'Hay más de un tanque Listo con el Lote % de ese sabor — activá la línea a mano eligiendo el tanque.', v_lote_siguiente;
+    raise exception 'Hay más de un tanque Listo con el Lote % de ese sabor — activa la línea manualmente eligiendo el tanque.', v_lote_siguiente;
   end if;
 
   select * into v_tanque

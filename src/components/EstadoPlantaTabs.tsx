@@ -629,8 +629,8 @@ function TanqueCard({
             <div className="flex flex-col gap-2">
               {tieneResto && (
                 <p className="text-xs text-muted-foreground">
-                  Quedan {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L de {tanque.saborNombre} sin usar — si preparás
-                  encima, se suman solos al lote nuevo. Si preferís otra cosa: Transferir, Desvase, o Descartar.
+                  Quedan {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L de {tanque.saborNombre} sin usar — al preparar
+                  encima, se suman solos al lote nuevo. Para otra cosa: Transferir, Desvase, o Descartar.
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
