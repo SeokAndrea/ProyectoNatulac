@@ -38,6 +38,25 @@ export interface OverridesValidacion {
   nota?: string
 }
 
+/** Estado de un tanque en un momento del turno (recibido al inicio / dejado al final). */
+export interface TanqueEstado {
+  numeroTanque: 1 | 2 | 3
+  /** Rótulo legible: "Listo", "Con Restos", "Sucio", "Limpio", "En CIP", "En Preparación". */
+  condicion: string
+  sabor: string | null
+  lote: string | null
+  volumenL: number | null
+}
+
+/** Los tanques de un turno — para que Daniela cruce contra el acta en papel. */
+export interface TurnoTanques {
+  turnoCodigo: string
+  /** Foto al INICIO (tanques_encontrados). Vacío si el supervisor nunca confirmó los 3. */
+  recibidos: TanqueEstado[]
+  /** Estado al FINAL del turno. */
+  dejados: TanqueEstado[]
+}
+
 export interface FilaValidacion {
   turnoLineaId: string
   turnoCodigo: string

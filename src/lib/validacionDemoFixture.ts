@@ -1,5 +1,5 @@
 import { fechaLocal } from "@/lib/turno"
-import type { FilaValidacion, ValoresProduccion } from "@/lib/validacion"
+import type { FilaValidacion, TurnoTanques, ValoresProduccion } from "@/lib/validacion"
 
 /*
  * DATOS DE PRUEBA para el preview /validar-demo. No se importa desde
@@ -123,3 +123,35 @@ export const FILAS_VALIDACION_DEMO: FilaValidacion[] = [
     validadoEn: null,
   },
 ]
+
+const COD_ANDRES = `A${dia(1).replace(/-/g, "")}_T1G2`
+const COD_PEDRO = `A${dia(2).replace(/-/g, "")}_T2G1`
+
+export const TANQUES_TURNO_DEMO: Record<string, TurnoTanques> = {
+  [COD_ANDRES]: {
+    turnoCodigo: COD_ANDRES,
+    recibidos: [
+      { numeroTanque: 1, condicion: "Listo", sabor: "Manzana 35%", lote: "0011", volumenL: 3200 },
+      { numeroTanque: 2, condicion: "Sucio", sabor: null, lote: null, volumenL: null },
+      { numeroTanque: 3, condicion: "Con Restos", sabor: "Pera (Jucosa)", lote: "0012", volumenL: 900 },
+    ],
+    dejados: [
+      { numeroTanque: 1, condicion: "Sucio", sabor: null, lote: null, volumenL: null },
+      { numeroTanque: 2, condicion: "Listo", sabor: "Pera (Jucosa)", lote: "0013", volumenL: 7600 },
+      { numeroTanque: 3, condicion: "Con Restos", sabor: "Pera (Jucosa)", lote: "0013", volumenL: 450 },
+    ],
+  },
+  [COD_PEDRO]: {
+    turnoCodigo: COD_PEDRO,
+    recibidos: [
+      { numeroTanque: 1, condicion: "Listo", sabor: "Manzana (Jucosa)", lote: "0001", volumenL: 8000 },
+      { numeroTanque: 2, condicion: "En CIP", sabor: null, lote: null, volumenL: null },
+      { numeroTanque: 3, condicion: "Limpio", sabor: null, lote: null, volumenL: null },
+    ],
+    dejados: [
+      { numeroTanque: 1, condicion: "Con Restos", sabor: "Manzana (Jucosa)", lote: "0001", volumenL: 140 },
+      { numeroTanque: 2, condicion: "Limpio", sabor: null, lote: null, volumenL: null },
+      { numeroTanque: 3, condicion: "En Preparación", sabor: "Durazno (Selecto)", lote: "0006", volumenL: null },
+    ],
+  },
+}

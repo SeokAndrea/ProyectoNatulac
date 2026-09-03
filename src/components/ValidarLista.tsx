@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Check, Loader2, Pencil } from "lucide-react"
+import { Check, Loader2, Pencil, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,14 +9,18 @@ import {
   type EstadoValidacion,
   type FilaValidacion,
   type OverridesValidacion,
+  type TanqueEstado,
+  type TurnoTanques,
   type ValoresProduccion,
 } from "@/lib/validacion"
 
 /*
  * Lista de VALIDAR — la reusa la página real y el preview /validar-demo.
  * Una fila por corrida (turno + línea + lote). Muestra los números del
- * supervisor y, si Daniela editó, los de ella al lado. Botones Sí /
- * Editar por fila (form inline). Ver plan-validar-produccion.md §3.
+ * supervisor y, si se editó, los corregidos al lado. Botones Sí /
+ * Editar por fila (form inline). Arriba de las corridas de cada
+ * supervisor, los tanques recibidos y dejados del turno (para cruzar
+ * contra el acta). Ver plan-validar-produccion.md §3.
  */
 const NUM = new Intl.NumberFormat("es-CO")
 const PCT = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 })
@@ -36,6 +40,7 @@ const BADGE: Record<EstadoValidacion, "muted" | "success" | "warning"> = {
 
 export function ValidarLista({
   filas,
+  tanquesPorTurno = {},
   cargando = false,
   onConfirmar,
   onEditar,
@@ -43,6 +48,8 @@ export function ValidarLista({
   presetInicial = "AYER",
 }: {
   filas: FilaValidacion[]
+  /** Tanques recibidos / dejados por código de turno — solo lectura, para cruzar con el acta. */
+  tanquesPorTurno?: Record<string, TurnoTanques>
   cargando?: boolean
   onConfirmar: (turnoLineaId: string) => void | Promise<void>
   onEditar: (turnoLineaId: string, overrides: OverridesValidacion) => void | Promise<void>
@@ -52,13 +59,24 @@ export function ValidarLista({
   const [preset, setPreset] = useState<PresetFecha>(presetInicial)
   const [fechaExacta, setFechaExacta] = useState("")
   const [soloPendientes, setSoloPendientes] = useState(true)
+  const [busqueda, setBusqueda] = useState("")
 
   const rango = useMemo(() => rangoDePreset(preset, fechaExacta || "2026-01-01"), [preset, fechaExacta])
 
+  const q = busqueda.trim().toLowerCase()
   const visibles = useMemo(() => {
-    const dentro = filas.filter((f) => turnoEnFiltro(f.fecha, "", rango, null))
-    return soloPendientes ? dentro.filter((f) => f.estado === "PENDIENTE") : dentro
-  }, [filas, rango, soloPendientes])
+    let r = filas.filter((f) => turnoEnFiltro(f.fecha, "", rango, null))
+    if (soloPendientes) r = r.filter((f) => f.estado === "PENDIENTE")
+    if (q) {
+      r = r.filter((f) =>
+        [f.supervisorNombre, f.areaNombre, f.turnoCodigo, f.linea, f.presentacion, f.sabor ?? "", f.lote ?? "", f.overrides?.lote ?? ""]
+          .join("  ")
+          .toLowerCase()
+          .includes(q),
+      )
+    }
+    return r
+  }, [filas, rango, soloPendientes, q])
 
   /** fecha → supervisor → filas (los del mismo supervisor van juntos). */
   const porFecha = useMemo(() => {
@@ -129,28 +147,51 @@ export function ValidarLista({
         </label>
       </div>
 
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="pl-9"
+          placeholder="Buscar por supervisor, sabor, lote, línea o código…"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+        />
+      </div>
+
       {cargando ? (
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
       ) : porFecha.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {soloPendientes ? "Nada pendiente de validar en ese rango." : "Sin corridas en ese rango."}
+          {q
+            ? `Nada coincide con “${busqueda.trim()}”.`
+            : soloPendientes
+              ? "Nada pendiente de validar en ese rango."
+              : "Sin corridas en ese rango."}
         </p>
       ) : (
         porFecha.map(({ fecha, supervisores }) => (
-          <div key={fecha} className="flex flex-col gap-3">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{formatearFecha(fecha)}</p>
-            {supervisores.map((sup) => (
-              <div key={sup.nombre} className="flex flex-col gap-2">
-                <p className="text-sm font-semibold text-foreground">
-                  {sup.nombre} <span className="text-xs font-normal text-muted-foreground">· {sup.area}</span>
-                </p>
-                {sup.filas.map((f) => (
-                  <FilaCorrida key={f.turnoLineaId} fila={f} onConfirmar={onConfirmar} onEditar={onEditar} />
-                ))}
-              </div>
-            ))}
+          <div key={fecha} className="flex flex-col gap-6">
+            <p className="-mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              {formatearFecha(fecha)}
+            </p>
+            {supervisores.map((sup) => {
+              const codigos = [...new Set(sup.filas.map((f) => f.turnoCodigo))]
+              return (
+                <div key={sup.nombre} className="flex flex-col gap-2 border-t-2 border-border pt-3">
+                  <p className="text-lg font-bold text-foreground">
+                    {sup.nombre}{" "}
+                    <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">{sup.area}</span>
+                  </p>
+                  {codigos.map((cod) =>
+                    tanquesPorTurno[cod] ? <PanelTanques key={cod} tanques={tanquesPorTurno[cod]} /> : null,
+                  )}
+                  {sup.filas.map((f) => (
+                    <FilaCorrida key={f.turnoLineaId} fila={f} onConfirmar={onConfirmar} onEditar={onEditar} />
+                  ))}
+                </div>
+              )
+            })}
           </div>
         ))
       )}
@@ -186,9 +227,11 @@ function FilaCorrida({
           <p className="text-base font-semibold text-foreground">
             {fila.sabor ?? "Sin sabor"}
             {fila.lote ? <span className="text-muted-foreground"> · Lote {efectivoLote(fila)}</span> : null}
+            {" · "}
+            {fila.presentacion}
           </p>
           <p className="text-xs text-muted-foreground">
-            Cód. {fila.turnoCodigo} · {fila.linea} · {fila.presentacion}
+            Cód. {fila.turnoCodigo} · {fila.linea}
           </p>
         </div>
         <Badge variant={BADGE[fila.estado]}>
@@ -258,6 +301,41 @@ function FilaCorrida({
             setEditando(false)
           }}
         />
+      )}
+    </div>
+  )
+}
+
+/** Tanques recibidos y dejados del turno — solo lectura, para cruzar contra el acta en papel. */
+function PanelTanques({ tanques }: { tanques: TurnoTanques }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
+      <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        Tanques del turno {tanques.turnoCodigo}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ColumnaTanques titulo="Recibidos" tanques={tanques.recibidos} />
+        <ColumnaTanques titulo="Dejados" tanques={tanques.dejados} />
+      </div>
+    </div>
+  )
+}
+
+function ColumnaTanques({ titulo, tanques }: { titulo: string; tanques: TanqueEstado[] }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-xs font-medium text-foreground">{titulo}</p>
+      {tanques.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Sin dato (no se confirmaron al inicio).</p>
+      ) : (
+        tanques.map((t) => (
+          <p key={t.numeroTanque} className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">T{t.numeroTanque}</span> · {t.condicion}
+            {t.sabor ? ` · ${t.sabor}` : ""}
+            {t.lote ? ` · Lote ${t.lote}` : ""}
+            {t.volumenL != null ? ` · ${NUM.format(t.volumenL)} L` : ""}
+          </p>
+        ))
       )}
     </div>
   )

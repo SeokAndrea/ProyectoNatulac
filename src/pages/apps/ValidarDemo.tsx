@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { ValidarLista } from "@/components/ValidarLista"
-import { FILAS_VALIDACION_DEMO } from "@/lib/validacionDemoFixture"
+import { FILAS_VALIDACION_DEMO, TANQUES_TURNO_DEMO } from "@/lib/validacionDemoFixture"
 import type { FilaValidacion, OverridesValidacion } from "@/lib/validacion"
 
 /*
@@ -38,12 +38,18 @@ export default function ValidarDemo() {
         <p className="text-xs font-semibold tracking-wide text-warning-foreground uppercase">Preview con datos de prueba</p>
         <h1 className="text-xl font-semibold text-foreground">Validar — producción</h1>
         <p className="text-sm text-muted-foreground">
-          Una fila por corrida (turno · línea · lote) de los turnos cerrados. Daniela marca <b>Sí</b> (el dato del
-          supervisor es el bueno) o <b>Editar</b> (lo corrige). Solo lo validado alimenta los KPIs.
+          Una fila por corrida (turno · línea · lote) de los turnos cerrados. Se marca <b>Sí</b> (el dato del supervisor
+          es el bueno) o <b>Editar</b> (se corrige). Solo lo validado alimenta los KPIs.
         </p>
       </div>
 
-      <ValidarLista filas={filas} onConfirmar={confirmar} onEditar={editar} presetInicial="DIAS_7" />
+      <ValidarLista
+        filas={filas}
+        tanquesPorTurno={TANQUES_TURNO_DEMO}
+        onConfirmar={confirmar}
+        onEditar={editar}
+        presetInicial="DIAS_7"
+      />
     </div>
   )
 }
