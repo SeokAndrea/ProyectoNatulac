@@ -256,3 +256,28 @@ En `AuditoriaTurnos` (la fila del supervisor):
 - ⬜ "Medir tanque" — acción de primera clase para el volumen real del tanque.
 - ⬜ Script puntual: lotes con `Σ PT litros > volumen_inicial_l` para revisión de la jefa.
 - Script puntual: lotes con `Σ PT litros > volumen_inicial_l` para revisión de la jefa.
+
+### 7.6 Fugas de duplicados en las guardas (revisión 2026-09-03)
+
+Revisión tipo QA de todas las rutas que insertan `turno_lineas` / `producto_terminado`. Seis
+fugas; se atacan por orden. **1 y 2 hechas** (migración `20261006`):
+
+- ✅ **1 — `activar_linea`: la guarda de 20261003 comparaba por `lote_id`.** `cambiar_condicion_tanque`
+  (Status → "Editar tanque") siempre pone `lote_id = null` dejando el número. Un tanque tocado
+  desde Status quedaba sin guarda → re-activar la misma línea sobre el mismo lote ya corrido →
+  2º PT → la Auditoría los suma. **Fix:** comparar por `normalizar_lote(lote) + sabor_id` (igual
+  que la Auditoría) y disparar ante evidencia de producción (`producto_terminado` / `lote_terminado_en`
+  / `entregada_en`), no solo `finalizada_en`. Una corrida stub (nunca produjo) no dispara.
+- ✅ **2 — `continuar_siguiente_lote` no tenía guarda.** Inserta la corrida sin pasar por
+  `activar_linea`. **Fix:** misma guarda antes de insertar.
+- ⬜ **3 — cierres por `lote_terminado_en` sin `finalizada_en`** (cubierto de fondo por el fix 1;
+  falta alinear `finalizar_lote()` — hoy deja `activa = true` — y quitarle el `grant`, no lo llama
+  nadie en el front).
+- ⬜ **4 — carrera TOCTOU en la guarda de número de lote de `iniciar_preparacion`** (check-then-insert
+  sin lock). Fix propuesto: `pg_advisory_xact_lock` sobre `area|sabor|lote` + índice único parcial
+  opcional en `preparaciones … where cerrado_en is null`.
+- ⬜ **5 — la guarda de número de lote solo bloquea mientras el 1er lote está abierto.** Reusar el
+  número tras cerrar funde dos preparaciones en una fila del resumen. Decisión pendiente del dueño:
+  (a) dejarlo, (b) número único por turno, (c) agrupar el resumen por preparación además del string.
+- ⬜ **6 — `posibleDuplicado` solo marca totales idénticos.** Ampliar a "N corridas con PT propio
+  para la misma línea+lote+presentación", y mostrarlo también en VALIDAR.
