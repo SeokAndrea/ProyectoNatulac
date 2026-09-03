@@ -1,0 +1,370 @@
+import { useMemo, useState } from "react"
+import { Check, Loader2, Pencil } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { rangoDePreset, turnoEnFiltro, type PresetFecha, type RangoFecha } from "@/lib/auditoriaVista"
+import {
+  efectivo,
+  type EstadoValidacion,
+  type FilaValidacion,
+  type OverridesValidacion,
+  type ValoresProduccion,
+} from "@/lib/validacion"
+
+/*
+ * Lista de VALIDAR — la reusa la página real y el preview /validar-demo.
+ * Una fila por corrida (turno + línea + lote). Muestra los números del
+ * supervisor y, si Daniela editó, los de ella al lado. Botones Sí /
+ * Editar por fila (form inline). Ver plan-validar-produccion.md §3.
+ */
+const NUM = new Intl.NumberFormat("es-CO")
+const PCT = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 })
+
+const PRESETS: { codigo: PresetFecha; etiqueta: string }[] = [
+  { codigo: "HOY", etiqueta: "Hoy" },
+  { codigo: "AYER", etiqueta: "Ayer" },
+  { codigo: "DIAS_7", etiqueta: "Últimos 7 días" },
+  { codigo: "FECHA", etiqueta: "Fecha exacta" },
+]
+
+const BADGE: Record<EstadoValidacion, "muted" | "success" | "warning"> = {
+  PENDIENTE: "muted",
+  CONFIRMADO: "success",
+  EDITADO: "warning",
+}
+
+export function ValidarLista({
+  filas,
+  cargando = false,
+  onConfirmar,
+  onEditar,
+  onRangoChange,
+  presetInicial = "AYER",
+}: {
+  filas: FilaValidacion[]
+  cargando?: boolean
+  onConfirmar: (turnoLineaId: string) => void | Promise<void>
+  onEditar: (turnoLineaId: string, overrides: OverridesValidacion) => void | Promise<void>
+  onRangoChange?: (rango: RangoFecha) => void
+  presetInicial?: PresetFecha
+}) {
+  const [preset, setPreset] = useState<PresetFecha>(presetInicial)
+  const [fechaExacta, setFechaExacta] = useState("")
+  const [soloPendientes, setSoloPendientes] = useState(true)
+
+  const rango = useMemo(() => rangoDePreset(preset, fechaExacta || "2026-01-01"), [preset, fechaExacta])
+
+  const visibles = useMemo(() => {
+    const dentro = filas.filter((f) => turnoEnFiltro(f.fecha, "", rango, null))
+    return soloPendientes ? dentro.filter((f) => f.estado === "PENDIENTE") : dentro
+  }, [filas, rango, soloPendientes])
+
+  const porFecha = useMemo(() => {
+    const orden = [...visibles].sort(
+      (a, b) => b.fecha.localeCompare(a.fecha) || a.supervisorNombre.localeCompare(b.supervisorNombre),
+    )
+    const grupos: { fecha: string; filas: FilaValidacion[] }[] = []
+    for (const f of orden) {
+      const g = grupos[grupos.length - 1]
+      if (g && g.fecha === f.fecha) g.filas.push(f)
+      else grupos.push({ fecha: f.fecha, filas: [f] })
+    }
+    return grupos
+  }, [visibles])
+
+  function cambiarPreset(p: PresetFecha) {
+    setPreset(p)
+    onRangoChange?.(rangoDePreset(p, fechaExacta || "2026-01-01"))
+  }
+
+  const pendientes = filas.filter((f) => f.estado === "PENDIENTE").length
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {PRESETS.map((p) => (
+          <Button
+            key={p.codigo}
+            type="button"
+            size="sm"
+            variant={preset === p.codigo ? "default" : "outline"}
+            onClick={() => cambiarPreset(p.codigo)}
+          >
+            {p.etiqueta}
+          </Button>
+        ))}
+        {preset === "FECHA" && (
+          <Input
+            type="date"
+            className="h-8 w-40"
+            value={fechaExacta}
+            onChange={(e) => {
+              setFechaExacta(e.target.value)
+              if (e.target.value) onRangoChange?.(rangoDePreset("FECHA", e.target.value))
+            }}
+          />
+        )}
+        <label className="ml-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            className="size-3.5 accent-primary"
+            checked={soloPendientes}
+            onChange={(e) => setSoloPendientes(e.target.checked)}
+          />
+          Solo pendientes{pendientes ? ` (${pendientes})` : ""}
+        </label>
+      </div>
+
+      {cargando ? (
+        <div className="flex justify-center py-16 text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" />
+        </div>
+      ) : porFecha.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          {soloPendientes ? "Nada pendiente de validar en ese rango." : "Sin corridas en ese rango."}
+        </p>
+      ) : (
+        porFecha.map(({ fecha, filas: delDia }) => (
+          <div key={fecha} className="flex flex-col gap-2">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              {formatearFecha(fecha)} · {delDia.length}
+            </p>
+            {delDia.map((f) => (
+              <FilaCorrida key={f.turnoLineaId} fila={f} onConfirmar={onConfirmar} onEditar={onEditar} />
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+function FilaCorrida({
+  fila,
+  onConfirmar,
+  onEditar,
+}: {
+  fila: FilaValidacion
+  onConfirmar: (id: string) => void | Promise<void>
+  onEditar: (id: string, ov: OverridesValidacion) => void | Promise<void>
+}) {
+  const [editando, setEditando] = useState(false)
+  const [trabajando, setTrabajando] = useState(false)
+
+  const val = <K extends keyof ValoresProduccion>(c: K) => efectivo(fila, c)
+  const editado = fila.estado === "EDITADO"
+
+  async function confirmar() {
+    setTrabajando(true)
+    await onConfirmar(fila.turnoLineaId)
+    setTrabajando(false)
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+        <span className="min-w-0 flex-1 text-sm">
+          <span className="font-semibold text-foreground">{fila.supervisorNombre}</span>{" "}
+          <span className="text-xs text-muted-foreground">
+            {fila.areaNombre} · Cód. {fila.turnoCodigo} · {fila.linea} · {fila.presentacion}
+            {fila.sabor ? ` · ${fila.sabor}` : ""}
+            {fila.lote ? ` · Lote ${efectivoLote(fila)}` : ""}
+          </span>
+        </span>
+        <Badge variant={BADGE[fila.estado]}>
+          {fila.estado === "PENDIENTE" ? "Pendiente" : fila.estado === "CONFIRMADO" ? "Confirmado" : "Editado"}
+        </Badge>
+        {!editando && (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button size="sm" variant="outline" disabled={trabajando} onClick={confirmar}>
+              {trabajando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+              Sí
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setEditando(true)}>
+              <Pencil className="size-3.5" />
+              Editar
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border px-3 py-2 text-xs text-muted-foreground sm:grid-cols-3">
+        <Celda etiqueta="Cajas" sup={NUM.format(fila.supervisor.cajas)} efe={NUM.format(val("cajas"))} editado={editado} />
+        <Celda
+          etiqueta="Contador"
+          sup={NUM.format(fila.supervisor.envasesLlenadora)}
+          efe={NUM.format(val("envasesLlenadora"))}
+          editado={editado}
+        />
+        <Celda
+          etiqueta="Consumido → producido"
+          sup={`${NUM.format(fila.supervisor.litrosConsumidos)} → ${NUM.format(fila.supervisor.litrosProducidos)} L`}
+          efe={`${NUM.format(val("litrosConsumidos"))} → ${NUM.format(val("litrosProducidos"))} L`}
+          editado={editado}
+        />
+        <Celda
+          etiqueta="Merma envases"
+          sup={pct(fila.supervisor.mermaEnvasesPct)}
+          efe={pct(val("mermaEnvasesPct"))}
+          editado={editado}
+        />
+        <Celda
+          etiqueta="Merma semielaborado"
+          sup={pct(fila.supervisor.mermaSemielaboradoPct)}
+          efe={pct(val("mermaSemielaboradoPct"))}
+          editado={editado}
+        />
+        {fila.validadoPorNombre && (
+          <span className="col-span-2 sm:col-span-1">
+            <span className="font-medium text-foreground">Validó:</span> {fila.validadoPorNombre}
+          </span>
+        )}
+      </div>
+
+      {fila.overrides?.nota && (
+        <p className="border-t border-border px-3 py-1.5 text-xs text-muted-foreground">
+          Nota: {fila.overrides.nota}
+        </p>
+      )}
+
+      {editando && (
+        <FormEditar
+          fila={fila}
+          onCancelar={() => setEditando(false)}
+          onGuardar={async (ov) => {
+            setTrabajando(true)
+            await onEditar(fila.turnoLineaId, ov)
+            setTrabajando(false)
+            setEditando(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function FormEditar({
+  fila,
+  onCancelar,
+  onGuardar,
+}: {
+  fila: FilaValidacion
+  onCancelar: () => void
+  onGuardar: (ov: OverridesValidacion) => void | Promise<void>
+}) {
+  const base = fila.supervisor
+  const ov0 = fila.overrides ?? {}
+  const [paletas, setPaletas] = useState(String(ov0.paletas ?? base.paletas))
+  const [cajasSueltas, setCajasSueltas] = useState(String(ov0.cajasSueltas ?? base.cajasSueltas))
+  const [envases, setEnvases] = useState(String(ov0.envasesLlenadora ?? base.envasesLlenadora))
+  const [litros, setLitros] = useState(String(ov0.litrosConsumidos ?? base.litrosConsumidos))
+  const [lote, setLote] = useState(ov0.lote ?? fila.lote ?? "")
+  const [mEnv, setMEnv] = useState(ov0.mermaEnvasesPct != null ? String(ov0.mermaEnvasesPct) : "")
+  const [mSemi, setMSemi] = useState(ov0.mermaSemielaboradoPct != null ? String(ov0.mermaSemielaboradoPct) : "")
+  const [nota, setNota] = useState(ov0.nota ?? "")
+  const [guardando, setGuardando] = useState(false)
+
+  async function guardar() {
+    setGuardando(true)
+    const ov: OverridesValidacion = {}
+    const numOr = (s: string, prev: number) => (s.trim() === "" ? prev : Number(s))
+    if (numOr(paletas, base.paletas) !== base.paletas) ov.paletas = numOr(paletas, base.paletas)
+    if (numOr(cajasSueltas, base.cajasSueltas) !== base.cajasSueltas) ov.cajasSueltas = numOr(cajasSueltas, base.cajasSueltas)
+    if (numOr(envases, base.envasesLlenadora) !== base.envasesLlenadora) ov.envasesLlenadora = numOr(envases, base.envasesLlenadora)
+    if (numOr(litros, base.litrosConsumidos) !== base.litrosConsumidos) ov.litrosConsumidos = numOr(litros, base.litrosConsumidos)
+    if (lote.trim() && lote.trim() !== (fila.lote ?? "")) ov.lote = lote.trim()
+    if (mEnv.trim() !== "") ov.mermaEnvasesPct = Number(mEnv)
+    if (mSemi.trim() !== "") ov.mermaSemielaboradoPct = Number(mSemi)
+    if (nota.trim()) ov.nota = nota.trim()
+    await onGuardar(ov)
+    setGuardando(false)
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-3 text-xs">
+      <p className="text-muted-foreground">
+        Deja en blanco lo que no cambie. Escribe un % de merma solo para pisar el cálculo.
+      </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <Campo etiqueta="Paletas" value={paletas} onChange={setPaletas} />
+        <Campo etiqueta="Cajas sueltas" value={cajasSueltas} onChange={setCajasSueltas} />
+        <Campo etiqueta="Contador (envases)" value={envases} onChange={setEnvases} />
+        <Campo etiqueta="Litros consumidos" value={litros} onChange={setLitros} />
+        <Campo etiqueta="Lote" value={lote} onChange={setLote} texto />
+        <Campo etiqueta="Merma envases %" value={mEnv} onChange={setMEnv} />
+        <Campo etiqueta="Merma semi %" value={mSemi} onChange={setMSemi} />
+        <div className="col-span-2 flex flex-col gap-1 sm:col-span-3">
+          <span className="text-muted-foreground">Nota</span>
+          <Input className="h-8" value={nota} onChange={(e) => setNota(e.target.value)} />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button size="sm" disabled={guardando} onClick={guardar}>
+          {guardando ? <Loader2 className="size-3.5 animate-spin" /> : "Guardar corrección"}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={guardando} onClick={onCancelar}>
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function Campo({
+  etiqueta,
+  value,
+  onChange,
+  texto,
+}: {
+  etiqueta: string
+  value: string
+  onChange: (v: string) => void
+  texto?: boolean
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-muted-foreground">{etiqueta}</span>
+      <Input
+        className="h-8"
+        type={texto ? "text" : "number"}
+        inputMode={texto ? "text" : "decimal"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  )
+}
+
+function Celda({ etiqueta, sup, efe, editado }: { etiqueta: string; sup: string; efe: string; editado: boolean }) {
+  const cambio = editado && sup !== efe
+  return (
+    <span>
+      <span className="font-medium text-foreground">{etiqueta}:</span>{" "}
+      {cambio ? (
+        <>
+          <s className="opacity-60">{sup}</s> <span className="font-semibold text-warning-foreground">{efe}</span>
+        </>
+      ) : (
+        sup
+      )}
+    </span>
+  )
+}
+
+function pct(v: number | null): string {
+  return v == null ? "—" : `${PCT.format(v)}%`
+}
+
+function efectivoLote(fila: FilaValidacion): string {
+  return fila.estado === "EDITADO" && fila.overrides?.lote ? fila.overrides.lote : (fila.lote ?? "")
+}
+
+function formatearFecha(fecha: string): string {
+  return new Date(`${fecha}T00:00:00`).toLocaleDateString("es-CO", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  })
+}

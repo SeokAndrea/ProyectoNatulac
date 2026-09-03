@@ -15,6 +15,7 @@ import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
 import Historial from "@/pages/apps/Historial"
 import AuditoriaDemo from "@/pages/apps/AuditoriaDemo"
+import ValidarDemo from "@/pages/apps/ValidarDemo"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 /*
@@ -136,8 +137,9 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      {/* Preview de diseño sin login ni DB — se puede borrar (ver plan-rework-auditoria.md). */}
+      {/* Previews de diseño sin login ni DB — se pueden borrar. */}
       <Route path="/auditoria-demo" element={<AuditoriaDemo />} />
+      <Route path="/validar-demo" element={<ValidarDemo />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
