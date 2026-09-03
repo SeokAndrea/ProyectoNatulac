@@ -228,14 +228,18 @@ export function mermaLineaTurno(turno: TurnoActivo, lineaCodigo: string, present
 
 export interface MermaSemielaboradoTurno {
   pct: number | null
-  /** Denominador: Σ (volumen del lote al INICIO del turno − volumen al FINAL) de cada lote que el turno tocó. Lo que ese turno consumió de semielaborado. */
+  /** Denominador: Σ (inicio − fin) SOLO de los lotes con tramo de consumo confiable. */
   consumo: number
-  /** Numerador: Σ litros de Producto Terminado de TODAS las corridas del turno. */
+  /** Numerador: Σ litros de PT SOLO de los lotes que entraron al denominador (mismo conjunto). */
   litrosProducidos: number
   /** Alias de `consumo` — se mantiene por compatibilidad con el desglose. */
   litrosConsumidos: number
   /** true si algún lote que el turno tocó sigue abierto. Informativo: la merma se muestra igual (mide el tramo de este turno, no espera a que el lote se drene). */
   hayLoteAbierto: boolean
+  /** Litros de PT que quedaron fuera del %: lotes sin `inicio`, con `fin ≥ inicio`, con PT que excede el volumen preparado, o sin lote asociado. */
+  litrosSinContraste: number
+  /** true si hubo producción que no se pudo contrastar contra un tramo de consumo confiable — el % mostrado es PARCIAL. */
+  hayLoteSinContraste: boolean
 }
 
 /**
@@ -267,9 +271,23 @@ export interface MermaSemielaboradoTurno {
  * Nota: si en un turno nadie llegó a medir el tanque, `volumenL` sigue
  * siendo un derivado del PT y el consumo de ese tramo da ≈ PT (merma
  * ≈ 0). No se pierde: la pérdida aparece en el turno que sí mide, o
- * cuando el lote se cierra drenado. El número nunca se infla ni sale
- * negativo.
+ * cuando el lote se cierra drenado.
+ *
+ * Guardrail (plan-rework-auditoria.md §7, caso turno de Javier): el
+ * numerador y el denominador tienen que cubrir LOS MISMOS lotes. Un
+ * lote cuyo tramo de consumo no es confiable —`inicio` null, `fin ≥
+ * inicio` (transferencia entrante / re-medición al alza / heredado sin
+ * congelar), o PT que excede el volumen preparado— queda fuera de los
+ * dos lados y sus litros van a `litrosSinContraste`. Así el % nunca
+ * sale negativo por la asimetría; cuando algo quedó afuera, `pct` es
+ * PARCIAL (`hayLoteSinContraste`).
+ *
+ * `VI × 1,20`: tolerancia porque hoy `volumen_inicial_l` NO incluye el
+ * agua/jugo que se agrega como ajuste antes de liberar. Cuando la RPC
+ * `ajustar_preparacion` sume los ajustes al VI, se aprieta.
  */
+const TOLERANCIA_PT_SOBRE_VI = 1.2
+
 export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoTurno {
   // Lotes que este turno tocó: los que alimentaron una corrida, más
   // los que nacieron en el turno (preparados aunque todavía sin correr).
@@ -277,29 +295,60 @@ export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoT
   for (const l of turno.lineas) if (l.loteId !== null) loteIds.add(l.loteId)
   for (const p of turno.preparaciones) if (p.turnoId === turno.id) loteIds.add(p.id)
 
+  // Litros de PT atribuidos a cada lote (PT → turno_linea → lote_id).
+  // Lo que no se puede atribuir (corrida sin lote_id) queda sin contraste.
+  const ptPorLote = new Map<string, number>()
+  let ptSinLote = 0
+  for (const pt of turno.productoTerminado) {
+    const corrida = pt.turnoLineaId ? turno.lineas.find((l) => l.id === pt.turnoLineaId) : null
+    const loteId = corrida?.loteId ?? null
+    if (loteId === null) {
+      ptSinLote += pt.litrosProducidos
+      continue
+    }
+    ptPorLote.set(loteId, (ptPorLote.get(loteId) ?? 0) + pt.litrosProducidos)
+    loteIds.add(loteId)
+  }
+
   let consumo = 0
+  let producido = 0
+  let litrosSinContraste = ptSinLote
   let hayLoteAbierto = false
 
   for (const loteId of loteIds) {
     const lote = turno.preparaciones.find((p) => p.id === loteId)
-    if (!lote) continue
+    const ptLote = ptPorLote.get(loteId) ?? 0
+    if (!lote) {
+      litrosSinContraste += ptLote
+      continue
+    }
+    if (lote.cerradoEn === null) hayLoteAbierto = true
 
     const inicio = lote.volumenLInicio ?? lote.volumenInicialL
-    if (inicio === null) continue
     const fin = lote.volumenL ?? 0
+    const vi = lote.volumenInicialL // volumen preparado, para el chequeo físico
+    const tramo = inicio === null ? null : inicio - fin
+    const ptExcedeVi = vi !== null && vi > 0 && ptLote > vi * TOLERANCIA_PT_SOBRE_VI
 
-    // clamp a 0: un tramo no puede "des-consumir" (pasa si el tanque
-    // se rellenó/transfirió durante el turno — eso lo cubre otro lote).
-    consumo += Math.max(inicio - fin, 0)
-
-    if (lote.cerradoEn === null) hayLoteAbierto = true
+    if (tramo === null || tramo <= 0 || ptExcedeVi) {
+      litrosSinContraste += ptLote
+      continue
+    }
+    consumo += tramo
+    producido += ptLote
   }
 
-  const litrosProducidos = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)
+  const pct = consumo <= 0 ? null : Math.round((1 - producido / consumo) * 10000) / 100
 
-  const pct = consumo <= 0 ? null : Math.round((1 - litrosProducidos / consumo) * 10000) / 100
-
-  return { pct, consumo, litrosProducidos, litrosConsumidos: consumo, hayLoteAbierto }
+  return {
+    pct,
+    consumo,
+    litrosProducidos: producido,
+    litrosConsumidos: consumo,
+    hayLoteAbierto,
+    litrosSinContraste: Math.round(litrosSinContraste),
+    hayLoteSinContraste: litrosSinContraste > 0,
+  }
 }
 
 export interface ResumenTurnoAnterior {

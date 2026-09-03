@@ -187,7 +187,10 @@ turnos del rango. Con texto → la lista se filtra, la cuenta va en el rótulo d
 
 ---
 
-## 7. Guardrails de la merma (pendiente — surgió del turno de Javier `A20260902_T3G2`)
+## 7. Guardrails de la merma (7.1–7.4 ✅ hechos 2026-09-03 · surgió del turno de Javier `A20260902_T3G2`)
+
+**Estado:** 7.1–7.4 implementados y con tests (47 en verde). 7.5 (data — `continuar_siguiente_lote`,
+botón "Ajustar", script) sigue pendiente, en `plan-debug-merma-semielaborado`.
 
 El rework de la vista está cerrado. Esto es un agregado: el turno de Javier mostró
 `merma de semielaborado −71,5%` y una corrida duplicada, y esas cifras salen de funciones que ya

@@ -319,16 +319,25 @@ function FilaSupervisor({
                 {l.sabor ? ` · ${l.sabor}` : ""}
                 {l.lote ? ` · Lote ${l.lote}` : ""} · {NUM.format(l.cajas)} cajas ·{" "}
                 <Merma etiqueta="merma de envases" pct={l.mermaEnvasesPct} />
+                {l.posibleDuplicado && (
+                  <span className="text-warning-foreground"> · ⚠ 2 registros idénticos — revisar</span>
+                )}
               </span>
             ))}
           </div>
+        )}
+        {chips.corridasSinProduccion.length > 0 && (
+          <span>
+            <span className="font-medium text-foreground">Sin producción:</span>{" "}
+            {chips.corridasSinProduccion.join(", ")}
+          </span>
         )}
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           <ChipResumen etiqueta="Cajas" valor={NUM.format(chips.cajas)} />
           <span>
             <span className="font-medium text-foreground">Litros:</span>{" "}
             {NUM.format(chips.litrosConsumidos)} consumidos → {NUM.format(chips.litrosProducidos)} producidos ·{" "}
-            <Merma etiqueta="merma de semielaborado" pct={chips.mermaSemielaboradoPct} />
+            <MermaSemielaborado chips={chips} />
           </span>
         </div>
       </div>
@@ -360,6 +369,35 @@ function textoSabores(chips: ResumenTurno): string {
       return `${s.sabor} (${etiqueta} ${s.lotes.join(", ")})`
     })
     .join(", ")
+}
+
+/**
+ * Merma de semielaborado con sus estados: sin dato / parcial / revisar.
+ * Nunca muestra un % negativo como si fuera real (ver plan §7.3).
+ */
+function MermaSemielaborado({ chips }: { chips: ResumenTurno }) {
+  const pct = chips.mermaSemielaboradoPct
+  if (pct === null) {
+    return <strong className="font-semibold text-foreground">merma de semielaborado: sin dato</strong>
+  }
+  if (pct < 0) {
+    return (
+      <strong className="font-semibold text-warning-foreground">
+        merma de semielaborado: revisar (producido &gt; consumido)
+      </strong>
+    )
+  }
+  return (
+    <>
+      <Merma etiqueta="merma de semielaborado" pct={pct} />
+      {chips.mermaSemielaboradoParcial && (
+        <span className="text-muted-foreground">
+          {" "}
+          · parcial ({NUM.format(chips.litrosSinContraste)} L sin contrastar)
+        </span>
+      )}
+    </>
+  )
 }
 
 /** Etiqueta + % de merma, todo en negrita. "—" cuando falta un dato para calcularla. */

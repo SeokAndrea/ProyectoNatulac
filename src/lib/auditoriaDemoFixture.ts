@@ -74,7 +74,7 @@ function diaSiguiente(fecha: string): string {
 type Override = Partial<TurnoActivo> &
   Pick<TurnoActivo, "id" | "codigo" | "fecha" | "horaInicio" | "turnoTipo" | "grupo" | "supervisorUsuario" | "supervisorNombre">
 
-function tanque(over: Partial<TanqueRecepcion> & Pick<TanqueRecepcion, "numeroTanque" | "activadaEn">): TanqueRecepcion {
+export function tanque(over: Partial<TanqueRecepcion> & Pick<TanqueRecepcion, "numeroTanque" | "activadaEn">): TanqueRecepcion {
   return {
     saborId: null,
     saborNombre: null,
@@ -93,7 +93,7 @@ function tanque(over: Partial<TanqueRecepcion> & Pick<TanqueRecepcion, "numeroTa
   }
 }
 
-function corrida(over: Partial<LineaEnTurno> & Pick<LineaEnTurno, "id" | "linea" | "activadaEn">): LineaEnTurno {
+export function corrida(over: Partial<LineaEnTurno> & Pick<LineaEnTurno, "id" | "linea" | "activadaEn">): LineaEnTurno {
   return {
     presentacion: "350",
     envasesHora: 9000,
@@ -112,7 +112,7 @@ function corrida(over: Partial<LineaEnTurno> & Pick<LineaEnTurno, "id" | "linea"
   }
 }
 
-function prep(
+export function prep(
   over: Partial<PreparacionRegistro> & Pick<PreparacionRegistro, "id" | "numeroTanque" | "creadoEn">,
 ): PreparacionRegistro {
   return {
@@ -133,13 +133,13 @@ function prep(
   }
 }
 
-function contador(
+export function contador(
   over: Partial<ContadorRegistro> & Pick<ContadorRegistro, "id" | "linea" | "creadoEn" | "envasesLlenadora">,
 ): ContadorRegistro {
   return { turnoLineaId: null, justificacion: "", parcial: false, ...over }
 }
 
-function pt(
+export function pt(
   over: Partial<ProductoTerminadoRegistro> &
     Pick<ProductoTerminadoRegistro, "id" | "linea" | "creadoEn" | "paletas" | "cajasSueltas">,
 ): ProductoTerminadoRegistro {
@@ -160,7 +160,7 @@ function pt(
   }
 }
 
-function turnoDemo(over: Override): TurnoActivo {
+export function turnoDemo(over: Override): TurnoActivo {
   return {
     estado: "CERRADO",
     fechaFin: over.fecha,

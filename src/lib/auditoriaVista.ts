@@ -20,14 +20,16 @@ export interface SaborConLotes {
 
 export interface LineaResumen {
   linea: string
-  /** Nombre de la presentación de la corrida, ej. "350 ml". */
+  /** Nombre de la presentación, ej. "350 ml". */
   presentacion: string
   sabor: string | null
   lote: string | null
-  /** Cajas de Producto Terminado de esa corrida (paletas × cajas/paleta + cajas sueltas). */
+  /** Cajas de Producto Terminado de esa línea+lote+presentación (corridas duplicadas idénticas contadas una sola vez). */
   cajas: number
-  /** Merma de envases de la corrida (PT vs. contador de la llenadora). null hasta tener los dos datos. */
+  /** Merma de envases (PT vs. contador de la llenadora). null hasta tener los dos datos. */
   mermaEnvasesPct: number | null
+  /** true si dos o más corridas de esta línea+lote+presentación cargaron paletas y cajas idénticas — posible re-tipeo. */
+  posibleDuplicado: boolean
 }
 
 export interface ResumenTurno {
@@ -35,16 +37,22 @@ export interface ResumenTurno {
   sabores: SaborConLotes[]
   /** Todos los lotes del turno, planos — para el buscador. */
   lotes: string[]
-  /** Una fila por corrida del turno, con su presentación / cajas / merma de envases. */
+  /** Una fila por línea+lote+presentación con producción. */
   porLinea: LineaResumen[]
-  /** Total de cajas del turno (todas las corridas). */
+  /** "Línea X · Lote Y" que se activaron pero no registraron producción (corridas stub / superadas). */
+  corridasSinProduccion: string[]
+  /** Total de cajas del turno. */
   cajas: number
-  /** Litros de semielaborado que el turno sacó de los tanques (modelo repartido por turno). */
+  /** Litros de semielaborado que el turno sacó de los tanques (solo lotes con tramo de consumo confiable). */
   litrosConsumidos: number
-  /** Litros que quedaron como Producto Terminado. */
+  /** Litros que quedaron como Producto Terminado (solo los lotes que entraron al consumo). */
   litrosProducidos: number
   /** Merma de semielaborado del turno: 1 − producidos ÷ consumidos. null si no hubo consumo medible. */
   mermaSemielaboradoPct: number | null
+  /** Litros de PT que no se pudieron contrastar → el % de arriba es PARCIAL. */
+  litrosSinContraste: number
+  /** true si `mermaSemielaboradoPct` es parcial (hubo producción sin tramo de consumo confiable). */
+  mermaSemielaboradoParcial: boolean
 }
 
 /**
@@ -68,23 +76,65 @@ export function resumenTurno(
   presentaciones: PresentacionLive[],
 ): ResumenTurno {
   const pres = (codigo: string) => presentaciones.find((pr) => pr.codigo === codigo)
-  const cajasDeCorrida = (turnoLineaId: string) =>
-    turno.productoTerminado
-      .filter((p) => p.turnoLineaId === turnoLineaId)
-      .reduce((t, p) => t + p.paletas * (pres(p.presentacion)?.cajasXPaleta ?? 0) + p.cajasSueltas, 0)
 
-  // Una fila por corrida (turno.lineas trae todas las tocadas en el turno).
-  const porLinea: LineaResumen[] = turno.lineas.map((l) => {
-    const m = mermaCorrida(l.id, turno, presentaciones)
-    return {
-      linea: nombrePorCodigo(lineas, l.linea),
-      presentacion: pres(l.presentacion)?.nombre ?? `${l.presentacion} ml`,
-      sabor: l.saborNombre,
-      lote: l.lote,
-      cajas: cajasDeCorrida(l.id),
-      mermaEnvasesPct: m ? m.pct : null,
+  // Agrupar las corridas por línea + lote + presentación. Así una línea
+  // que retomó el mismo lote no se ve como filas sueltas, y las
+  // corridas stub (activadas sin producir) se absorben. Dentro de un
+  // grupo, dos corridas con paletas y cajas idénticas se cuentan una
+  // sola vez (posible re-tipeo — ver plan-rework-auditoria.md §7.4).
+  const grupos = new Map<string, typeof turno.lineas>()
+  for (const l of turno.lineas) {
+    const k = `${l.linea}|${l.lote ?? ""}|${l.presentacion}`
+    const g = grupos.get(k)
+    if (g) g.push(l)
+    else grupos.set(k, [l])
+  }
+
+  const porLinea: LineaResumen[] = []
+  const corridasSinProduccion: string[] = []
+  for (const corridas of grupos.values()) {
+    const primera = corridas[0]
+    const firmasVistas = new Set<string>()
+    let posibleDuplicado = false
+    let cajas = 0
+    let llenadora = 0
+    let envasesPt = 0
+
+    for (const c of corridas) {
+      const pt = turno.productoTerminado.find((p) => p.turnoLineaId === c.id)
+      if (!pt) continue
+      const info = pres(pt.presentacion)
+      const cajasCorrida = pt.paletas * (info?.cajasXPaleta ?? 0) + pt.cajasSueltas
+      if (cajasCorrida === 0) continue
+      const firma = `${pt.paletas}|${pt.cajasSueltas}`
+      if (firmasVistas.has(firma)) {
+        posibleDuplicado = true
+        continue // no sumar el duplicado idéntico
+      }
+      firmasVistas.add(firma)
+      cajas += cajasCorrida
+      const m = mermaCorrida(c.id, turno, presentaciones)
+      if (m) {
+        llenadora += m.envasesLlenadora
+        envasesPt += m.envasesProductoTerminado
+      }
     }
-  })
+
+    const etiqueta = `${nombrePorCodigo(lineas, primera.linea)}${primera.lote ? ` · Lote ${primera.lote}` : ""}`
+    if (cajas === 0) {
+      corridasSinProduccion.push(etiqueta)
+      continue
+    }
+    porLinea.push({
+      linea: nombrePorCodigo(lineas, primera.linea),
+      presentacion: pres(primera.presentacion)?.nombre ?? `${primera.presentacion} ml`,
+      sabor: primera.saborNombre,
+      lote: primera.lote,
+      cajas,
+      mermaEnvasesPct: llenadora > 0 ? Math.round((1 - envasesPt / llenadora) * 10000) / 100 : null,
+      posibleDuplicado,
+    })
+  }
   const cajas = porLinea.reduce((t, l) => t + l.cajas, 0)
 
   const semi = mermaSemielaboradoTurno(turno)
@@ -114,10 +164,13 @@ export function resumenTurno(
       ...turno.productoTerminado.map((p) => loteDeProductoTerminado(turno, p)),
     ]),
     porLinea,
+    corridasSinProduccion,
     cajas,
     litrosConsumidos: Math.round(semi.litrosConsumidos),
     litrosProducidos: Math.round(semi.litrosProducidos),
     mermaSemielaboradoPct: semi.pct,
+    litrosSinContraste: semi.litrosSinContraste,
+    mermaSemielaboradoParcial: semi.hayLoteSinContraste,
   }
 }
 
