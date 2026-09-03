@@ -317,7 +317,8 @@ function FilaSupervisor({
               <span key={i}>
                 <span className="font-medium text-foreground">{l.linea}:</span> {l.presentacion}
                 {l.sabor ? ` · ${l.sabor}` : ""}
-                {l.lote ? ` · Lote ${l.lote}` : ""} · {NUM.format(l.cajas)} cajas ·{" "}
+                {l.lote ? ` · Lote ${l.lote}` : ""} · {NUM.format(l.cajas)} cajas
+                {l.contador > 0 ? ` · contador ${NUM.format(l.contador)}` : ""} ·{" "}
                 <Merma etiqueta="merma de envases" pct={l.mermaEnvasesPct} />
                 {l.posibleDuplicado && (
                   <span className="text-warning-foreground"> · ⚠ 2 registros idénticos — revisar</span>

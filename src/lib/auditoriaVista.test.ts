@@ -52,13 +52,20 @@ describe("resumenTurno — sabores con sus lotes", () => {
 describe("resumenTurno — por línea", () => {
   const r = resumenTurno(deivis.detalle, LINEAS_DEMO, PRESENTACIONES_DEMO)
 
-  it("una fila por corrida, con presentación, sabor, lote, cajas y merma de envases", () => {
+  it("una fila por corrida, con presentación, sabor, lote, cajas, contador y merma de envases", () => {
     expect(r.porLinea).toHaveLength(2)
     const l1 = r.porLinea.find((l) => l.linea === "Línea 1")!
     expect(l1.presentacion).toBe("350 ml")
     expect(l1.sabor).toBe("Fresa")
     expect(l1.lote).toBe(loteFresa)
     expect(l1.cajas).toBe(13 * 120 + 40)
+    // el contador (envases de la llenadora, no parciales) de esa corrida
+    expect(l1.contador).toBe(
+      deivis.detalle.contadores
+        .filter((c) => c.turnoLineaId === "c4" && !c.parcial)
+        .reduce((a, c) => a + c.envasesLlenadora, 0),
+    )
+    expect(l1.contador).toBeGreaterThan(0)
     expect(l1.mermaEnvasesPct).toBeGreaterThan(0)
     expect(l1.mermaEnvasesPct).toBeLessThan(15)
   })
