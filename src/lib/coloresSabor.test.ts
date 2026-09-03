@@ -27,9 +27,9 @@ describe("colorSabor", () => {
     expect(colorSabor("Naranja (Jucosa)")).toBe("color-mix(in oklab, var(--flavor-orange), white 48%)")
   })
 
-  it("Té de X → entintado, muy oscuro, sobre el hue de su fruta", () => {
-    expect(colorSabor("Té de Durazno")).toBe("color-mix(in oklab, var(--flavor-yellow), black 55%)")
-    expect(colorSabor("Te de Limón")).toBe("color-mix(in oklab, var(--flavor-lime), black 55%)")
+  it("Té de X → color propio, distinto del sabor normal de esa fruta", () => {
+    expect(colorSabor("Té de Durazno")).toBe("#ff4900")
+    expect(colorSabor("Te de Limón")).toBe("#2e7d44")
   })
 
   it("sabor sin fruta reconocida → color estable por hash (siempre el mismo)", () => {

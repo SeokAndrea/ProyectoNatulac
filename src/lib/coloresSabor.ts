@@ -12,8 +12,8 @@
  *        Jucosa   → bastante más clara
  *        Selecto  → un poco más clara
  *        Clásicos / Premium / Especiales / sin familia → color base (el más oscuro)
- *   3. "Té de X" (Té de Durazno, Té de Limón) → versión muy oscura,
- *      "entintada", del color de su fruta — bien distinta del sabor normal.
+ *   3. "Té de X" (Té de Durazno, Té de Limón) → color propio, distinto
+ *      del sabor normal de esa fruta.
  *
  * Recibe el nombre para mostrar (`sabor_display`): "Manzana",
  * "Manzana (Selecto)", "Pera (Jucosa)", "Té de Durazno". Devuelve un
@@ -46,14 +46,22 @@ function familiaDe(nombre: string): string | null {
   return m ? m[1].trim() : null
 }
 
+/** Los tés tienen color propio (elegido a mano), no derivado de la fruta. */
+const COLOR_TE: Array<[RegExp, string]> = [
+  [/durazno/i, "#ff4900"],
+  [/lim[oó]n/i, "#2e7d44"],
+]
+
 export function colorSabor(nombre: string | null | undefined): string {
   if (!nombre) return "var(--muted-foreground)"
-  const base = hueBase(nombre)
+  const limpio = nombre.trim()
 
-  // "Té de X": entintado, mucho más oscuro que el sabor normal de esa fruta.
-  if (/^t[eé]\s+de\b/i.test(nombre.trim())) {
-    return `color-mix(in oklab, ${base}, black 55%)`
+  if (/^t[eé]\s+de\b/i.test(limpio)) {
+    const te = COLOR_TE.find(([re]) => re.test(limpio))
+    return te ? te[1] : `color-mix(in oklab, ${hueBase(limpio)}, black 55%)`
   }
+
+  const base = hueBase(nombre)
 
   switch (familiaDe(nombre)) {
     case "Jucosa":
