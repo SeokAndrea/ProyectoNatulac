@@ -50,36 +50,42 @@ calc as (
   from prep x
   left join pt on pt.lote_id = x.lote_id
 )
-select
-  coalesce(lote,'—')     as lote,
-  sabor,
-  round(inicio)          as inicio,
-  round(fin)             as fin,
-  round(tramo)           as tramo,
-  round(pt_litros)       as pt_litros,
-  round(vi)              as vi,
-  case when medible then 'SI'
-       when inicio is null then 'no: sin inicio'
-       when (inicio - fin) <= 0 then 'no: fin >= inicio'
-       else 'no: PT excede VI' end as medible
-from calc
-union all
-select
-  'TOTAL', null,
-  round(sum(inicio)     filter (where medible)),
-  round(sum(fin)        filter (where medible)),
-  round(sum(tramo)      filter (where medible)),   -- = consumo
-  round(sum(pt_litros)  filter (where medible)),   -- = producido
-  null,
-  case
-    when coalesce(sum(tramo) filter (where medible), 0) <= 0 then 'merma: sin dato'
-    else 'merma: '
-         || round((1 - sum(pt_litros) filter (where medible)
-                       / sum(tramo)    filter (where medible)) * 100, 1) || '%'
-         || case when bool_or(not medible) then ' (PARCIAL)' else '' end
-  end
-from calc
-order by (lote = 'TOTAL'), lote;
+filas as (
+  select
+    0 as ord,
+    coalesce(lote,'—')     as lote,
+    sabor,
+    round(inicio)          as inicio,
+    round(fin)             as fin,
+    round(tramo)           as tramo,
+    round(pt_litros)       as pt_litros,
+    round(vi)              as vi,
+    case when medible then 'SI'
+         when inicio is null then 'no: sin inicio'
+         when (inicio - fin) <= 0 then 'no: fin >= inicio'
+         else 'no: PT excede VI' end as medible
+  from calc
+  union all
+  select
+    1 as ord,
+    'TOTAL', null,
+    round(sum(inicio)     filter (where medible)),
+    round(sum(fin)        filter (where medible)),
+    round(sum(tramo)      filter (where medible)),   -- = consumo
+    round(sum(pt_litros)  filter (where medible)),   -- = producido
+    null,
+    case
+      when coalesce(sum(tramo) filter (where medible), 0) <= 0 then 'merma: sin dato'
+      else 'merma: '
+           || round((1 - sum(pt_litros) filter (where medible)
+                         / sum(tramo)    filter (where medible)) * 100, 1) || '%'
+           || case when bool_or(not medible) then ' (PARCIAL)' else '' end
+    end
+  from calc
+)
+select lote, sabor, inicio, fin, tramo, pt_litros, vi, medible
+from filas
+order by ord, lote;
 
 
 -- #### 2) Qué daba el modelo VIEJO (Σ todo el PT / Σ max(tramo,0)) ####
