@@ -60,17 +60,30 @@ export function ValidarLista({
     return soloPendientes ? dentro.filter((f) => f.estado === "PENDIENTE") : dentro
   }, [filas, rango, soloPendientes])
 
+  /** fecha → supervisor → filas (los del mismo supervisor van juntos). */
   const porFecha = useMemo(() => {
     const orden = [...visibles].sort(
-      (a, b) => b.fecha.localeCompare(a.fecha) || a.supervisorNombre.localeCompare(b.supervisorNombre),
+      (a, b) =>
+        b.fecha.localeCompare(a.fecha) ||
+        a.supervisorNombre.localeCompare(b.supervisorNombre) ||
+        a.turnoCodigo.localeCompare(b.turnoCodigo) ||
+        a.linea.localeCompare(b.linea),
     )
-    const grupos: { fecha: string; filas: FilaValidacion[] }[] = []
+    const dias: { fecha: string; supervisores: { nombre: string; area: string; filas: FilaValidacion[] }[] }[] = []
     for (const f of orden) {
-      const g = grupos[grupos.length - 1]
-      if (g && g.fecha === f.fecha) g.filas.push(f)
-      else grupos.push({ fecha: f.fecha, filas: [f] })
+      let dia = dias[dias.length - 1]
+      if (!dia || dia.fecha !== f.fecha) {
+        dia = { fecha: f.fecha, supervisores: [] }
+        dias.push(dia)
+      }
+      let sup = dia.supervisores[dia.supervisores.length - 1]
+      if (!sup || sup.nombre !== f.supervisorNombre) {
+        sup = { nombre: f.supervisorNombre, area: f.areaNombre, filas: [] }
+        dia.supervisores.push(sup)
+      }
+      sup.filas.push(f)
     }
-    return grupos
+    return dias
   }, [visibles])
 
   function cambiarPreset(p: PresetFecha) {
@@ -125,13 +138,18 @@ export function ValidarLista({
           {soloPendientes ? "Nada pendiente de validar en ese rango." : "Sin corridas en ese rango."}
         </p>
       ) : (
-        porFecha.map(({ fecha, filas: delDia }) => (
-          <div key={fecha} className="flex flex-col gap-2">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              {formatearFecha(fecha)} · {delDia.length}
-            </p>
-            {delDia.map((f) => (
-              <FilaCorrida key={f.turnoLineaId} fila={f} onConfirmar={onConfirmar} onEditar={onEditar} />
+        porFecha.map(({ fecha, supervisores }) => (
+          <div key={fecha} className="flex flex-col gap-3">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{formatearFecha(fecha)}</p>
+            {supervisores.map((sup) => (
+              <div key={sup.nombre} className="flex flex-col gap-2">
+                <p className="text-sm font-semibold text-foreground">
+                  {sup.nombre} <span className="text-xs font-normal text-muted-foreground">· {sup.area}</span>
+                </p>
+                {sup.filas.map((f) => (
+                  <FilaCorrida key={f.turnoLineaId} fila={f} onConfirmar={onConfirmar} onEditar={onEditar} />
+                ))}
+              </div>
             ))}
           </div>
         ))
@@ -163,15 +181,16 @@ function FilaCorrida({
 
   return (
     <div className="rounded-lg border border-border bg-card">
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
-        <span className="min-w-0 flex-1 text-sm">
-          <span className="font-semibold text-foreground">{fila.supervisorNombre}</span>{" "}
-          <span className="text-xs text-muted-foreground">
-            {fila.areaNombre} · Cód. {fila.turnoCodigo} · {fila.linea} · {fila.presentacion}
-            {fila.sabor ? ` · ${fila.sabor}` : ""}
-            {fila.lote ? ` · Lote ${efectivoLote(fila)}` : ""}
-          </span>
-        </span>
+      <div className="flex flex-wrap items-start gap-2 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold text-foreground">
+            {fila.sabor ?? "Sin sabor"}
+            {fila.lote ? <span className="text-muted-foreground"> · Lote {efectivoLote(fila)}</span> : null}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Cód. {fila.turnoCodigo} · {fila.linea} · {fila.presentacion}
+          </p>
+        </div>
         <Badge variant={BADGE[fila.estado]}>
           {fila.estado === "PENDIENTE" ? "Pendiente" : fila.estado === "CONFIRMADO" ? "Confirmado" : "Editado"}
         </Badge>
