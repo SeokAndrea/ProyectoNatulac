@@ -298,6 +298,11 @@ function TanqueCard({
   const [confirmandoRedireccion, setConfirmandoRedireccion] = useState(false)
   const [transfiriendo, setTransfiriendo] = useState(false)
   const [errorTransferir, setErrorTransferir] = useState<string | null>(null)
+  /** Después de transferir: medir el tanque destino para fijar el volumen real (no solo el calculado). */
+  const [medirDestino, setMedirDestino] = useState<1 | 2 | 3 | null>(null)
+  const [volMedido, setVolMedido] = useState("")
+  const [midiendo, setMidiendo] = useState(false)
+  const [errorMedir, setErrorMedir] = useState<string | null>(null)
   const [reactivando, setReactivando] = useState(false)
   const [errorReactivar, setErrorReactivar] = useState<string | null>(null)
   const [confirmandoEnvasar, setConfirmandoEnvasar] = useState(false)
@@ -354,6 +359,9 @@ function TanqueCard({
       return
     }
     setMostrarTransferir(false)
+    setMedirDestino(tanqueDestino as 1 | 2 | 3)
+    setVolMedido("")
+    setErrorMedir(null)
     setTanqueDestino("")
     setModoTransferencia("LIQUIDO")
     setConfirmandoRedireccion(false)
@@ -362,6 +370,33 @@ function TanqueCard({
   /** El destino ya tiene su propio lote (Listo o Con Restos) — ahí sí hace falta elegir qué identidad sobrevive. Si está Limpio, los dos modos dan lo mismo. */
   const tanqueDestinoElegido = destinosDisponibles.find((t) => t.numeroTanque === tanqueDestino) ?? null
   const destinoConLotePropio = tanqueDestinoElegido !== null && tanqueDestinoElegido.condicion !== "LIMPIO"
+  const volumenTransferido = tanque.volumenL ?? 0
+  const volumenDestinoResultante = volumenTransferido + (tanqueDestinoElegido?.volumenL ?? 0)
+
+  /** Tanque destino tal como quedó DESPUÉS de la transferencia (dato fresco del turno). */
+  const destinoMedicion = medirDestino !== null ? tanquesDelTurno.find((t) => t.numeroTanque === medirDestino) : undefined
+
+  async function guardarMedicion() {
+    if (!destinoMedicion || destinoMedicion.saborId === null) return
+    const real = Number(volMedido)
+    if (!Number.isFinite(real) || real < 0) return
+    setMidiendo(true)
+    setErrorMedir(null)
+    const resultado = await onCambiarCondicion({
+      numeroTanque: destinoMedicion.numeroTanque,
+      condicion: destinoMedicion.condicion,
+      saborId: destinoMedicion.saborId,
+      volumenL: real,
+      lote: destinoMedicion.lote,
+    })
+    setMidiendo(false)
+    if (!resultado.ok) {
+      setErrorMedir(resultado.error)
+      return
+    }
+    setMedirDestino(null)
+    setVolMedido("")
+  }
 
   async function envasar() {
     if (!confirmandoEnvasar) {
@@ -683,8 +718,8 @@ function TanqueCard({
         {modo === "preparacion" && mostrarTransferir && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
             <p className="text-xs text-muted-foreground">
-              Manda los {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L de {tanque.saborNombre} a otro tanque con el mismo sabor —
-              este tanque queda Sucio.
+              Manda los <span className="font-medium text-foreground">{volumenTransferido.toLocaleString("es-CO")} L</span> de{" "}
+              {tanque.saborNombre} a otro tanque con el mismo sabor — este tanque queda Sucio.
             </p>
             <Select value={String(tanqueDestino)} onValueChange={(v) => setTanqueDestino(Number(v) as 1 | 2 | 3)}>
               <SelectTrigger className="w-full">
@@ -727,6 +762,15 @@ function TanqueCard({
               </div>
             )}
 
+            {tanqueDestinoElegido && (
+              <p className="text-xs text-muted-foreground">
+                Se transfieren <span className="font-medium text-foreground">{volumenTransferido.toLocaleString("es-CO")} L</span>.
+                El Tanque {tanqueDestinoElegido.numeroTanque} queda con ~
+                <span className="font-medium text-foreground">{volumenDestinoResultante.toLocaleString("es-CO")} L</span>{" "}
+                (calculado — falta medir el tanque).
+              </p>
+            )}
+
             {confirmandoRedireccion && corridaActivaEnEsteTanque && (
               <p className="text-xs text-warning">
                 La corrida activa de esta línea va a pasar a tomar del tanque destino al confirmar. ¿Continuar?
@@ -758,6 +802,40 @@ function TanqueCard({
                 Cancelar
               </Button>
             </div>
+          </div>
+        )}
+
+        {modo === "preparacion" && medirDestino !== null && destinoMedicion && (
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
+            <p className="text-xs text-muted-foreground">
+              El Tanque {destinoMedicion.numeroTanque} quedó con ~
+              <span className="font-medium text-foreground">{(destinoMedicion.volumenL ?? 0).toLocaleString("es-CO")} L</span>{" "}
+              (calculado por la transferencia). Mide el tanque y confirma el volumen real.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                className="h-8 w-32"
+                placeholder={String(destinoMedicion.volumenL ?? 0)}
+                value={volMedido}
+                onChange={(e) => setVolMedido(e.target.value)}
+              />
+              <span className="text-xs text-muted-foreground">L</span>
+              <Button size="sm" disabled={midiendo || volMedido.trim() === ""} onClick={guardarMedicion}>
+                {midiendo ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                Guardar volumen real
+              </Button>
+              <Button size="sm" variant="ghost" disabled={midiendo} onClick={() => setMedirDestino(null)}>
+                Está bien así
+              </Button>
+            </div>
+            {errorMedir && (
+              <p className="text-xs text-destructive" role="alert">
+                {errorMedir}
+              </p>
+            )}
           </div>
         )}
 
@@ -1212,7 +1290,7 @@ function LineaCard({
       return (
         <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
           <p className="text-xs text-foreground">
-            La línea se detiene y el tanque se conserva para cuando se retome. Contá qué pasó (opcional).
+            La línea se detiene y el tanque se conserva para cuando se retome. Anota que pasó (opcional).
           </p>
           <Textarea
             value={observacionBorrador}
