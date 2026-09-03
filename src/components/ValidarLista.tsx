@@ -178,7 +178,10 @@ export function ValidarLista({
             {supervisores.map((sup) => {
               const codigos = [...new Set(sup.filas.map((f) => f.turnoCodigo))]
               return (
-                <div key={sup.nombre} className="flex flex-col gap-2 border-t-2 border-border pt-3">
+                <div
+                  key={sup.nombre}
+                  className="flex flex-col gap-2 rounded-xl border-2 border-[var(--info)]/50 bg-[var(--info)]/[0.04] p-3"
+                >
                   <p className="text-lg font-bold text-foreground">
                     {sup.nombre}{" "}
                     <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">{sup.area}</span>
@@ -239,7 +242,12 @@ function FilaCorrida({
         </Badge>
         {!editando && (
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button size="sm" variant="outline" disabled={trabajando} onClick={confirmar}>
+            <Button
+              size="sm"
+              disabled={trabajando}
+              onClick={confirmar}
+              className="border border-[var(--success)] bg-[var(--success-soft)] text-[var(--success-foreground)] hover:bg-[var(--success-soft)]/80"
+            >
               {trabajando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
               Sí
             </Button>
