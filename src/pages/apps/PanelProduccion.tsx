@@ -65,6 +65,7 @@ import {
   type ResumenTurnoAnterior,
 } from "@/lib/panelProduccion"
 import { type TurnoActivo } from "@/lib/turno"
+import { colorSabor } from "@/lib/coloresSabor"
 import { desglosarCalculos } from "@/lib/calculosPruebas"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { cn } from "@/lib/utils"
@@ -84,24 +85,6 @@ const REFRESCO_EN_VIVO_MS = 30 * 60 * 1000
 
 /** El Área de Pruebas nunca debe verse desde el Panel de Producción — ni como selección explícita. */
 const AREAS_SELECCIONABLES = AREAS.filter((a) => a.codigo !== "PRUEBAS")
-
-/** Color real de la fruta cuando el sabor la nombra (Manzana, Durazno, Naranja, Pera, y variantes como "Naranja 100%"). */
-const COLOR_POR_FRUTA: Array<{ fruta: RegExp; color: string }> = [
-  { fruta: /manzana/i, color: "var(--flavor-red)" },
-  { fruta: /durazno/i, color: "var(--flavor-yellow)" },
-  { fruta: /naranja/i, color: "var(--flavor-orange)" },
-  { fruta: /pera/i, color: "var(--flavor-green)" },
-]
-/** Sabores sin fruta reconocida (ej. Mango) ciclan esta paleta según su nombre, para seguir siendo estables. */
-const COLORES_SABOR = ["var(--flavor-orange)", "var(--flavor-green)", "var(--flavor-red)", "var(--flavor-yellow)"]
-function colorSabor(nombre: string | null): string {
-  if (!nombre) return "var(--muted-foreground)"
-  const fruta = COLOR_POR_FRUTA.find((f) => f.fruta.test(nombre))
-  if (fruta) return fruta.color
-  let hash = 0
-  for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) % 997
-  return COLORES_SABOR[hash % COLORES_SABOR.length]
-}
 
 const HORARIOS: Record<string, { inicio: string; fin: string }> = {
   TURNO_1: { inicio: "07:00", fin: "15:00" },

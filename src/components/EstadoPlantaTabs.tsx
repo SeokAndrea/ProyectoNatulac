@@ -31,6 +31,7 @@ import { nombrePorCodigo, type LineaCodigo, type PresentacionCodigo } from "@/li
 import { useCatalogosLive, presentacionesPorLineaLive, velocidadesParaLive } from "@/lib/catalogosLive"
 import { obtenerUltimaConfiguracionLinea } from "@/lib/lineas"
 import { listarReservasTobos, type ReservaTobo } from "@/lib/reservasTobos"
+import { colorSabor } from "@/lib/coloresSabor"
 import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
 import { cn } from "@/lib/utils"
 import {
@@ -58,15 +59,6 @@ const TANK_CAPACITY = 20000
  * quiere sumar el resto al lote nuevo.
  */
 const DESVASE_HABILITADO = true
-
-/** Color estable por sabor (mismo sabor = mismo color siempre). */
-const COLORES_SABOR = ["var(--flavor-orange)", "var(--flavor-green)", "var(--flavor-red)", "var(--flavor-yellow)"]
-function colorSabor(nombre: string | null): string {
-  if (!nombre) return "var(--muted-foreground)"
-  let hash = 0
-  for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) % 997
-  return COLORES_SABOR[hash % COLORES_SABOR.length]
-}
 
 export type ModoEstadoPlanta = "status" | "preparacion"
 

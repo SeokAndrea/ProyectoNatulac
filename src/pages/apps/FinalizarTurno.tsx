@@ -14,17 +14,9 @@ import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
 import { generarActaPdf } from "@/lib/actaPdf"
 import { subirYRegistrarActa, urlPublicaActa } from "@/lib/historialTurnos"
+import { colorSabor } from "@/lib/coloresSabor"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useTurno, type TurnoActivo } from "@/lib/turno"
-
-/** Mismo color estable por sabor que ya usan EstadoPlantaTabs.tsx y PanelProduccion.tsx. */
-const COLORES_SABOR = ["var(--flavor-orange)", "var(--flavor-green)", "var(--flavor-red)", "var(--flavor-yellow)"]
-function colorSabor(nombre: string | null): string {
-  if (!nombre) return "var(--muted-foreground)"
-  let hash = 0
-  for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) % 997
-  return COLORES_SABOR[hash % COLORES_SABOR.length]
-}
 
 /*
  * Finalizar Turno: el resumen formal del turno en curso (datos fijos
