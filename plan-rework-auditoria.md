@@ -249,8 +249,8 @@ En `AuditoriaTurnos` (la fila del supervisor):
 - ✅ **Botón "Ajustar"** bajo "Liberar" en la tarjeta de tanque `EN_PREPARACION` (migración 20260997):
   `ajustar_preparacion(lote_id, litros, detalle)` — rechaza si `liberado_en` / `cerrado_en`, hace
   `volumen_l += litros` y `volumen_inicial_l += litros`, guarda la fila del ajuste + auditoría.
-- ⬜ `iniciar_preparacion` que sume el `p_agua` inicial al volumen — depende de si `sabores.volumen`
-  ya incluye la dilución estándar (sin confirmar).
+- ✅ **`iniciar_preparacion`** (migración 20260999): el `p_agua` inicial suma al volumen 1:1, igual
+  que "Ajustar". Azúcar/ácido no (son kg).
 - ⬜ Guard en `registrar_producto_terminado` / UI contra una 2ª corrida productiva sobre la misma
   línea+lote+presentación con totales idénticos.
 - ⬜ "Medir tanque" — acción de primera clase para el volumen real del tanque.

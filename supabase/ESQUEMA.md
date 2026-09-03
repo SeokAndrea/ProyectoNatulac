@@ -265,7 +265,7 @@ sistema.
 | sabor_id | FK a `sabores` |
 | lote | texto libre |
 | tambores | entero, obligatorio |
-| agua, azucar, acido_citrico | numéricos, opcionales, sin unidad forzada en la base (la interfaz sugiere L / kg / kg). NO entran al volumen (ver migración 20260997 / `ajustar_preparacion`) |
+| agua, azucar, acido_citrico | L / kg / kg. **`agua` suma al volumen** del lote 1:1 (migración 20260999 en `iniciar_preparacion`, 20260997 en `ajustar_preparacion`). Azúcar y ácido no (son kg) |
 | volumen_l, volumen_inicial_l, volumen_l_inicio | litros del lote (actual / preparado / al inicio del turno) — modelo de merma de semielaborado |
 
 Dos tablas de ajuste de un lote, distintas:
