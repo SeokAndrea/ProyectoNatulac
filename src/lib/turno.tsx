@@ -195,6 +195,14 @@ export interface ContadorRegistro {
   linea: LineaCodigo
   turnoLineaId: string | null
   envasesLlenadora: number
+  /**
+   * Contador 2, opcional: envases buenos (lectura independiente de la
+   * llenadora, no una medición de tanque). NO se usa para merma de
+   * envase (eso sigue siendo solo envasesLlenadora vs Producto
+   * Terminado) — sirve para corroborar un PT que "excede lo preparado"
+   * en mermaSemielaboradoTurno() (src/lib/panelProduccion.ts).
+   */
+  envasesBuenos: number | null
   justificacion: string
   /** Lectura tomada en una entrega parcial: solo referencia, NO cuenta para merma/estadística. El que cuenta es el del cierre definitivo. */
   parcial: boolean
@@ -330,6 +338,8 @@ interface DatosNuevoContador {
   turnoLineaId: string
   linea: LineaCodigo
   envasesLlenadora: number
+  /** Contador 2, opcional — ver ContadorRegistro.envasesBuenos. */
+  envasesBuenos?: number | null
   justificacion: string
   /** Lectura de una entrega parcial: se guarda como referencia, no cuenta para merma. */
   parcial?: boolean
@@ -460,6 +470,7 @@ interface FilaContador {
   linea_codigo: string
   turno_linea_id: string | null
   envases_llenadora: number
+  envases_buenos: number | null
   justificacion: string | null
   parcial: boolean
   creado_en: string
@@ -632,6 +643,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       linea: c.linea_codigo as LineaCodigo,
       turnoLineaId: c.turno_linea_id,
       envasesLlenadora: c.envases_llenadora,
+      envasesBuenos: c.envases_buenos ?? null,
       justificacion: c.justificacion ?? "",
       parcial: c.parcial ?? false,
       creadoEn: c.creado_en,
@@ -1058,6 +1070,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       p_usuario: usuario,
       p_parcial: datos.parcial ?? false,
       p_pagina: "Producto Terminado y Contador",
+      p_envases_buenos: datos.envasesBuenos ?? null,
     })
 
     if (error || !data) {

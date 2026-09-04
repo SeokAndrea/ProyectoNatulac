@@ -104,7 +104,7 @@ export function desglosarCalculos(turno: TurnoActivo, presentaciones: Presentaci
   })
 
   const mermaEnvase = mermaEnvasesTurno(turno, presentaciones)
-  const mermaSemi = mermaSemielaboradoTurno(turno)
+  const mermaSemi = mermaSemielaboradoTurno(turno, presentaciones)
 
   return {
     horasTranscurridas: Math.round(horas * 100) / 100,
@@ -378,6 +378,7 @@ function construirCaso(nombre: string, filas: FilaCaso[]): CasoPrueba {
       linea: lineaCod,
       turnoLineaId: tlId,
       envasesLlenadora: f.contadorEnvases,
+      envasesBuenos: null,
       justificacion: "",
       parcial: false,
       creadoEn: "",

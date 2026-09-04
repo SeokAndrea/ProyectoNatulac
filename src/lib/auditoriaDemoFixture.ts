@@ -136,7 +136,7 @@ export function prep(
 export function contador(
   over: Partial<ContadorRegistro> & Pick<ContadorRegistro, "id" | "linea" | "creadoEn" | "envasesLlenadora">,
 ): ContadorRegistro {
-  return { turnoLineaId: null, justificacion: "", parcial: false, ...over }
+  return { turnoLineaId: null, envasesBuenos: null, justificacion: "", parcial: false, ...over }
 }
 
 export function pt(

@@ -50,6 +50,14 @@ import {
 } from "@/lib/turno"
 
 const TANK_CAPACITY = 20000
+/**
+ * Techo de volumen que aguanta el CHECK de base (`preparaciones.volumen_l`
+ * / `recepcion_tanques.volumen_l`, migración 20261008090000). Sólo
+ * Transferir puede pasar de TANK_CAPACITY, y hasta acá — más que esto la
+ * RPC lo rechaza con un error crudo de constraint, así que lo frenamos
+ * antes con un mensaje claro.
+ */
+const TANK_MAX_VOLUMEN = 30000
 
 /**
  * Desvase (guardar el resto de un tanque aparte, ver envasarTanque en
@@ -345,7 +353,7 @@ function TanqueCard({
   )
 
   async function transferir() {
-    if (tanqueDestino === "") return
+    if (tanqueDestino === "" || transferExcedeMax) return
     if (corridaActivaEnEsteTanque && !confirmandoRedireccion) {
       setConfirmandoRedireccion(true)
       return
@@ -372,6 +380,8 @@ function TanqueCard({
   const destinoConLotePropio = tanqueDestinoElegido !== null && tanqueDestinoElegido.condicion !== "LIMPIO"
   const volumenTransferido = tanque.volumenL ?? 0
   const volumenDestinoResultante = volumenTransferido + (tanqueDestinoElegido?.volumenL ?? 0)
+  /** El CHECK de base rechaza pasar de TANK_MAX_VOLUMEN — se frena antes con un mensaje claro. */
+  const transferExcedeMax = volumenDestinoResultante > TANK_MAX_VOLUMEN
 
   /** Tanque destino tal como quedó DESPUÉS de la transferencia (dato fresco del turno). */
   const destinoMedicion = medirDestino !== null ? tanquesDelTurno.find((t) => t.numeroTanque === medirDestino) : undefined
@@ -455,14 +465,16 @@ function TanqueCard({
           />
           <div className="min-w-0 flex-1">
             {(tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") && (
-              <p className="num text-2xl font-bold text-foreground">{(tanque.volumenL ?? 0).toLocaleString("es-CO")} L</p>
+              <p className="num truncate text-2xl font-bold text-foreground">
+                {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L
+              </p>
             )}
           </div>
         </div>
 
-        <div>
+        <div className="min-w-0">
           {tanque.condicion === "LISTO" && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm break-words text-muted-foreground">
               {tanque.saborNombre ?? "Sin sabor"}
               {tanque.lote ? ` · Lote ${tanque.lote}` : ""}
             </p>
@@ -470,7 +482,7 @@ function TanqueCard({
 
           {tanque.condicion === "STANDBY" && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm break-words text-muted-foreground">
                 Resto de {tanque.saborNombre ?? "sabor sin datos"}
                 {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — el lote ya se cerró.
               </p>
@@ -491,7 +503,7 @@ function TanqueCard({
           )}
 
           {tanque.condicion === "EN_PREPARACION" && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm break-words text-muted-foreground">
               {loteAbierto
                 ? `${loteAbierto.saborNombre ?? "Sin sabor"}${loteAbierto.lote ? ` · Lote ${loteAbierto.lote}` : ""} · ${loteAbierto.tambores} ${unidadPreparacion(loteAbierto.saborNombre)}${loteAbierto.volumenL ? ` · ${loteAbierto.volumenL} L` : ""}`
                 : "Sin datos de la preparación."}
@@ -499,7 +511,7 @@ function TanqueCard({
           )}
 
           {tanque.condicion === "SUCIO" && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm break-words text-muted-foreground">
               {tanque.ultimoSaborNombre
                 ? `Último: ${tanque.ultimoSaborNombre}${tanque.ultimoLote ? textoUltimoLote(tanque.ultimoLote) : ""}`
                 : "Sin datos del sabor anterior."}
@@ -768,6 +780,20 @@ function TanqueCard({
                 El Tanque {tanqueDestinoElegido.numeroTanque} queda con ~
                 <span className="font-medium text-foreground">{volumenDestinoResultante.toLocaleString("es-CO")} L</span>{" "}
                 (calculado — falta medir el tanque).
+                {volumenDestinoResultante > TANK_CAPACITY && !transferExcedeMax && (
+                  <span className="text-warning">
+                    {" "}
+                    Queda sobre los {TANK_CAPACITY.toLocaleString("es-CO")} L nominales del tanque.
+                  </span>
+                )}
+              </p>
+            )}
+
+            {transferExcedeMax && (
+              <p className="text-xs text-destructive" role="alert">
+                No se puede: el Tanque {tanqueDestinoElegido?.numeroTanque} quedaría con ~
+                {volumenDestinoResultante.toLocaleString("es-CO")} L y el máximo permitido es{" "}
+                {TANK_MAX_VOLUMEN.toLocaleString("es-CO")} L. Baja primero el tanque destino o transfiere a otro.
               </p>
             )}
 
@@ -784,7 +810,11 @@ function TanqueCard({
             )}
 
             <div className="flex gap-2">
-              <Button size="sm" disabled={tanqueDestino === "" || transfiriendo} onClick={transferir}>
+              <Button
+                size="sm"
+                disabled={tanqueDestino === "" || transfiriendo || transferExcedeMax}
+                onClick={transferir}
+              >
                 {transfiriendo ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRightLeft className="size-3.5" />}
                 {confirmandoRedireccion ? "Sí, transferir" : "Transferir"}
               </Button>
@@ -1500,7 +1530,7 @@ function LineaCard({
         <LineaVisual numeroLinea={numeroLinea} estado={estadoVisual} color={colorSabor(lineaTurno?.saborNombre ?? null)} square />
 
         {activa && lineaTurno && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm [&>div]:min-w-0">
             <div>
               <p className="text-xs text-muted-foreground">Presentación</p>
               <p className="font-medium text-foreground">{lineaTurno.presentacion} ml</p>
@@ -1511,7 +1541,7 @@ function LineaCard({
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Sabor / Lote</p>
-              <p className="font-medium text-foreground">
+              <p className="font-medium break-words text-foreground">
                 {lineaTurno.saborNombre ?? "—"}
                 {lineaTurno.lote ? ` · ${lineaTurno.lote}` : ""}
               </p>

@@ -86,6 +86,65 @@ export async function cargoDeUsuario(usuario: string): Promise<string | null> {
   return (data as string | null) ?? null
 }
 
+/**
+ * Lecturas de Servicios Industriales (Temperatura del Quantum, Agua
+ * Osmotizada) que se muestran arriba de la grilla de Tanques en el
+ * Panel — meramente informativas, no alimentan ningún cálculo.
+ */
+export interface LecturaServiciosIndustriales {
+  temperaturaQuantum: number | null
+  aguaOsmotizada: number | null
+  actualizadoEn: string
+  actualizadoPorNombre: string | null
+}
+
+export async function obtenerLecturaServiciosIndustriales(): Promise<LecturaServiciosIndustriales | null> {
+  const { data, error } = await supabase.rpc("lectura_servicios_industriales_actual")
+  if (error || !data) return null
+  const r = data as {
+    temperatura_quantum: number | string | null
+    agua_osmotizada: number | string | null
+    actualizado_en: string
+    actualizado_por_nombre: string | null
+  }
+  return {
+    temperaturaQuantum: r.temperatura_quantum === null ? null : Number(r.temperatura_quantum),
+    aguaOsmotizada: r.agua_osmotizada === null ? null : Number(r.agua_osmotizada),
+    actualizadoEn: r.actualizado_en,
+    actualizadoPorNombre: r.actualizado_por_nombre,
+  }
+}
+
+export async function registrarLecturaServiciosIndustriales(
+  usuario: string,
+  temperaturaQuantum: number | null,
+  aguaOsmotizada: number | null,
+): Promise<{ ok: true; lectura: LecturaServiciosIndustriales } | { ok: false; error: string }> {
+  const { data, error } = await supabase.rpc("registrar_lectura_servicios_industriales", {
+    p_usuario: usuario,
+    p_temperatura_quantum: temperaturaQuantum,
+    p_agua_osmotizada: aguaOsmotizada,
+  })
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? "No se pudo guardar. Intenta de nuevo." }
+  }
+  const r = data as {
+    temperatura_quantum: number | string | null
+    agua_osmotizada: number | string | null
+    actualizado_en: string
+    actualizado_por_nombre: string | null
+  }
+  return {
+    ok: true,
+    lectura: {
+      temperaturaQuantum: r.temperatura_quantum === null ? null : Number(r.temperatura_quantum),
+      aguaOsmotizada: r.agua_osmotizada === null ? null : Number(r.agua_osmotizada),
+      actualizadoEn: r.actualizado_en,
+      actualizadoPorNombre: r.actualizado_por_nombre,
+    },
+  }
+}
+
 export async function obtenerTurnoDeFechaTipo(fecha: string, turnoTipo: string, areaCodigo: string | null): Promise<TurnoActivo | null> {
   const { data, error } = await supabase.rpc("turno_de_fecha_tipo", {
     p_fecha: fecha,
@@ -287,10 +346,47 @@ export interface MermaSemielaboradoTurno {
  * con "Ajustar" — ver ajustar_preparacion). MARGEN_REDONDEO cubre el
  * ruido de litros_x_caja y paletas parciales; si el PT lo supera, o es
  * un duplicado, o se agregó jugo sin registrarlo con "Ajustar".
+ *
+ * ...o se rellenó el tanque a mitad de corrida (transferir_tanque
+ * hasta 30.000 L, ver 20261008090000) — un relleno legítimo se ve
+ * IGUAL que un duplicado desde acá (el PT supera lo que ese lote tenía
+ * preparado originalmente). Para no perder esa producción real, un PT
+ * que excede vi se sigue contando si el Contador 2 (envases buenos —
+ * ver ContadorRegistro.envasesBuenos, lectura de la llenadora,
+ * independiente de la medición del tanque) coincide con ese PT dentro
+ * de TOLERANCIA_ENVASES_BUENOS: es evidencia de que el PT es real, no
+ * inventado. Sin Contador 2 cargado para esa corrida, el
+ * comportamiento es idéntico al de antes (se descarta).
  */
 const MARGEN_REDONDEO = 1.05
+const TOLERANCIA_ENVASES_BUENOS = 0.05
 
-export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoTurno {
+/**
+ * Litros "buenos" (Contador 2) de todas las corridas de ESTE turno que
+ * alimentaron `loteId`, convertidos por la presentación de cada
+ * corrida. null si ninguna trajo esa lectura (nada que corroborar).
+ */
+function litrosBuenosDeLote(
+  loteId: string,
+  turno: Pick<TurnoActivo, "lineas" | "contadores">,
+  presentaciones: PresentacionLive[],
+): number | null {
+  let litros = 0
+  let algunaLectura = false
+  for (const corrida of turno.lineas) {
+    if (corrida.loteId !== loteId) continue
+    const pres = presentaciones.find((p) => p.codigo === corrida.presentacion)
+    if (!pres) continue
+    for (const c of turno.contadores) {
+      if (c.turnoLineaId !== corrida.id || c.parcial || c.envasesBuenos === null) continue
+      litros += (c.envasesBuenos * pres.volumenMl) / 1000
+      algunaLectura = true
+    }
+  }
+  return algunaLectura ? litros : null
+}
+
+export function mermaSemielaboradoTurno(turno: TurnoActivo, presentaciones: PresentacionLive[]): MermaSemielaboradoTurno {
   // Lotes que este turno tocó: los que alimentaron una corrida, más
   // los que nacieron en el turno (preparados aunque todavía sin correr).
   const loteIds = new Set<string>()
@@ -332,7 +428,13 @@ export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoT
     const tramo = inicio === null ? null : inicio - fin
     const ptExcedeVi = vi !== null && vi > 0 && ptLote > vi * MARGEN_REDONDEO
 
-    if (tramo === null || tramo <= 0 || ptExcedeVi) {
+    let ptExcedeViCorroborado = false
+    if (ptExcedeVi) {
+      const litrosBuenos = litrosBuenosDeLote(loteId, turno, presentaciones)
+      ptExcedeViCorroborado = litrosBuenos !== null && Math.abs(litrosBuenos - ptLote) <= ptLote * TOLERANCIA_ENVASES_BUENOS
+    }
+
+    if (tramo === null || tramo <= 0 || (ptExcedeVi && !ptExcedeViCorroborado)) {
       litrosSinContraste += ptLote
       continue
     }
@@ -353,61 +455,35 @@ export function mermaSemielaboradoTurno(turno: TurnoActivo): MermaSemielaboradoT
   }
 }
 
-export interface ResumenTurnoAnterior {
-  turnoCodigo: string
-  fecha: string
-  horaFin: string | null
-  mermaPct: number | null
-  mermaSemielaboradoPct: number | null
-  litrosProducidos: number
-  cajasProducidas: number
-}
-
 /**
  * El último turno CERRADO de esta área (sin contar el turno en vivo
- * actual) — para mostrar su merma/litros/cajas final como referencia
- * ("cómo terminó el turno pasado") al lado de lo que va del turno en
+ * actual), mapeado igual que el turno en vivo — para mostrarlo como
+ * referencia ("cómo terminó el turno pasado") al lado del turno en
  * curso.
  *
- * OJO: antes esto se calculaba a mano desde estadisticas_produccion()
- * (contador × volumenMl) — una fórmula DISTINTA a la que usa "turno
- * actual" (mermaSemielaboradoTurno(), por tanque). Las dos vías podían
- * dar números distintos para el MISMO turno ya cerrado, y alguna de
- * las dos terminaba pasándose de 100% de Rendimiento sin sentido
- * físico. Ahora turno_anterior_json() devuelve el turno_json()
- * completo de ese turno y acá se corre por las MISMAS funciones
- * (mermaEnvasesTurno/mermaSemielaboradoTurno) que usa el turno en
- * vivo — es imposible que vuelvan a divergir, porque es literalmente
- * el mismo código.
+ * El Panel corre sobre este objeto las MISMAS funciones
+ * (mermaEnvasesTurno/mermaSemielaboradoTurno) que usa para el turno
+ * actual, y las corre EN EL RENDER, con el catálogo de presentaciones
+ * ya cargado — así "turno pasado" y "turno actual" son literalmente el
+ * mismo cálculo en el mismo momento y no pueden divergir.
+ *
+ * Antes esta función devolvía la merma YA calculada (una sola vez, al
+ * cargar). Si `presentaciones` todavía no había resuelto en ese
+ * instante, mermaEnvasesTurno() no encontraba la presentación, caía a
+ * envasesXCaja = 0 y "turno pasado" mostraba 100% de merma de envase
+ * hasta el próximo refresco (o para siempre en vista histórica). Y más
+ * atrás todavía se calculaba a mano desde estadisticas_produccion()
+ * (contador × volumenMl), una fórmula DISTINTA a la del turno actual
+ * que podía pasarse de 100% de Rendimiento sin sentido físico.
  */
-export async function obtenerResumenTurnoAnterior(
+export async function obtenerTurnoAnterior(
   areaCodigo: string,
   turnoActualId: string | null,
-  presentaciones: PresentacionLive[],
-): Promise<ResumenTurnoAnterior | null> {
+): Promise<TurnoActivo | null> {
   const { data, error } = await supabase.rpc("turno_anterior_json", {
     p_area_codigo: areaCodigo,
     p_turno_actual_id: turnoActualId,
   })
   if (error || !data) return null
-
-  const turno = mapearTurno(data as FilaTurno)
-  const mermaEnvases = mermaEnvasesTurno(turno, presentaciones)
-  const mermaSemielaborado = mermaSemielaboradoTurno(turno)
-  const litrosProducidos = turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0)
-  const cajasProducidas = turno.productoTerminado.reduce((a, p) => {
-    const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
-    const cajasXPaleta = pres?.cajasXPaleta ?? 0
-    return a + (p.paletas * cajasXPaleta + p.cajasSueltas)
-  }, 0)
-
-  return {
-    turnoCodigo: turno.codigo,
-    fecha: turno.fecha,
-    horaFin: turno.horaFin,
-    mermaPct: mermaEnvases.pct,
-    mermaSemielaboradoPct: mermaSemielaborado.pct,
-    litrosProducidos,
-    cajasProducidas,
-  }
+  return mapearTurno(data as FilaTurno)
 }

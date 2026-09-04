@@ -144,7 +144,7 @@ export function resumenTurno(
   }
   const cajas = porLinea.reduce((t, l) => t + l.cajas, 0)
 
-  const semi = mermaSemielaboradoTurno(turno)
+  const semi = mermaSemielaboradoTurno(turno, presentaciones)
 
   // Sabor → sus lotes. Se arma de las preparaciones (sabor + lote juntos)
   // y de las corridas; un sabor sin lote conocido queda igual, sin lista.

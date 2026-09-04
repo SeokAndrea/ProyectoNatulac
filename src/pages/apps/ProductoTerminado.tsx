@@ -395,6 +395,8 @@ type OnRegistrarContador = (datos: {
   turnoLineaId: string
   linea: LineaEnTurno["linea"]
   envasesLlenadora: number
+  /** Contador 2, opcional: envases buenos — ver ContadorRegistro.envasesBuenos en turno.tsx. */
+  envasesBuenos?: number | null
   justificacion: string
   /** true = lectura de referencia de una entrega parcial (no cuenta para merma). */
   parcial?: boolean
@@ -446,6 +448,8 @@ function FilaProductoTerminado({
 
   const [editandoError, setEditandoError] = useState(false)
   const [envasesLlenadora, setEnvasesLlenadora] = useState("")
+  /** Contador 2, opcional: envases buenos — ver ContadorRegistro.envasesBuenos en turno.tsx. */
+  const [envasesBuenos, setEnvasesBuenos] = useState("")
   /**
    * Sin parciales: Paletas/Cajas son el TOTAL actual (se editan, reemplazan).
    * Con parciales (modoIncremental): arrancan vacías — son el incremento nuevo.
@@ -474,6 +478,7 @@ function FilaProductoTerminado({
 
   const nuevoContador = envasesLlenadora === "" ? 0 : Number(envasesLlenadora)
   const contadorTotalPreview = contadorActual + nuevoContador
+  const nuevoContadorBuenos = envasesBuenos === "" ? null : Number(envasesBuenos)
 
   const mermaPct =
     contadorTotalPreview > 0 && (paletas !== "" || cajasSueltas !== "")
@@ -505,6 +510,7 @@ function FilaProductoTerminado({
     setPaletas("")
     setCajasSueltas("")
     setEnvasesLlenadora("")
+    setEnvasesBuenos("")
     setJustificacion("")
   }
 
@@ -519,6 +525,7 @@ function FilaProductoTerminado({
         turnoLineaId: lineaTurno.id,
         linea: lineaTurno.linea,
         envasesLlenadora: nuevoContador,
+        envasesBuenos: nuevoContadorBuenos,
         justificacion: justificacion.trim(),
         parcial: true,
       })
@@ -560,6 +567,7 @@ function FilaProductoTerminado({
         turnoLineaId: lineaTurno.id,
         linea: lineaTurno.linea,
         envasesLlenadora: nuevoContador,
+        envasesBuenos: nuevoContadorBuenos,
         justificacion: justificacion.trim(),
       })
       if (!resultado.ok) {
@@ -607,6 +615,7 @@ function FilaProductoTerminado({
 
     setEnviando(false)
     setEnvasesLlenadora("")
+    setEnvasesBuenos("")
     setJustificacion("")
     setProximoEstado(null)
     setEditandoError(false)
@@ -746,6 +755,15 @@ function FilaProductoTerminado({
               placeholder="Sumar al contador"
               value={envasesLlenadora}
               onChange={(e) => setEnvasesLlenadora(e.target.value)}
+            />
+            <Label htmlFor={`contador-buenos-${lineaTurno.id}`}>Envases buenos (Contador 2, opcional)</Label>
+            <Input
+              id={`contador-buenos-${lineaTurno.id}`}
+              type="number"
+              min={0}
+              placeholder="Envases buenos"
+              value={envasesBuenos}
+              onChange={(e) => setEnvasesBuenos(e.target.value)}
             />
             {modoIncremental && (
               <p className="text-xs text-muted-foreground">

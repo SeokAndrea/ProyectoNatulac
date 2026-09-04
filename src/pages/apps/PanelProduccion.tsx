@@ -20,6 +20,7 @@ import {
   ScanLine,
   Search,
   Target,
+  Thermometer,
   UserRound,
   Users,
   Workflow,
@@ -54,15 +55,16 @@ import {
   ajustesSemielaboradoTurno,
   cargoDeUsuario,
   type AjusteSemielaborado,
+  type LecturaServiciosIndustriales,
   mermaEnvasesTurno,
   mermaLineaTurno,
   mermaSemielaboradoTurno,
   obtenerEstadoPlantaActual,
+  obtenerLecturaServiciosIndustriales,
   obtenerProduccionDia,
-  obtenerResumenTurnoAnterior,
+  obtenerTurnoAnterior,
   obtenerTurnoDeFechaTipo,
   type ProduccionDiaItem,
-  type ResumenTurnoAnterior,
 } from "@/lib/panelProduccion"
 import { type TurnoActivo } from "@/lib/turno"
 import { colorSabor } from "@/lib/coloresSabor"
@@ -263,9 +265,18 @@ export default function PanelProduccion() {
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [turnoTipo, setTurnoTipo] = useState(() => turnoTipoActual())
   const [buscado, setBuscado] = useState(false)
-  const [turnoAnterior, setTurnoAnterior] = useState<ResumenTurnoAnterior | null>(null)
+  /*
+   * El turno pasado sin procesar: la merma se calcula abajo (en el
+   * render, junto con la del turno actual) para que ambas usen el mismo
+   * `presentaciones` ya cargado. Guardar acá la merma ya calculada
+   * hacía que "turno pasado" quedara clavado en 100% de merma de envase
+   * si el catálogo todavía no había resuelto al momento de la carga.
+   */
+  const [turnoAnterior, setTurnoAnterior] = useState<TurnoActivo | null>(null)
   /** Cargo (rótulo del puesto) del supervisor del turno, para mostrarlo junto al nombre. */
   const [supervisorCargo, setSupervisorCargo] = useState<string | null>(null)
+  /** Servicios Industriales: Temperatura del Quantum / Agua Osmotizada — meramente informativo, arriba de Tanques. */
+  const [servIndustriales, setServIndustriales] = useState<LecturaServiciosIndustriales | null>(null)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const [ahora, setAhora] = useState(() => new Date())
   /** Sube cada REFRESCO_EN_VIVO_MS; dispara la recarga silenciosa del turno en vivo y de los datos de la jornada. */
@@ -325,6 +336,17 @@ export default function PanelProduccion() {
     }
   }, [turno?.supervisorUsuario])
 
+  /** Servicios Industriales: no depende del área/turno que se esté viendo — es una lectura global. Se refresca junto con el resto del Panel en vivo. */
+  useEffect(() => {
+    let vivo = true
+    obtenerLecturaServiciosIndustriales().then((l) => {
+      if (vivo) setServIndustriales(l)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [tickRefresco])
+
   useEffect(() => {
     let vivo = true
     if (!areaEfectiva) {
@@ -358,7 +380,7 @@ export default function PanelProduccion() {
       setTurnoAnterior(null)
       return
     }
-    setTurnoAnterior(await obtenerResumenTurnoAnterior(areaEfectiva, turnoActualId, presentaciones))
+    setTurnoAnterior(await obtenerTurnoAnterior(areaEfectiva, turnoActualId))
   }
 
   /*
@@ -427,7 +449,12 @@ export default function PanelProduccion() {
    */
   const usarDiario = enVivo && produccionDia.length > 0
   const mermaEnvases = turno ? mermaEnvasesTurno(turno, presentaciones) : null
-  const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno) : null
+  const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno, presentaciones) : null
+  // "Turno pasado": mismas funciones, mismo `presentaciones` ya cargado
+  // que el turno actual. Al correr en el render se recalculan solas
+  // cuando el catálogo termina de cargar.
+  const mermaEnvasesAnterior = turnoAnterior ? mermaEnvasesTurno(turnoAnterior, presentaciones) : null
+  const mermaSemielaboradoAnterior = turnoAnterior ? mermaSemielaboradoTurno(turnoAnterior, presentaciones) : null
   /*
    * Programación diaria: el carrusel del banner cruza el PLAN del día
    * (módulo Programación, por sabor y en cajas) con lo HECHO (cajas de
@@ -760,13 +787,14 @@ export default function PanelProduccion() {
             <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
               <div className="rise-in flex flex-col gap-4 xl:col-span-4">
                 <PanelCard icon={Container} titulo="Tanques" meta={`${tanquesListos}/${turno.tanques.length} listos`}>
+                  <ServiciosIndustrialesFranja lectura={servIndustriales} ahora={ahora} />
                   <div className="grid grid-cols-3 gap-3">
                     {turno.tanques.map((t) =>
                       esSupervisor ? (
                         <Link
                           key={t.numeroTanque}
                           to="/preparacion"
-                          className="rounded-xl outline-none transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-ring"
+                          className="block min-w-0 rounded-xl outline-none transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-ring"
                           title="Ir a Preparación"
                         >
                           <TanqueCard tanque={t} preparaciones={turno.preparaciones} />
@@ -841,12 +869,12 @@ export default function PanelProduccion() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <MermaComparativaCard
                     titulo="Merma de envase"
-                    pasado={turnoAnterior?.mermaPct ?? null}
+                    pasado={mermaEnvasesAnterior?.pct ?? null}
                     actual={mermaEnvases?.pct ?? null}
                   />
                   <MermaComparativaCard
                     titulo="Rendimiento"
-                    pasado={turnoAnterior?.mermaSemielaboradoPct ?? null}
+                    pasado={mermaSemielaboradoAnterior?.pct ?? null}
                     actual={mermaSemielaborado?.pct ?? null}
                     dangerDesde={MERMA_SEMIELABORADO_MAX}
                     warnDesde={MERMA_SEMIELABORADO_WARN}
@@ -1111,6 +1139,53 @@ function PanelCard({
   )
 }
 
+/** "hace Ns" / "hace N min" / "hace N h", mismo criterio que ultimaAccion más arriba en este archivo. */
+function tiempoRelativo(fechaIso: string, ahora: Date): string {
+  const segundos = Math.max(0, Math.round((ahora.getTime() - new Date(fechaIso).getTime()) / 1000))
+  if (segundos < 60) return `hace ${segundos}s`
+  const minutos = Math.floor(segundos / 60)
+  if (minutos < 60) return `hace ${minutos} min`
+  return `hace ${Math.floor(minutos / 60)} h`
+}
+
+/**
+ * Servicios Industriales: Temperatura del Quantum / Agua Osmotizada —
+ * franja angosta arriba de la grilla de Tanques (adentro del mismo
+ * PanelCard, no una tarjeta propia — ver feedback del 2026-09-04:
+ * "es muy grande"). Meramente informativo, no alimenta ningún cálculo
+ * de merma ni de otro tipo. SOLO LECTURA acá — lo carga otro usuario
+ * (Servicios Industriales) desde su propia pantalla, todavía sin
+ * construir; este componente no tiene forma de editar.
+ */
+function ServiciosIndustrialesFranja({ lectura, ahora }: { lectura: LecturaServiciosIndustriales | null; ahora: Date }) {
+  return (
+    <div className="mb-3 flex items-center justify-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-2.5 py-1.5 text-xs">
+      <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-0.5">
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Thermometer className="size-4 animate-pulse text-warning" />
+          Quantum:{" "}
+          <span className="num font-bold text-foreground">
+            {lectura?.temperaturaQuantum !== null && lectura?.temperaturaQuantum !== undefined ? `${lectura.temperaturaQuantum}°C` : "—"}
+          </span>
+        </span>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Droplets className="size-4 animate-pulse text-info" />
+          Agua Osmotizada:{" "}
+          <span className="num font-bold text-foreground">
+            {lectura?.aguaOsmotizada !== null && lectura?.aguaOsmotizada !== undefined ? `${lectura.aguaOsmotizada.toLocaleString("es-CO")} L` : "—"}
+          </span>
+        </span>
+        {lectura && (
+          <span className="text-[11px] text-muted-foreground/70">
+            {tiempoRelativo(lectura.actualizadoEn, ahora)}
+            {lectura.actualizadoPorNombre ? ` · ${lectura.actualizadoPorNombre}` : ""}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** Mock estable (mismo código = mismo número) para previsualizar "Tiempo detenida" mientras no hay ninguna línea realmente parada. */
 function mockMinutosDetenida(codigo: string): number {
   let hash = 0
@@ -1195,7 +1270,7 @@ function TanqueCard({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-xl border bg-background/60 transition-shadow duration-300",
+        "flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background/60 transition-shadow duration-300",
         listo ? "border-border hover:shadow-panel" : standby ? "border-secondary/50" : enPreparacion ? "border-warning/40" : "border-border",
       )}
     >
@@ -1212,10 +1287,15 @@ function TanqueCard({
       <div className="flex min-w-0 flex-col gap-1 border-t border-border/70 px-2.5 py-2">
         {tieneLiquido ? (
           <>
-            <p className="num text-base font-bold leading-none">
+            <p className="num truncate text-base font-bold leading-none">
               {(tanque.volumenL ?? 0).toLocaleString("es-CO")}
               <span className="text-[11px] font-medium text-muted-foreground"> L</span>
             </p>
+            {(tanque.volumenL ?? 0) > TANK_CAPACITY && (
+              <span className="w-fit max-w-full truncate rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                En espera de corte
+              </span>
+            )}
             <span
               className="w-fit max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-background"
               style={{ backgroundColor: color }}
@@ -1256,10 +1336,11 @@ function TanqueCard({
 
 /**
  * Comparativo Turno pasado vs. Turno actual para una merma — se usa
- * dos veces (envase y semielaborado). "Pasado" viene de
- * obtenerResumenTurnoAnterior(), "actual" de mermaEnvasesTurno()/
- * mermaSemielaboradoTurno() en src/lib/panelProduccion.ts. Cada
- * columna se colorea según su propio nivel de tolerancia.
+ * dos veces (envase y semielaborado). Las dos columnas salen de las
+ * MISMAS funciones (mermaEnvasesTurno()/mermaSemielaboradoTurno() en
+ * src/lib/panelProduccion.ts), corridas en el render: "actual" sobre
+ * `turno`, "pasado" sobre `turnoAnterior` (obtenerTurnoAnterior()).
+ * Cada columna se colorea según su propio nivel de tolerancia.
  */
 function MermaComparativaCard({
   titulo,
