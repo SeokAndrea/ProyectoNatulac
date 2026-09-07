@@ -23,6 +23,15 @@ export interface SesionTurno {
   turnoId: string | null
   codigo: string | null
   estado: "ABIERTO" | "CERRADO" | null
+  /** Cabecera del turno — no es dato de dominio (eso lo tienen los 3 módulos), pero tampoco es solo identidad: es lo que describe AL turno como tal. null si no hay turno. */
+  fecha: string | null
+  horaInicio: string | null
+  fechaFin: string | null
+  horaFin: string | null
+  turnoTipo: TurnoTipoCodigo | null
+  grupo: GrupoCodigo | null
+  supervisorUsuario: string | null
+  supervisorNombre: string | null
   usuario: string | null
   cargando: boolean
   iniciarTurno: (turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -33,6 +42,14 @@ interface FilaTurnoIdentidad {
   id: string
   codigo: string
   estado: "ABIERTO" | "CERRADO"
+  fecha: string
+  hora_inicio: string
+  fecha_fin: string | null
+  hora_fin: string | null
+  turno_tipo_codigo: TurnoTipoCodigo
+  grupo_codigo: GrupoCodigo
+  supervisor_usuario: string
+  supervisor_nombre: string
 }
 
 const SesionTurnoContext = createContext<SesionTurno | undefined>(undefined)
@@ -44,12 +61,28 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
   const [turnoId, setTurnoId] = useState<string | null>(null)
   const [codigo, setCodigo] = useState<string | null>(null)
   const [estado, setEstado] = useState<"ABIERTO" | "CERRADO" | null>(null)
+  const [fecha, setFecha] = useState<string | null>(null)
+  const [horaInicio, setHoraInicio] = useState<string | null>(null)
+  const [fechaFin, setFechaFin] = useState<string | null>(null)
+  const [horaFin, setHoraFin] = useState<string | null>(null)
+  const [turnoTipo, setTurnoTipo] = useState<TurnoTipoCodigo | null>(null)
+  const [grupo, setGrupo] = useState<GrupoCodigo | null>(null)
+  const [supervisorUsuario, setSupervisorUsuario] = useState<string | null>(null)
+  const [supervisorNombre, setSupervisorNombre] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
 
   function tomarIdentidad(fila: FilaTurnoIdentidad | null) {
     setTurnoId(fila?.id ?? null)
     setCodigo(fila?.codigo ?? null)
     setEstado(fila?.estado ?? null)
+    setFecha(fila?.fecha ?? null)
+    setHoraInicio(fila?.hora_inicio ?? null)
+    setFechaFin(fila?.fecha_fin ?? null)
+    setHoraFin(fila?.hora_fin ?? null)
+    setTurnoTipo(fila?.turno_tipo_codigo ?? null)
+    setGrupo(fila?.grupo_codigo ?? null)
+    setSupervisorUsuario(fila?.supervisor_usuario ?? null)
+    setSupervisorNombre(fila?.supervisor_nombre ?? null)
   }
 
   async function recargar(u: string) {
@@ -115,7 +148,25 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SesionTurnoContext.Provider value={{ turnoId, codigo, estado, usuario, cargando, iniciarTurno, finalizarTurno }}>
+    <SesionTurnoContext.Provider
+      value={{
+        turnoId,
+        codigo,
+        estado,
+        fecha,
+        horaInicio,
+        fechaFin,
+        horaFin,
+        turnoTipo,
+        grupo,
+        supervisorUsuario,
+        supervisorNombre,
+        usuario,
+        cargando,
+        iniciarTurno,
+        finalizarTurno,
+      }}
+    >
       {children}
     </SesionTurnoContext.Provider>
   )

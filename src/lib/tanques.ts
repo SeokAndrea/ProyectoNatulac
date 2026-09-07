@@ -1,4 +1,4 @@
-import type { CondicionTanque } from "@/lib/turno"
+import type { CondicionTanque } from "@/lib/preparacion/tipos"
 
 /** Texto compacto de condición de tanque, compartido entre el acta en PDF (src/lib/actaPdf.ts) y los pasos de confirmación (ConfirmarEstadoTanque.tsx). */
 export function textoCondicionTanque(condicion: CondicionTanque, volumenL: number | null, saborNombre: string | null): string {
