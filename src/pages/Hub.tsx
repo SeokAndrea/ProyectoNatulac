@@ -18,7 +18,16 @@ export default function Hub() {
   /** Revisión de inicio completa: los 3 tanques y toda corrida activa quedaron confirmados (mismo criterio que Status.tsx). */
   const revisionInicioHecha =
     turnoActivo && tanques.every((t) => t.confirmadoInicioEn !== null) && corridas.filter((c) => c.activa).every((c) => c.confirmadoInicioEn !== null)
-  const appsVisibles = apps.filter((app) => !app.rolesPermitidos || (session && app.rolesPermitidos.includes(session.rol)))
+  // Área de Pruebas: ve TODAS las tarjetas sin importar el rol — mismo
+  // criterio que ProtectedRoute.tsx (la cuenta de prueba ejercita
+  // cualquier pantalla nueva sin pedir un login por rol para cada una).
+  const esPruebas = session?.area === "PRUEBAS"
+  const appsVisibles = apps.filter((app) => {
+    if (esPruebas) return true
+    if (app.rolesPermitidos && !(session && app.rolesPermitidos.includes(session.rol))) return false
+    if (app.areasPermitidas && !(session?.area && app.areasPermitidas.includes(session.area))) return false
+    return true
+  })
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
 

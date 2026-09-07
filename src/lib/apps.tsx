@@ -13,8 +13,9 @@ import {
   RadioTower,
   CalendarClock,
   CalendarRange,
+  Thermometer,
 } from "lucide-react"
-import type { RolCodigo } from "@/lib/catalogos"
+import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 
 export interface AppDef {
   slug: string
@@ -36,6 +37,8 @@ export interface AppDef {
    * coincidir con el rolesPermitidos de la misma ruta en src/App.tsx.
    */
   rolesPermitidos?: RolCodigo[]
+  /** Si se define, la tarjeta solo aparece para usuarios de estas áreas (ej. Servicios Industriales, que no tiene un rol propio). Tiene que coincidir con el areasPermitidas de la misma ruta en src/App.tsx. */
+  areasPermitidas?: AreaCodigo[]
   /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
   atajo?: boolean
   /** Se bloquea (gris) cuando SÍ hay un turno en curso — lo opuesto de requiereTurno (ver Comenzar Turno). */
@@ -149,6 +152,15 @@ export const apps: AppDef[] = [
     icon: CalendarRange,
     requiereTurno: false,
     atajo: true,
+  },
+  {
+    slug: "servicios-industriales",
+    title: "Servicios Industriales",
+    description: "Cargar Temperatura del Quantum y Agua Osmotizada.",
+    href: "/servicios-industriales",
+    icon: Thermometer,
+    requiereTurno: false,
+    areasPermitidas: ["SERVICIOS_INDUSTRIALES"],
   },
   {
     slug: "personal",

@@ -1,0 +1,157 @@
+import { useEffect, useState } from "react"
+import { Droplets, Loader2, Thermometer } from "lucide-react"
+import { AppShell } from "@/components/AppShell"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useAuth } from "@/lib/auth"
+import {
+  obtenerLecturaServiciosIndustriales,
+  registrarLecturaServiciosIndustriales,
+  type LecturaServiciosIndustriales,
+} from "@/lib/panelProduccion"
+
+/*
+ * Servicios Industriales: cargar Temperatura del Quantum y Agua
+ * Osmotizada — los dos valores que ya se mostraban de solo lectura
+ * arriba de Tanques en el Panel de Producción (ver
+ * ServiciosIndustrialesFranja en PanelProduccion.tsx), pero que hasta
+ * hoy nadie podía cargar desde ninguna pantalla: la RPC
+ * (registrar_lectura_servicios_industriales) y el rol
+ * (SERVICIOS_INDUSTRIALES) ya existían, solo faltaba esta página.
+ * Meramente informativo — no alimenta ningún cálculo de merma ni de
+ * otro tipo, y no depende de ningún turno.
+ */
+export default function ServiciosIndustriales() {
+  const { session } = useAuth()
+  const [lectura, setLectura] = useState<LecturaServiciosIndustriales | null>(null)
+  const [cargando, setCargando] = useState(true)
+  const [temperaturaQuantum, setTemperaturaQuantum] = useState("")
+  const [aguaOsmotizada, setAguaOsmotizada] = useState("")
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [guardado, setGuardado] = useState(false)
+
+  useEffect(() => {
+    obtenerLecturaServiciosIndustriales().then((l) => {
+      setLectura(l)
+      setCargando(false)
+    })
+  }, [])
+
+  const valido = temperaturaQuantum.trim() !== "" || aguaOsmotizada.trim() !== ""
+
+  async function guardar() {
+    if (!valido || !session || enviando) return
+    setEnviando(true)
+    setError(null)
+    setGuardado(false)
+    const resultado = await registrarLecturaServiciosIndustriales(
+      session.username,
+      temperaturaQuantum.trim() === "" ? null : Number(temperaturaQuantum),
+      aguaOsmotizada.trim() === "" ? null : Number(aguaOsmotizada),
+    )
+    setEnviando(false)
+    if (!resultado.ok) {
+      setError(resultado.error)
+      return
+    }
+    setLectura(resultado.lectura)
+    setTemperaturaQuantum("")
+    setAguaOsmotizada("")
+    setGuardado(true)
+  }
+
+  return (
+    <AppShell title="Servicios Industriales" description="Temperatura del Quantum y Agua Osmotizada">
+      <div className="mx-auto flex max-w-lg flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Última lectura</CardTitle>
+            <CardDescription>Es lo que ve el Panel de Producción ahora mismo, arriba de Tanques.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {cargando ? (
+              <div className="flex justify-center py-4 text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
+                  <Thermometer className="size-4 shrink-0 text-warning" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Quantum</p>
+                    <p className="num font-semibold text-foreground">
+                      {lectura?.temperaturaQuantum ?? "—"}
+                      {lectura?.temperaturaQuantum !== null && lectura?.temperaturaQuantum !== undefined ? "°C" : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
+                  <Droplets className="size-4 shrink-0 text-info" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Agua Osmotizada</p>
+                    <p className="num font-semibold text-foreground">
+                      {lectura?.aguaOsmotizada?.toLocaleString("es-CO") ?? "—"}
+                      {lectura?.aguaOsmotizada !== null && lectura?.aguaOsmotizada !== undefined ? " L" : ""}
+                    </p>
+                  </div>
+                </div>
+                {lectura && (
+                  <p className="col-span-2 text-xs text-muted-foreground">
+                    {new Date(lectura.actualizadoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                    {lectura.actualizadoPorNombre ? ` · ${lectura.actualizadoPorNombre}` : ""}
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Cargar lectura nueva</CardTitle>
+            <CardDescription>Cargá al menos uno de los dos valores.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="temp-quantum">Temperatura del Quantum (°C)</Label>
+              <Input
+                id="temp-quantum"
+                type="number"
+                inputMode="decimal"
+                placeholder="Ej. 4.5"
+                value={temperaturaQuantum}
+                onChange={(e) => setTemperaturaQuantum(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="agua-osmotizada">Agua Osmotizada (L)</Label>
+              <Input
+                id="agua-osmotizada"
+                type="number"
+                inputMode="decimal"
+                placeholder="Ej. 15000"
+                value={aguaOsmotizada}
+                onChange={(e) => setAguaOsmotizada(e.target.value)}
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            )}
+            {guardado && !error && <p className="text-sm text-success">Lectura guardada.</p>}
+
+            <Button disabled={!valido || enviando} onClick={guardar}>
+              {enviando ? <Loader2 className="size-4 animate-spin" /> : null}
+              Guardar lectura
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </AppShell>
+  )
+}
