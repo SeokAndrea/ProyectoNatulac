@@ -52,8 +52,17 @@ export interface UsePreparacionResultado {
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
 }
 
-export function usePreparacion(): UsePreparacionResultado {
-  const { turnoId, usuario } = useSesionTurno()
+/**
+ * @param turnoIdElegido Si se pasa, muestra ESE turno (p. ej. Panel de
+ * Producción, mirando el turno de cualquier supervisor/fecha) en vez del
+ * turno abierto del usuario logueado. `usuario` sigue siendo siempre el
+ * que está logueado — mutar (si se llegara a hacer) queda atribuido a
+ * quien está mirando, no al dueño original del turno.
+ */
+export function usePreparacion(turnoIdElegido?: string): UsePreparacionResultado {
+  const sesion = useSesionTurno()
+  const turnoId = turnoIdElegido ?? sesion.turnoId
+  const usuario = sesion.usuario
 
   const [tanques, setTanques] = useState<TanqueRecepcion[]>([])
   const [preparaciones, setPreparaciones] = useState<PreparacionRegistro[]>([])

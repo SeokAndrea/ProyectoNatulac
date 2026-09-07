@@ -178,8 +178,15 @@ export interface UseProductoTerminadoResultado {
   registrarProductoTerminado: (datos: DatosProductoTerminado) => Promise<Resultado>
 }
 
-export function useProductoTerminado(): UseProductoTerminadoResultado {
-  const { turnoId, usuario } = useSesionTurno()
+/**
+ * @param turnoIdElegido Si se pasa, muestra ESE turno (p. ej. Panel de
+ * Producción) en vez del turno abierto del usuario logueado. Mismo
+ * mecanismo que usePreparacion() — ver esa nota para el detalle.
+ */
+export function useProductoTerminado(turnoIdElegido?: string): UseProductoTerminadoResultado {
+  const sesion = useSesionTurno()
+  const turnoId = turnoIdElegido ?? sesion.turnoId
+  const usuario = sesion.usuario
 
   const [registros, setRegistros] = useState<ProductoTerminadoRegistro[]>([])
   const [cargando, setCargando] = useState(true)

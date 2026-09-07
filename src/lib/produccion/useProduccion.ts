@@ -51,8 +51,15 @@ export interface UseProduccionResultado {
   actualizarJustificacionContador: (contadorId: string, justificacion: string) => Promise<Resultado>
 }
 
-export function useProduccion(): UseProduccionResultado {
-  const { turnoId, usuario } = useSesionTurno()
+/**
+ * @param turnoIdElegido Si se pasa, muestra ESE turno (p. ej. Panel de
+ * Producción) en vez del turno abierto del usuario logueado. Mismo
+ * mecanismo que usePreparacion() — ver esa nota para el detalle.
+ */
+export function useProduccion(turnoIdElegido?: string): UseProduccionResultado {
+  const sesion = useSesionTurno()
+  const turnoId = turnoIdElegido ?? sesion.turnoId
+  const usuario = sesion.usuario
   const { velocidades } = useCatalogosLive()
 
   const [corridas, setCorridas] = useState<Corrida[]>([])
