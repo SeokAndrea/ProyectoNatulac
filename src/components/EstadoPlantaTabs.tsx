@@ -143,7 +143,7 @@ export function EstadoPlantaTabs({ turno, sabores, modo }: { turno: TurnoActivo;
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="tanques" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <TabsContent value="tanques" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {turno.tanques.map((t) => (
           <TanqueCard
             key={t.numeroTanque}
@@ -442,7 +442,7 @@ function TanqueCard({
 
   return (
     <Card className="overflow-hidden border-border shadow-sm">
-      <CardContent className="flex flex-col gap-3 p-4">
+      <CardContent className="flex flex-col gap-3 px-2 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="flex items-center gap-1.5 rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">
             <Container className="size-4.5 text-muted-foreground" />
@@ -453,7 +453,7 @@ function TanqueCard({
           </Badge>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <TanqueVisual
             numeroTanque={tanque.numeroTanque}
             condicion={tanque.condicion}
@@ -465,7 +465,7 @@ function TanqueCard({
           />
           <div className="min-w-0 flex-1">
             {(tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") && (
-              <p className="num truncate text-2xl font-bold text-foreground">
+              <p className="num text-xl font-bold text-foreground">
                 {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L
               </p>
             )}
