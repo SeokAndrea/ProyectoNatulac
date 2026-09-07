@@ -569,10 +569,10 @@ function LineaCard({
 
   return (
     <Card className="overflow-hidden border-border shadow-sm">
-      <CardContent className="flex flex-col gap-3 p-4">
+      <CardContent className="flex flex-col gap-3 px-2 py-4">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-          <p className="flex items-center gap-1.5 text-sm font-semibold">
-            <Factory className="size-4 text-muted-foreground" />
+          <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
+            <Factory className="size-4 shrink-0 text-muted-foreground" />
             {nombreLinea}
           </p>
           <Badge
