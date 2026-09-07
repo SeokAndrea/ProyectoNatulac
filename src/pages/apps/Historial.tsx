@@ -27,9 +27,9 @@ import {
   urlPublicaActa,
   type Acta,
   type TurnoActivoArea,
+  type TurnoHistorial,
   type TurnoResumen,
 } from "@/lib/historialTurnos"
-import type { TurnoActivo } from "@/lib/turno"
 
 /*
  * Auditoría: para el auditor ISO 9001 y el jefe de producción — qué
@@ -60,7 +60,7 @@ export default function Historial() {
   /* Detalle de un turno: pantalla aparte con Reabrir / Eliminar /
    * Generar Acta faltante. Se abre desde el botón "Abrir" de la fila. */
   const [seleccionado, setSeleccionado] = useState<TurnoResumen | null>(null)
-  const [detalle, setDetalle] = useState<TurnoActivo | null>(null)
+  const [detalle, setDetalle] = useState<TurnoHistorial | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [eliminando, setEliminando] = useState(false)
@@ -164,10 +164,9 @@ export default function Historial() {
         grupo: detalle.grupo,
         tanquesEncontrados: detalle.tanquesEncontrados,
         tanques: detalle.tanques,
-        corridas: detalle.lineas,
-        // El detalle histórico (obtenerTurnoDetalle, todavía sobre turno.tsx) trae turnoLineaId — generarActaPdf() ya espera corridaId (renombre del módulo Producción).
-        contadores: detalle.contadores.map((c) => ({ ...c, corridaId: c.turnoLineaId })),
-        productoTerminado: detalle.productoTerminado.map((p) => ({ ...p, corridaId: p.turnoLineaId })),
+        corridas: detalle.corridas,
+        contadores: detalle.contadores,
+        productoTerminado: detalle.productoTerminado,
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,
         lineas,

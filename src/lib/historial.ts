@@ -1,6 +1,7 @@
 import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
-import { mermaCorrida, type TurnoActivo } from "@/lib/turno"
+import { mermaCorrida } from "@/lib/reportes"
+import type { TurnoHistorial } from "@/lib/historialTurnos"
 
 /**
  * Historial del turno: lista cronológica de todo lo registrado (Hora
@@ -36,7 +37,7 @@ function formatearHora(valor: string, fechaTurno: string): string {
 }
 
 export function construirHistorial(
-  turno: TurnoActivo,
+  turno: TurnoHistorial,
   lineas: LineaLive[],
   presentaciones: PresentacionLive[],
 ): EventoHistorial[] {
@@ -55,7 +56,7 @@ export function construirHistorial(
   // "lineas" trae TODAS las corridas tocadas en este turno (activas y
   // finalizadas durante él), por eso una corrida finalizada suma un
   // segundo evento con su hora de cierre.
-  for (const l of turno.lineas) {
+  for (const l of turno.corridas) {
     const lote = l.loteId ? turno.preparaciones.find((p) => p.id === l.loteId) : null
     agregar(
       l.activadaEn,
@@ -103,7 +104,7 @@ export function construirHistorial(
   }
 
   for (const c of turno.contadores) {
-    const merma = c.turnoLineaId ? mermaCorrida(c.turnoLineaId, turno, presentaciones) : null
+    const merma = c.corridaId ? mermaCorrida(c.corridaId, turno.contadores, turno.productoTerminado, presentaciones) : null
     agregar(
       c.creadoEn,
       "Contadores y Merma",
@@ -115,15 +116,14 @@ export function construirHistorial(
     const cajasXPaleta = presentaciones.find((pr) => pr.codigo === p.presentacion)?.cajasXPaleta ?? 0
     const cajasTotales = p.paletas * cajasXPaleta + p.cajasSueltas
     // El lote no vive en la fila de Producto Terminado: sale de la
-    // corrida que la generó (turnoLineaId → LineaEnTurno.lote). Se
-    // muestra junto al sabor para que un auditor lo pueda rastrear y
-    // buscar (ver coincideBusqueda en src/lib/auditoriaVista.ts).
-    const lote = p.turnoLineaId ? (turno.lineas.find((l) => l.id === p.turnoLineaId)?.lote ?? null) : null
+    // corrida que la generó (corridaId → Corrida.lote). Se muestra
+    // junto al sabor para que un auditor lo pueda rastrear y buscar
+    // (ver coincideBusqueda en src/lib/auditoriaVista.ts).
+    const lote = p.corridaId ? (turno.corridas.find((l) => l.id === p.corridaId)?.lote ?? null) : null
     agregar(
-      p.editadoEn ?? p.creadoEn,
+      p.creadoEn,
       "Producto Terminado",
-      `${nombrePorCodigo(lineas, p.linea)}: ${p.paletas} paletas + ${p.cajasSueltas} cajas sueltas = ${cajasTotales} cajas · ${p.saborNombre ?? "sin sabor"}${lote ? ` · Lote ${lote}` : ""}` +
-        (p.editadoPorNombre ? ` — EDITADO POR: ${p.editadoPorNombre.toUpperCase()}` : ""),
+      `${nombrePorCodigo(lineas, p.linea)}: ${p.paletas} paletas + ${p.cajasSueltas} cajas sueltas = ${cajasTotales} cajas · ${p.saborNombre ?? "sin sabor"}${lote ? ` · Lote ${lote}` : ""}`,
     )
   }
 

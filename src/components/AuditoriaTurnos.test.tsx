@@ -3,12 +3,12 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 import { AuditoriaTurnos, type TurnoAuditoria } from "@/components/AuditoriaTurnos"
 import { LINEAS_DEMO, PRESENTACIONES_DEMO, contador, corrida, prep, pt, turnoDemo } from "@/lib/auditoriaDemoFixture"
-import { fechaLocal, type TurnoActivo } from "@/lib/turno"
-import type { TurnoResumen } from "@/lib/historialTurnos"
+import { fechaLocal } from "@/lib/turno"
+import type { TurnoHistorial, TurnoResumen } from "@/lib/historialTurnos"
 
 const HOY = fechaLocal(new Date())
 
-function turnoAuditoria(detalle: TurnoActivo, area: "ASEPTICO" | "VACIO" = "ASEPTICO"): TurnoAuditoria {
+function turnoAuditoria(detalle: TurnoHistorial, area: "ASEPTICO" | "VACIO" = "ASEPTICO"): TurnoAuditoria {
   return {
     detalle,
     resumen: {
@@ -39,14 +39,14 @@ function turnoSano(over: { id: string; supervisorUsuario: string; supervisorNomb
     ...BASE,
     ...over,
     preparaciones: [
-      prep({ id: `${over.id}-L`, numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenInicialL: 7000, volumenLInicio: 7000, volumenL: 200 }),
+      prep({ id: `${over.id}-L`, numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenPreparadoL: 7000, volumenAlIniciarTurnoL: 7000, volumenActualL: 200 }),
     ],
-    lineas: [
+    corridas: [
       corrida({ id: `${over.id}-c`, linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Fresa", lote: "0001", loteId: `${over.id}-L`, presentacion: "1000" }),
     ],
-    contadores: [contador({ id: `${over.id}-co`, linea: "LINEA_1", creadoEn: "03:00:00", turnoLineaId: `${over.id}-c`, envasesLlenadora: 5600 })],
+    contadores: [contador({ id: `${over.id}-co`, linea: "LINEA_1", creadoEn: "03:00:00", corridaId: `${over.id}-c`, envasesLlenadora: 5600 })],
     productoTerminado: [
-      pt({ id: `${over.id}-pt`, linea: "LINEA_1", creadoEn: "03:05:00", turnoLineaId: `${over.id}-c`, saborNombre: "Fresa", presentacion: "1000", paletas: 9, cajasSueltas: 0, litrosProducidos: 5400 }),
+      pt({ id: `${over.id}-pt`, linea: "LINEA_1", creadoEn: "03:05:00", corridaId: `${over.id}-c`, saborNombre: "Fresa", presentacion: "1000", paletas: 9, cajasSueltas: 0, litrosProducidos: 5400 }),
     ],
   })
 }
@@ -85,20 +85,20 @@ describe("AuditoriaTurnos", () => {
       supervisorUsuario: "psalas",
       supervisorNombre: "Pedro Salas",
       preparaciones: [
-        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenInicialL: 6000, volumenLInicio: 6000, volumenL: 200 }),
-        prep({ id: "L2", numeroTanque: 2, creadoEn: "23:00:00", saborNombre: "Mango", lote: "0002", volumenInicialL: 6000, volumenLInicio: 6000, volumenL: 9000 }),
+        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 200 }),
+        prep({ id: "L2", numeroTanque: 2, creadoEn: "23:00:00", saborNombre: "Mango", lote: "0002", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 9000 }),
       ],
-      lineas: [
+      corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Fresa", lote: "0001", loteId: "L1", presentacion: "1000" }),
         corrida({ id: "c2", linea: "LINEA_2", activadaEn: "23:10:00", saborNombre: "Mango", lote: "0002", loteId: "L2", presentacion: "1000" }),
       ],
       contadores: [
-        contador({ id: "co1", linea: "LINEA_1", creadoEn: "02:00:00", turnoLineaId: "c1", envasesLlenadora: 5800 }),
-        contador({ id: "co2", linea: "LINEA_2", creadoEn: "02:10:00", turnoLineaId: "c2", envasesLlenadora: 5200 }),
+        contador({ id: "co1", linea: "LINEA_1", creadoEn: "02:00:00", corridaId: "c1", envasesLlenadora: 5800 }),
+        contador({ id: "co2", linea: "LINEA_2", creadoEn: "02:10:00", corridaId: "c2", envasesLlenadora: 5200 }),
       ],
       productoTerminado: [
-        pt({ id: "p1", linea: "LINEA_1", creadoEn: "02:05:00", turnoLineaId: "c1", saborNombre: "Fresa", presentacion: "1000", paletas: 9, cajasSueltas: 0, litrosProducidos: 5400 }),
-        pt({ id: "p2", linea: "LINEA_2", creadoEn: "02:15:00", turnoLineaId: "c2", saborNombre: "Mango", presentacion: "1000", paletas: 8, cajasSueltas: 0, litrosProducidos: 4800 }),
+        pt({ id: "p1", linea: "LINEA_1", creadoEn: "02:05:00", corridaId: "c1", saborNombre: "Fresa", presentacion: "1000", paletas: 9, cajasSueltas: 0, litrosProducidos: 5400 }),
+        pt({ id: "p2", linea: "LINEA_2", creadoEn: "02:15:00", corridaId: "c2", saborNombre: "Mango", presentacion: "1000", paletas: 8, cajasSueltas: 0, litrosProducidos: 4800 }),
       ],
     })
     render7dias([turnoAuditoria(turno)])
@@ -112,18 +112,18 @@ describe("AuditoriaTurnos", () => {
       codigo: "0902-A-3",
       supervisorUsuario: "jbello",
       supervisorNombre: "Javier Bello",
-      preparaciones: [prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0004", volumenInicialL: 20000, volumenLInicio: 20000, volumenL: 200 })],
-      lineas: [
+      preparaciones: [prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0004", volumenPreparadoL: 20000, volumenAlIniciarTurnoL: 20000, volumenActualL: 200 })],
+      corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Pera", lote: "0004", loteId: "L1", presentacion: "1000" }),
         corrida({ id: "c2", linea: "LINEA_1", activadaEn: "01:00:00", saborNombre: "Pera", lote: "0004", loteId: "L1", presentacion: "1000" }),
       ],
       contadores: [
-        contador({ id: "co1", linea: "LINEA_1", creadoEn: "00:30:00", turnoLineaId: "c1", envasesLlenadora: 10300 }),
-        contador({ id: "co2", linea: "LINEA_1", creadoEn: "05:00:00", turnoLineaId: "c2", envasesLlenadora: 10300 }),
+        contador({ id: "co1", linea: "LINEA_1", creadoEn: "00:30:00", corridaId: "c1", envasesLlenadora: 10300 }),
+        contador({ id: "co2", linea: "LINEA_1", creadoEn: "05:00:00", corridaId: "c2", envasesLlenadora: 10300 }),
       ],
       productoTerminado: [
-        pt({ id: "p1", linea: "LINEA_1", creadoEn: "00:35:00", turnoLineaId: "c1", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 5, litrosProducidos: 6120 }),
-        pt({ id: "p2", linea: "LINEA_1", creadoEn: "05:05:00", turnoLineaId: "c2", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 5, litrosProducidos: 6120 }),
+        pt({ id: "p1", linea: "LINEA_1", creadoEn: "00:35:00", corridaId: "c1", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 5, litrosProducidos: 6120 }),
+        pt({ id: "p2", linea: "LINEA_1", creadoEn: "05:05:00", corridaId: "c2", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 5, litrosProducidos: 6120 }),
       ],
     })
     render7dias([turnoAuditoria(turno)])

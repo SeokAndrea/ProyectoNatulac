@@ -62,7 +62,7 @@ describe("resumenTurno — por línea", () => {
     // el contador (envases de la llenadora, no parciales) de esa corrida
     expect(l1.contador).toBe(
       deivis.detalle.contadores
-        .filter((c) => c.turnoLineaId === "c4" && !c.parcial)
+        .filter((c) => c.corridaId === "c4" && !c.parcial)
         .reduce((a, c) => a + c.envasesLlenadora, 0),
     )
     expect(l1.contador).toBeGreaterThan(0)
@@ -90,7 +90,7 @@ describe("resumenTurno — litros y merma de semielaborado", () => {
 })
 
 describe("loteDeProductoTerminado", () => {
-  it("saca el lote de la corrida que generó la fila (turnoLineaId → LineaEnTurno.lote)", () => {
+  it("saca el lote de la corrida que generó la fila (corridaId → LineaEnTurno.lote)", () => {
     const ptFresa = deivis.detalle.productoTerminado.find((p) => p.saborNombre === "Fresa")!
     expect(loteDeProductoTerminado(deivis.detalle, ptFresa)).toBe(loteFresa)
   })
@@ -174,20 +174,20 @@ describe("guardrails — merma de semielaborado", () => {
     const turno = turnoDemo({
       ...BASE,
       preparaciones: [
-        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenInicialL: 6000, volumenLInicio: 6000, volumenL: 200 }),
-        prep({ id: "L2", numeroTanque: 2, creadoEn: "23:00:00", saborNombre: "Mango", lote: "0002", volumenInicialL: 6000, volumenLInicio: 6000, volumenL: 9000 }),
+        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 200 }),
+        prep({ id: "L2", numeroTanque: 2, creadoEn: "23:00:00", saborNombre: "Mango", lote: "0002", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 9000 }),
       ],
-      lineas: [
+      corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Fresa", lote: "0001", loteId: "L1", presentacion: "1000" }),
         corrida({ id: "c2", linea: "LINEA_2", activadaEn: "23:10:00", saborNombre: "Mango", lote: "0002", loteId: "L2", presentacion: "1000" }),
       ],
       contadores: [
-        contador({ id: "co1", linea: "LINEA_1", creadoEn: "02:00:00", turnoLineaId: "c1", envasesLlenadora: 5800 }),
-        contador({ id: "co2", linea: "LINEA_2", creadoEn: "02:10:00", turnoLineaId: "c2", envasesLlenadora: 5200 }),
+        contador({ id: "co1", linea: "LINEA_1", creadoEn: "02:00:00", corridaId: "c1", envasesLlenadora: 5800 }),
+        contador({ id: "co2", linea: "LINEA_2", creadoEn: "02:10:00", corridaId: "c2", envasesLlenadora: 5200 }),
       ],
       productoTerminado: [
-        pt({ id: "p1", linea: "LINEA_1", creadoEn: "02:05:00", turnoLineaId: "c1", saborNombre: "Fresa", presentacion: "1000", paletas: 9, cajasSueltas: 0, litrosProducidos: 5400 }),
-        pt({ id: "p2", linea: "LINEA_2", creadoEn: "02:15:00", turnoLineaId: "c2", saborNombre: "Mango", presentacion: "1000", paletas: 8, cajasSueltas: 0, litrosProducidos: 4800 }),
+        pt({ id: "p1", linea: "LINEA_1", creadoEn: "02:05:00", corridaId: "c1", saborNombre: "Fresa", presentacion: "1000", paletas: 9, cajasSueltas: 0, litrosProducidos: 5400 }),
+        pt({ id: "p2", linea: "LINEA_2", creadoEn: "02:15:00", corridaId: "c2", saborNombre: "Mango", presentacion: "1000", paletas: 8, cajasSueltas: 0, litrosProducidos: 4800 }),
       ],
     })
     const r = resumenTurno(turno, LINEAS_DEMO, PRESENTACIONES_DEMO)
@@ -202,19 +202,19 @@ describe("guardrails — merma de semielaborado", () => {
     const turno = turnoDemo({
       ...BASE,
       preparaciones: [
-        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0004", volumenInicialL: 10000, volumenLInicio: 10000, volumenL: 100 }),
+        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0004", volumenPreparadoL: 10000, volumenAlIniciarTurnoL: 10000, volumenActualL: 100 }),
       ],
-      lineas: [
+      corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Pera", lote: "0004", loteId: "L1", presentacion: "1000" }),
         corrida({ id: "c1b", linea: "LINEA_1", activadaEn: "01:00:00", saborNombre: "Pera", lote: "0004", loteId: "L1", presentacion: "1000" }),
       ],
       contadores: [
-        contador({ id: "co1", linea: "LINEA_1", creadoEn: "00:30:00", turnoLineaId: "c1", envasesLlenadora: 10000 }),
-        contador({ id: "co1b", linea: "LINEA_1", creadoEn: "05:00:00", turnoLineaId: "c1b", envasesLlenadora: 10000 }),
+        contador({ id: "co1", linea: "LINEA_1", creadoEn: "00:30:00", corridaId: "c1", envasesLlenadora: 10000 }),
+        contador({ id: "co1b", linea: "LINEA_1", creadoEn: "05:00:00", corridaId: "c1b", envasesLlenadora: 10000 }),
       ],
       productoTerminado: [
-        pt({ id: "p1", linea: "LINEA_1", creadoEn: "00:35:00", turnoLineaId: "c1", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 0, litrosProducidos: 9720 }),
-        pt({ id: "p1b", linea: "LINEA_1", creadoEn: "05:05:00", turnoLineaId: "c1b", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 0, litrosProducidos: 9720 }),
+        pt({ id: "p1", linea: "LINEA_1", creadoEn: "00:35:00", corridaId: "c1", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 0, litrosProducidos: 9720 }),
+        pt({ id: "p1b", linea: "LINEA_1", creadoEn: "05:05:00", corridaId: "c1b", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 0, litrosProducidos: 9720 }),
       ],
     })
     const r = resumenTurno(turno, LINEAS_DEMO, PRESENTACIONES_DEMO)
@@ -228,18 +228,18 @@ describe("guardrails — porLinea", () => {
   it("agrupa por línea + lote + presentación; corridas idénticas se cuentan una vez y se marcan", () => {
     const turno = turnoDemo({
       ...BASE,
-      preparaciones: [prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0004", volumenInicialL: 20000, volumenLInicio: 20000, volumenL: 200 })],
-      lineas: [
+      preparaciones: [prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0004", volumenPreparadoL: 20000, volumenAlIniciarTurnoL: 20000, volumenActualL: 200 })],
+      corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Pera", lote: "0004", loteId: "L1", presentacion: "1000" }),
         corrida({ id: "c2", linea: "LINEA_1", activadaEn: "01:00:00", saborNombre: "Pera", lote: "0004", loteId: "L1", presentacion: "1000" }),
       ],
       contadores: [
-        contador({ id: "co1", linea: "LINEA_1", creadoEn: "00:30:00", turnoLineaId: "c1", envasesLlenadora: 10300 }),
-        contador({ id: "co2", linea: "LINEA_1", creadoEn: "05:00:00", turnoLineaId: "c2", envasesLlenadora: 10300 }),
+        contador({ id: "co1", linea: "LINEA_1", creadoEn: "00:30:00", corridaId: "c1", envasesLlenadora: 10300 }),
+        contador({ id: "co2", linea: "LINEA_1", creadoEn: "05:00:00", corridaId: "c2", envasesLlenadora: 10300 }),
       ],
       productoTerminado: [
-        pt({ id: "p1", linea: "LINEA_1", creadoEn: "00:35:00", turnoLineaId: "c1", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 5, litrosProducidos: 6120 }),
-        pt({ id: "p2", linea: "LINEA_1", creadoEn: "05:05:00", turnoLineaId: "c2", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 5, litrosProducidos: 6120 }),
+        pt({ id: "p1", linea: "LINEA_1", creadoEn: "00:35:00", corridaId: "c1", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 5, litrosProducidos: 6120 }),
+        pt({ id: "p2", linea: "LINEA_1", creadoEn: "05:05:00", corridaId: "c2", saborNombre: "Pera", presentacion: "1000", paletas: 10, cajasSueltas: 5, litrosProducidos: 6120 }),
       ],
     })
     const r = resumenTurno(turno, LINEAS_DEMO, PRESENTACIONES_DEMO)
@@ -251,13 +251,13 @@ describe("guardrails — porLinea", () => {
   it("una corrida activada sin producción va a corridasSinProduccion, no a porLinea", () => {
     const turno = turnoDemo({
       ...BASE,
-      preparaciones: [prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0003", volumenInicialL: 10000, volumenLInicio: 10000, volumenL: 4000 })],
-      lineas: [
+      preparaciones: [prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0003", volumenPreparadoL: 10000, volumenAlIniciarTurnoL: 10000, volumenActualL: 4000 })],
+      corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Pera", lote: "0003", loteId: "L1", presentacion: "1000" }),
         corrida({ id: "cstub", linea: "LINEA_2", activadaEn: "23:40:00", saborNombre: "Pera", lote: "0003", loteId: "L1", presentacion: "250" }),
       ],
-      contadores: [contador({ id: "co1", linea: "LINEA_1", creadoEn: "02:00:00", turnoLineaId: "c1", envasesLlenadora: 6300 })],
-      productoTerminado: [pt({ id: "p1", linea: "LINEA_1", creadoEn: "02:05:00", turnoLineaId: "c1", saborNombre: "Pera", presentacion: "1000", paletas: 6, cajasSueltas: 0, litrosProducidos: 3600 })],
+      contadores: [contador({ id: "co1", linea: "LINEA_1", creadoEn: "02:00:00", corridaId: "c1", envasesLlenadora: 6300 })],
+      productoTerminado: [pt({ id: "p1", linea: "LINEA_1", creadoEn: "02:05:00", corridaId: "c1", saborNombre: "Pera", presentacion: "1000", paletas: 6, cajasSueltas: 0, litrosProducidos: 3600 })],
     })
     const r = resumenTurno(turno, LINEAS_DEMO, PRESENTACIONES_DEMO)
     expect(r.porLinea.map((l) => l.linea)).toEqual(["Línea 1"])

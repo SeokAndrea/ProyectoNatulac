@@ -1,6 +1,13 @@
 import { supabase } from "@/lib/supabase"
 import type { AreaCodigo, GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
-import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
+import { saborSinFamiliaOculta } from "@/lib/turno"
+import type { TanqueEncontrado } from "@/lib/sesionTurno"
+import { mapearPreparacion, mapearTanque } from "@/lib/preparacion/mapear"
+import type { FilaPreparacion, FilaTanque, PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
+import { mapearContador, mapearCorrida, mapearLineaEstado } from "@/lib/produccion/mapear"
+import type { Corrida, ContadorRegistro, FilaContador, FilaCorrida, FilaLineaEstado, LineaEstado } from "@/lib/produccion/tipos"
+import { mapearProductoTerminado } from "@/lib/productoTerminado"
+import type { FilaProductoTerminado, ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
 /*
  * Auditoría (Super Administrador — todas las áreas menos PRUEBAS — y
@@ -12,6 +19,99 @@ import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
  * También vive acá lo de reabrir turnos, actas (PDF real, ver
  * src/lib/actaPdf.ts) y el vistazo de turnos activos por área.
  */
+
+/**
+ * Un turno histórico (cerrado, o en curso visto desde Auditoría) —
+ * a diferencia del turno EN VIVO de un supervisor (que cada uno de
+ * los 3 módulos busca por separado, ver usePreparacion()), acá SÍ
+ * tiene sentido un solo fetch con todo junto: no hay nada "en vivo"
+ * que sincronizar tramo por tramo. Mismos tipos de dominio que los 3
+ * módulos (Corrida/TanqueRecepcion/etc.) — no una copia propia.
+ */
+export interface TurnoHistorial {
+  id: string
+  codigo: string
+  fecha: string
+  horaInicio: string
+  estado: "ABIERTO" | "CERRADO"
+  fechaFin: string | null
+  horaFin: string | null
+  cierreAutomatico: boolean
+  turnoTipo: TurnoTipoCodigo
+  grupo: GrupoCodigo
+  supervisorUsuario: string
+  supervisorNombre: string
+  tanquesEncontrados: TanqueEncontrado[] | null
+  tanques: TanqueRecepcion[]
+  preparaciones: PreparacionRegistro[]
+  corridas: Corrida[]
+  lineasEstado: LineaEstado[]
+  contadores: ContadorRegistro[]
+  productoTerminado: ProductoTerminadoRegistro[]
+}
+
+interface FilaTanqueEncontrado {
+  numero_tanque: 1 | 2 | 3
+  condicion: TanqueRecepcion["condicion"]
+  volumen_l: number | null
+  sabor_nombre: string | null
+  lote: string | null
+}
+
+/** Forma cruda de turno_json()/turno_detalle() — mismo shape que src/lib/sesionTurno.tsx (cabecera) + los 6 módulos de dominio. */
+interface FilaTurnoHistorial {
+  id: string
+  codigo: string
+  fecha: string
+  hora_inicio: string
+  estado: "ABIERTO" | "CERRADO"
+  fecha_fin: string | null
+  hora_fin: string | null
+  cierre_automatico: boolean
+  tanques_encontrados: FilaTanqueEncontrado[] | null
+  turno_tipo_codigo: string
+  grupo_codigo: string
+  supervisor_usuario: string
+  supervisor_nombre: string
+  lineas: FilaCorrida[]
+  lineas_estado: FilaLineaEstado[]
+  tanques: FilaTanque[]
+  contadores: FilaContador[]
+  producto_terminado: FilaProductoTerminado[]
+  preparaciones: FilaPreparacion[]
+}
+
+export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
+  return {
+    id: fila.id,
+    codigo: fila.codigo,
+    fecha: fila.fecha,
+    horaInicio: fila.hora_inicio,
+    estado: fila.estado,
+    fechaFin: fila.fecha_fin,
+    horaFin: fila.hora_fin,
+    cierreAutomatico: fila.cierre_automatico,
+    turnoTipo: fila.turno_tipo_codigo as TurnoTipoCodigo,
+    grupo: fila.grupo_codigo as GrupoCodigo,
+    supervisorUsuario: fila.supervisor_usuario,
+    supervisorNombre: fila.supervisor_nombre,
+    tanquesEncontrados:
+      fila.tanques_encontrados?.map((t) => ({
+        numeroTanque: t.numero_tanque,
+        condicion: t.condicion,
+        volumenL: t.volumen_l,
+        saborNombre: saborSinFamiliaOculta(t.sabor_nombre),
+        lote: t.lote,
+      })) ?? null,
+    tanques: fila.tanques.map(mapearTanque),
+    preparaciones: fila.preparaciones.map(mapearPreparacion),
+    corridas: fila.lineas.map(mapearCorrida),
+    lineasEstado: fila.lineas_estado.map(mapearLineaEstado),
+    contadores: fila.contadores.map(mapearContador),
+    productoTerminado: fila.producto_terminado.map(mapearProductoTerminado),
+  }
+}
+
 export interface TurnoResumen {
   id: string
   codigo: string
@@ -63,10 +163,10 @@ export async function listarTurnosHistorial(
   }))
 }
 
-export async function obtenerTurnoDetalle(usuarioSesion: string, turnoId: string): Promise<TurnoActivo | null> {
+export async function obtenerTurnoDetalle(usuarioSesion: string, turnoId: string): Promise<TurnoHistorial | null> {
   const { data, error } = await supabase.rpc("turno_detalle", { p_usuario: usuarioSesion, p_turno_id: turnoId })
   if (error || !data) return null
-  return mapearTurno(data as FilaTurno)
+  return mapearTurnoHistorial(data as FilaTurnoHistorial)
 }
 
 /** Borrado real: solo permite turnos CERRADOS (Postgres lo rechaza si no). */

@@ -1,8 +1,10 @@
 import { nombrePorCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import { construirHistorial, type EventoHistorial } from "@/lib/historial"
-import { mermaSemielaboradoTurno } from "@/lib/panelProduccion"
-import { fechaLocal, mermaCorrida, type ProductoTerminadoRegistro, type TurnoActivo } from "@/lib/turno"
+import { mermaCorrida, mermaSemielaboradoTurno } from "@/lib/reportes"
+import { fechaLocal } from "@/lib/turno"
+import type { TurnoHistorial } from "@/lib/historialTurnos"
+import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
 /*
  * Helpers de la vista de Auditoría reworkeada (ver
@@ -59,13 +61,13 @@ export interface ResumenTurno {
 
 /**
  * El lote de una fila de Producto Terminado no vive en la fila: sale
- * de la corrida que la generó (turnoLineaId → LineaEnTurno.lote).
- * Devuelve null si la corrida no está en este turno (nació en uno
- * anterior) o si nunca tuvo lote.
+ * de la corrida que la generó (corridaId → Corrida.lote). Devuelve
+ * null si la corrida no está en este turno (nació en uno anterior) o
+ * si nunca tuvo lote.
  */
-export function loteDeProductoTerminado(turno: TurnoActivo, pt: ProductoTerminadoRegistro): string | null {
-  if (!pt.turnoLineaId) return null
-  return turno.lineas.find((l) => l.id === pt.turnoLineaId)?.lote ?? null
+export function loteDeProductoTerminado(turno: TurnoHistorial, pt: ProductoTerminadoRegistro): string | null {
+  if (!pt.corridaId) return null
+  return turno.corridas.find((l) => l.id === pt.corridaId)?.lote ?? null
 }
 
 function unicos(valores: (string | null | undefined)[]): string[] {
@@ -73,7 +75,7 @@ function unicos(valores: (string | null | undefined)[]): string[] {
 }
 
 export function resumenTurno(
-  turno: TurnoActivo,
+  turno: TurnoHistorial,
   lineas: LineaLive[],
   presentaciones: PresentacionLive[],
 ): ResumenTurno {
@@ -84,8 +86,8 @@ export function resumenTurno(
   // corridas stub (activadas sin producir) se absorben. Dentro de un
   // grupo, dos corridas con paletas y cajas idénticas se cuentan una
   // sola vez (posible re-tipeo — ver plan-rework-auditoria.md §7.4).
-  const grupos = new Map<string, typeof turno.lineas>()
-  for (const l of turno.lineas) {
+  const grupos = new Map<string, typeof turno.corridas>()
+  for (const l of turno.corridas) {
     const k = `${l.linea}|${l.lote ?? ""}|${l.presentacion}`
     const g = grupos.get(k)
     if (g) g.push(l)
@@ -104,7 +106,7 @@ export function resumenTurno(
     let envasesPt = 0
 
     for (const c of corridas) {
-      const pt = turno.productoTerminado.find((p) => p.turnoLineaId === c.id)
+      const pt = turno.productoTerminado.find((p) => p.corridaId === c.id)
       if (!pt) continue
       const info = pres(pt.presentacion)
       const cajasCorrida = pt.paletas * (info?.cajasXPaleta ?? 0) + pt.cajasSueltas
@@ -117,9 +119,9 @@ export function resumenTurno(
       firmasVistas.add(firma)
       cajas += cajasCorrida
       contador += turno.contadores
-        .filter((x) => x.turnoLineaId === c.id && !x.parcial)
+        .filter((x) => x.corridaId === c.id && !x.parcial)
         .reduce((a, x) => a + x.envasesLlenadora, 0)
-      const m = mermaCorrida(c.id, turno, presentaciones)
+      const m = mermaCorrida(c.id, turno.contadores, turno.productoTerminado, presentaciones)
       if (m) {
         llenadora += m.envasesLlenadora
         envasesPt += m.envasesProductoTerminado
@@ -144,7 +146,14 @@ export function resumenTurno(
   }
   const cajas = porLinea.reduce((t, l) => t + l.cajas, 0)
 
-  const semi = mermaSemielaboradoTurno(turno, presentaciones)
+  const semi = mermaSemielaboradoTurno(
+    turno.id,
+    turno.preparaciones,
+    turno.corridas,
+    turno.productoTerminado,
+    turno.contadores,
+    presentaciones,
+  )
 
   // Sabor → sus lotes. Se arma de las preparaciones (sabor + lote juntos)
   // y de las corridas; un sabor sin lote conocido queda igual, sin lista.
@@ -155,7 +164,7 @@ export function resumenTurno(
     if (lote) lotesPorSabor.get(sabor)!.add(lote)
   }
   for (const p of turno.preparaciones) registra(p.saborNombre, p.lote)
-  for (const l of turno.lineas) registra(l.saborNombre, l.lote)
+  for (const l of turno.corridas) registra(l.saborNombre, l.lote)
   for (const p of turno.productoTerminado) registra(p.saborNombre, loteDeProductoTerminado(turno, p))
   for (const t of turno.tanques) registra(t.saborNombre, t.lote)
   const sabores: SaborConLotes[] = [...lotesPorSabor.entries()].map(([sabor, lotes]) => ({
@@ -167,7 +176,7 @@ export function resumenTurno(
     sabores,
     lotes: unicos([
       ...turno.preparaciones.map((p) => p.lote),
-      ...turno.lineas.map((l) => l.lote),
+      ...turno.corridas.map((l) => l.lote),
       ...turno.productoTerminado.map((p) => loteDeProductoTerminado(turno, p)),
     ]),
     porLinea,
@@ -189,7 +198,7 @@ export function resumenTurno(
  * buscable. Vacío = todos.
  */
 export function coincideBusqueda(
-  turno: TurnoActivo,
+  turno: TurnoHistorial,
   resumen: ResumenTurno,
   eventos: EventoHistorial[],
   areaNombre: string,

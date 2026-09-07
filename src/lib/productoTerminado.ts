@@ -77,7 +77,7 @@ export interface DatosProductoTerminado {
 // otros módulos.
 // ------------------------------------------------------------
 
-interface FilaProductoTerminado {
+export interface FilaProductoTerminado {
   id: string
   linea_codigo: string
   turno_linea_id: string | null

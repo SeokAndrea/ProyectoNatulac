@@ -19,8 +19,7 @@ import {
 } from "@/lib/auditoriaVista"
 import type { EventoHistorial } from "@/lib/historial"
 import { fechaLocal } from "@/lib/turno"
-import type { TurnoResumen } from "@/lib/historialTurnos"
-import type { TurnoActivo } from "@/lib/turno"
+import type { TurnoHistorial, TurnoResumen } from "@/lib/historialTurnos"
 
 /*
  * Vista reworkeada de Auditoría (ver plan-rework-auditoria.md): un
@@ -49,7 +48,7 @@ import type { TurnoActivo } from "@/lib/turno"
  */
 export interface TurnoAuditoria {
   resumen: TurnoResumen
-  detalle: TurnoActivo
+  detalle: TurnoHistorial
 }
 
 interface TurnoEnriquecido extends TurnoAuditoria {

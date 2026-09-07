@@ -16,7 +16,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import type { GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { useAuth } from "@/lib/auth"
-import { fechaLocal, horaLocal } from "@/lib/turno"
+import { fechaLocal, horaLocal, saborSinFamiliaOculta } from "@/lib/turno"
 import type { CondicionTanque } from "@/lib/preparacion/tipos"
 import { supabase } from "@/lib/supabase"
 
@@ -110,7 +110,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
             numeroTanque: t.numero_tanque,
             condicion: t.condicion,
             volumenL: t.volumen_l,
-            saborNombre: t.sabor_nombre,
+            saborNombre: saborSinFamiliaOculta(t.sabor_nombre),
             lote: t.lote,
           }))
         : null,
