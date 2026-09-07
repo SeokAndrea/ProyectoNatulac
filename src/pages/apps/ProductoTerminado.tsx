@@ -28,7 +28,12 @@ import { nombrePorCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { nivelMerma } from "@/lib/estadisticas"
 import { cn } from "@/lib/utils"
-import { LIMITE_MERMA, useTurno, type LineaEnTurno, type ProductoTerminadoRegistro, type TurnoActivo } from "@/lib/turno"
+import { LIMITE_MERMA } from "@/lib/turno"
+import { useSesionTurno } from "@/lib/sesionTurno"
+import { useProduccion } from "@/lib/produccion/useProduccion"
+import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
+import { useProductoTerminado } from "@/lib/productoTerminado"
+import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
 const LIMITE_MERMA_PCT = LIMITE_MERMA * 100
 
@@ -65,8 +70,18 @@ function infoSabor(nombre: string | null): { color: string; Icono: typeof Apple 
  * (turnoLineaId), no por línea suelta.
  */
 export default function ProductoTerminado() {
-  const { turnoActivo, cargando, registrarProductoTerminado, registrarContador, entregarCorrida, terminarSaborLinea } = useTurno()
+  const sesion = useSesionTurno()
+  const {
+    corridas,
+    contadores,
+    cargando: cargandoProduccion,
+    registrarContador,
+    entregarCorrida,
+    terminarSaborLinea,
+  } = useProduccion()
+  const { registros: productoTerminado, cargando: cargandoPT, registrarProductoTerminado } = useProductoTerminado()
   const { lineas, presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
+  const cargando = sesion.cargando || cargandoProduccion || cargandoPT
 
   if (cargando || cargandoCatalogos) {
     return (
@@ -78,7 +93,7 @@ export default function ProductoTerminado() {
     )
   }
 
-  if (!turnoActivo) {
+  if (!sesion.turnoId) {
     return (
       <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado" fullWidth>
         <EmptyState
@@ -95,7 +110,7 @@ export default function ProductoTerminado() {
     )
   }
 
-  const corridasUsadas = [...turnoActivo.lineas].sort((a, b) => b.activadaEn.localeCompare(a.activadaEn))
+  const corridasUsadas = [...corridas].sort((a, b) => b.activadaEn.localeCompare(a.activadaEn))
 
   if (corridasUsadas.length === 0) {
     return (
@@ -114,7 +129,7 @@ export default function ProductoTerminado() {
   const cerradas = corridasUsadas.filter((l) => (!l.activa && !l.esperandoCierre) || l.entregadaEn !== null)
 
   return (
-    <AppShell title="Producto Terminado y Contador" description={`Turno ${turnoActivo.codigo}`} fullWidth>
+    <AppShell title="Producto Terminado y Contador" description={`Turno ${sesion.codigo}`} fullWidth>
       <div className="flex flex-col gap-3">
         {pendientes.length === 0 && cerradas.length > 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">
@@ -123,7 +138,8 @@ export default function ProductoTerminado() {
         )}
         <ListaCorridas
           corridas={pendientes}
-          turnoActivo={turnoActivo}
+          contadores={contadores}
+          productoTerminado={productoTerminado}
           lineas={lineas}
           presentaciones={presentaciones}
           onRegistrarProducto={registrarProductoTerminado}
@@ -135,7 +151,8 @@ export default function ProductoTerminado() {
         {cerradas.length > 0 && (
           <CorridasCerradas
             corridas={cerradas}
-            turnoActivo={turnoActivo}
+            contadores={contadores}
+            productoTerminado={productoTerminado}
             lineas={lineas}
             presentaciones={presentaciones}
             onRegistrarProducto={registrarProductoTerminado}
@@ -153,7 +170,8 @@ export default function ProductoTerminado() {
 
 function ListaCorridas({
   corridas,
-  turnoActivo,
+  contadores,
+  productoTerminado,
   lineas,
   presentaciones,
   onRegistrarProducto,
@@ -161,8 +179,9 @@ function ListaCorridas({
   onEntregarCorrida,
   onTerminarSabor,
 }: {
-  corridas: LineaEnTurno[]
-  turnoActivo: TurnoActivo
+  corridas: Corrida[]
+  contadores: ContadorRegistro[]
+  productoTerminado: ProductoTerminadoRegistro[]
   lineas: ReturnType<typeof useCatalogosLive>["lineas"]
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   onRegistrarProducto: OnRegistrarProducto
@@ -244,14 +263,14 @@ function ListaCorridas({
               key={l.id}
               lineaTurno={l}
               nombreLinea={nombrePorCodigo(lineas, l.linea)}
-              contadorActual={turnoActivo.contadores
-                .filter((c) => c.turnoLineaId === l.id && !c.parcial)
+              contadorActual={contadores
+                .filter((c) => c.corridaId === l.id && !c.parcial)
                 .reduce((a, c) => a + c.envasesLlenadora, 0)}
-              contadorParcialRef={turnoActivo.contadores
-                .filter((c) => c.turnoLineaId === l.id && c.parcial)
+              contadorParcialRef={contadores
+                .filter((c) => c.corridaId === l.id && c.parcial)
                 .reduce((a, c) => a + c.envasesLlenadora, 0)}
               presentaciones={presentaciones}
-              registroExistente={turnoActivo.productoTerminado.find((p) => p.turnoLineaId === l.id) ?? null}
+              registroExistente={productoTerminado.find((p) => p.corridaId === l.id) ?? null}
               onRegistrarProducto={onRegistrarProducto}
               onRegistrarContador={onRegistrarContador}
               onEntregarCorrida={onEntregarCorrida}
@@ -331,7 +350,8 @@ function BotonCerrarLote({ lote, onTerminarSabor }: { lote: GrupoLote; onTermina
 /** Corridas ya finalizadas: colapsadas por defecto detrás de un toggle, para no tener que scrollear entre ellas para llegar a las que sí necesitan carga. */
 function CorridasCerradas({
   corridas,
-  turnoActivo,
+  contadores,
+  productoTerminado,
   lineas,
   presentaciones,
   onRegistrarProducto,
@@ -339,8 +359,9 @@ function CorridasCerradas({
   onEntregarCorrida,
   onTerminarSabor,
 }: {
-  corridas: LineaEnTurno[]
-  turnoActivo: TurnoActivo
+  corridas: Corrida[]
+  contadores: ContadorRegistro[]
+  productoTerminado: ProductoTerminadoRegistro[]
   lineas: ReturnType<typeof useCatalogosLive>["lineas"]
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   onRegistrarProducto: OnRegistrarProducto
@@ -363,7 +384,8 @@ function CorridasCerradas({
       {abierto && (
         <ListaCorridas
           corridas={corridas}
-          turnoActivo={turnoActivo}
+          contadores={contadores}
+          productoTerminado={productoTerminado}
           lineas={lineas}
           presentaciones={presentaciones}
           onRegistrarProducto={onRegistrarProducto}
@@ -378,32 +400,37 @@ function CorridasCerradas({
 
 type ResultadoAccion = { ok: true } | { ok: false; error: string }
 
+/*
+ * productoRetenido/cajasRetenidas NO están acá: el módulo Producto
+ * Terminado nuevo (src/lib/productoTerminado.ts) ya no los expone —
+ * confirmado muertos (el frontend siempre mandaba false/null), ver
+ * plan-rework-3-modulos-y-merma.md §2.9. registrarProductoTerminado()
+ * los manda fijos del lado del módulo.
+ */
 type OnRegistrarProducto = (datos: {
-  turnoLineaId: string
-  linea: LineaEnTurno["linea"]
+  corridaId: string
+  linea: Corrida["linea"]
   saborId: string | null
   presentacion: PresentacionCodigo
   paletas: number
   cajasSueltas: number
-  productoRetenido: boolean
-  cajasRetenidas: number | null
   /** true = entrega parcial: paletas/cajas se suman al acumulado y la corrida queda abierta. */
   parcial?: boolean
 }) => Promise<ResultadoAccion>
 
 type OnRegistrarContador = (datos: {
-  turnoLineaId: string
-  linea: LineaEnTurno["linea"]
+  corridaId: string
+  linea: Corrida["linea"]
   envasesLlenadora: number
-  /** Contador 2, opcional: envases buenos — ver ContadorRegistro.envasesBuenos en turno.tsx. */
+  /** Contador 2, opcional: envases buenos — ver ContadorRegistro.envasesBuenos en src/lib/produccion/tipos.ts. */
   envasesBuenos?: number | null
   justificacion: string
   /** true = lectura de referencia de una entrega parcial (no cuenta para merma). */
   parcial?: boolean
 }) => Promise<ResultadoAccion>
 
-type OnEntregarCorrida = (turnoLineaId: string) => Promise<ResultadoAccion>
-type OnTerminarSabor = (turnoLineaId: string) => Promise<ResultadoAccion>
+type OnEntregarCorrida = (corridaId: string) => Promise<ResultadoAccion>
+type OnTerminarSabor = (corridaId: string) => Promise<ResultadoAccion>
 
 type ProximoEstado = "TERMINO_SABOR" | "CONTINUA"
 
@@ -419,7 +446,7 @@ function FilaProductoTerminado({
   onEntregarCorrida,
   onTerminarSabor,
 }: {
-  lineaTurno: LineaEnTurno
+  lineaTurno: Corrida
   nombreLinea: string
   contadorActual: number
   /** Suma de las lecturas de contador tomadas en entregas parciales — solo referencia, no cuenta para merma. */
@@ -522,7 +549,7 @@ function FilaProductoTerminado({
 
     if (hayContadorNuevo) {
       const resultado = await onRegistrarContador({
-        turnoLineaId: lineaTurno.id,
+        corridaId: lineaTurno.id,
         linea: lineaTurno.linea,
         envasesLlenadora: nuevoContador,
         envasesBuenos: nuevoContadorBuenos,
@@ -537,14 +564,12 @@ function FilaProductoTerminado({
     }
 
     const resultado = await onRegistrarProducto({
-      turnoLineaId: lineaTurno.id,
+      corridaId: lineaTurno.id,
       linea: lineaTurno.linea,
       saborId: saborId || null,
       presentacion: lineaTurno.presentacion,
       paletas: nPaletas,
       cajasSueltas: nCajasSueltas,
-      productoRetenido: false,
-      cajasRetenidas: null,
       parcial: true,
     })
     if (!resultado.ok) {
@@ -564,7 +589,7 @@ function FilaProductoTerminado({
 
     if (hayContadorNuevo) {
       const resultado = await onRegistrarContador({
-        turnoLineaId: lineaTurno.id,
+        corridaId: lineaTurno.id,
         linea: lineaTurno.linea,
         envasesLlenadora: nuevoContador,
         envasesBuenos: nuevoContadorBuenos,
@@ -579,14 +604,12 @@ function FilaProductoTerminado({
 
     if (hayProducto) {
       const resultado = await onRegistrarProducto({
-        turnoLineaId: lineaTurno.id,
+        corridaId: lineaTurno.id,
         linea: lineaTurno.linea,
         saborId: saborId || null,
         presentacion: lineaTurno.presentacion,
         paletas: nPaletas,
         cajasSueltas: nCajasSueltas,
-        productoRetenido: false,
-        cajasRetenidas: null,
       })
       if (!resultado.ok) {
         setEnviando(false)
