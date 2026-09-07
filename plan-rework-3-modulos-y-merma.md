@@ -105,9 +105,18 @@ tiene que ser un número real — nunca un "—"/"sin dato". Cualquier duda sobr
 confirmado o todavía puede moverse es información de segundo nivel (detalle/color/tooltip),
 nunca reemplaza el número principal.
 
-**Redacción de todo texto nuevo:** español neutro sin voseo (mismo criterio que
-`20260971090000_neutralizar_mensajes_voseo.sql`); si el texto explica una consecuencia u
-ofrece alternativas, va en modal, no como párrafo suelto.
+**Redacción de todo texto nuevo — dos reglas fijas, no solo una preferencia de estilo:**
+
+1. **Español neutro, sin voseo** (mismo criterio que
+   `20260971090000_neutralizar_mensajes_voseo.sql`). **Se revisa como parte del cierre de
+   CADA fase** (Fase 1, Fase 2, Fase 3) — un `grep` contra las formas de voseo (vos, tenés,
+   sabés, podés, confirmá, mirá, fijate...) sobre los textos nuevos de esa fase, no algo que
+   se da por sentado. Ver la lista de verificación de cada fase, abajo.
+2. **Si el texto es más que una frase corta** — explica una consecuencia, ofrece más de una
+   alternativa, o pide confirmar algo que no se puede deshacer — **va en un popup/modal
+   siempre que sea posible**, nunca como párrafo suelto dentro de una tarjeta o formulario.
+   Aplica en concreto a la confirmación de "Terminó Lote" (2.1-bis), la confirmación antes de
+   Transferir (2.4-bis), y cualquier aviso nuevo de las fases 2 y 3.
 
 Orden de trabajo: **primero el código** (arquitectura de 3 módulos, abajo), **después la base
 de datos**. Rama nueva. Entorno con Docker + Supabase CLI: toda migración se prueba con
@@ -330,7 +339,9 @@ tener un hueco de cumplimiento — pero solo cuando corresponde, no como fricci�
 (no los % del Panel). Paso 4 es el único donde importan los valores del Panel —
 `calculosPruebas.test.ts` contra el CSV. Paso 5: turno completo de punta a punta (Comenzar →
 Recepción → Preparación → Activar corrida → Producto Terminado → Finalizar) para confirmar que
-las 3 costuras siguen funcionando.
+las 3 costuras siguen funcionando. **Al cerrar la Fase 1 completa: `grep` de voseo sobre todo
+texto nuevo (Contexto, regla 1) + confirmar que los avisos largos nuevos (confirmación de
+"Terminó Lote", de Transferir) quedaron como modal, no inline (Contexto, regla 2).**
 
 ---
 
@@ -455,7 +466,9 @@ hallazgos más, verificados contra el código real:
   que no debería existir.
 
 **Verificación de la Fase 2:** cada migración en cadena sobre `supabase db reset` local; un
-script `test-*.sql` por guardrail nuevo; `npm test` + `npm run build` en el frontend.
+script `test-*.sql` por guardrail nuevo; `npm test` + `npm run build` en el frontend. **Al
+cerrar: mismo chequeo de voseo + modal-para-texto-largo que la Fase 1** (Contexto) sobre los
+mensajes nuevos de 2.1-bis, 2.3-bis, 2.5 y 2.9.
 
 ---
 
@@ -493,6 +506,12 @@ nuevo.
 No hace falta nada del rediseño de sesión/token (riesgo de seguridad de arriba) para esto en
 particular — el robot es un rol más, con el mismo nivel de confianza que cualquier otro usuario
 del sistema hoy; el hueco de fondo es el mismo para todos y queda igual de aceptado que antes.
+
+**Verificación de la Fase 3:** crear un usuario de prueba con rol `ROBOT_PALETIZADOR` y
+confirmar que `reportar_conteo_robot` funciona sobre una corrida activa pero rechaza tocar
+cualquier otra tabla/acción; confirmar que el checkpoint de cierre (Fase 1, costura 2)
+prellena el valor del robot en vez de arrancar vacío. Mismo chequeo de voseo + modal-para-
+texto-largo que las fases anteriores sobre cualquier mensaje nuevo de esta fase.
 
 ---
 
