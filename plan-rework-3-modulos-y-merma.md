@@ -525,6 +525,38 @@ texto-largo que las fases anteriores sobre cualquier mensaje nuevo de esta fase.
 
 ---
 
+## Fase 4 — Agrupar el resto del código por asociación (auditoría, catálogos, historial)
+
+Mismo criterio que las Fases 1-3, aplicado al resto de `src/lib/`/`src/components/`/
+`src/pages/apps/` que no es ninguno de los 3 módulos de dominio ni Reportes. Hoy son ~35
+archivos sueltos en `src/lib/` sin ninguna carpeta — se agrupan por tema, no por tipo de
+archivo. Inventario real (no una lista aspiracional — grounded en lo que hay hoy):
+
+| Carpeta nueva | Qué se mueve adentro | Nota |
+| --- | --- | --- |
+| `src/lib/auditoria/` | `auditoria.ts`, `auditoriaVista.ts` (+`.test.ts`), `auditoriaDemoFixture.ts`, `historial.ts`, `historialDia.ts`, `historialTurnos.ts` + `AuditoriaTurnos.tsx` (+`.test.tsx`), `RegistroCambios.tsx`, `HistorialDiaSupervisor.tsx` (componentes) | Ya venía marcado como "paso 6" en la Fase 1 — acá se hace completo, no solo "leer de los 3 módulos nuevos" |
+| `src/lib/validar/` | `validacion.ts`, `validacionDemoFixture.ts` + `ValidarLista.tsx` | Módulo VALIDAR completo |
+| `src/lib/catalogos/` | `sabores.ts`, `coloresSabor.ts` (+`.test.ts`), `presentaciones.ts`, `velocidades.ts`, `lineas.ts`, `catalogos.ts`, `catalogosLive.tsx` | ⚠️ **Colisión de nombre a resolver**: `lineas.ts` acá es el catálogo de líneas físicas (nombre, activa/inactiva) — completamente distinto de `produccion/` que ya usa "línea" para la corrida. Renombrar `lineas.ts` → `catalogoLineas.ts` (o similar) al mover, para que dejen de sonar a lo mismo |
+| `src/lib/personal/` | `personal.ts` + `PersonalPanel.tsx` | |
+| `src/lib/programacion/` | `programacion.ts` | Chico hoy, crece si se conecta más con Producción a futuro |
+| `src/lib/reportes/` | (ya definido en Fase 1) suma `estadisticas.ts`, `agruparProduccion.ts` — histórico/agregado, carpeta separada de `reportes/` (turno en vivo) según ya dice la Fase 1 | |
+| `src/lib/turnoCiclo/` (o el nombre que se prefiera) | `turno.tsx` (lo que quede tras vaciarse en las Fases 1-3), `actaPdf.ts` | El acta de cierre no es de ningún módulo de dominio — es del turno como unidad completa |
+
+**Se quedan donde están, sin mover** (ya son transversales/infraestructura, no un "tema" propio):
+`auth.tsx`, `credenciales.ts`, `supabase.ts`, `utils.ts`, `apps.tsx`, `dataset.ts`,
+`ProtectedRoute.tsx`, y los componentes de UI genérica (`AppShell`, `AppHeader`, `EmptyState`,
+`Logo`, etc.).
+
+**Nota de vocabulario que se suma a la de "pipa" (Contexto):** `reservasTobos.ts` pasa a
+`reservasPipas.ts` al moverse — mismo criterio, el identificador de base no se toca, el nombre
+del archivo/las funciones de cara al código sí.
+
+Esta fase se hace **después** de que las Fases 1-3 vacíen `turno.tsx` — mover Auditoría/Historial
+antes tendría que seguir leyendo del `TurnoProvider` viejo en vez de los 3 módulos nuevos, doble
+trabajo.
+
+---
+
 ## Archivos críticos
 
 - `src/lib/turno.tsx` (1331) → se reparte entre los 3 módulos nuevos (Fase 1), desaparece al final
