@@ -1,10 +1,10 @@
-import type { LineaEnTurno } from "@/lib/turno"
+import type { Corrida } from "@/lib/produccion/tipos"
 
 export interface GrupoLote {
   key: string
   loteId: string | null
   lote: string | null
-  corridas: LineaEnTurno[]
+  corridas: Corrida[]
 }
 
 export interface GrupoSabor {
@@ -20,15 +20,15 @@ export interface GrupoSabor {
  * Compartido entre Producto Terminado (src/pages/apps/ProductoTerminado.tsx)
  * y el acta en PDF (src/lib/actaPdf.ts).
  */
-export function agruparPorSaborYLote(corridas: LineaEnTurno[]): GrupoSabor[] {
-  const porSabor = new Map<string, LineaEnTurno[]>()
+export function agruparPorSaborYLote(corridas: Corrida[]): GrupoSabor[] {
+  const porSabor = new Map<string, Corrida[]>()
   for (const l of corridas) {
     const key = l.saborId ?? `sin-sabor-${l.saborNombre ?? "?"}`
     porSabor.set(key, [...(porSabor.get(key) ?? []), l])
   }
 
   return [...porSabor.entries()].map(([key, grupo]) => {
-    const porLote = new Map<string, LineaEnTurno[]>()
+    const porLote = new Map<string, Corrida[]>()
     for (const l of grupo) {
       const loteKey = l.loteId ?? l.id
       porLote.set(loteKey, [...(porLote.get(loteKey) ?? []), l])

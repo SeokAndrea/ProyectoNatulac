@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { TanqueEditForm } from "@/components/TanqueEditForm"
 import type { Sabor } from "@/lib/sabores"
 import { textoCondicionTanque } from "@/lib/tanques"
-import type { DatosCambiarTanque, TanqueRecepcion } from "@/lib/turno"
+import type { DatosCambiarTanque, TanqueRecepcion } from "@/lib/preparacion/tipos"
 
 type Resultado = { ok: true } | { ok: false; error: string }
 

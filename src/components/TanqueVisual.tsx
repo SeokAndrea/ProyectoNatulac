@@ -1,5 +1,5 @@
 import { BroomSparkles, Clock3, Sparkle } from "lucide-react"
-import type { CondicionTanque } from "@/lib/turno"
+import type { CondicionTanque } from "@/lib/preparacion/tipos"
 import { cn } from "@/lib/utils"
 
 /** Posiciones fijas de las gotas/pegostes de Sucio — variadas para que no se vean en fila prolija, pero estables (no cambian en cada render). */

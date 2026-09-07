@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
-import type { CondicionTanque, DatosCambiarTanque, TanqueRecepcion } from "@/lib/turno"
+import type { CondicionTanque, DatosCambiarTanque, TanqueRecepcion } from "@/lib/preparacion/tipos"
 
 type Resultado = { ok: true } | { ok: false; error: string }
 
