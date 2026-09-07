@@ -201,7 +201,7 @@ propia página):
    dominio no calculan ningún % — solo exponen números crudos (litros consumidos, envases
    contados, litros de PT) y Reportes hace la resta/división.
 
-### Núcleo vs. ajustes (Preparación primero, como prueba del patrón)
+### Núcleo vs. ajustes — validado en Preparación, ya replicado en Producción
 
 ```
 src/lib/preparacion/
@@ -209,15 +209,25 @@ src/lib/preparacion/
   ajustes.ts    -- ajustarPreparacion, transferirTanque, envasarTanque (a pipa)
                    (reactivarLote y descartarRestoTanque SE RETIRAN, ver Fase 2 — no entran acá)
 
-src/lib/produccion.ts        -- un solo archivo por ahora
-src/lib/productoTerminado.ts -- un solo archivo por ahora
+src/lib/produccion/
+  nucleo.ts     -- activarLinea, pausarLinea, continuarLinea, terminarSaborLinea,
+                   terminarLinea, cambiarCondicionLinea, confirmarEstadoLinea, registrarContador
+  ajustes.ts    -- detenerLineaPorFalla, continuarSiguienteLote, entregarCorrida,
+                   actualizarJustificacionContador
+
+src/lib/productoTerminado.ts -- un solo archivo por ahora (pendiente, paso 3)
 ```
 
 Regla: si la operación existe para manejar algo que salió distinto de lo planeado (una falla,
 un resto, una corrección), va en `ajustes.ts` con un comentario de qué problema real resuelve.
 Si es un paso normal (empezar, activar, terminar), va en `nucleo.ts`. `ajustes.ts` nunca
-reimplementa lo que hace `nucleo.ts` — lo llama. Si el patrón resulta útil acá, se replica
-después en Producción y Producto Terminado (no en esta primera ronda).
+reimplementa lo que hace `nucleo.ts` — lo llama.
+
+**Actualización de esta sesión:** el patrón se dio por validado con Preparación (ayudó a
+encontrar el hueco de `confirmarEstadoTanque` fácil) y se aplicó directo a Producción, en vez
+de esperar más rondas — Producción tenía más funciones (12) y se beneficiaba más de estar
+separado. Producto Terminado (paso 3) todavía queda como archivo único hasta que le toque su
+turno.
 
 ### Reportes: lo teórico separado de la realidad
 
