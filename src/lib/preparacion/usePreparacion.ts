@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { supabase } from "@/lib/supabase"
 import { ajustarPreparacion as ajustarPreparacionAccion, envasarTanque as envasarTanqueAccion, transferirTanque as transferirTanqueAccion } from "./ajustes"
-import { iniciarPreparacion as iniciarPreparacionAccion, liberarLote as liberarLoteAccion } from "./nucleo"
+import { confirmarEstadoTanque as confirmarEstadoTanqueAccion, iniciarPreparacion as iniciarPreparacionAccion, liberarLote as liberarLoteAccion } from "./nucleo"
 import { mapearPreparacion, mapearTanque } from "./mapear"
 import type {
   DatosIniciarPreparacion,
@@ -49,6 +49,7 @@ export interface UsePreparacionResultado {
     modo: ModoTransferencia,
   ) => Promise<Resultado>
   envasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
+  confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
 }
 
 export function usePreparacion(): UsePreparacionResultado {
@@ -119,5 +120,23 @@ export function usePreparacion(): UsePreparacionResultado {
     return resultado
   }
 
-  return { tanques, preparaciones, cargando, recargar, iniciarPreparacion, liberarLote, ajustarPreparacion, transferirTanque, envasarTanque }
+  async function confirmarEstadoTanque(numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN"): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await confirmarEstadoTanqueAccion(usuario, turnoId, numeroTanque, momento)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
+  return {
+    tanques,
+    preparaciones,
+    cargando,
+    recargar,
+    iniciarPreparacion,
+    liberarLote,
+    ajustarPreparacion,
+    transferirTanque,
+    envasarTanque,
+    confirmarEstadoTanque,
+  }
 }

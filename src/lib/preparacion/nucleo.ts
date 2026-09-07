@@ -51,3 +51,24 @@ export async function liberarLote(usuario: string, turnoId: string, loteId: stri
 
   return { ok: true, data }
 }
+
+/** El paso de revisión de Recepción: "así quedó heredado, confirmo que está bien". */
+export async function confirmarEstadoTanque(
+  usuario: string,
+  turnoId: string,
+  numeroTanque: 1 | 2 | 3,
+  momento: "INICIO" | "FIN",
+): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("confirmar_estado_tanque", {
+    p_usuario: usuario,
+    p_turno_id: turnoId,
+    p_numero_tanque: numeroTanque,
+    p_momento: momento,
+  })
+
+  if (error || !data) {
+    return { ok: false, error: "No se pudo confirmar el estado del tanque. Intenta de nuevo." }
+  }
+
+  return { ok: true, data }
+}
