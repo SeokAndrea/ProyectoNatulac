@@ -17,10 +17,18 @@
 import { useCallback, useEffect, useState } from "react"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { supabase } from "@/lib/supabase"
-import { ajustarPreparacion as ajustarPreparacionAccion, envasarTanque as envasarTanqueAccion, transferirTanque as transferirTanqueAccion } from "./ajustes"
+import {
+  ajustarPreparacion as ajustarPreparacionAccion,
+  cambiarCondicionTanque as cambiarCondicionTanqueAccion,
+  descartarRestoTanque as descartarRestoTanqueAccion,
+  envasarTanque as envasarTanqueAccion,
+  reactivarLote as reactivarLoteAccion,
+  transferirTanque as transferirTanqueAccion,
+} from "./ajustes"
 import { confirmarEstadoTanque as confirmarEstadoTanqueAccion, iniciarPreparacion as iniciarPreparacionAccion, liberarLote as liberarLoteAccion } from "./nucleo"
 import { mapearPreparacion, mapearTanque } from "./mapear"
 import type {
+  DatosCambiarTanque,
   DatosIniciarPreparacion,
   FilaPreparacion,
   FilaTanque,
@@ -50,6 +58,12 @@ export interface UsePreparacionResultado {
   ) => Promise<Resultado>
   envasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
+  /** TODO (Fase 2 del plan): se retira junto con las otras 2 de abajo — ver ajustes.ts. */
+  cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
+  /** TODO (Fase 2 del plan): se retira — ver ajustes.ts. */
+  reactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
+  /** TODO (Fase 2 del plan): se retira — ver ajustes.ts. */
+  descartarRestoTanque: (numeroTanque: 1 | 2 | 3, motivo: string) => Promise<Resultado>
 }
 
 /**
@@ -143,6 +157,28 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     return resultado
   }
 
+  // TODO (Fase 2 del plan): estas 3 se retiran junto con ajustes.ts — ver la nota ahí.
+  async function cambiarCondicionTanque(datos: DatosCambiarTanque): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await cambiarCondicionTanqueAccion(usuario, turnoId, datos)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
+  async function reactivarLote(numeroTanque: 1 | 2 | 3): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await reactivarLoteAccion(usuario, turnoId, numeroTanque)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
+  async function descartarRestoTanque(numeroTanque: 1 | 2 | 3, motivo: string): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await descartarRestoTanqueAccion(usuario, turnoId, numeroTanque, motivo)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
   return {
     tanques,
     preparaciones,
@@ -154,5 +190,8 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     transferirTanque,
     envasarTanque,
     confirmarEstadoTanque,
+    cambiarCondicionTanque,
+    reactivarLote,
+    descartarRestoTanque,
   }
 }

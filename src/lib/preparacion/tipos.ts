@@ -94,6 +94,22 @@ export interface DatosIniciarPreparacion {
   reservaId: string | null
 }
 
+/**
+ * TODO (Fase 2 del plan): este tipo entero se retira junto con
+ * cambiarCondicionTanque — ver ajustes.ts.
+ */
+export interface DatosCambiarTanque {
+  numeroTanque: 1 | 2 | 3
+  condicion: CondicionTanque
+  saborId: string | null
+  volumenL: number | null
+  lote: string | null
+  /** Solo para condicion "EN_PREPARACION" con datos: crea la preparación abierta (el volumen sale de tambores × volumen del sabor). */
+  tambores?: number | null
+  /** Si viene, además de guardar los datos marca el tanque como revisado para ese momento del turno. */
+  momento?: "INICIO" | "FIN"
+}
+
 // ------------------------------------------------------------
 // Formas crudas que devuelve turno_json() — mismo shape que
 // src/lib/turno.tsx (FilaTanque / FilaPreparacion), no exportadas de ahí,
