@@ -51,14 +51,10 @@ import {
   type NivelMerma,
 } from "@/lib/estadisticas"
 import {
-  calcularMeta,
   ajustesSemielaboradoTurno,
   cargoDeUsuario,
   type AjusteSemielaborado,
   type LecturaServiciosIndustriales,
-  mermaEnvasesTurno,
-  mermaLineaTurno,
-  mermaSemielaboradoTurno,
   obtenerEstadoPlantaActual,
   obtenerLecturaServiciosIndustriales,
   obtenerProduccionDia,
@@ -68,7 +64,20 @@ import {
 } from "@/lib/panelProduccion"
 import { type TurnoActivo } from "@/lib/turno"
 import { colorSabor } from "@/lib/coloresSabor"
-import { desglosarCalculos } from "@/lib/calculosPruebas"
+import {
+  calcularMeta,
+  desglosarCalculos,
+  horasTranscurridasTurno,
+  mermaEnvasesTurno,
+  mermaLineaTurno,
+  mermaSemielaboradoTurno,
+} from "@/lib/reportes"
+import { usePreparacion } from "@/lib/preparacion/usePreparacion"
+import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
+import { useProduccion } from "@/lib/produccion/useProduccion"
+import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/tipos"
+import { useProductoTerminado } from "@/lib/productoTerminado"
+import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { cn } from "@/lib/utils"
 
@@ -114,7 +123,7 @@ interface LineaConEstado {
   codigo: string
   nombre: string
   estado: EstadoLinea
-  corrida: TurnoActivo["lineas"][number] | null
+  corrida: Corrida | null
   /** Falla u observación cargada al dejar la línea en DETENIDA — solo cuando aplica. null si no hay. */
   observacion: string | null
 }
@@ -161,38 +170,44 @@ const ESTADO_LINEA_INFO: Record<EstadoLinea, { label: string; dot: string; ring:
 
 /**
  * "Última actualización" real: el máximo de todos los timestamps que
- * ya trae el turno (líneas, tanques, contadores, producto terminado,
- * preparaciones) — NO cuándo esta pantalla hizo el último fetch. Así
- * no se resetea a "hace 0s" cada vez que se entra o se cambia de
- * pantalla y se vuelve; solo se mueve cuando alguien realmente cargó
- * algo.
+ * ya traen los 3 módulos de dominio (corridas, tanques, contadores,
+ * producto terminado, preparaciones) — NO cuándo esta pantalla hizo el
+ * último fetch. Así no se resetea a "hace 0s" cada vez que se entra o
+ * se cambia de pantalla y se vuelve; solo se mueve cuando alguien
+ * realmente cargó algo.
  */
-function ultimaAccionDeTurno(turno: TurnoActivo): Date | null {
+function ultimaAccionDeTurno(
+  corridas: Corrida[],
+  tanques: TanqueRecepcion[],
+  contadores: ContadorRegistro[],
+  productoTerminado: ProductoTerminadoRegistro[],
+  preparaciones: PreparacionRegistro[],
+): Date | null {
   const timestamps = [
-    ...turno.lineas.map((l) => l.activadaEn),
-    ...turno.tanques.map((t) => t.activadaEn),
-    ...turno.contadores.map((c) => c.creadoEn),
-    ...turno.productoTerminado.map((p) => p.creadoEn),
-    ...turno.preparaciones.map((p) => p.creadoEn),
+    ...corridas.map((l) => l.activadaEn),
+    ...tanques.map((t) => t.activadaEn),
+    ...contadores.map((c) => c.creadoEn),
+    ...productoTerminado.map((p) => p.creadoEn),
+    ...preparaciones.map((p) => p.creadoEn),
   ].filter((t): t is string => Boolean(t))
 
   if (timestamps.length === 0) return null
   return new Date(Math.max(...timestamps.map((t) => new Date(t).getTime())))
 }
 
-/** Una fila por línea del área (catálogo completo), cruzada con la corrida actual/últimamente tocada de turno.lineas. */
-function estadoDeLineas(turno: TurnoActivo, lineasCatalogo: LineaLive[]): LineaConEstado[] {
+/** Una fila por línea del área (catálogo completo), cruzada con la corrida actual/últimamente tocada de las corridas del módulo Producción. */
+function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[], lineasCatalogo: LineaLive[]): LineaConEstado[] {
   return lineasCatalogo.map((lc) => {
-    const corridas = turno.lineas.filter((l) => l.linea === lc.codigo)
-    const estadoContinuo = turno.lineasEstado.find((e) => e.linea === lc.codigo)
+    const corridasLinea = corridas.filter((l) => l.linea === lc.codigo)
+    const estadoContinuo = lineasEstado.find((e) => e.linea === lc.codigo)
     // La nota solo tiene sentido mostrarla cuando la línea está DETENIDA y sin corrida activa.
     const observacion = estadoContinuo?.condicion === "DETENIDA" ? estadoContinuo.observacion : null
 
-    const activa = corridas.find((l) => l.activa)
+    const activa = corridasLinea.find((l) => l.activa)
     if (activa) {
       return { codigo: lc.codigo, nombre: lc.nombre, estado: activa.pausadaEn ? "parada" : "activa", corrida: activa, observacion: null }
     }
-    const esperandoCierre = corridas.find((l) => l.esperandoCierre)
+    const esperandoCierre = corridasLinea.find((l) => l.esperandoCierre)
     if (esperandoCierre) {
       return { codigo: lc.codigo, nombre: lc.nombre, estado: "esperando_cierre", corrida: esperandoCierre, observacion }
     }
@@ -209,20 +224,21 @@ interface ProduccionLinea {
 
 /** Cajas, litros y eficiencia de CADA línea del catálogo, para la tabla combinada del banner. */
 function produccionPorLineaDe(
-  turno: TurnoActivo,
+  productoTerminado: ProductoTerminadoRegistro[],
+  corridas: Corrida[],
   lineasCatalogo: LineaLive[],
   presentaciones: PresentacionLive[],
   velocidades: ReturnType<typeof useCatalogosLive>["velocidades"],
 ): ProduccionLinea[] {
   return lineasCatalogo.map((lc) => {
-    const productoLinea = turno.productoTerminado.filter((p) => p.linea === lc.codigo)
+    const productoLinea = productoTerminado.filter((p) => p.linea === lc.codigo)
     const cajas = productoLinea.reduce((a, p) => {
       const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
       return a + p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
     }, 0)
     const litros = productoLinea.reduce((a, p) => a + p.litrosProducidos, 0)
 
-    const corridaActiva = turno.lineas.find((l) => l.linea === lc.codigo && l.activa)
+    const corridaActiva = corridas.find((l) => l.linea === lc.codigo && l.activa)
     let eficienciaPct: number | null = null
     if (corridaActiva) {
       const opciones = velocidadesParaLive(velocidades, corridaActiva.linea, corridaActiva.presentacion)
@@ -298,6 +314,24 @@ export default function PanelProduccion() {
    */
   const [areaFiltro, setAreaFiltro] = useState<AreaCodigo | "TODAS">(session?.area ?? "ASEPTICO")
   const areaEfectiva = session?.area ?? (areaFiltro === "TODAS" ? null : areaFiltro)
+
+  /*
+   * Datos de dominio: Panel NO trae más tanques/corridas/contadores/PT
+   * dentro de `turno` (eso lo siguen resolviendo obtenerEstadoPlantaActual
+   * / obtenerTurnoDeFechaTipo / obtenerTurnoAnterior, para la CABECERA del
+   * turno: id, código, fecha, supervisor, horario). Los 3 módulos de
+   * dominio se piden acá aparte, igual que en cualquier otra página ya
+   * migrada — con `turno?.id ?? null` (nunca `undefined`) para que, si
+   * todavía no hay turno resuelto, se vea vacío y NUNCA el turno propio
+   * del supervisor que está mirando el Panel (ver el fix de
+   * usePreparacion/useProduccion/useProductoTerminado a null vs. undefined).
+   */
+  const prep = usePreparacion(turno?.id ?? null)
+  const prod = useProduccion(turno?.id ?? null)
+  const pt = useProductoTerminado(turno?.id ?? null)
+  const prepAnterior = usePreparacion(turnoAnterior?.id ?? null)
+  const prodAnterior = useProduccion(turnoAnterior?.id ?? null)
+  const ptAnterior = useProductoTerminado(turnoAnterior?.id ?? null)
 
   /*
    * Jornada (día de planta 7am→7am) que corresponde a lo que se está
@@ -435,11 +469,12 @@ export default function PanelProduccion() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickRefresco])
 
-  const meta = turno ? calcularMeta(turno, presentaciones) : null
+  const horasTurnoActual = turno ? horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin) : 0
+  const meta = turno ? calcularMeta(prod.corridas, prod.contadores, presentaciones, horasTurnoActual) : null
   const horario = HORARIOS[turnoTipo]
-  const litrosProducidos = turno ? turno.productoTerminado.reduce((a, p) => a + p.litrosProducidos, 0) : 0
-  const lineasEstado = turno ? estadoDeLineas(turno, lineas) : []
-  const produccionPorLinea = turno ? produccionPorLineaDe(turno, lineas, presentaciones, velocidades) : []
+  const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
+  const lineasEstado = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
+  const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, prod.corridas, lineas, presentaciones, velocidades) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   /*
    * "Producción del turno": Cajas / Litros del banner son SIEMPRE del
@@ -448,13 +483,24 @@ export default function PanelProduccion() {
    * Programación diaria, para cruzarlo contra el plan del día.
    */
   const usarDiario = enVivo && produccionDia.length > 0
-  const mermaEnvases = turno ? mermaEnvasesTurno(turno, presentaciones) : null
-  const mermaSemielaborado = turno ? mermaSemielaboradoTurno(turno, presentaciones) : null
+  const mermaEnvases = turno ? mermaEnvasesTurno(prod.contadores, pt.registros, presentaciones) : null
+  const mermaSemielaborado = turno
+    ? mermaSemielaboradoTurno(turno.id, prep.preparaciones, prod.corridas, pt.registros, prod.contadores, presentaciones)
+    : null
   // "Turno pasado": mismas funciones, mismo `presentaciones` ya cargado
   // que el turno actual. Al correr en el render se recalculan solas
   // cuando el catálogo termina de cargar.
-  const mermaEnvasesAnterior = turnoAnterior ? mermaEnvasesTurno(turnoAnterior, presentaciones) : null
-  const mermaSemielaboradoAnterior = turnoAnterior ? mermaSemielaboradoTurno(turnoAnterior, presentaciones) : null
+  const mermaEnvasesAnterior = turnoAnterior ? mermaEnvasesTurno(prodAnterior.contadores, ptAnterior.registros, presentaciones) : null
+  const mermaSemielaboradoAnterior = turnoAnterior
+    ? mermaSemielaboradoTurno(
+        turnoAnterior.id,
+        prepAnterior.preparaciones,
+        prodAnterior.corridas,
+        ptAnterior.registros,
+        prodAnterior.contadores,
+        presentaciones,
+      )
+    : null
   /*
    * Programación diaria: el carrusel del banner cruza el PLAN del día
    * (módulo Programación, por sabor y en cajas) con lo HECHO (cajas de
@@ -475,7 +521,7 @@ export default function PanelProduccion() {
         hecho.set(k, (hecho.get(k) ?? 0) + p.cajas)
       }
     } else {
-      for (const p of turno?.productoTerminado ?? []) {
+      for (const p of pt.registros) {
         const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
         const cajas = p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
         const k = claveDe(p.saborNombre ?? "—", Number(p.presentacion) || null)
@@ -510,7 +556,7 @@ export default function PanelProduccion() {
     }
 
     return items
-  }, [turno, presentaciones, planDia, produccionDia, usarDiario])
+  }, [pt.registros, presentaciones, planDia, produccionDia, usarDiario])
   /*
    * DEV: números de ejemplo para Cajas / Litros del banner cuando el
    * turno en vivo todavía no produjo nada. `import.meta.env.DEV` es
@@ -520,12 +566,15 @@ export default function PanelProduccion() {
   const litrosDisplay = import.meta.env.DEV && litrosProducidos === 0 ? 24680 : litrosProducidos
   /** Una fila por línea: estado + producción + merma juntos (antes vivían en 3 lugares separados de la pantalla). */
   const filasLineas: FilaLineaCompacta[] = lineasEstado.map((le) => {
-    const prod = produccionPorLinea.find((p) => p.linea === le.codigo)
+    // Ojo con el nombre: acá adentro "prodLinea" es la producción de ESTA
+    // línea (ver ProduccionLinea más arriba) — el hook useProduccion() del
+    // componente se llama "prod" y queda afuera de este callback.
+    const prodLinea = produccionPorLinea.find((p) => p.linea === le.codigo)
     // Sumando TODAS las corridas de la línea en el turno, igual que el
     // contador — así un lote recién arrancado (sin datos propios
     // todavía) no le hace perder de vista la merma que sí lleva
     // acumulada la línea en este turno.
-    const merma = turno ? mermaLineaTurno(turno, le.codigo, presentaciones) : null
+    const merma = turno ? mermaLineaTurno(prod.corridas, le.codigo, prod.contadores, pt.registros, presentaciones) : null
     const minutosParada = le.corrida?.pausadaEn
       ? Math.max(0, Math.round((ahora.getTime() - new Date(le.corrida.pausadaEn).getTime()) / 60000))
       : null
@@ -535,9 +584,9 @@ export default function PanelProduccion() {
         : null
     return {
       ...le,
-      cajas: prod?.cajas ?? 0,
-      litros: prod?.litros ?? 0,
-      eficienciaPct: prod?.eficienciaPct ?? null,
+      cajas: prodLinea?.cajas ?? 0,
+      litros: prodLinea?.litros ?? 0,
+      eficienciaPct: prodLinea?.eficienciaPct ?? null,
       mermaPct: merma?.pct ?? null,
       minutosParada,
       minutosProduccion,
@@ -557,9 +606,9 @@ export default function PanelProduccion() {
   const mm = String(ahora.getMinutes()).padStart(2, "0")
   const ss = String(ahora.getSeconds()).padStart(2, "0")
 
-  const tanquesListos = turno ? turno.tanques.filter((t) => t.condicion === "LISTO").length : 0
+  const tanquesListos = prep.tanques.filter((t) => t.condicion === "LISTO").length
   const lineasActivas = lineasEstado.filter((l) => l.estado === "activa").length
-  const ultimaAccion = turno ? ultimaAccionDeTurno(turno) : null
+  const ultimaAccion = turno ? ultimaAccionDeTurno(prod.corridas, prep.tanques, prod.contadores, pt.registros, prep.preparaciones) : null
   const segundosDesdeActualizacion = ultimaAccion
     ? Math.max(0, Math.round((ahora.getTime() - ultimaAccion.getTime()) / 1000))
     : null
@@ -786,10 +835,10 @@ export default function PanelProduccion() {
             {/* ------- TANQUES (angosta, izquierda, alta) · LÍNEAS + MERMAS/PARADAS (derecha) ------- */}
             <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
               <div className="rise-in flex flex-col gap-4 xl:col-span-4">
-                <PanelCard icon={Container} titulo="Tanques" meta={`${tanquesListos}/${turno.tanques.length} listos`}>
+                <PanelCard icon={Container} titulo="Tanques" meta={`${tanquesListos}/${prep.tanques.length} listos`}>
                   <ServiciosIndustrialesFranja lectura={servIndustriales} ahora={ahora} />
                   <div className="grid grid-cols-3 gap-3">
-                    {turno.tanques.map((t) =>
+                    {prep.tanques.map((t) =>
                       esSupervisor ? (
                         <Link
                           key={t.numeroTanque}
@@ -797,10 +846,10 @@ export default function PanelProduccion() {
                           className="block min-w-0 rounded-xl outline-none transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-ring"
                           title="Ir a Preparación"
                         >
-                          <TanqueCard tanque={t} preparaciones={turno.preparaciones} />
+                          <TanqueCard tanque={t} preparaciones={prep.preparaciones} />
                         </Link>
                       ) : (
-                        <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={turno.preparaciones} />
+                        <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={prep.preparaciones} />
                       ),
                     )}
                   </div>
@@ -941,7 +990,16 @@ export default function PanelProduccion() {
                   titulo="Desglose de cálculo"
                   descripcion="Números crudos detrás de cada merma y meta — envases, litros y cajas que alimentan cada porcentaje del turno."
                 >
-                  <DesgloseCalculosPanel turno={turno} />
+                  <DesgloseCalculosPanel
+                    turnoId={turno.id}
+                    horaInicio={turno.horaInicio}
+                    estado={turno.estado}
+                    horaFin={turno.horaFin}
+                    preparaciones={prep.preparaciones}
+                    corridas={prod.corridas}
+                    productoTerminado={pt.registros}
+                    contadores={prod.contadores}
+                  />
                 </SeccionColapsable>
               )}
             </div>
@@ -1246,8 +1304,8 @@ function TanqueCard({
   tanque,
   preparaciones,
 }: {
-  tanque: TurnoActivo["tanques"][number]
-  preparaciones: TurnoActivo["preparaciones"]
+  tanque: TanqueRecepcion
+  preparaciones: PreparacionRegistro[]
 }) {
   const ultimaPrep = preparaciones
     .filter((p) => p.numeroTanque === tanque.numeroTanque)
@@ -1462,20 +1520,38 @@ function ParadasPorLineaPlaceholder({ lineas }: { lineas: LineaLive[] }) {
  * vs. esperadas. Se muestra en Aséptico y en el Área de Pruebas (ver la
  * condición sobre areaEfectiva en el render del Panel).
  */
-function DesgloseCalculosPanel({ turno }: { turno: TurnoActivo }) {
+function DesgloseCalculosPanel({
+  turnoId,
+  horaInicio,
+  estado,
+  horaFin,
+  preparaciones,
+  corridas,
+  productoTerminado,
+  contadores,
+}: {
+  turnoId: string
+  horaInicio: string
+  estado: "ABIERTO" | "CERRADO"
+  horaFin: string | null
+  preparaciones: PreparacionRegistro[]
+  corridas: Corrida[]
+  productoTerminado: ProductoTerminadoRegistro[]
+  contadores: ContadorRegistro[]
+}) {
   const { lineas, presentaciones, cargando } = useCatalogosLive()
-  const d = desglosarCalculos(turno, presentaciones)
+  const d = desglosarCalculos(turnoId, horaInicio, estado, horaFin, preparaciones, corridas, productoTerminado, contadores, presentaciones)
   const [ajustes, setAjustes] = useState<AjusteSemielaborado[]>([])
 
   useEffect(() => {
     let vivo = true
-    ajustesSemielaboradoTurno(turno.id).then((a) => {
+    ajustesSemielaboradoTurno(turnoId).then((a) => {
       if (vivo) setAjustes(a)
     })
     return () => {
       vivo = false
     }
-  }, [turno.id])
+  }, [turnoId])
 
   const totalAjuste = ajustes.reduce((a, x) => a + x.diferencia, 0)
 
@@ -1492,7 +1568,7 @@ function DesgloseCalculosPanel({ turno }: { turno: TurnoActivo }) {
       <p className="text-xs text-muted-foreground">
         Horas transcurridas del turno:{" "}
         <span className="num font-semibold text-foreground">{d.horasTranscurridas}</span>{" "}
-        {turno.estado === "CERRADO" ? "(hasta la hora de cierre)" : "(hasta ahora)"}
+        {estado === "CERRADO" ? "(hasta la hora de cierre)" : "(hasta ahora)"}
       </p>
 
       <div className="overflow-x-auto">
@@ -1510,7 +1586,7 @@ function DesgloseCalculosPanel({ turno }: { turno: TurnoActivo }) {
           </thead>
           <tbody>
             {d.porCorrida.map((c) => (
-              <tr key={c.turnoLineaId} className="border-b border-border/60">
+              <tr key={c.corridaId} className="border-b border-border/60">
                 <td className="py-1.5 pr-3">
                   {nombrePorCodigo(lineas, c.linea)}
                   {c.presentacionMl ? <span className="text-muted-foreground"> · {c.presentacionMl} ml</span> : null}
