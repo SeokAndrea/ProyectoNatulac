@@ -1,6 +1,7 @@
-import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { GRUPOS, TURNO_TIPOS, nombrePorCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, litrosHoraDeLive } from "@/lib/catalogosLive"
-import type { TurnoActivo } from "@/lib/turno"
+import type { Corrida } from "@/lib/produccion/tipos"
+import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 
 /**
  * Datos fijos del turno (los mismos desde "Comenzar Turno" hasta
@@ -8,36 +9,50 @@ import type { TurnoActivo } from "@/lib/turno"
  * acta. Cada línea activa muestra su propia presentación y velocidad
  * — pueden ser distintas entre sí.
  */
-export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
+export function ResumenTurno({
+  fecha,
+  horaInicio,
+  turnoTipo,
+  grupo,
+  corridas,
+  tanques,
+}: {
+  fecha: string
+  horaInicio: string
+  turnoTipo: TurnoTipoCodigo
+  grupo: GrupoCodigo
+  corridas: Corrida[]
+  tanques: TanqueRecepcion[]
+}) {
   const { lineas, velocidades } = useCatalogosLive()
   return (
     <div className="flex flex-col gap-4">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
         <div>
           <dt className="text-muted-foreground">Fecha</dt>
-          <dd className="font-medium text-foreground">{turno.fecha}</dd>
+          <dd className="font-medium text-foreground">{fecha}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Hora de inicio</dt>
-          <dd className="font-medium text-foreground">{turno.horaInicio}</dd>
+          <dd className="font-medium text-foreground">{horaInicio}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Turno</dt>
-          <dd className="font-medium text-foreground">{nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)}</dd>
+          <dd className="font-medium text-foreground">{nombrePorCodigo(TURNO_TIPOS, turnoTipo)}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Grupo</dt>
-          <dd className="font-medium text-foreground">{nombrePorCodigo(GRUPOS, turno.grupo)}</dd>
+          <dd className="font-medium text-foreground">{nombrePorCodigo(GRUPOS, grupo)}</dd>
         </div>
       </dl>
 
       <div>
         <p className="mb-2 text-sm text-muted-foreground">Líneas en uso</p>
-        {turno.lineas.filter((l) => l.activa).length === 0 ? (
+        {corridas.filter((l) => l.activa).length === 0 ? (
           <p className="text-sm font-medium text-foreground">Ninguna (parada)</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {turno.lineas
+            {corridas
               .filter((l) => l.activa)
               .map((l) => {
                 const litros = litrosHoraDeLive(velocidades, l.linea, l.presentacion, l.envasesHora)
@@ -63,7 +78,7 @@ export function ResumenTurno({ turno }: { turno: TurnoActivo }) {
       <div>
         <p className="mb-2 text-sm text-muted-foreground">Tanques</p>
         <div className="flex flex-col gap-2">
-          {turno.tanques.map((t) => (
+          {tanques.map((t) => (
             <div
               key={t.numeroTanque}
               className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"

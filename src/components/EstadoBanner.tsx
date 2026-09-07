@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 import { CircleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth"
-import { useTurno } from "@/lib/turno"
+import { useSesionTurno } from "@/lib/sesionTurno"
+import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import { turnosActivosPorArea, type TurnoActivoArea } from "@/lib/historialTurnos"
@@ -32,7 +33,8 @@ import { turnosActivosPorArea, type TurnoActivoArea } from "@/lib/historialTurno
  */
 export function EstadoBanner() {
   const { session } = useAuth()
-  const { turnoActivo, cargando } = useTurno()
+  const sesion = useSesionTurno()
+  const { corridas } = useProduccion()
   const { lineas } = useCatalogosLive()
   const [turnoDeArea, setTurnoDeArea] = useState<TurnoActivoArea | null>(null)
 
@@ -58,21 +60,22 @@ export function EstadoBanner() {
           </span>
         </span>
         <span>
-          <span className="text-muted-foreground">{turnoActivo ? "Supervisor: " : "Usuario: "}</span>
-          <span className="font-medium text-foreground">{turnoActivo ? turnoActivo.supervisorNombre : session.nombre}</span>
+          <span className="text-muted-foreground">{sesion.turnoId ? "Supervisor: " : "Usuario: "}</span>
+          <span className="font-medium text-foreground">{sesion.turnoId ? sesion.supervisorNombre : session.nombre}</span>
         </span>
 
-        {cargando ? null : turnoActivo ? (
+        {sesion.cargando ? null : sesion.turnoId ? (
           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="text-muted-foreground">Turno:</span>
             <span className="font-medium text-foreground">
-              {nombrePorCodigo(TURNO_TIPOS, turnoActivo.turnoTipo)} · {nombrePorCodigo(GRUPOS, turnoActivo.grupo)} ·{" "}
+              {sesion.turnoTipo ? nombrePorCodigo(TURNO_TIPOS, sesion.turnoTipo) : "—"} ·{" "}
+              {sesion.grupo ? nombrePorCodigo(GRUPOS, sesion.grupo) : "—"} ·{" "}
               {(() => {
-                const activas = turnoActivo.lineas.filter((l) => l.activa)
+                const activas = corridas.filter((l) => l.activa)
                 return activas.length === 0 ? "sin líneas (parada)" : activas.map((l) => nombrePorCodigo(lineas, l.linea)).join(", ")
               })()}
             </span>
-            <Badge variant="secondary">{turnoActivo.codigo}</Badge>
+            <Badge variant="secondary">{sesion.codigo}</Badge>
           </span>
         ) : mirarTurnoDeArea && turnoDeArea?.turnoId ? (
           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">

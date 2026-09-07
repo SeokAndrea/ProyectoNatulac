@@ -158,7 +158,16 @@ export default function Historial() {
     setErrorActa(null)
     try {
       const blob = generarActaPdf({
-        turno: detalle,
+        codigo: detalle.codigo,
+        fecha: detalle.fecha,
+        turnoTipo: detalle.turnoTipo,
+        grupo: detalle.grupo,
+        tanquesEncontrados: detalle.tanquesEncontrados,
+        tanques: detalle.tanques,
+        corridas: detalle.lineas,
+        // El detalle histórico (obtenerTurnoDetalle, todavía sobre turno.tsx) trae turnoLineaId — generarActaPdf() ya espera corridaId (renombre del módulo Producción).
+        contadores: detalle.contadores.map((c) => ({ ...c, corridaId: c.turnoLineaId })),
+        productoTerminado: detalle.productoTerminado.map((p) => ({ ...p, corridaId: p.turnoLineaId })),
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,
         lineas,

@@ -1,7 +1,10 @@
 import { Badge } from "@/components/ui/badge"
 import { nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { LIMITE_MERMA, mermaCorrida, type ContadorRegistro, type ProductoTerminadoRegistro } from "@/lib/turno"
+import { LIMITE_MERMA } from "@/lib/turno"
+import { mermaCorrida } from "@/lib/reportes"
+import type { ContadorRegistro } from "@/lib/produccion/tipos"
+import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
 const MERMA_MAX = LIMITE_MERMA * 100
 
@@ -30,7 +33,7 @@ export function ListaContadores({
   return (
     <div className="flex flex-col gap-2">
       {contadores.map((c) => {
-        const merma = c.turnoLineaId ? mermaCorrida(c.turnoLineaId, { contadores, productoTerminado }, presentaciones) : null
+        const merma = c.corridaId ? mermaCorrida(c.corridaId, contadores, productoTerminado, presentaciones) : null
         const requiereJustificacion = merma !== null && merma.pct > MERMA_MAX
         return (
           <div

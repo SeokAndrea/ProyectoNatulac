@@ -1,25 +1,55 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
+import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import { agruparPorSaborYLote } from "@/lib/agruparProduccion"
 import { textoCondicionTanque } from "@/lib/tanques"
-import { LIMITE_MERMA, mermaCorrida, type TurnoActivo } from "@/lib/turno"
+import { LIMITE_MERMA } from "@/lib/turno"
+import { mermaCorrida } from "@/lib/reportes"
+import type { TanqueEncontrado } from "@/lib/sesionTurno"
+import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
+import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
+import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
 /**
  * Genera el acta de turno como PDF (jsPDF + jspdf-autotable) — reemplaza
  * el viejo "Generar Acta (PDF)" por window.print(). Compacto, sin
  * gráficos: encabezado con datos fijos, tanques encontrados vs
  * dejados, producido por sabor/lote con merma y justificación, firma.
+ *
+ * Ya no recibe un TurnoActivo (el blob viejo) — recibe las piezas
+ * sueltas: cabecera (de useSesionTurno()) + corridas/contadores/PT
+ * (Producción y Producto Terminado) + tanques (Preparación).
  */
 export function generarActaPdf(params: {
-  turno: TurnoActivo
+  codigo: string
+  fecha: string
+  turnoTipo: TurnoTipoCodigo
+  grupo: GrupoCodigo
+  tanquesEncontrados: TanqueEncontrado[] | null
+  tanques: TanqueRecepcion[]
+  corridas: Corrida[]
+  contadores: ContadorRegistro[]
+  productoTerminado: ProductoTerminadoRegistro[]
   supervisorNombre: string
   area: AreaCodigo | null
   lineas: LineaLive[]
   presentaciones: PresentacionLive[]
 }): Blob {
-  const { turno, supervisorNombre, area, presentaciones } = params
+  const {
+    codigo,
+    fecha,
+    turnoTipo,
+    grupo,
+    tanquesEncontrados,
+    tanques,
+    corridas,
+    contadores,
+    productoTerminado,
+    supervisorNombre,
+    area,
+    presentaciones,
+  } = params
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const margenX = 14
   let y = 16
@@ -29,7 +59,7 @@ export function generarActaPdf(params: {
   doc.text("ACTA DE TURNO", margenX, y)
   doc.setFontSize(9)
   doc.setFont("helvetica", "normal")
-  doc.text(turno.codigo, 196, y, { align: "right" })
+  doc.text(codigo, 196, y, { align: "right" })
   y += 6
 
   autoTable(doc, {
@@ -37,9 +67,9 @@ export function generarActaPdf(params: {
     theme: "grid",
     styles: { fontSize: 8, cellPadding: 1.5 },
     body: [
-      ["Nombre (Usuario)", supervisorNombre, "Turno", nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)],
-      ["Grupo", nombrePorCodigo(GRUPOS, turno.grupo), "Fecha", turno.fecha],
-      ["Área", area ? nombrePorCodigo(AREAS, area) : "—", "Código del Turno", turno.codigo],
+      ["Nombre (Usuario)", supervisorNombre, "Turno", nombrePorCodigo(TURNO_TIPOS, turnoTipo)],
+      ["Grupo", nombrePorCodigo(GRUPOS, grupo), "Fecha", fecha],
+      ["Área", area ? nombrePorCodigo(AREAS, area) : "—", "Código del Turno", codigo],
     ],
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,10 +79,10 @@ export function generarActaPdf(params: {
   doc.setFont("helvetica", "bold")
   doc.text("CONDICIONES DE LOS TANQUES", margenX, y)
 
-  const filasEncontrado = turno.tanquesEncontrados
+  const filasEncontrado = tanquesEncontrados
     ? ([1, 2, 3] as const)
         .map((n) => {
-          const t = turno.tanquesEncontrados!.find((x) => x.numeroTanque === n)
+          const t = tanquesEncontrados.find((x) => x.numeroTanque === n)
           return t ? `Tanque ${n}: ${textoCondicionTanque(t.condicion, t.volumenL, t.saborNombre)}` : `Tanque ${n}: —`
         })
         .join("\n")
@@ -60,7 +90,7 @@ export function generarActaPdf(params: {
 
   const filasDejado = ([1, 2, 3] as const)
     .map((n) => {
-      const t = turno.tanques.find((x) => x.numeroTanque === n)
+      const t = tanques.find((x) => x.numeroTanque === n)
       return t ? `Tanque ${n}: ${textoCondicionTanque(t.condicion, t.volumenL, t.saborNombre)}` : `Tanque ${n}: —`
     })
     .join("\n")
@@ -79,7 +109,7 @@ export function generarActaPdf(params: {
   doc.setFont("helvetica", "bold")
   doc.text("PRODUCIDO", margenX, y)
 
-  const grupos = agruparPorSaborYLote(turno.lineas)
+  const grupos = agruparPorSaborYLote(corridas)
   const filasProducido: string[][] = []
   for (const g of grupos) {
     for (const l of g.lotes) {
@@ -90,7 +120,7 @@ export function generarActaPdf(params: {
       const justificaciones: string[] = []
 
       for (const corrida of l.corridas) {
-        const pt = turno.productoTerminado.find((p) => p.turnoLineaId === corrida.id)
+        const pt = productoTerminado.find((p) => p.corridaId === corrida.id)
         const pres = presentaciones.find((p) => p.codigo === corrida.presentacion)
         if (pt && pres) {
           const cajas = pt.paletas * pres.cajasXPaleta + pt.cajasSueltas
@@ -98,10 +128,10 @@ export function generarActaPdf(params: {
           litrosLote += pt.litrosProducidos
           envasesLote += cajas * pres.envasesXCaja
         }
-        const merma = mermaCorrida(corrida.id, turno, presentaciones)
+        const merma = mermaCorrida(corrida.id, contadores, productoTerminado, presentaciones)
         if (merma) {
           mermas.push(merma.pct)
-          const contadorConJustificacion = turno.contadores.find((c) => c.turnoLineaId === corrida.id && c.justificacion && !c.parcial)
+          const contadorConJustificacion = contadores.find((c) => c.corridaId === corrida.id && c.justificacion && !c.parcial)
           if (merma.pct > LIMITE_MERMA * 100 && contadorConJustificacion) {
             justificaciones.push(contadorConJustificacion.justificacion)
           }

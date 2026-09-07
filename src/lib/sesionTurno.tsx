@@ -17,7 +17,17 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { useAuth } from "@/lib/auth"
 import { fechaLocal, horaLocal } from "@/lib/turno"
+import type { CondicionTanque } from "@/lib/preparacion/tipos"
 import { supabase } from "@/lib/supabase"
+
+/** Foto de cómo estaba un tanque al empezar el turno (Status, revisión de INICIO) — se congela ahí, no cambia con el turno en curso. Se usa en el acta en PDF ("Condiciones encontradas" vs. "dejadas"). null = el turno se cerró sin completar esa revisión. */
+export interface TanqueEncontrado {
+  numeroTanque: 1 | 2 | 3
+  condicion: CondicionTanque
+  volumenL: number | null
+  saborNombre: string | null
+  lote: string | null
+}
 
 export interface SesionTurno {
   turnoId: string | null
@@ -32,10 +42,19 @@ export interface SesionTurno {
   grupo: GrupoCodigo | null
   supervisorUsuario: string | null
   supervisorNombre: string | null
+  tanquesEncontrados: TanqueEncontrado[] | null
   usuario: string | null
   cargando: boolean
   iniciarTurno: (turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
   finalizarTurno: () => Promise<{ ok: true } | { ok: false; error: string }>
+}
+
+interface FilaTanqueEncontrado {
+  numero_tanque: 1 | 2 | 3
+  condicion: CondicionTanque
+  volumen_l: number | null
+  sabor_nombre: string | null
+  lote: string | null
 }
 
 interface FilaTurnoIdentidad {
@@ -50,6 +69,7 @@ interface FilaTurnoIdentidad {
   grupo_codigo: GrupoCodigo
   supervisor_usuario: string
   supervisor_nombre: string
+  tanques_encontrados: FilaTanqueEncontrado[] | null
 }
 
 const SesionTurnoContext = createContext<SesionTurno | undefined>(undefined)
@@ -69,6 +89,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
   const [grupo, setGrupo] = useState<GrupoCodigo | null>(null)
   const [supervisorUsuario, setSupervisorUsuario] = useState<string | null>(null)
   const [supervisorNombre, setSupervisorNombre] = useState<string | null>(null)
+  const [tanquesEncontrados, setTanquesEncontrados] = useState<TanqueEncontrado[] | null>(null)
   const [cargando, setCargando] = useState(true)
 
   function tomarIdentidad(fila: FilaTurnoIdentidad | null) {
@@ -83,6 +104,17 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     setGrupo(fila?.grupo_codigo ?? null)
     setSupervisorUsuario(fila?.supervisor_usuario ?? null)
     setSupervisorNombre(fila?.supervisor_nombre ?? null)
+    setTanquesEncontrados(
+      fila?.tanques_encontrados
+        ? fila.tanques_encontrados.map((t) => ({
+            numeroTanque: t.numero_tanque,
+            condicion: t.condicion,
+            volumenL: t.volumen_l,
+            saborNombre: t.sabor_nombre,
+            lote: t.lote,
+          }))
+        : null,
+    )
   }
 
   async function recargar(u: string) {
@@ -161,6 +193,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
         grupo,
         supervisorUsuario,
         supervisorNombre,
+        tanquesEncontrados,
         usuario,
         cargando,
         iniciarTurno,

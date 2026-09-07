@@ -16,7 +16,10 @@ import { generarActaPdf } from "@/lib/actaPdf"
 import { subirYRegistrarActa, urlPublicaActa } from "@/lib/historialTurnos"
 import { colorSabor } from "@/lib/coloresSabor"
 import { listarSabores, type Sabor } from "@/lib/sabores"
-import { useTurno, type TurnoActivo } from "@/lib/turno"
+import { useSesionTurno } from "@/lib/sesionTurno"
+import { usePreparacion } from "@/lib/preparacion/usePreparacion"
+import { useProduccion } from "@/lib/produccion/useProduccion"
+import { useProductoTerminado } from "@/lib/productoTerminado"
 
 /*
  * Finalizar Turno: el resumen formal del turno en curso (datos fijos
@@ -35,7 +38,10 @@ import { useTurno, type TurnoActivo } from "@/lib/turno"
  * defecto, un clic las abre si hace falta revisarlas.
  */
 export default function FinalizarTurno() {
-  const { turnoActivo, cargando, finalizarTurno, cambiarCondicionTanque, confirmarEstadoTanque } = useTurno()
+  const sesion = useSesionTurno()
+  const prep = usePreparacion()
+  const prod = useProduccion()
+  const pt = useProductoTerminado()
   const { session } = useAuth()
   const { lineas, presentaciones } = useCatalogosLive()
   const navigate = useNavigate()
@@ -43,6 +49,8 @@ export default function FinalizarTurno() {
   const [confirmando, setConfirmando] = useState(false)
   const [sabores, setSabores] = useState<Sabor[]>([])
   const [cerrado, setCerrado] = useState<{ codigoTurno: string; actaUrl: string | null; errorActa: string | null } | null>(null)
+
+  const cargando = sesion.cargando || prep.cargando || prod.cargando || pt.cargando
 
   useEffect(() => {
     listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
@@ -58,7 +66,7 @@ export default function FinalizarTurno() {
     )
   }
 
-  if (!turnoActivo) {
+  if (!sesion.turnoId) {
     return (
       <AppShell title="Finalizar Turno" description="Resumen y cierre del turno">
         <EmptyState
@@ -83,16 +91,16 @@ export default function FinalizarTurno() {
    * esa condición era siempre verdadera.
    */
   const itemsFaltantes = [
-    ...turnoActivo.tanques
+    ...prep.tanques
       .filter((t) => t.condicion === "EN_PREPARACION")
-      .filter((t) => !turnoActivo.preparaciones.some((p) => p.numeroTanque === t.numeroTanque))
+      .filter((t) => !prep.preparaciones.some((p) => p.numeroTanque === t.numeroTanque))
       .map((t) => `Preparación — Tanque ${t.numeroTanque}`),
-    ...turnoActivo.tanques.filter((t) => !t.confirmadoFinEn).map((t) => `Estado final — Tanque ${t.numeroTanque} sin confirmar`),
-    ...turnoActivo.lineas
-      .filter((l) => !turnoActivo.contadores.some((c) => c.turnoLineaId === l.id))
+    ...prep.tanques.filter((t) => !t.confirmadoFinEn).map((t) => `Estado final — Tanque ${t.numeroTanque} sin confirmar`),
+    ...prod.corridas
+      .filter((l) => !prod.contadores.some((c) => c.corridaId === l.id))
       .map((l) => `Contadores — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`),
-    ...turnoActivo.lineas
-      .filter((l) => !turnoActivo.productoTerminado.some((p) => p.turnoLineaId === l.id))
+    ...prod.corridas
+      .filter((l) => !pt.registros.some((p) => p.corridaId === l.id))
       .map((l) => `Producto Terminado — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`),
   ]
 
@@ -101,30 +109,38 @@ export default function FinalizarTurno() {
       setConfirmando(true)
       return
     }
-    if (!session || !turnoActivo) return
+    if (!session || !sesion.turnoId || !sesion.codigo || !sesion.fecha || !sesion.turnoTipo || !sesion.grupo) return
     setFinalizando(true)
 
-    // Se guarda el turno ANTES de cerrarlo — finalizarTurno() limpia turnoActivo del contexto al terminar.
-    const turnoParaActa: TurnoActivo = turnoActivo
-    await finalizarTurno()
+    // Se guarda todo ANTES de cerrar — sesion.finalizarTurno() limpia la
+    // identidad del turno, y con turnoId en null los 4 hooks (sesion,
+    // prep, prod, pt) también se vacían solos.
+    const turnoId = sesion.turnoId
+    const codigo = sesion.codigo
+    const datosParaActa = {
+      codigo,
+      fecha: sesion.fecha,
+      turnoTipo: sesion.turnoTipo,
+      grupo: sesion.grupo,
+      tanquesEncontrados: sesion.tanquesEncontrados,
+      tanques: prep.tanques,
+      corridas: prod.corridas,
+      contadores: prod.contadores,
+      productoTerminado: pt.registros,
+    }
+    await sesion.finalizarTurno()
 
     let actaUrl: string | null = null
     let errorActa: string | null = null
     try {
       const blob = generarActaPdf({
-        turno: turnoParaActa,
+        ...datosParaActa,
         supervisorNombre: session.nombre || session.username,
         area: session.area,
         lineas,
         presentaciones,
       })
-      const resultado = await subirYRegistrarActa(
-        session.username,
-        turnoParaActa.id,
-        session.area ?? "SIN_AREA",
-        turnoParaActa.codigo,
-        blob,
-      )
+      const resultado = await subirYRegistrarActa(session.username, turnoId, session.area ?? "SIN_AREA", codigo, blob)
       if (resultado.ok) {
         actaUrl = urlPublicaActa(resultado.acta.storagePath)
       } else {
@@ -135,7 +151,7 @@ export default function FinalizarTurno() {
     }
 
     setFinalizando(false)
-    setCerrado({ codigoTurno: turnoParaActa.codigo, actaUrl, errorActa })
+    setCerrado({ codigoTurno: codigo, actaUrl, errorActa })
   }
 
   if (cerrado) {
@@ -170,30 +186,37 @@ export default function FinalizarTurno() {
   }
 
   return (
-    <AppShell title="Finalizar Turno" description={`Turno ${turnoActivo.codigo}`}>
+    <AppShell title="Finalizar Turno" description={`Turno ${sesion.codigo}`}>
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <SeccionColapsable titulo="Datos del turno">
-            <ResumenTurno turno={turnoActivo} />
+            <ResumenTurno
+              fecha={sesion.fecha ?? "—"}
+              horaInicio={sesion.horaInicio ?? "—"}
+              turnoTipo={sesion.turnoTipo ?? "TURNO_1"}
+              grupo={sesion.grupo ?? "GRUPO_1"}
+              corridas={prod.corridas}
+              tanques={prep.tanques}
+            />
           </SeccionColapsable>
 
           <SeccionColapsable
             titulo="Estado final de tanques"
             descripcion="Confirma o corrige el estado de cada tanque antes de cerrar el turno."
-            abiertoPorDefecto={turnoActivo.tanques.some((t) => !t.confirmadoFinEn)}
+            abiertoPorDefecto={prep.tanques.some((t) => !t.confirmadoFinEn)}
           >
             <div className="flex flex-col gap-2">
-              {turnoActivo.tanques.map((t) => (
+              {prep.tanques.map((t) => (
                 <ConfirmarEstadoTanque
                   key={t.numeroTanque}
                   tanque={t}
                   sabores={sabores}
                   momento="FIN"
-                  onConfirmar={() => confirmarEstadoTanque(t.numeroTanque, "FIN")}
-                  onGuardarEdicion={(datos) => cambiarCondicionTanque({ ...datos, momento: "FIN" })}
+                  onConfirmar={() => prep.confirmarEstadoTanque(t.numeroTanque, "FIN")}
+                  onGuardarEdicion={(datos) => prep.cambiarCondicionTanque({ ...datos, momento: "FIN" })}
                 />
               ))}
-              {turnoActivo.tanques.every((t) => t.confirmadoFinEn) && (
+              {prep.tanques.every((t) => t.confirmadoFinEn) && (
                 <p className="text-sm text-muted-foreground">Los 3 tanques ya tienen su estado final confirmado.</p>
               )}
             </div>
@@ -204,7 +227,7 @@ export default function FinalizarTurno() {
               {lineas
                 .filter((l) => l.activo)
                 .map((l) => {
-                  const corrida = turnoActivo.lineas.find((tl) => tl.linea === l.codigo && tl.activa) ?? null
+                  const corrida = prod.corridas.find((tl) => tl.linea === l.codigo && tl.activa) ?? null
                   const numeroLinea = Number(l.codigo.replace("LINEA_", "")) || 0
                   const estadoVisual: EstadoVisualLinea = !corrida
                     ? "libre"
@@ -225,13 +248,13 @@ export default function FinalizarTurno() {
             </div>
           </SeccionColapsable>
 
-          {turnoActivo.tanques.some((t) => t.condicion === "EN_PREPARACION") && (
+          {prep.tanques.some((t) => t.condicion === "EN_PREPARACION") && (
             <SeccionColapsable titulo="Preparaciones" descripcion="Tambores y ajustes cargados por tanque.">
-              {turnoActivo.preparaciones.length === 0 ? (
+              {prep.preparaciones.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Todavía no se cargó ninguna preparación en este turno.</p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {turnoActivo.preparaciones.map((p) => (
+                  {prep.preparaciones.map((p) => (
                     <div key={p.id} className="rounded-lg border border-border px-3 py-2 text-sm">
                       <p className="font-medium text-foreground">
                         Tanque {p.numeroTanque} · {p.saborNombre ?? "Sin sabor"}
@@ -254,10 +277,10 @@ export default function FinalizarTurno() {
             titulo="Contadores por línea"
             descripcion="Envases de la llenadora registrados durante este turno."
           >
-            {turnoActivo.contadores.length === 0 ? (
+            {prod.contadores.length === 0 ? (
               <p className="text-sm text-muted-foreground">Todavía no se cargó ningún contador en este turno.</p>
             ) : (
-              <ListaContadores contadores={turnoActivo.contadores} productoTerminado={turnoActivo.productoTerminado} mostrarTotales />
+              <ListaContadores contadores={prod.contadores} productoTerminado={pt.registros} mostrarTotales />
             )}
           </SeccionColapsable>
 
@@ -265,11 +288,11 @@ export default function FinalizarTurno() {
             titulo="Producto Terminado por línea"
             descripcion="Paletas y cajas sueltas (resto) registradas en Producto Terminado."
           >
-            {turnoActivo.productoTerminado.length === 0 ? (
+            {pt.registros.length === 0 ? (
               <p className="text-sm text-muted-foreground">Todavía no se cargó Producto Terminado en este turno.</p>
             ) : (
               <div className="flex flex-col gap-2">
-                {turnoActivo.productoTerminado.map((p) => {
+                {pt.registros.map((p) => {
                   const cajasXPaleta = presentaciones.find((pr) => pr.codigo === p.presentacion)?.cajasXPaleta ?? 0
                   const cajasTotales = p.paletas * cajasXPaleta + p.cajasSueltas
                   return (
