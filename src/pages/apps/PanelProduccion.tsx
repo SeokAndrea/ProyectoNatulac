@@ -1514,7 +1514,7 @@ function ParadasPorLineaPlaceholder({ lineas }: { lineas: LineaLive[] }) {
 /* ===================== DESGLOSE DE CÁLCULO (ÁREA DE PRUEBAS) ===================== */
 
 /**
- * Los mismos números que verifica src/lib/calculosPruebas.test.ts, pero
+ * Los mismos números que verifica src/lib/reportes/pruebas.test.ts, pero
  * sobre el turno que se está viendo: envases de llenadora vs. Producto
  * Terminado por corrida, litros consumidos vs. producidos, cajas reales
  * vs. esperadas. Se muestra en Aséptico y en el Área de Pruebas (ver la

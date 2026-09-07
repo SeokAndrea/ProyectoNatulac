@@ -4,11 +4,12 @@
  * calcula ningún %: exponen números crudos, acá se hace la resta/división.
  * Ver plan-rework-3-modulos-y-merma.md, Fase 1.
  *
- * Extraído de src/lib/panelProduccion.ts y src/lib/calculosPruebas.ts —
- * mismo comportamiento exacto (mismos números), solo que ahora arma el
- * cálculo a partir de las porciones de cada módulo en vez de un
- * TurnoActivo combinado. La verificación es src/lib/calculosPruebas.test.ts
- * contra el CSV existente.
+ * Extraído en su momento de src/lib/panelProduccion.ts y del ya
+ * retirado src/lib/calculosPruebas.ts — mismo comportamiento exacto
+ * (mismos números), solo que ahora arma el cálculo a partir de las
+ * porciones de cada módulo en vez de un TurnoActivo combinado. La
+ * verificación es src/lib/reportes/pruebas.test.ts contra el CSV
+ * (17/17 casos, byte a byte contra la versión vieja al migrar).
  */
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
@@ -26,7 +27,7 @@ export function horasTranscurridasTurno(horaInicio: string, estado: "ABIERTO" | 
   // Turno cerrado: se mide hasta su hora de cierre (dato fijo), no hasta
   // "ahora". Así la meta de un turno viejo deja de moverse en cada
   // refresco del Panel y se puede reproducir/verificar contra un valor
-  // cargado a mano (ver src/lib/calculosPruebas.ts y su CSV).
+  // cargado a mano (ver src/lib/reportes/pruebas.ts y su CSV).
   const finReloj =
     estado === "CERRADO" && horaFin
       ? horaFin
@@ -152,7 +153,7 @@ export function calcularMeta(
 
 // ------------------------------------------------------------
 // Desglose — números crudos detrás de cada %, para el Panel (Área de
-// Pruebas) y para el test CSV. Antes en src/lib/calculosPruebas.ts.
+// Pruebas) y para el test CSV. Antes en el ya retirado src/lib/calculosPruebas.ts.
 // ------------------------------------------------------------
 
 export interface DesgloseCorrida {

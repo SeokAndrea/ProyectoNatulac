@@ -6,9 +6,9 @@ import CSV from "@/lib/__fixtures__/casos-calculo.csv?raw"
 
 /*
  * Verifica las fórmulas de Reportes (mermas y meta) contra los casos
- * reales cargados en src/lib/__fixtures__/casos-calculo.csv — mismo test
- * que src/lib/calculosPruebas.test.ts (Fase 1: se muda acá cuando
- * panelProduccion.ts/calculosPruebas.ts se retiren de verdad).
+ * reales cargados en src/lib/__fixtures__/casos-calculo.csv — reemplaza
+ * al ya retirado src/lib/calculosPruebas.test.ts (Fase 1). panelProduccion.ts
+ * sigue vivo aparte, solo para resolver qué turno mostrarle al Panel.
  *
  * Para agregar un caso nuevo: sumá filas al CSV con los datos del turno
  * y los valores esperados en las columnas esp_*. No hace falta tocar

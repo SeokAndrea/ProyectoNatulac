@@ -6,9 +6,9 @@
 # Las filas con el mismo valor en la columna "caso" forman un turno
 # completo y se evalúan juntas.
 #
-# Lo corre  src/lib/calculosPruebas.test.ts  con  npm test :
-#   arma un turno con estas filas, pasa por las MISMAS funciones que el
-#   Panel de Producción (src/lib/panelProduccion.ts / src/lib/turno.tsx)
+# Lo corre  src/lib/reportes/pruebas.test.ts  con  npm test :
+#   arma un turno con estas filas, pasa por las MISMAS funciones que
+#   usa el Panel de Producción (src/lib/reportes/index.ts)
 #   y compara el resultado contra las columnas esp_* de abajo.
 #
 # REGLAS DEL ARCHIVO

@@ -207,7 +207,7 @@ export function horasTranscurridasTurno(turno: TurnoActivo): number {
   // Turno cerrado: se mide hasta su hora de cierre (dato fijo), no
   // hasta "ahora". Así la meta de un turno viejo deja de moverse en
   // cada refresco del Panel y se puede reproducir/verificar contra un
-  // valor cargado a mano (ver src/lib/calculosPruebas.ts y su CSV).
+  // valor cargado a mano (ver src/lib/reportes/pruebas.ts y su CSV).
   const finReloj =
     turno.estado === "CERRADO" && turno.horaFin
       ? turno.horaFin

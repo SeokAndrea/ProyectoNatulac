@@ -13,7 +13,7 @@
  *      lee el CSV, corre cada caso por estas funciones y lo compara
  *      contra los valores cargados a mano en las columnas esp_*.
  *
- * Extraído de src/lib/calculosPruebas.ts (Fase 1) — mismo comportamiento,
+ * Extraído en su momento del ya retirado src/lib/calculosPruebas.ts (Fase 1) — mismo comportamiento,
  * ahora arma 4 arreglos por separado (preparaciones, corridas, contadores,
  * productoTerminado) en vez de un TurnoActivo único, con los nombres
  * renombrados del plan (turnoLineaId → corridaId, volumenL* → los nombres
