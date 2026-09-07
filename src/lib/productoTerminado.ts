@@ -179,13 +179,14 @@ export interface UseProductoTerminadoResultado {
 }
 
 /**
- * @param turnoIdElegido Si se pasa, muestra ESE turno (p. ej. Panel de
- * Producción) en vez del turno abierto del usuario logueado. Mismo
- * mecanismo que usePreparacion() — ver esa nota para el detalle.
+ * @param turnoIdElegido `undefined` = turno propio del usuario logueado;
+ * string = ese turno puntual; `null` = explícitamente ninguno (no cae al
+ * turno propio). Mismo mecanismo que usePreparacion() — ver esa nota
+ * para el detalle completo.
  */
-export function useProductoTerminado(turnoIdElegido?: string): UseProductoTerminadoResultado {
+export function useProductoTerminado(turnoIdElegido?: string | null): UseProductoTerminadoResultado {
   const sesion = useSesionTurno()
-  const turnoId = turnoIdElegido ?? sesion.turnoId
+  const turnoId = turnoIdElegido === undefined ? sesion.turnoId : turnoIdElegido
   const usuario = sesion.usuario
 
   const [registros, setRegistros] = useState<ProductoTerminadoRegistro[]>([])

@@ -53,15 +53,22 @@ export interface UsePreparacionResultado {
 }
 
 /**
- * @param turnoIdElegido Si se pasa, muestra ESE turno (p. ej. Panel de
- * Producción, mirando el turno de cualquier supervisor/fecha) en vez del
- * turno abierto del usuario logueado. `usuario` sigue siendo siempre el
- * que está logueado — mutar (si se llegara a hacer) queda atribuido a
- * quien está mirando, no al dueño original del turno.
+ * @param turnoIdElegido Tres casos: **omitido** (`undefined`) — usa el
+ * turno abierto del usuario logueado (páginas normales de trabajo).
+ * **string** — muestra ESE turno puntual (p. ej. Panel de Producción,
+ * mirando el turno de cualquier supervisor/fecha). **`null`** —
+ * explícitamente NINGÚN turno (p. ej. Panel todavía no resolvió cuál
+ * mostrar, o no hay ninguno para esa fecha/área): NO cae al turno propio
+ * del usuario logueado, muestra vacío. Esta distinción evita que un
+ * supervisor mirando el Panel de otra área/fecha vea, por un instante o
+ * por error, los datos de SU PROPIO turno en vez de nada.
+ * `usuario` sigue siendo siempre el que está logueado — mutar (si se
+ * llegara a hacer) queda atribuido a quien está mirando, no al dueño
+ * original del turno.
  */
-export function usePreparacion(turnoIdElegido?: string): UsePreparacionResultado {
+export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionResultado {
   const sesion = useSesionTurno()
-  const turnoId = turnoIdElegido ?? sesion.turnoId
+  const turnoId = turnoIdElegido === undefined ? sesion.turnoId : turnoIdElegido
   const usuario = sesion.usuario
 
   const [tanques, setTanques] = useState<TanqueRecepcion[]>([])
