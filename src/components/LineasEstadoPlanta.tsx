@@ -334,7 +334,7 @@ function LineaCard({
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {condicionLinea === "CIP" ? (
             <Button size="sm" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("LISTA")}>
               {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
@@ -388,7 +388,7 @@ function LineaCard({
           />
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-muted-foreground">{observacionBorrador.length}/140</span>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="ghost" onClick={() => setFallaPendiente(false)} disabled={enviandoAccion}>
                 Cancelar
               </Button>
@@ -541,7 +541,7 @@ function LineaCard({
           </p>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" disabled={!valido || guardando} onClick={guardar}>
             {guardando ? <Loader2 className="size-3.5 animate-spin" /> : null}
             Guardar
@@ -612,7 +612,7 @@ function LineaCard({
                 Se terminó el lote{lineaTurno.lote ? ` ${lineaTurno.lote}` : ""} que estaba usando esta corrida — ¿terminó el
                 sabor o sigue con el siguiente lote?
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => accion(onContinuarSiguienteLote)} disabled={enviandoAccion}>
                   {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
                   Continuar al siguiente lote
@@ -658,7 +658,7 @@ function LineaCard({
           ) : !editando && !detener && editandoEstadoLinea ? (
             renderEstadoLinea()
           ) : !editando && !detener ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={empezarEdicion}>
                 <PenLine className="size-3.5" />
                 {activa ? "Editar" : "Activar corrida"}
@@ -685,7 +685,7 @@ function LineaCard({
           !lineaTurno.confirmadoInicioEn ? (
             <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
               <p className="text-sm text-foreground">{nombreLinea}: así quedó del turno anterior — confirma o corrige.</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={enviandoAccion} onClick={() => accion(onConfirmarEstadoLinea)}>
                   {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
                   Confirmar
@@ -701,7 +701,7 @@ function LineaCard({
               )}
             </div>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={empezarEdicion}>
                 <PenLine className="size-3.5" />
                 Editar
