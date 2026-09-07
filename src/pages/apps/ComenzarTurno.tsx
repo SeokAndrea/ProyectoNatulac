@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GRUPOS, TURNO_TIPOS, nombrePorCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
-import { useTurno, type DatosNuevoTurno, type TurnoActivo } from "@/lib/turno"
+import { useSesionTurno } from "@/lib/sesionTurno"
 
 const fechaHoy = new Date().toLocaleDateString("es-CO", {
   weekday: "long",
@@ -25,10 +25,10 @@ const fechaHoy = new Date().toLocaleDateString("es-CO", {
  * (src/pages/apps/Status.tsx) para revisarlos.
  */
 export default function ComenzarTurno() {
-  const { turnoActivo, cargando, iniciarTurno } = useTurno()
+  const sesion = useSesionTurno()
   const navigate = useNavigate()
 
-  if (cargando) {
+  if (sesion.cargando) {
     return (
       <AppShell title="Comenzar Turno" description="Registro de inicio de turno">
         <div className="flex justify-center py-16 text-muted-foreground">
@@ -38,11 +38,11 @@ export default function ComenzarTurno() {
     )
   }
 
-  if (turnoActivo) {
-    return <TurnoYaEnCurso turno={turnoActivo} />
+  if (sesion.turnoId) {
+    return <TurnoYaEnCurso codigo={sesion.codigo!} turnoTipo={sesion.turnoTipo!} grupo={sesion.grupo!} />
   }
 
-  return <FormularioNuevoTurno onIniciar={iniciarTurno} onCreado={() => navigate("/status")} />
+  return <FormularioNuevoTurno onIniciar={sesion.iniciarTurno} onCreado={() => navigate("/status")} />
 }
 
 /*
@@ -51,15 +51,15 @@ export default function ComenzarTurno() {
  * (eso vive en Finalizar Turno, src/pages/apps/FinalizarTurno.tsx) —
  * solo avisa y manda para allá.
  */
-function TurnoYaEnCurso({ turno }: { turno: TurnoActivo }) {
+function TurnoYaEnCurso({ codigo, turnoTipo, grupo }: { codigo: string; turnoTipo: TurnoTipoCodigo; grupo: GrupoCodigo }) {
   return (
     <AppShell title="Comenzar Turno" description="Ya hay un turno en curso">
       <Card className="mx-auto max-w-lg">
         <CardHeader>
           <CardTitle>Ya tienes un turno en curso</CardTitle>
           <CardDescription>
-            Código {turno.codigo} · {nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)} ·{" "}
-            {nombrePorCodigo(GRUPOS, turno.grupo)}. Para iniciar uno nuevo, primero cierra el actual
+            Código {codigo} · {nombrePorCodigo(TURNO_TIPOS, turnoTipo)} ·{" "}
+            {nombrePorCodigo(GRUPOS, grupo)}. Para iniciar uno nuevo, primero cierra el actual
             desde Finalizar Turno.
           </CardDescription>
         </CardHeader>
@@ -80,7 +80,7 @@ function FormularioNuevoTurno({
   onIniciar,
   onCreado,
 }: {
-  onIniciar: (datos: DatosNuevoTurno) => Promise<{ ok: true } | { ok: false; error: string }>
+  onIniciar: (turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
   onCreado: () => void
 }) {
   const [turnoTipo, setTurnoTipo] = useState<TurnoTipoCodigo | "">("")
@@ -96,7 +96,7 @@ function FormularioNuevoTurno({
     setEnviando(true)
     setError(null)
 
-    const resultado = await onIniciar({ turnoTipo, grupo })
+    const resultado = await onIniciar(turnoTipo, grupo)
     setEnviando(false)
     if (!resultado.ok) {
       setError(resultado.error)

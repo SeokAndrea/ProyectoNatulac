@@ -3,14 +3,21 @@ import { Lock } from "lucide-react"
 import { AppHeader } from "@/components/AppHeader"
 import { Logo } from "@/components/Logo"
 import { useAuth } from "@/lib/auth"
-import { revisionInicioCompleta, useTurno } from "@/lib/turno"
+import { useSesionTurno } from "@/lib/sesionTurno"
+import { usePreparacion } from "@/lib/preparacion/usePreparacion"
+import { useProduccion } from "@/lib/produccion/useProduccion"
 import { apps, type AppDef } from "@/lib/apps"
 import { cn } from "@/lib/utils"
 
 export default function Hub() {
   const { session } = useAuth()
-  const { turnoActivo } = useTurno()
-  const revisionInicioHecha = turnoActivo ? revisionInicioCompleta(turnoActivo) : false
+  const sesion = useSesionTurno()
+  const { tanques } = usePreparacion()
+  const { corridas } = useProduccion()
+  const turnoActivo = sesion.turnoId !== null
+  /** Revisión de inicio completa: los 3 tanques y toda corrida activa quedaron confirmados (mismo criterio que Status.tsx). */
+  const revisionInicioHecha =
+    turnoActivo && tanques.every((t) => t.confirmadoInicioEn !== null) && corridas.filter((c) => c.activa).every((c) => c.confirmadoInicioEn !== null)
   const appsVisibles = apps.filter((app) => !app.rolesPermitidos || (session && app.rolesPermitidos.includes(session.rol)))
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
@@ -35,7 +42,7 @@ export default function Hub() {
           {atajos.length > 0 && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:w-auto lg:shrink-0">
               {atajos.map((app) => (
-                <TarjetaAtajo key={app.slug} app={app} turnoActivo={turnoActivo !== null} />
+                <TarjetaAtajo key={app.slug} app={app} turnoActivo={turnoActivo} />
               ))}
             </div>
           )}
@@ -43,7 +50,7 @@ export default function Hub() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {principales.map((app) => (
-            <TarjetaApp key={app.slug} app={app} turnoActivo={turnoActivo !== null} revisionInicioHecha={revisionInicioHecha} />
+            <TarjetaApp key={app.slug} app={app} turnoActivo={turnoActivo} revisionInicioHecha={revisionInicioHecha} />
           ))}
         </div>
       </main>
