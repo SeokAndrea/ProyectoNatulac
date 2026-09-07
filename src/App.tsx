@@ -6,6 +6,7 @@ import Hub from "@/pages/Hub"
 import ComenzarTurno from "@/pages/apps/ComenzarTurno"
 import Status from "@/pages/apps/Status"
 import Preparacion from "@/pages/apps/Preparacion"
+import Lineas from "@/pages/apps/Lineas"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
@@ -71,6 +72,14 @@ export default function App() {
         element={
           <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
             <Preparacion />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lineas"
+        element={
+          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
+            <Lineas />
           </ProtectedRoute>
         }
       />

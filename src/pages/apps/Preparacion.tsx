@@ -1,36 +1,37 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { Beaker, Loader2 } from "lucide-react"
+import { Beaker, Factory, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { EstadoPlantaTabs } from "@/components/EstadoPlantaTabs"
 import { Button } from "@/components/ui/button"
-import { useCatalogosLive } from "@/lib/catalogosLive"
+import { useSesionTurno } from "@/lib/sesionTurno"
 import { listarSabores, type Sabor } from "@/lib/sabores"
-import { useTurno } from "@/lib/turno"
 
 /*
- * Preparación: arrancar cosas NUEVAS — iniciar y liberar un tanque,
- * activar o detener una corrida (ver src/components/EstadoPlantaTabs.tsx,
- * modo="preparacion"). Preparar un tanque y activar una línea son
- * pasos seguidos ("libero el tanque, activo la línea"), por eso viven
- * juntos acá. También tiene "Corregir" (igual que Status) para el
- * día a día — Status queda para la revisión puntual de inicio de
- * turno. Disponible en cualquier momento del turno, no solo justo
- * después de Comenzar Turno.
+ * Preparación: arrancar cosas NUEVAS en TANQUES — iniciar y liberar un
+ * tanque (ver src/components/EstadoPlantaTabs.tsx, modo="preparacion").
+ * También tiene "Corregir" (igual que Status) para el día a día —
+ * Status queda para la revisión puntual de inicio de turno. Disponible
+ * en cualquier momento del turno, no solo justo después de Comenzar
+ * Turno.
+ *
+ * Líneas ya NO vive acá — tiene su propia página (src/pages/apps/Lineas.tsx),
+ * ver plan-rework-3-modulos-y-merma.md, Fase 1. Se deja un atajo abajo
+ * porque preparar un tanque y activar una línea son pasos seguidos
+ * ("libero el tanque, activo la línea").
  */
 export default function Preparacion() {
-  const { turnoActivo, cargando } = useTurno()
-  const { cargando: cargandoCatalogos } = useCatalogosLive()
+  const { turnoId, codigo, cargando } = useSesionTurno()
   const [sabores, setSabores] = useState<Sabor[]>([])
 
   useEffect(() => {
     listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
   }, [])
 
-  if (cargando || cargandoCatalogos) {
+  if (cargando) {
     return (
-      <AppShell title="Preparación y Producción" description="Tanques y líneas de la planta" fullWidth>
+      <AppShell title="Preparación" description="Tanques de la planta" fullWidth>
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
@@ -38,9 +39,9 @@ export default function Preparacion() {
     )
   }
 
-  if (!turnoActivo) {
+  if (!turnoId) {
     return (
-      <AppShell title="Preparación y Producción" description="Tanques y líneas de la planta" fullWidth>
+      <AppShell title="Preparación" description="Tanques de la planta" fullWidth>
         <EmptyState
           icon={Beaker}
           title="Primero debes iniciar un turno"
@@ -56,8 +57,18 @@ export default function Preparacion() {
   }
 
   return (
-    <AppShell title="Preparación y Producción" description={`Turno ${turnoActivo.codigo}`} fullWidth>
-      <EstadoPlantaTabs turno={turnoActivo} sabores={sabores} modo="preparacion" />
+    <AppShell title="Preparación" description={`Turno ${codigo}`} fullWidth>
+      <div className="flex flex-col gap-4">
+        <EstadoPlantaTabs sabores={sabores} modo="preparacion" />
+        <div className="flex justify-center">
+          <Button asChild variant="outline">
+            <Link to="/lineas">
+              <Factory className="size-3.5" />
+              Ir a Líneas
+            </Link>
+          </Button>
+        </div>
+      </div>
     </AppShell>
   )
 }
