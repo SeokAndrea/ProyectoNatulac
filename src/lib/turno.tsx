@@ -566,7 +566,7 @@ export function fechaLocal(d: Date) {
   return `${anio}-${mes}-${dia}`
 }
 
-function horaLocal(d: Date) {
+export function horaLocal(d: Date) {
   const horas = String(d.getHours()).padStart(2, "0")
   const minutos = String(d.getMinutes()).padStart(2, "0")
   const segundos = String(d.getSeconds()).padStart(2, "0")
