@@ -11,7 +11,7 @@
  * botones a los supervisores sin haber hecho el trabajo de reemplazo.
  */
 import { supabase } from "@/lib/supabase"
-import type { DatosCambiarTanque, ModoTransferencia, Resultado } from "./tipos"
+import type { DatosCambiarTanque, ModoTransferencia, MotivoTransferencia, Resultado } from "./tipos"
 
 /** Solo antes de liberar el lote — suma litros (agua/jugo) al volumen. */
 export async function ajustarPreparacion(
@@ -40,6 +40,7 @@ export async function transferirTanque(
   numeroTanqueOrigen: 1 | 2 | 3,
   numeroTanqueDestino: 1 | 2 | 3,
   modo: ModoTransferencia,
+  motivo: MotivoTransferencia,
 ): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("transferir_tanque", {
     p_usuario: usuario,
@@ -47,6 +48,7 @@ export async function transferirTanque(
     p_numero_tanque_origen: numeroTanqueOrigen,
     p_numero_tanque_destino: numeroTanqueDestino,
     p_modo: modo,
+    p_motivo: motivo,
   })
 
   if (error || !data) {

@@ -412,14 +412,23 @@ ahí el PT total es simplemente 0/0, una respuesta válida y explícita, no un v
 ### 2.4 — Transferencias: motivo como enum
 
 Tabla nueva `transferencias` (`turno_id, tanque_origen, tanque_destino, litros, modo, motivo,
-usuario_id, creado_en`) con `motivo` enum: `CONSOLIDAR_RESTOS | ENRUTAR_MANIFOLD |
-DESVASE_PIPA` — el enrutamiento por manifold (mover el lote para no parar la línea, confirmado
-en el Contexto) es uno de los motivos reales, no un caso aparte.
+usuario_id, creado_en`) con `motivo` enum `motivo_transferencia`: `CONSOLIDAR_RESTOS |
+ENRUTAR_MANIFOLD` — el enrutamiento por manifold (mover el lote para no parar la línea,
+confirmado en el Contexto) es uno de los dos motivos reales, no un caso aparte. Hecho en
+`20261016090000_transferencias_log.sql` (`transferir_tanque` gana `p_motivo` y escribe una
+fila; la UI de Transferir gana un selector de 2 opciones — "Consolidar restos" / "No parar la
+línea").
 
-`LIBERAR_LOTE` se descartó (decisión del dueño): existió alguna vez porque a veces
-"reemplazaban todo" — era manejo de desastre, no una categoría real. Todo resto de
-semielaborado va a otro tanque (`CONSOLIDAR_RESTOS` / `ENRUTAR_MANIFOLD`) o a una pipa
-(`DESVASE_PIPA`); descartarlo no existe en la operación.
+**Solo transferencias tanque→tanque** (decisión 2026-09-08). El desvase a pipa ya queda
+registrado en su propia tabla `desvases` (área, sabor, litros, lote_origen) — no se duplica en
+`transferencias`, y por eso el enum no lleva `DESVASE_PIPA`. `LIBERAR_LOTE` también se
+descartó: existió porque a veces "reemplazaban todo" — manejo de desastre, no una categoría
+real. Todo resto de semielaborado va a otro tanque (`CONSOLIDAR_RESTOS` / `ENRUTAR_MANIFOLD`)
+o a una pipa (Desvasar); descartarlo no existe en la operación.
+
+**Pendiente para 2.1-bis:** la confirmación de Transferir sigue siendo un panel inline, no un
+modal — el selector de motivo se sumó ahí. Pasarlo a modal es trabajo de 2.1-bis (regla de
+redacción 2 del Contexto).
 
 **Nota de vocabulario — `envasar` ≠ `desvasar`:** "Envasar" en la planta es poner el jugo en
 su empaque final (Producto Terminado). Lo que la función `envasar_tanque()` hacía es lo

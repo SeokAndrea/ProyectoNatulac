@@ -33,6 +33,7 @@ import type {
   FilaPreparacion,
   FilaTanque,
   ModoTransferencia,
+  MotivoTransferencia,
   PreparacionRegistro,
   Resultado,
   TanqueRecepcion,
@@ -55,6 +56,7 @@ export interface UsePreparacionResultado {
     numeroTanqueOrigen: 1 | 2 | 3,
     numeroTanqueDestino: 1 | 2 | 3,
     modo: ModoTransferencia,
+    motivo: MotivoTransferencia,
   ) => Promise<Resultado>
   desvasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
@@ -136,9 +138,10 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     numeroTanqueOrigen: 1 | 2 | 3,
     numeroTanqueDestino: 1 | 2 | 3,
     modo: ModoTransferencia,
+    motivo: MotivoTransferencia,
   ): Promise<Resultado> {
     if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
-    const resultado = await transferirTanqueAccion(usuario, turnoId, numeroTanqueOrigen, numeroTanqueDestino, modo)
+    const resultado = await transferirTanqueAccion(usuario, turnoId, numeroTanqueOrigen, numeroTanqueDestino, modo, motivo)
     if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
     return resultado
   }

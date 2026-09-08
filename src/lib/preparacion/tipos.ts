@@ -23,6 +23,9 @@ export type CondicionTanque = "LISTO" | "SUCIO" | "EN_PREPARACION" | "STANDBY" |
 
 export type ModoTransferencia = "LIQUIDO" | "LOTE"
 
+/** Por qué se transfiere — lista fija, ver migración 20261016090000. */
+export type MotivoTransferencia = "CONSOLIDAR_RESTOS" | "ENRUTAR_MANIFOLD"
+
 export type Resultado = { ok: true } | { ok: false; error: string }
 
 export interface TanqueRecepcion {

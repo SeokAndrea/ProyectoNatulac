@@ -26,7 +26,15 @@ import { colorSabor } from "@/lib/coloresSabor"
 import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
 import { cn } from "@/lib/utils"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
-import type { CondicionTanque, DatosCambiarTanque, DatosIniciarPreparacion, ModoTransferencia, PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
+import type {
+  CondicionTanque,
+  DatosCambiarTanque,
+  DatosIniciarPreparacion,
+  ModoTransferencia,
+  MotivoTransferencia,
+  PreparacionRegistro,
+  TanqueRecepcion,
+} from "@/lib/preparacion/tipos"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { Corrida } from "@/lib/produccion/tipos"
 
@@ -210,7 +218,12 @@ function TanqueCard({
   onIniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onLiberarLote: (loteId: string) => Promise<Resultado>
   onAjustar: (loteId: string, litros: number, detalle: string | null) => Promise<Resultado>
-  onTransferir: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3, modo: ModoTransferencia) => Promise<Resultado>
+  onTransferir: (
+    numeroTanqueOrigen: 1 | 2 | 3,
+    numeroTanqueDestino: 1 | 2 | 3,
+    modo: ModoTransferencia,
+    motivo: MotivoTransferencia,
+  ) => Promise<Resultado>
   onDesvasar: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   onReactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   onDescartarResto: (numeroTanque: 1 | 2 | 3, motivo: string) => Promise<Resultado>
@@ -227,6 +240,7 @@ function TanqueCard({
   const [mostrarTransferir, setMostrarTransferir] = useState(false)
   const [tanqueDestino, setTanqueDestino] = useState<1 | 2 | 3 | "">("")
   const [modoTransferencia, setModoTransferencia] = useState<ModoTransferencia>("LIQUIDO")
+  const [motivoTransferencia, setMotivoTransferencia] = useState<MotivoTransferencia>("CONSOLIDAR_RESTOS")
   const [confirmandoRedireccion, setConfirmandoRedireccion] = useState(false)
   const [transfiriendo, setTransfiriendo] = useState(false)
   const [errorTransferir, setErrorTransferir] = useState<string | null>(null)
@@ -284,7 +298,7 @@ function TanqueCard({
     }
     setTransfiriendo(true)
     setErrorTransferir(null)
-    const resultado = await onTransferir(tanque.numeroTanque, tanqueDestino, modoTransferencia)
+    const resultado = await onTransferir(tanque.numeroTanque, tanqueDestino, modoTransferencia, motivoTransferencia)
     setTransfiriendo(false)
     if (!resultado.ok) {
       setErrorTransferir(resultado.error)
@@ -296,6 +310,7 @@ function TanqueCard({
     setErrorMedir(null)
     setTanqueDestino("")
     setModoTransferencia("LIQUIDO")
+    setMotivoTransferencia("CONSOLIDAR_RESTOS")
     setConfirmandoRedireccion(false)
   }
 
@@ -672,6 +687,28 @@ function TanqueCard({
               </SelectContent>
             </Select>
 
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs text-muted-foreground">¿Por qué se transfiere?</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={motivoTransferencia === "CONSOLIDAR_RESTOS" ? "default" : "outline"}
+                  onClick={() => setMotivoTransferencia("CONSOLIDAR_RESTOS")}
+                >
+                  Consolidar restos
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={motivoTransferencia === "ENRUTAR_MANIFOLD" ? "default" : "outline"}
+                  onClick={() => setMotivoTransferencia("ENRUTAR_MANIFOLD")}
+                >
+                  No parar la línea
+                </Button>
+              </div>
+            </div>
+
             {destinoConLotePropio && (
               <div className="flex flex-col gap-1.5">
                 <p className="text-xs text-muted-foreground">
@@ -748,6 +785,8 @@ function TanqueCard({
                 onClick={() => {
                   setMostrarTransferir(false)
                   setTanqueDestino("")
+                  setModoTransferencia("LIQUIDO")
+                  setMotivoTransferencia("CONSOLIDAR_RESTOS")
                   setConfirmandoRedireccion(false)
                   setErrorTransferir(null)
                 }}
