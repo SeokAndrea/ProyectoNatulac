@@ -43,7 +43,7 @@ declare
   v_id uuid;
 begin
   if p_temperatura_quantum is null and p_agua_osmotizada is null then
-    raise exception 'Cargá al menos un valor.';
+    raise exception 'Carga al menos un valor.';
   end if;
 
   select id into v_usuario_id from usuarios where usuario = lower(p_usuario);

@@ -6,6 +6,28 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
 
 ---
 
+## Agenda
+
+### 2026-09-09
+
+1. **Servicios Industriales a LIVE** *(primero del día)*. El módulo ya
+   está hecho (commit `443a870`): migración
+   `20261012090000_lecturas_servicios_industriales.sql` + página
+   `src/pages/apps/ServiciosIndustriales.tsx` (ruta `/servicios-industriales`,
+   en `apps.tsx` y `App.tsx`) + su bloque en el Panel de Producción.
+   Falta **subirlo a producción** (WinSCP del frontend +
+   `npx supabase db push` — la migración `20261012` crea la tabla).
+   - La tabla `servicios_industriales_lecturas` es **append-only**: una
+     fila por actualización (`temperatura_quantum`, `agua_osmotizada`,
+     `usuario_id`, `creado_en`). Para tendencias ya guarda todo el
+     histórico — el requisito de "ver tendencias después" queda cubierto
+     con solo deployar; falta después una **vista de tendencia** (hoy el
+     Panel solo lee la última lectura vía
+     `lectura_servicios_industriales_actual()`).
+2. Push del batch `20261022`–`20261024` (ver "Cómo subir").
+
+---
+
 ## Resumen
 
 **9 migraciones** (`20261013`–`20261021`) + su frontend — **ya subidas** el
