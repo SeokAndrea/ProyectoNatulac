@@ -38,7 +38,7 @@ export interface UseProduccionResultado {
   cargando: boolean
   recargar: () => Promise<void>
   activarLinea: (datos: DatosActivarLinea) => Promise<Resultado>
-  pausarLinea: (corridaId: string) => Promise<Resultado>
+  pausarLinea: (corridaId: string, motivo?: string) => Promise<Resultado>
   continuarLinea: (corridaId: string) => Promise<Resultado>
   terminarSaborLinea: (corridaId: string) => Promise<Resultado>
   terminarLinea: (corridaId: string) => Promise<Resultado>

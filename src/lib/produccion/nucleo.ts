@@ -40,8 +40,18 @@ export async function activarLinea(
   return { ok: true, data }
 }
 
-export async function pausarLinea(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
-  const { data, error } = await supabase.rpc("pausar_linea", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })
+export async function pausarLinea(
+  usuario: string,
+  turnoId: string,
+  corridaId: string,
+  motivo?: string,
+): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("pausar_linea", {
+    p_usuario: usuario,
+    p_turno_id: turnoId,
+    p_turno_linea_id: corridaId,
+    p_motivo: motivo ?? null,
+  })
   if (error || !data) return { ok: false, error: "No se pudo pausar la línea. Intenta de nuevo." }
   return { ok: true, data }
 }
