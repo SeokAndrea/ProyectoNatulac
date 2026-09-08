@@ -8,7 +8,7 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
 
 ## Resumen
 
-**7 migraciones nuevas** (`20261013`–`20261019`) + su frontend, listas para
+**8 migraciones nuevas** (`20261013`–`20261020`) + su frontend, listas para
 subir **como un solo batch**. Desde `4d8f75b`. `npm run build` + `npm test`
 (58) en verde en cada commit.
 
@@ -113,6 +113,15 @@ sobre `cerrar_corrida_si_esperando`). Se consolida:
 `scripts/test-costura2-cierre-corrida.sql`
 → `fc29b1f` (base) · `6256380` (frontend Líneas) · `25d33e6` (fix cierre PT) · `0a22290` (fix Finalizar)
 
+### `20261020` — Advisory lock en `iniciar_preparacion` + retira `finalizar_lote` (§2.3)
+La guarda de "nº de lote repetido para el mismo sabor en otro tanque de la
+misma área" era check-then-act: dos preparaciones concurrentes del mismo
+lote podían pasar las dos y duplicar. Ahora un
+`pg_advisory_xact_lock(hashtextextended(area|sabor|nº lote))` antes del
+`exists` las serializa. `finalizar_lote` (huérfana — solo la llamaba
+`turno.tsx` muerto) se dropea en la misma migración.
+`scripts/test-iniciar-preparacion-advisory-lock.sql` → este commit
+
 ### `20261019` — Turno nocturno: la fecha es la del día operativo (§2.10)
 Bug real (Javier, noche 2026-09-07→08): activó el Turno 3 pasada la
 medianoche y quedó como Turno 3 del día siguiente. Ahora `iniciar_turno`,
@@ -158,7 +167,7 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 | Sección | Qué |
 | --- | --- |
 | **§2.1 (tanque)** | Retirar `reactivar_lote`, `descartar_resto_tanque`, `cambiar_condicion_tanque` + `TanqueEditForm` + confirmaciones §2.1-bis. Es el espejo, del lado tanque, de lo que se hizo en líneas con costura 2. |
-| **§2.3** | `pg_advisory_xact_lock` en `iniciar_preparacion` (TOCTOU nº de lote); ampliar `posibleDuplicado` en VALIDAR; confirmar que nadie llama `finalizar_lote` antes de limpiarlo; decisión pendiente del dueño sobre reutilización de nº de lote tras cerrar. |
+| **§2.3** | *Hecho:* advisory lock en `iniciar_preparacion`, `finalizar_lote` dropeada (`20261020`). *Falta:* ampliar `posibleDuplicado` en VALIDAR; decisión del dueño sobre reutilización de nº de lote tras cerrar. |
 | **§2.5** | Capturar el residuo de línea (~5% / 500 L) al cortar un lote — hoy ese volumen desaparece sin rastro. |
 | **§2.6** | Envases buenos (Contador 2) como comparación visible de toda corrida (`Δenvases = |buenos − PT|`). |
 | **§2.9** | Dropear columnas muertas de `producto_terminado` (`producto_retenido`, `cajas_retenidas`, `editado_por`, `editado_en`); retirar el mecanismo de entregas parciales. **Destructivo → push propio.** |
@@ -167,7 +176,7 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 ## Cómo subir
 
-- Las **7 migraciones** (`20261013`–`20261019`) + **todo el frontend** van
+- Las **8 migraciones** (`20261013`–`20261020`) + **todo el frontend** van
   **JUNTAS**: un WinSCP + un `npx supabase db push` + un
   `docker compose --profile preview up -d --build`. **No** partir el batch —
   cada migración cambia nombres de RPC / comportamiento y su frontend va con

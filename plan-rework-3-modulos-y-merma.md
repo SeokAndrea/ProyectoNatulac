@@ -518,14 +518,19 @@ la tarjeta de línea queda con estos botones y nada más:
 
 ### 2.3 — Guardrails abiertos de `plan-rework-auditoria.md` §7.5/§7.6
 
-- TOCTOU en el candado de número de lote (`iniciar_preparacion`): `pg_advisory_xact_lock`.
-- Duplicados más allá de "totales idénticos": ampliar `posibleDuplicado` a "N corridas con PT
-  propio para línea+lote+presentación", mostrarlo en VALIDAR. Es la red de seguridad que
-  reemplaza el bloqueo duro de `activar_linea` de `20261003` (ver Fase 1 costura 2): repetir
-  línea+lote se permite, pero queda marcado para revisión.
-- `finalizar_lote` huérfano: confirmar que nadie lo llama antes de limpiar.
-- Reutilización de número de lote tras cerrar: sigue pendiente de decisión del dueño entre las
-  3 opciones ya escritas en el documento original.
+- **HECHO** — TOCTOU en el candado de número de lote (`iniciar_preparacion`):
+  `pg_advisory_xact_lock(hashtextextended(area|sabor|nº lote))` antes del `exists`, en
+  `20261020090000_iniciar_preparacion_advisory_lock.sql`. Dos preparaciones concurrentes del
+  mismo lote se serializan; la 2a ve la fila de la 1a y corta.
+- **HECHO** — `finalizar_lote` huérfano: confirmado que solo lo llama `src/lib/turno.tsx`
+  (TurnoProvider muerto, se borra en Fase 4) y ninguna función SQL. Dropeada en la misma
+  migración.
+- **Pendiente** — Duplicados más allá de "totales idénticos": ampliar `posibleDuplicado` a "N
+  corridas con PT propio para línea+lote+presentación", mostrarlo en VALIDAR. Es la red de
+  seguridad que reemplaza el bloqueo duro de `activar_linea` de `20261003` (ver Fase 1 costura
+  2): repetir línea+lote se permite, pero queda marcado para revisión.
+- **Pendiente** — Reutilización de número de lote tras cerrar: sigue pendiente de decisión del
+  dueño entre las 3 opciones ya escritas en el documento original.
 
 ### 2.4 — Transferencias: motivo como enum
 
