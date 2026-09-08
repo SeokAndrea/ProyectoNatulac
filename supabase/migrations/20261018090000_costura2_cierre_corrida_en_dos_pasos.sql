@@ -74,8 +74,19 @@ begin
   end if;
 
   if coalesce(v_volumen, 0) > 0 then
-    return;                                  -- la linea paro antes de vaciarlo;
-                                             -- Preparacion lo maneja (transferir/desvasar/reusar)
+    -- La linea paro antes de vaciar el lote (falla / fin de turno / cambio
+    -- de linea). El lote NO se cierra, queda abierto. El tanque se deja
+    -- COMO ESTABA (tipicamente LISTO) para que otra linea lo tome o
+    -- Preparacion lo transfiera/desvase/reuse.
+    --
+    -- OJO -- PROBAR EN PLANTA: antes, cerrar_corrida_si_esperando dejaba
+    -- ese tanque en STANDBY ("tiene resto, parado"). Ahora se queda en
+    -- LISTO. Decidido asi (el dueno, 2026-09-08) porque SUCIO+STANDBY se
+    -- van a fusionar (§2.1) y "resto -> LISTO -> otra linea lo toma" es el
+    -- flujo buscado. Hay que confirmar EN LA OPERACION REAL que ver un
+    -- tanque LISTO con resto (en vez de STANDBY) no confunde al supervisor
+    -- ni rompe ninguna vista del dashboard que filtre por STANDBY.
+    return;
   end if;
 
   -- Lote agotado y sin corrida activa: se cierra.

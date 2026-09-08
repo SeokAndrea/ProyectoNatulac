@@ -462,7 +462,11 @@ Resumen de lo que toca la base y el frontend acá:
   cerrando la corrida. Ninguna función de Producción escribe en `recepcion_tanques` /
   `preparaciones`.
 - `revisarCierreDeLote(loteId)` del lado de Preparación (cierra el lote/tanque solo cuando
-  `volumen_l ≈ 0` y ninguna corrida activa le apunta).
+  `volumen_l ≈ 0` y ninguna corrida activa le apunta). Si el lote quedó con resto → tanque se
+  deja **COMO ESTABA** (típicamente LISTO), ya no pasa a STANDBY como antes. Decidido así
+  (fusión SUCIO+STANDBY de §2.1 viene igual). **Marcado para probar en planta**: que un tanque
+  LISTO con resto no confunda ni rompa vistas del dashboard que filtren por STANDBY — hay un
+  comentario `OJO -- PROBAR EN PLANTA` en la migración `20261018090000`.
 - `finalizar_turno` gana el guard: rechaza si hay una corrida en `ESPERANDO_PT`. El flujo de
   Finalizar además **obliga**, por cada línea con corrida activa/en Parada: cargar el PT del
   tramo de ESE turno + elegir **Terminar** o **Entregar línea** (renombre de
