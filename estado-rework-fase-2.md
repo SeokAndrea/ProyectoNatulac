@@ -185,8 +185,8 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 | **§2.1 (tanque)** | *Hecho:* `medir_tanque` extraída, `reactivar_lote` y `descartar_resto_tanque` dropeadas (`20261021`). *Falta:* narrowear el CIP + confirmar INICIO/FIN para poder dropear `cambiar_condicion_tanque` + `TanqueEditForm`. |
 | **§2.3** | *Hecho:* advisory lock en `iniciar_preparacion`, `finalizar_lote` dropeada (`20261020`). *Falta:* ampliar `posibleDuplicado` en VALIDAR; decisión del dueño sobre reutilización de nº de lote tras cerrar. |
 | **§2.5** | Capturar el residuo de línea (~5% / 500 L) al cortar un lote — hoy ese volumen desaparece sin rastro. |
-| **§2.6** | Envases buenos (Contador 2) como comparación visible de toda corrida (`Δenvases = |buenos − PT|`). |
-| **§2.9** | Dropear columnas muertas de `producto_terminado` (`producto_retenido`, `cajas_retenidas`, `editado_por`, `editado_en`); retirar el mecanismo de entregas parciales. **Destructivo → push propio.** |
+| **§2.6** | *Hecho:* Contador 2 (envases buenos) obligatorio en el form de PT, no puede superar la llenadora (`aa8a9ea`... `8fdcf42`). *Falta:* mostrar el `Δenvases` visible en toda corrida; guard de servidor en `registrar_contador`. |
+| **§2.9** | *Hecho:* frontend sin entregas parciales — ya no se pueden crear (`ced6b2e`). *Falta (destructivo, push propio, necesita Docker):* dropear `producto_terminado_parciales` + columnas `{tiene_parciales, producto_retenido, cajas_retenidas, editado_por, editado_en}` + `contadores.parcial`; reescribir 6 funciones que las referencian (`registrar_producto_terminado`, `registrar_contador`, `turno_json`, `listar_validacion_produccion`, `estadisticas_produccion`, `historial_dia_area`). |
 
 ---
 

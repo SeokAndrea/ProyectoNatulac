@@ -604,6 +604,20 @@ Documentado para que ninguna sesión futura lo "arregle" interpretándolo como u
 
 ### 2.9 — Producto Terminado: qué más se puede sacar (auditado a fondo)
 
+**Estado (2026-09-08):**
+- **HECHO — frontend sin entregas parciales.** `ProductoTerminado.tsx` ya no puede crear
+  entregas parciales: se retiró el botón "Sumar paletas y continuar lote" + `entregarParcial()`
+  + `contadorParcialRef`. Una corrida se carga con su total y listo. Las corridas que YA tenían
+  parciales antes del deploy siguen renderizando en modo incremental para poder cerrarlas.
+  Reversible, sin migración.
+- **PENDIENTE — teardown de base (migración destructiva, su propio push, necesita `db reset`
+  local).** Dropear la tabla `producto_terminado_parciales` y las columnas
+  `producto_terminado.{tiene_parciales, producto_retenido, cajas_retenidas, editado_por,
+  editado_en}` + `contadores.parcial`. Requiere **reescribir 6 funciones** que las referencian:
+  `registrar_producto_terminado`, `registrar_contador`, `turno_json`,
+  `listar_validacion_produccion`, `estadisticas_produccion`, `historial_dia_area` — varias de
+  200+ líneas. No se hace a ciegas: va cuando haya Docker para probar la cadena.
+
 Con "sin parciales" ya decidido (Contexto — el cambio más grande de los tres), quedan tres
 hallazgos más, verificados contra el código real:
 
