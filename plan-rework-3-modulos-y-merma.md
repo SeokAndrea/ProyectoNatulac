@@ -492,7 +492,7 @@ la tarjeta de línea queda con estos botones y nada más:
   **Detener línea**.
 - **Detener línea** → la corrida pasa a `ESPERANDO_PT`; luego se carga el PT desde Producto
   Terminado (o el borrador del robot, Fase 3).
-- **Sin programación** / **En cambio de Operación** (condición de línea; solo sin corrida
+- **Sin programación** / **Cambio de Presentación** (condición de línea; solo sin corrida
   activa).
 - Se retiran: todos los "Editar" (de corrida y de estado), el `Select` de condición, el
   submenú viejo de Detener (Parada momentánea / Terminó sabor / Falla / Terminar línea).
@@ -520,7 +520,7 @@ la tarjeta de línea queda con estos botones y nada más:
 | Lote no vacío, otra línea lo sigue | Corrida 1 cerrada, Corrida 2 se activa sobre el mismo lote | lote abierto entre las dos corridas; se cierra cuando la 2 lo vacía | 2 registros (uno por corrida) |
 | Activada por error | Detener enseguida → ESPERANDO_PT → PT 0/0 → cerrada. NO bloquea re-activar (el bloqueo solo aplica en ESPERANDO_PT) | intacto, lote abierto | 0/0 obligatorio |
 | Turno termina con corrida corriendo/pausada | Finalizar OBLIGA: PT del tramo + elegir Terminar o Entregar línea. Si Entrega → sigue fresca en el turno nuevo | se hereda; Recepción confirma | 1 PT por turno que cruza; final = último tramo |
-| Sin programación / En cambio de Operación | solo sin corrida activa (si hay → Detener línea + PT primero) | no toca nada | no toca nada |
+| Sin programación / Cambio de Presentación | solo sin corrida activa (si hay → Detener línea + PT primero) | no toca nada | no toca nada |
 
 ### 2.3 — Guardrails abiertos de `plan-rework-auditoria.md` §7.5/§7.6
 

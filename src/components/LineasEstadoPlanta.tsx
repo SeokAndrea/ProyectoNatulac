@@ -23,7 +23,7 @@ const nombreCondicionLinea: Record<CondicionLinea, string> = {
   DETENIDA: "Detenida",
   LISTA: "Lista para arrancar",
   CIP: "En CIP",
-  CAMBIO_PRESENTACION: "En cambio de operación",
+  CAMBIO_PRESENTACION: "Cambio de Presentación",
   SIN_PROGRAMACION: "Sin programación",
 }
 const badgeVariantCondicionLinea: Record<CondicionLinea, "success" | "warning" | "muted" | "danger" | "info"> = {
@@ -288,7 +288,7 @@ function LineaCard({
     }
   }
 
-  /** Botones de condición de línea SIN corrida activa: Sin programación / En cambio de Operación / CIP. */
+  /** Botones de condición de línea SIN corrida activa: Sin programación / Cambio de Presentación / CIP. */
   function renderCondicionBotones() {
     return (
       <div className="flex flex-col gap-2">
@@ -318,7 +318,7 @@ function LineaCard({
               disabled={enviandoEstadoLinea}
               onClick={() => cambiarEstadoLinea("CAMBIO_PRESENTACION")}
             >
-              En cambio de Operación
+              Cambio de Presentación
             </Button>
             <Button size="sm" variant="outline" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("CIP")}>
               {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}

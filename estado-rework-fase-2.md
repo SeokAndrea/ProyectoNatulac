@@ -99,7 +99,7 @@ sobre `cerrar_corrida_si_esperando`). Se consolida:
   el `Select` de condición. La tarjeta queda con: **Activar Corrida** (con
   confirmación mostrando tanque/sabor/lote/presentación/velocidad),
   **Parada Operacional** (+motivo obligatorio) → **Continuar** | **Detener
-  línea** (2ª confirmación), **Sin programación**, **En cambio de Operación**,
+  línea** (2ª confirmación), **Sin programación**, **Cambio de Presentación**,
   **CIP**. `modo=status` (Recepción) mantiene Confirmar/Corregir.
 - `ProductoTerminado.tsx`: se quita el botón flotante **"Cerrar Lote"**
   (`BotonCerrarLote`, ya no-op). Relabel: "Terminar Lote"→**"Terminar"**,
