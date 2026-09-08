@@ -392,26 +392,14 @@ function FilaProductoTerminado({
   const estaPausada = lineaTurno.pausadaEn !== null && !estaCerrada
   /** Sigue corriendo y todavía no se decidió su próximo estado — acá se elige y se cierra de una. */
   const puedeElegirProximoEstado = lineaTurno.activa && lineaTurno.entregadaEn === null
-  /**
-   * La corrida ya usó "entrega parcial": desde acá Paletas/Cajas se
-   * cargan por INCREMENTO (lo nuevo desde la última entrega) y se
-   * suman al acumulado — no se edita el total.
-   */
-  const modoIncremental = registroExistente?.tieneParciales ?? false
-  const parciales = registroExistente?.parciales ?? []
 
   const [editandoError, setEditandoError] = useState(false)
   const [envasesLlenadora, setEnvasesLlenadora] = useState("")
   /** Contador 2 (envases buenos), obligatorio junto con el contador de la llenadora. */
   const [envasesBuenos, setEnvasesBuenos] = useState("")
-  /**
-   * Sin parciales: Paletas/Cajas son el TOTAL actual (se editan, reemplazan).
-   * Con parciales (modoIncremental): arrancan vacías — son el incremento nuevo.
-   */
-  const [paletas, setPaletas] = useState(!modoIncremental && registroExistente ? String(registroExistente.paletas) : "")
-  const [cajasSueltas, setCajasSueltas] = useState(
-    !modoIncremental && registroExistente ? String(registroExistente.cajasSueltas) : "",
-  )
+  /** Paletas/Cajas son el TOTAL actual de la corrida (se editan, reemplazan — sin entregas parciales). */
+  const [paletas, setPaletas] = useState(registroExistente ? String(registroExistente.paletas) : "")
+  const [cajasSueltas, setCajasSueltas] = useState(registroExistente ? String(registroExistente.cajasSueltas) : "")
   const [justificacion, setJustificacion] = useState("")
   const [proximoEstado, setProximoEstado] = useState<ProximoEstado | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -421,11 +409,9 @@ function FilaProductoTerminado({
   const nPaletas = Number(paletas) || 0
   const nCajasSueltas = Number(cajasSueltas) || 0
   const cajasXPaleta = presentacion?.cajasXPaleta ?? 0
-  /** Cajas de ESTE registro (el incremento, si es modo incremental). */
   const cajasEsteRegistro = nPaletas * cajasXPaleta + nCajasSueltas
-  /** Paletas/cajas TOTALES de la corrida tras guardar (acumulado + incremento en modo incremental). */
-  const acumuladoPaletas = (modoIncremental ? (registroExistente?.paletas ?? 0) : 0) + nPaletas
-  const acumuladoCajasSueltas = (modoIncremental ? (registroExistente?.cajasSueltas ?? 0) : 0) + nCajasSueltas
+  const acumuladoPaletas = nPaletas
+  const acumuladoCajasSueltas = nCajasSueltas
   const cajasAcumuladas = acumuladoPaletas * cajasXPaleta + acumuladoCajasSueltas
   const envasesAcumulados = presentacion ? cajasAcumuladas * presentacion.envasesXCaja : 0
   const litrosPreview = presentacion ? (cajasEsteRegistro * presentacion.envasesXCaja * presentacion.volumenMl) / 1000 : 0
@@ -617,13 +603,6 @@ function FilaProductoTerminado({
             </div>
           </div>
 
-          {parciales.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {parciales.length} {parciales.length === 1 ? "entrega parcial" : "entregas parciales"}:{" "}
-              {parciales.map((p) => `+${p.paletas}`).join(" · ")} paletas.
-            </p>
-          )}
-
           <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setEditandoError(true)}>
             <PenLine className="size-3.5" />
             Editar un error
@@ -651,9 +630,7 @@ function FilaProductoTerminado({
       <CardContent className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`contador-${lineaTurno.id}`}>
-              {modoIncremental ? "Envases llenadora (contador final)" : "Envases llenadora (Contador)"}
-            </Label>
+            <Label htmlFor={`contador-${lineaTurno.id}`}>Envases llenadora (Contador)</Label>
             <Input
               id={`contador-${lineaTurno.id}`}
               type="number"
@@ -679,35 +656,29 @@ function FilaProductoTerminado({
                   : "Los envases buenos no pueden superar el total de la llenadora."}
               </p>
             )}
-            {modoIncremental && (
-              <p className="text-xs text-muted-foreground">
-                Esta corrida quedó con entregas parciales de antes — el contador que cuenta para la merma es el del cierre
-                definitivo.
-              </p>
-            )}
           </div>
           <div className="flex flex-col gap-2">
             <Label>Sabor</Label>
             <p className="flex h-9 items-center text-sm text-foreground">{lineaTurno.saborNombre ?? "—"}</p>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`paletas-${lineaTurno.id}`}>{modoIncremental ? "Paletas nuevas" : "Paletas"}</Label>
+            <Label htmlFor={`paletas-${lineaTurno.id}`}>Paletas</Label>
             <Input
               id={`paletas-${lineaTurno.id}`}
               type="number"
               min={0}
-              placeholder={modoIncremental ? "Paletas nuevas" : "Paletas"}
+              placeholder="Paletas"
               value={paletas}
               onChange={(e) => setPaletas(e.target.value)}
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`resto-${lineaTurno.id}`}>{modoIncremental ? "Cajas sueltas nuevas" : "Cajas sueltas"}</Label>
+            <Label htmlFor={`resto-${lineaTurno.id}`}>Cajas sueltas</Label>
             <Input
               id={`resto-${lineaTurno.id}`}
               type="number"
               min={0}
-              placeholder={modoIncremental ? "Cajas sueltas nuevas" : "Cajas sueltas"}
+              placeholder="Cajas sueltas"
               value={cajasSueltas}
               onChange={(e) => setCajasSueltas(e.target.value)}
             />
@@ -716,20 +687,9 @@ function FilaProductoTerminado({
 
         {presentacion && (paletas !== "" || cajasSueltas !== "") && (
           <p className="text-sm text-muted-foreground">
-            {modoIncremental ? "Esta entrega" : "Total"}:{" "}
+            Total:{" "}
             <span className="font-medium text-foreground">{cajasEsteRegistro.toLocaleString("es-CO")} cajas</span>,{" "}
             <span className="font-medium text-foreground">{litrosPreview.toLocaleString("es-CO")} L</span>.
-            {modoIncremental && (
-              <>
-                {" "}
-                Acumulado de la corrida:{" "}
-                <span className="font-medium text-foreground">
-                  {acumuladoPaletas.toLocaleString("es-CO")} paletas · {acumuladoCajasSueltas.toLocaleString("es-CO")} cajas sueltas ·{" "}
-                  {cajasAcumuladas.toLocaleString("es-CO")} cajas
-                </span>
-                .
-              </>
-            )}
           </p>
         )}
 
@@ -757,24 +717,6 @@ function FilaProductoTerminado({
             value={justificacion}
             onChange={(e) => setJustificacion(e.target.value)}
           />
-        )}
-
-        {parciales.length > 0 && (
-          <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
-            <p className="font-medium text-foreground">
-              Entregas parciales ({parciales.length}) — acumulado {registroExistente?.paletas ?? 0} paletas ·{" "}
-              {registroExistente?.cajasSueltas ?? 0} cajas sueltas
-            </p>
-            {parciales.map((p) => (
-              <p key={p.id} className="text-muted-foreground">
-                + {p.paletas} paletas
-                {p.cajasSueltas > 0 ? ` · ${p.cajasSueltas} cajas sueltas` : ""}
-                {" · "}
-                {p.creadoEn.slice(11, 16)}
-                {p.usuarioNombre ? ` · ${p.usuarioNombre}` : ""}
-              </p>
-            ))}
-          </div>
         )}
 
         {puedeElegirProximoEstado && (
