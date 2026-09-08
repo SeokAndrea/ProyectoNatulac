@@ -247,8 +247,7 @@ begin
   end if;
 
   -- Solo baja el volumen del lote. El cierre del lote/tanque lo hace
-  -- revisar_cierre_de_lote (vía cerrar_corrida_si_esperando). Producción
-  -- no escribe en recepcion_tanques.
+  -- revisar_cierre_de_lote. Producción no escribe en recepcion_tanques.
   select tl.lote_id into v_lote_id from turno_lineas tl where tl.id = p_turno_linea_id;
 
   if v_lote_id is not null and v_litros_delta <> 0 then
@@ -258,7 +257,15 @@ begin
   end if;
 
   if not v_parcial then
+    -- Cierra la corrida si quedó en ESPERANDO_PT.
     perform cerrar_corrida_si_esperando(p_turno_id, p_turno_linea_id);
+    -- Y aunque la corrida ya se hubiera cerrado antes (p. ej. el contador
+    -- la cerró en la misma pantalla), revisar acá si ESTE PT dejó el lote
+    -- en ~0 — cerrar_corrida_si_esperando ya no correría revisar_cierre_de_lote.
+    -- revisar_cierre_de_lote es idempotente y con sus propias guardas.
+    if v_lote_id is not null then
+      perform revisar_cierre_de_lote(v_lote_id);
+    end if;
   end if;
 
   if coalesce(p_auditar, true) then

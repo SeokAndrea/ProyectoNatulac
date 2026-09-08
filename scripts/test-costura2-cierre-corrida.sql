@@ -85,9 +85,43 @@ select finalizar_turno('f0f0f0f0-0000-0000-0000-000000000001'::uuid, current_dat
 select estado from turnos where id = :turno::uuid;
 
 \echo ''
+\echo '=== 7. Flujo de la pagina PT: activa -> (reorden frontend) terminar_linea -> registrar PT cierra ==='
+-- Nuevo turno + lote, se simula el orden que ahora usa ProductoTerminado.tsx:
+-- primero terminar_linea (activa=false), despues el PT.
+\set turno2 '''f0f0f0f0-0000-0000-0000-000000000002'''
+\set lote2  '''f2f2f2f2-0000-0000-0000-000000000001'''
+insert into turnos (id, codigo, area_id, supervisor_id, turno_tipo_id, grupo_id, estado)
+select :turno2::uuid, 'TEST_COSTURA2_B',
+       (select id from areas where codigo='ASEPTICO'),
+       (select id from usuarios where usuario='jguerrero'),
+       (select id from turno_tipos where codigo='TURNO_1'),
+       (select id from grupos where codigo='GRUPO_1'),
+       'ABIERTO';
+insert into preparaciones (id, turno_id, numero_tanque, sabor_id, lote, tambores, usuario_id, volumen_l, volumen_inicial_l, liberado_en)
+select :lote2::uuid, :turno2::uuid, 2, (select id from sabores order by nombre limit 1), '0002', 0,
+       (select id from usuarios where usuario='jguerrero'), 4000, 4000, now();
+insert into recepcion_tanques (turno_id, numero_tanque, sabor_id, condicion, volumen_l, lote, lote_id, actualizada_por)
+select :turno2::uuid, 2, (select id from sabores order by nombre limit 1), 'LISTO', 4000, '0002', :lote2::uuid,
+       (select id from usuarios where usuario='jguerrero');
+
+select activar_linea('jguerrero', :turno2::uuid, 'LINEA_2', 1000, 8000, 8000::numeric, 2::smallint) is not null as ok;
+select terminar_linea('jguerrero', :turno2::uuid,
+  (select id from turno_lineas where turno_id = :turno2::uuid and linea_id = (select id from lineas where codigo='LINEA_2') and activa)) is not null as ok;
+select registrar_producto_terminado(
+  :turno2::uuid,
+  (select id from turno_lineas where turno_id = :turno2::uuid and linea_id = (select id from lineas where codigo='LINEA_2') order by activada_en desc limit 1),
+  'LINEA_2', (select id from sabores order by nombre limit 1), 1000, 9999, 0, 'jguerrero') is not null as ok;
+
+select
+  (select finalizada_en is not null from turno_lineas where turno_id = :turno2::uuid and linea_id = (select id from lineas where codigo='LINEA_2') order by activada_en desc limit 1) as corrida_cerrada_esperado_true,
+  (select cerrado_en is not null from preparaciones where id = :lote2::uuid) as lote_cerrado_esperado_true,
+  (select condicion from recepcion_tanques where turno_id = :turno2::uuid and numero_tanque = 2) as tanque_esperado_SUCIO;
+
+\echo ''
 \echo '=== ESPERADO ==='
 \echo '2: OK rechazado | 3: activa=f, sin_finalizar=t, tanque=LISTO, lote_abierto=t'
 \echo '4: OK rechazado | 5: corrida_cerrada=t, lote_volumen=0, lote_cerrado=t, tanque=SUCIO'
 \echo '6: estado=CERRADO'
+\echo '7: corrida_cerrada=t, lote_cerrado=t, tanque=SUCIO'
 
 rollback;

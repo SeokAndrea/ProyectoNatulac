@@ -13,7 +13,6 @@ import {
   Loader2,
   PackageCheck,
   PenLine,
-  XCircle,
 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
@@ -23,7 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { agruparPorSaborYLote, type GrupoLote } from "@/lib/agruparProduccion"
+import { agruparPorSaborYLote } from "@/lib/agruparProduccion"
 import { nombrePorCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { nivelMerma } from "@/lib/estadisticas"
@@ -234,24 +233,22 @@ function ListaCorridas({
       {grupoSabor && (
         <div className="mx-auto grid w-full max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
           {grupoSabor.lotes.map((l) => (
-            <div key={l.key} className="relative">
-              <button
-                type="button"
-                onClick={() => setLoteAbierto((actual) => (actual === l.key ? null : l.key))}
-                className={cn(
-                  "flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-6 text-center transition-colors",
-                  loteEfectivo === l.key
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-foreground/25 bg-muted/30 text-foreground hover:bg-muted/60",
-                )}
-              >
-                <span className="text-base font-semibold uppercase tracking-wide">Lote {l.lote ?? "sin código"}</span>
-                <span className="text-xs text-muted-foreground">
-                  {l.corridas.length} {l.corridas.length === 1 ? "línea" : "líneas"}
-                </span>
-              </button>
-              <BotonCerrarLote lote={l} onTerminarSabor={onTerminarSabor} />
-            </div>
+            <button
+              key={l.key}
+              type="button"
+              onClick={() => setLoteAbierto((actual) => (actual === l.key ? null : l.key))}
+              className={cn(
+                "flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-6 text-center transition-colors",
+                loteEfectivo === l.key
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-foreground/25 bg-muted/30 text-foreground hover:bg-muted/60",
+              )}
+            >
+              <span className="text-base font-semibold uppercase tracking-wide">Lote {l.lote ?? "sin código"}</span>
+              <span className="text-xs text-muted-foreground">
+                {l.corridas.length} {l.corridas.length === 1 ? "línea" : "líneas"}
+              </span>
+            </button>
           ))}
         </div>
       )}
@@ -280,70 +277,6 @@ function ListaCorridas({
         </div>
       )}
     </div>
-  )
-}
-
-/**
- * "Cerrar" un lote entero: termina el sabor de todas sus líneas
- * activas de una sola vez (equivalente a apretar Terminar Lote en
- * cada una) — no borra ni oculta nada, las corridas cerradas se
- * siguen viendo igual que siempre en "Corridas cerradas", con la
- * misma información del turno.
- */
-function BotonCerrarLote({ lote, onTerminarSabor }: { lote: GrupoLote; onTerminarSabor: OnTerminarSabor }) {
-  const [confirmando, setConfirmando] = useState(false)
-  const [cerrando, setCerrando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const activas = lote.corridas.filter((c) => c.activa)
-
-  if (activas.length === 0) return null
-
-  async function cerrar() {
-    setCerrando(true)
-    setError(null)
-    for (const corrida of activas) {
-      const resultado = await onTerminarSabor(corrida.id)
-      if (!resultado.ok) {
-        setError(resultado.error)
-        setCerrando(false)
-        return
-      }
-    }
-    setCerrando(false)
-    setConfirmando(false)
-  }
-
-  if (confirmando) {
-    return (
-      <div className="absolute -top-2 -right-2 z-10 flex flex-col items-end gap-1">
-        <div className="flex items-center gap-1 rounded-full border border-destructive/40 bg-background px-1.5 py-1 shadow-sm">
-          <button type="button" className="px-1 text-[10px] font-semibold text-destructive" onClick={cerrar} disabled={cerrando}>
-            {cerrando ? <Loader2 className="size-3 animate-spin" /> : "Sí, cerrar"}
-          </button>
-          <button
-            type="button"
-            className="px-1 text-[10px] text-muted-foreground"
-            onClick={() => setConfirmando(false)}
-            disabled={cerrando}
-          >
-            No
-          </button>
-        </div>
-        {error && <p className="max-w-32 text-right text-[10px] text-destructive">{error}</p>}
-      </div>
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      title={`Cerrar Lote ${lote.lote ?? ""} — termina el sabor de sus ${activas.length} ${activas.length === 1 ? "línea" : "líneas"}`}
-      className="absolute -top-2.5 -right-2.5 z-10 flex items-center gap-1 rounded-full border border-destructive/40 bg-background px-2 py-1 text-destructive shadow-md transition-colors hover:bg-destructive/10"
-      onClick={() => setConfirmando(true)}
-    >
-      <XCircle className="size-4" />
-      <span className="text-[10px] font-semibold">Cerrar</span>
-    </button>
   )
 }
 
@@ -587,6 +520,18 @@ function FilaProductoTerminado({
     setEnviando(true)
     setError(null)
 
+    // "Terminar" primero: deja la corrida en ESPERANDO_PT para que el
+    // contador/PT que siguen la cierren de verdad (costura 2 —
+    // terminar_sabor_linea ya no cierra por su cuenta).
+    if (proximoEstado === "TERMINO_SABOR") {
+      const resultado = await onTerminarSabor(lineaTurno.id)
+      if (!resultado.ok) {
+        setEnviando(false)
+        setError(resultado.error)
+        return
+      }
+    }
+
     if (hayContadorNuevo) {
       const resultado = await onRegistrarContador({
         corridaId: lineaTurno.id,
@@ -620,15 +565,6 @@ function FilaProductoTerminado({
 
     if (proximoEstado === "CONTINUA") {
       const resultado = await onEntregarCorrida(lineaTurno.id)
-      if (!resultado.ok) {
-        setEnviando(false)
-        setError(resultado.error)
-        return
-      }
-    }
-
-    if (proximoEstado === "TERMINO_SABOR") {
-      const resultado = await onTerminarSabor(lineaTurno.id)
       if (!resultado.ok) {
         setEnviando(false)
         setError(resultado.error)
@@ -924,7 +860,7 @@ function FilaProductoTerminado({
                     : "border-foreground/25 text-foreground hover:bg-muted/60",
                 )}
               >
-                Terminar Lote
+                Terminar
               </button>
               <button
                 type="button"
@@ -936,7 +872,7 @@ function FilaProductoTerminado({
                     : "border-foreground/25 text-foreground hover:bg-muted/60",
                 )}
               >
-                Continúa siguiente turno
+                Entregar línea (sigue el próximo turno)
               </button>
             </div>
           </div>
