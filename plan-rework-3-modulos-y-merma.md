@@ -85,13 +85,18 @@ Robot paletizador → Producto Terminado (un total por lote, al final — nunca 
 > Los errores se castigan, no se acomodan: el sistema deja de intentar reflejar cada variante
 > de cómo trabaja cada supervisor y en cambio estandariza un solo camino correcto.
 
-**Consecuencia directa — Producto Terminado sin parciales:** el PT de un lote se carga **una
-sola vez, al final de ese lote**, nunca de a poco durante el turno. Se elimina el mecanismo de
-"entregas parciales" (`tiene_parciales`, la tabla `producto_terminado_parciales`, el modo
-incremental de la UI). Esto resuelve de raíz la ambigüedad que motivó todo el diseño de
-"Medir tanque" de esta sesión: si medir el tanque y cargar el PT total son la MISMA acción de
-cierre, nunca puede haber una medición sin su PT correspondiente — no hace falta ningún aviso
-tipo "¿ya cargaste el PT?" porque no hay forma de que se desincronicen.
+**Consecuencia directa — Producto Terminado sin parciales *a mitad de turno*:** el PT de un
+tramo se carga **una sola vez, cuando ese tramo se cierra** (Detener línea, o el borde de
+turno), nunca de a poco y a discreción durante el turno. Se elimina el mecanismo de "entregas
+parciales" (`tiene_parciales`, la tabla `producto_terminado_parciales`, el modo incremental de
+la UI). Esto resuelve la ambigüedad que motivó "Medir tanque": no hay forma de que una
+medición y su PT se desincronicen.
+
+**La excepción — un PT por turno que la corrida cruza:** si una corrida sigue viva al Finalizar
+el turno, ese turno carga el PT de SU tramo antes de cerrar, y la corrida sigue en el turno
+siguiente con un tramo nuevo (ver Fase 1 costura 2). No es una "entrega parcial" discrecional:
+es un checkpoint obligatorio en un límite duro, uno por turno, que es lo que la merma por turno
+necesita. El cierre final de la corrida = el PT del último tramo.
 
 **Con esto, "Medir tanque" deja de ser una acción rutinaria de mitad de turno** y pasa a ser
 una herramienta de excepción (reconciliar cuando la realidad física no coincide con lo
@@ -188,15 +193,49 @@ propia página):
    propagar bien. **32 migraciones tocan esta lógica — es el punto más parchado de todo el
    sistema**, más todavía que `cambiar_condicion_tanque` (15 migraciones, ver Fase 2).
 
-   **Rediseño (más robusto que otro flag):** Producción nunca cierra el lote ni el tanque,
-   ni directo ni vía flag. `cerrarCorrida()` (Producción) **exige el PT total del tramo como
-   parámetro obligatorio** (nunca opcional — esto por sí solo cierra el hallazgo de hoy de
-   "corridas que cierran con 0 paletas", sin necesitar un guardia aparte) y solo marca su
-   propia tabla — no le importa el tanque. Preparación decide sola si su lote quedó agotado,
-   con `revisarCierreDeLote(loteId)` — chequea su propio `volumen_l` (que ya bajó solo, por
-   el descuento automático que hace `registrar_producto_terminado` al recibir el PT) y ninguna
-   corrida activa apuntándole — y se cierra sola si corresponde. Ninguna función de Producción
-   puede, por olvido, dejar un tanque en estado raro: nunca tuvo el poder de tocarlo.
+   **Rediseño (modelo de dos estados, definido con el dueño el 2026-09-08):** Producción nunca
+   cierra el lote ni el tanque, ni directo ni vía flag. La corrida se cierra en **dos pasos
+   explícitos**, no en una sola llamada:
+
+   - **Detener línea** deja la corrida en estado **`ESPERANDO_PT`** — no la cierra. No toca el
+     tanque. La línea queda libre (se puede reprogramar, poner en CIP, etc.).
+   - **Cargar el PT del tramo** (paletas/cajas de esa corrida) es lo ÚNICO que cierra la
+     corrida. Registrar el PT baja `volumen_l` del lote solo (mecanismo que ya existe en
+     `registrar_producto_terminado`). El PT nunca es opcional: activada por error y sin
+     producir nada → PT `0/0`, igual obligatorio. Esto cierra de raíz el hallazgo de "corridas
+     que cierran con 0 paletas": no hay forma de cerrar una corrida sin pasar por el PT.
+
+   Preparación decide sola si su lote quedó agotado, con `revisarCierreDeLote(loteId)` —
+   chequea `volumen_l` (que ya bajó por el PT) y que ninguna corrida activa le apunte — y lo
+   cierra si corresponde (tanque → Con Restos o Limpio). Si el lote todavía tiene litros
+   (la línea se detuvo antes de vaciarlo), queda abierto y Preparación lo maneja: otra línea
+   lo toma, transferir, o desvasar. Ninguna función de Producción puede dejar un tanque en
+   estado raro: nunca tuvo el poder de tocarlo.
+
+   **Guard de cierre de turno:** no se puede Finalizar el turno con una corrida en
+   `ESPERANDO_PT`. Además, si al Finalizar hay una corrida **activa o en Parada Operacional**,
+   el cierre de turno pide el PT del tramo producido en ESE turno (ver "PT por tramo de turno"
+   más abajo) — la corrida se cierra con ese PT y sigue fresca en el turno siguiente.
+
+   **Guard antiduplicados (reemplaza el de `activar_linea` de `20261003`):** el bloqueo pasa a
+   ser "no se puede activar una línea si hay una corrida sobre ese lote todavía en
+   `ESPERANDO_PT`" — hay que cerrar el ciclo primero. Volver a correr la misma línea sobre el
+   mismo lote una vez cerrado el PT es legítimo (una línea que paró y otra —o la misma— sigue
+   con el resto: cada corrida tiene su propio PT, no hay duplicado posible). Los repetidos
+   reales (misma línea+lote+presentación, las dos con paletas > 0) se **marcan en VALIDAR**
+   (`posibleDuplicado`, §2.3), no se bloquean a mano.
+
+   **PT por tramo de turno (no contradice "PT sin parciales" del Contexto):** lo que el
+   Contexto elimina son las entregas parciales *a mitad de turno* (cargar 200 paletas ahora,
+   300 después, mismo turno — la ambigüedad que motivó "Medir tanque"). Un PT en el **borde
+   entre dos turnos** es otra cosa: uno por turno, obligatorio, en un límite duro, atado a
+   "qué produjo este supervisor en su turno" — es justo lo que la merma por turno necesita
+   para una corrida que cruza turnos. `iniciar_turno` ya crea una fila de corrida nueva para
+   el turno entrante, así que la plomería está. El cierre final de la corrida = el PT del
+   último tramo.
+
+   **Todas las acciones bruscas de la corrida confirman dos veces** antes de ejecutarse
+   (Activar, Detener línea, Cargar PT) — ver la regla de redacción 2 del Contexto y §2.1-bis.
 3. **Merma = comparación entre módulos.** Vive enteramente en Reportes. Los módulos de
    dominio no calculan ningún % — solo exponen números crudos (litros consumidos, envases
    contados, litros de PT) y Reportes hace la resta/división.
@@ -384,27 +423,83 @@ siguiente esté Listo en el instante exacto, si no el supervisor pierde lo tipea
 cero) — se resuelve recordando la última velocidad/presentación usada por esa línea y
 prellenando el formulario, sin aflojar el candado de seguridad real.
 
-### 2.1-bis — Prevenir en vez de deshacer
+### 2.1-bis — Prevenir en vez de deshacer: confirmar dos veces las acciones bruscas
 
-Reemplazo de `reactivar_lote`: confirmación explícita ANTES de "Terminó Lote", mostrando qué va
-a pasar de verdad ("Esto cierra el lote {lote} — el Tanque {N} queda en Con Restos con
-{volumen} L. No se puede deshacer. ¿Continuar?"). Mismo patrón antes de Transferir. Cambio de
-frontend únicamente.
+Regla general (dueño, 2026-09-08): **toda acción que hace un cambio brusco o que no se puede
+deshacer se confirma dos veces** antes de ejecutarse — un paso inline "¿Seguro? Sí, X" para un
+sí/no simple, o un **modal** cuando el texto explica una consecuencia u ofrece alternativas
+(regla de redacción 2 del Contexto). Es la única segunda oportunidad de frenar antes de que el
+error entre al sistema, porque después no hay "editar", solo repetir la acción.
 
-### 2.2 — No cerrar una corrida sin su PT (ya no necesita gate aparte)
+Aplica en concreto a:
+- **Activar Corrida** — mostrar tanque / sabor / lote / presentación / velocidad y pedir
+  confirmar (es donde entra el error "activé el tanque equivocado").
+- **Detener línea** (→ `ESPERANDO_PT`) y **Cargar PT** (cierra la corrida, no se deshace).
+- **Transferir** y **Desvasar** (ya tienen el paso "¿Seguro?" hoy — se revisan).
+- **Finalizar turno** cuando hay corridas abiertas.
+- El viejo reemplazo de `reactivar_lote`: ya no hace falta un "Terminó Lote" con aviso —
+  ese botón desaparece (§2.2). El lote lo cierra Preparación cuando el PT lo vacía; si
+  Preparación cierra un lote con restos a mano, ahí va el modal "queda {volumen} L en el
+  Tanque {N}, no se puede deshacer".
 
-Con el modelo de "un PT total por lote al final" (Contexto), el hallazgo de hoy — corridas que
-cerraban con 0 paletas porque ninguna de las 5-7 puertas que las terminan chequeaba si había
-producción — se resuelve de raíz: **cerrar una corrida exige el PT total como parámetro
-obligatorio** (costura 2 de la Fase 1), no como una guarda aparte que hay que acordarse de
-llamar. Sigue existiendo el caso sano de "activé por error, cierro sin haber producido nada" —
-ahí el PT total es simplemente 0/0, una respuesta válida y explícita, no un vacío silencioso.
+Cambio de frontend, salvo la columna `pausa_motivo` de §2.2.
+
+### 2.2 — Modelo de dos estados de la corrida + página de Líneas
+
+El detalle completo está en la **costura 2 de la Fase 1** (arriba, reescrita el 2026-09-08).
+Resumen de lo que toca la base y el frontend acá:
+
+**Base (migraciones):**
+- Estado `ESPERANDO_PT` en la corrida: `Detener línea` lo pone, registrar el PT lo saca
+  cerrando la corrida. Ninguna función de Producción escribe en `recepcion_tanques` /
+  `preparaciones`.
+- `revisarCierreDeLote(loteId)` del lado de Preparación (cierra el lote/tanque solo cuando
+  `volumen_l ≈ 0` y ninguna corrida activa le apunta).
+- `finalizar_turno` gana el guard: rechaza si hay una corrida en `ESPERANDO_PT`; si hay una
+  activa o en Parada Operacional, recibe el PT del tramo de ESE turno y la deja lista para
+  heredarse.
+- Guard de `activar_linea` reescrito: bloquea solo mientras haya una corrida sobre ese lote en
+  `ESPERANDO_PT` (no "cualquier corrida cerrada este turno" como en `20261003`).
+- `pausar_linea` gana `p_motivo` + columna `turno_lineas.pausa_motivo` — "Parada Operacional"
+  siempre pide el motivo. (Migración chica, aditiva; se puede adelantar sola.)
+- `continuar_siguiente_lote` y `terminar_sabor_linea` / `terminar_linea`: se consolidan en el
+  modelo de dos estados. `terminar_sabor_linea` (cerraba el tanque) deja de existir como
+  acción de línea — cerrar el tanque es de Preparación.
+
+**Frontend — página de Líneas (`LineasEstadoPlanta.tsx`), se quita "Editar":**
+la tarjeta de línea queda con estos botones y nada más:
+- **Activar Corrida** (confirma dos veces, mostrando tanque/sabor/lote/presentación/velocidad).
+- **Parada Operacional** (+ motivo obligatorio) → mientras está parada: **Continuar** o
+  **Detener línea**.
+- **Detener línea** → la corrida pasa a `ESPERANDO_PT`; luego se carga el PT desde Producto
+  Terminado (o el borrador del robot, Fase 3).
+- **Sin programación** / **En cambio de Operación** (condición de línea; solo sin corrida
+  activa).
+- Se retiran: todos los "Editar" (de corrida y de estado), el `Select` de condición, el
+  submenú viejo de Detener (Parada momentánea / Terminó sabor / Falla / Terminar línea).
+- El botón de **CIP** (`Iniciar CIP` / `Terminó CIP`) se mantiene por ahora — su paso a
+  "obligatorio por ciclo de 36 h / falla larga, guard calculado" queda para el trabajo de
+  Estados de línea, no para este paso.
+
+**Casos de referencia (línea → tanque → PT), acordados el 2026-09-08:**
+
+| Caso | Línea | Tanque / Lote | PT |
+| --- | --- | --- | --- |
+| Corre y el lote se vacía | activa → ESPERANDO_PT → cerrada al cargar PT | el PT baja `volumen_l` → ~0 → Preparación cierra el lote, tanque → Limpio/Con Restos | 1 registro ≈ litros del lote |
+| Parada Operacional → Continuar | sigue activa (con motivo) → vuelve a correr | intacto | nada; solo la parada registrada (motivo+duración) |
+| Parada Operacional → Detener línea | ESPERANDO_PT → cerrada | lote NO se cierra (le quedan litros) → Preparación: otra línea / transferir / desvasar | 1 registro parcial respecto al lote, completo respecto a la corrida |
+| Lote no vacío, otra línea lo sigue | Corrida 1 cerrada, Corrida 2 se activa sobre el mismo lote | lote abierto entre las dos corridas; se cierra cuando la 2 lo vacía | 2 registros (uno por corrida) |
+| Activada por error | Detener enseguida → ESPERANDO_PT → PT 0/0 → cerrada. NO bloquea re-activar (el bloqueo solo aplica en ESPERANDO_PT) | intacto, lote abierto | 0/0 obligatorio |
+| Turno termina con corrida corriendo/pausada | Finalizar pide el PT del tramo → cierra esa corrida → sigue fresca en el turno nuevo | se hereda; Recepción confirma | 1 PT por turno que cruza; final = último tramo |
+| Sin programación / En cambio de Operación | solo sin corrida activa (si hay → Detener línea + PT primero) | no toca nada | no toca nada |
 
 ### 2.3 — Guardrails abiertos de `plan-rework-auditoria.md` §7.5/§7.6
 
 - TOCTOU en el candado de número de lote (`iniciar_preparacion`): `pg_advisory_xact_lock`.
 - Duplicados más allá de "totales idénticos": ampliar `posibleDuplicado` a "N corridas con PT
-  propio para línea+lote+presentación", mostrarlo en VALIDAR.
+  propio para línea+lote+presentación", mostrarlo en VALIDAR. Es la red de seguridad que
+  reemplaza el bloqueo duro de `activar_linea` de `20261003` (ver Fase 1 costura 2): repetir
+  línea+lote se permite, pero queda marcado para revisión.
 - `finalizar_lote` huérfano: confirmar que nadie lo llama antes de limpiar.
 - Reutilización de número de lote tras cerrar: sigue pendiente de decisión del dueño entre las
   3 opciones ya escritas en el documento original.
