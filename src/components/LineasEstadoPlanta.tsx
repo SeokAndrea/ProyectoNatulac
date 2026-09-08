@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Beaker, CheckCircle2, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square } from "lucide-react"
+import { Beaker, CheckCircle2, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square, Undo2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -62,6 +62,7 @@ export function LineasEstadoPlanta({ modo }: { modo: ModoEstadoPlanta }) {
     continuarLinea,
     detenerLineaPorFalla,
     continuarSiguienteLote,
+    seguirMismoLote,
     cambiarCondicionLinea,
     confirmarEstadoLinea,
   } = useProduccion()
@@ -98,6 +99,7 @@ export function LineasEstadoPlanta({ modo }: { modo: ModoEstadoPlanta }) {
             onContinuar={continuarLinea}
             onDetenerLineaPorFalla={detenerLineaPorFalla}
             onContinuarSiguienteLote={continuarSiguienteLote}
+            onSeguirMismoLote={seguirMismoLote}
             onConfirmarEstadoLinea={confirmarEstadoLinea}
             onCambiarCondicionLinea={cambiarCondicionLinea}
           />
@@ -122,6 +124,7 @@ function LineaCard({
   onContinuar,
   onDetenerLineaPorFalla,
   onContinuarSiguienteLote,
+  onSeguirMismoLote,
   onConfirmarEstadoLinea,
   onCambiarCondicionLinea,
 }: {
@@ -140,6 +143,7 @@ function LineaCard({
   onContinuar: (corridaId: string) => Promise<Resultado>
   onDetenerLineaPorFalla: (corridaId: string, motivo: string) => Promise<Resultado>
   onContinuarSiguienteLote: (corridaId: string) => Promise<Resultado>
+  onSeguirMismoLote: (corridaId: string) => Promise<Resultado>
   onConfirmarEstadoLinea: (corridaId: string) => Promise<Resultado>
   onCambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>
 }) {
@@ -593,10 +597,14 @@ function LineaCard({
           ) : loteTerminado && lineaTurno ? (
             <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
               <p className="text-xs text-foreground">
-                Se terminó el lote{lineaTurno.lote ? ` ${lineaTurno.lote}` : ""} de esta corrida — ¿sigue con el siguiente lote o
-                se detiene la línea?
+                Se marcó que terminó el lote{lineaTurno.lote ? ` ${lineaTurno.lote}` : ""} de esta corrida — ¿sigue con el mismo
+                lote, pasa al siguiente o se detiene la línea?
               </p>
               <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => accion(onSeguirMismoLote)} disabled={enviandoAccion}>
+                  {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
+                  Seguir con el mismo lote
+                </Button>
                 <Button size="sm" onClick={() => accion(onContinuarSiguienteLote)} disabled={enviandoAccion}>
                   {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
                   Continuar al siguiente lote
@@ -615,6 +623,9 @@ function LineaCard({
                   Detener línea
                 </Button>
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                "Seguir con el mismo lote" solo deshace el aviso — no toca el tanque ni los litros.
+              </p>
               {errorAccion && (
                 <p className="text-xs text-destructive" role="alert">
                   {errorAccion}

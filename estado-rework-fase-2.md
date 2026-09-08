@@ -8,9 +8,13 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
 
 ## Resumen
 
-**9 migraciones nuevas** (`20261013`–`20261021`) + su frontend, listas para
-subir **como un solo batch**. Desde `4d8f75b`. `npm run build` + `npm test`
-(58) en verde en cada commit.
+**9 migraciones** (`20261013`–`20261021`) + su frontend — **ya subidas** el
+2026-09-08 como un solo batch (desde `4d8f75b`).
+
+**Seguimiento (push propio, todavía sin subir):** `20261022`
+(`seguir_mismo_lote`) + su frontend — ver más abajo.
+
+`npm run build` + `npm test` (58) en verde en cada commit.
 
 La Fase 1 (arquitectura de 3 módulos) ya estaba cerrada antes de empezar
 esto.
@@ -150,6 +154,30 @@ La corrección puntual de la fila ya mal está en
 `scripts/fix-turno-fecha-anterior.sql` (plano para el SQL editor de
 Supabase). → `d2d5684` (plan+script) · migración: este commit
 
+### `20261022` — `seguir_mismo_lote`: deshace un "terminó el lote" prematuro (costura 2)
+Caso real (turno de Dany, 2026-09-08): una corrida quedó con
+`lote_terminado_en` puesto pero el lote **todavía tiene producto** y el
+tanque sigue LISTO — la marca la dejó el viejo
+`registrar_producto_terminado`/`registrar_contador` (pre-costura 2) al ver
+el volumen en ~0, o un `iniciar_preparacion` sobre el tanque. Con esa
+marca la tarjeta de Líneas solo ofrecía "Continuar al siguiente lote"
+(falla si no hay tanque Listo con el lote+1) y "Detener línea" (pide
+motivo, marca la línea Detenida por falla — no aplica).
+- **`seguir_mismo_lote(usuario, turno_id, turno_linea_id)` NUEVA** — hace
+  UNA cosa: `turno_lineas.lote_terminado_en = null` en esa corrida. NO
+  toca el tanque, NI `volumen_l`, NI `volumen_inicial_l`, NI
+  `preparaciones`. Rechaza si la corrida no está activa, si el lote ya está
+  cerrado, o si el lote no tiene volumen. No-op silencioso si ya está
+  corriendo sin marca. Auditoría por el trigger `auditar_turno_lineas`.
+- Frontend `LineasEstadoPlanta.tsx`: botón **"Seguir con el mismo lote"**
+  en la tarjeta de "terminó el lote", junto a "Continuar al siguiente
+  lote" / "Detener línea", con la nota "solo deshace el aviso — no toca el
+  tanque ni los litros".
+- Revisado de paso: **`entregar_corrida`** ("Entregar línea / sigue el
+  próximo turno") — limpia, solo sella `entregada_en`; no toca `activa`,
+  ni el tanque, ni `volumen_l`. Sin cambios.
+`scripts/test-seguir-mismo-lote.sql` → este commit
+
 ---
 
 ## Hecho — solo plan / scripts (sin migración)
@@ -192,11 +220,16 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 ## Cómo subir
 
-- Las **9 migraciones** (`20261013`–`20261021`) + **todo el frontend** van
-  **JUNTAS**: un WinSCP + un `npx supabase db push` + un
-  `docker compose --profile preview up -d --build`. **No** partir el batch —
-  cada migración cambia nombres de RPC / comportamiento y su frontend va con
-  ella. (`20261019` no tiene frontend.)
+- Las **9 migraciones** (`20261013`–`20261021`) + su frontend **ya se
+  subieron** (2026-09-08).
+- **`20261022` (`seguir_mismo_lote`)** es un push propio: WinSCP del
+  frontend (`LineasEstadoPlanta.tsx`, `produccion/ajustes.ts`,
+  `produccion/useProduccion.ts`) + `npx supabase db push` (una migración
+  aditiva, no dropea nada) + `docker compose --profile preview up -d
+  --build`.
+- Batch original — para referencia: iba **JUNTO** (un WinSCP + un
+  `db push` + un rebuild). Cada migración cambiaba nombres de RPC /
+  comportamiento y su frontend iba con ella. (`20261019` no tiene frontend.)
 - Antes del push, si hay Docker: correr los `scripts/test-*.sql` sobre
   `supabase db reset` local (hoy no hay Docker en la laptop → los scripts
   quedan escritos para cuando lo haya).

@@ -31,6 +31,13 @@ export async function continuarSiguienteLote(usuario: string, turnoId: string, c
   return { ok: true, data }
 }
 
+/** Deshace un "terminó el lote" prematuro: la corrida sigue en el MISMO lote. No toca el tanque ni los litros. */
+export async function seguirMismoLote(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("seguir_mismo_lote", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })
+  if (error || !data) return { ok: false, error: error?.message ?? "No se pudo seguir con el mismo lote. Intenta de nuevo." }
+  return { ok: true, data }
+}
+
 /** "¿Va a continuar en el siguiente turno?" — la corrida sigue activa, solo marca que este supervisor ya cerró su parte. */
 export async function entregarCorrida(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("entregar_corrida", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })

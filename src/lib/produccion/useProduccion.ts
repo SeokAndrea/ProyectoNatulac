@@ -10,7 +10,7 @@ import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { supabase } from "@/lib/supabase"
 import { activarLinea as activarLineaNucleo, cambiarCondicionLinea, confirmarEstadoLinea, continuarLinea, pausarLinea, registrarContador as registrarContadorNucleo, terminarLinea, terminarSaborLinea } from "./nucleo"
-import { actualizarJustificacionContador as actualizarJustificacionContadorAjuste, continuarSiguienteLote, detenerLineaPorFalla, entregarCorrida } from "./ajustes"
+import { actualizarJustificacionContador as actualizarJustificacionContadorAjuste, continuarSiguienteLote, detenerLineaPorFalla, entregarCorrida, seguirMismoLote } from "./ajustes"
 import { mapearContador, mapearCorrida, mapearLineaEstado } from "./mapear"
 import type {
   ContadorRegistro,
@@ -44,6 +44,7 @@ export interface UseProduccionResultado {
   terminarLinea: (corridaId: string) => Promise<Resultado>
   detenerLineaPorFalla: (corridaId: string, motivo: string) => Promise<Resultado>
   continuarSiguienteLote: (corridaId: string) => Promise<Resultado>
+  seguirMismoLote: (corridaId: string) => Promise<Resultado>
   entregarCorrida: (corridaId: string) => Promise<Resultado>
   cambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>
   confirmarEstadoLinea: (corridaId: string) => Promise<Resultado>
@@ -129,6 +130,7 @@ export function useProduccion(turnoIdElegido?: string | null): UseProduccionResu
     terminarLinea: conSesion(terminarLinea),
     detenerLineaPorFalla: conSesion(detenerLineaPorFalla),
     continuarSiguienteLote: conSesion(continuarSiguienteLote),
+    seguirMismoLote: conSesion(seguirMismoLote),
     entregarCorrida: conSesion(entregarCorrida),
     cambiarCondicionLinea: conSesion(cambiarCondicionLinea),
     confirmarEstadoLinea: conSesion(confirmarEstadoLinea),
