@@ -12,7 +12,8 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
 2026-09-08 como un solo batch (desde `4d8f75b`).
 
 **Seguimiento (push propio, todavía sin subir):** `20261022`
-(`seguir_mismo_lote`) + su frontend — ver más abajo.
+(`seguir_mismo_lote`) + `20261023` (`continuar_siguiente_lote` con tanque
+manual) + su frontend — van juntos, ver más abajo.
 
 `npm run build` + `npm test` (58) en verde en cada commit.
 
@@ -178,6 +179,29 @@ motivo, marca la línea Detenida por falla — no aplica).
   ni el tanque, ni `volumen_l`. Sin cambios.
 `scripts/test-seguir-mismo-lote.sql` → este commit
 
+### `20261023` — `continuar_siguiente_lote` con tanque manual (costura 2)
+Bug de costura 2: cuando el auto-detect del lote+1 falla (lote todavía
+sin liberar, con otro número, en tanque no-LISTO, o hay varios),
+`continuar_siguiente_lote` cortaba con "Activa la línea manualmente" —
+pero `20261018` cerró esa puerta (`activar_linea` desde Líneas rechaza
+"ya tiene una corrida en curso"). Deadlock.
+- **`p_numero_tanque smallint default null`** — si viene, se salta el
+  auto-detect y usa ESE tanque (exige LISTO + lote asignado + que no lo
+  tome ya otra corrida activa, y que ese lote no tenga una detenida sin
+  PT). Sin él, comportamiento idéntico al de antes. Cambia la firma →
+  drop + create.
+- Misma transición de dos pasos: corrida vieja → ESPERANDO_PT (sigue
+  debiendo su PT), corrida nueva con la config de línea heredada. NO
+  toca `activar_linea` ni su guarda, ni el tanque, ni volúmenes.
+- Frontend `LineasEstadoPlanta.tsx`: si "Continuar al siguiente lote"
+  falla el auto-detect, aparece un selector con los tanques LISTO y se
+  reintenta con el elegido.
+`scripts/test-continuar-siguiente-lote-manual.sql` → este commit
+Destrabe puntual del turno de Dany:
+`scripts/fix-turno-dany-continuar-lote.sql` (plano, SQL editor de
+Supabase — hace la transición a mano; sirve incluso antes de subir la
+migración).
+
 ---
 
 ## Hecho — solo plan / scripts (sin migración)
@@ -222,11 +246,15 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 - Las **9 migraciones** (`20261013`–`20261021`) + su frontend **ya se
   subieron** (2026-09-08).
-- **`20261022` (`seguir_mismo_lote`)** es un push propio: WinSCP del
-  frontend (`LineasEstadoPlanta.tsx`, `produccion/ajustes.ts`,
-  `produccion/useProduccion.ts`) + `npx supabase db push` (una migración
-  aditiva, no dropea nada) + `docker compose --profile preview up -d
-  --build`.
+- **`20261022` (`seguir_mismo_lote`) + `20261023`
+  (`continuar_siguiente_lote` con tanque manual)** son un push propio y
+  van juntos: WinSCP del frontend (`LineasEstadoPlanta.tsx`,
+  `produccion/ajustes.ts`, `produccion/useProduccion.ts`) +
+  `npx supabase db push` (`20261022` aditiva; `20261023` es drop+create
+  de una sola función, misma firma + 1 param opcional) +
+  `docker compose --profile preview up -d --build`.
+- El turno de Dany se puede destrabar YA, sin esperar el deploy, con
+  `scripts/fix-turno-dany-continuar-lote.sql`.
 - Batch original — para referencia: iba **JUNTO** (un WinSCP + un
   `db push` + un rebuild). Cada migración cambiaba nombres de RPC /
   comportamiento y su frontend iba con ella. (`20261019` no tiene frontend.)

@@ -43,7 +43,7 @@ export interface UseProduccionResultado {
   terminarSaborLinea: (corridaId: string) => Promise<Resultado>
   terminarLinea: (corridaId: string) => Promise<Resultado>
   detenerLineaPorFalla: (corridaId: string, motivo: string) => Promise<Resultado>
-  continuarSiguienteLote: (corridaId: string) => Promise<Resultado>
+  continuarSiguienteLote: (corridaId: string, numeroTanque?: number) => Promise<Resultado>
   seguirMismoLote: (corridaId: string) => Promise<Resultado>
   entregarCorrida: (corridaId: string) => Promise<Resultado>
   cambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>

@@ -25,8 +25,19 @@ export async function detenerLineaPorFalla(
   return { ok: true, data }
 }
 
-export async function continuarSiguienteLote(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
-  const { data, error } = await supabase.rpc("continuar_siguiente_lote", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })
+/** `numeroTanque` opcional: si el auto-detect del lote+1 falla, el supervisor elige el tanque a mano. */
+export async function continuarSiguienteLote(
+  usuario: string,
+  turnoId: string,
+  corridaId: string,
+  numeroTanque?: number,
+): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("continuar_siguiente_lote", {
+    p_usuario: usuario,
+    p_turno_id: turnoId,
+    p_turno_linea_id: corridaId,
+    p_numero_tanque: numeroTanque ?? null,
+  })
   if (error || !data) return { ok: false, error: error?.message ?? "No se pudo continuar al siguiente lote. Intenta de nuevo." }
   return { ok: true, data }
 }

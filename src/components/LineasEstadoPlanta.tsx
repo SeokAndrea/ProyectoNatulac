@@ -142,7 +142,7 @@ function LineaCard({
   onPausar: (corridaId: string, motivo?: string) => Promise<Resultado>
   onContinuar: (corridaId: string) => Promise<Resultado>
   onDetenerLineaPorFalla: (corridaId: string, motivo: string) => Promise<Resultado>
-  onContinuarSiguienteLote: (corridaId: string) => Promise<Resultado>
+  onContinuarSiguienteLote: (corridaId: string, numeroTanque?: number) => Promise<Resultado>
   onSeguirMismoLote: (corridaId: string) => Promise<Resultado>
   onConfirmarEstadoLinea: (corridaId: string) => Promise<Resultado>
   onCambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>
@@ -168,6 +168,9 @@ function LineaCard({
   const [guardando, setGuardando] = useState(false)
   const [enviandoAccion, setEnviandoAccion] = useState(false)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
+  /** "Continuar al siguiente lote" falló el auto-detect → mostrar el selector de tanque a mano. */
+  const [continuarEligeTanque, setContinuarEligeTanque] = useState(false)
+  const [tanqueContinuar, setTanqueContinuar] = useState<number | "">("")
 
   const presentacionesDisponibles = presentacionesPorLineaLive(velocidades, lineaCodigo)
   const opcionesVelocidad = presentacion ? velocidadesParaLive(velocidades, lineaCodigo, presentacion) : []
@@ -250,6 +253,26 @@ function LineaCard({
     const resultado = await fn(lineaTurno.id)
     setEnviandoAccion(false)
     if (!resultado.ok) setErrorAccion(resultado.error)
+  }
+
+  /**
+   * "Continuar al siguiente lote". Sin tanque = auto-detecta el lote+1
+   * (mismo sabor, un solo tanque Listo). Si eso falla, abre el selector
+   * de tanque a mano y se reintenta con el que elija el supervisor.
+   */
+  async function continuarSiguiente(numeroTanque?: number) {
+    if (!lineaTurno) return
+    setEnviandoAccion(true)
+    setErrorAccion(null)
+    const resultado = await onContinuarSiguienteLote(lineaTurno.id, numeroTanque)
+    setEnviandoAccion(false)
+    if (!resultado.ok) {
+      setErrorAccion(resultado.error)
+      if (numeroTanque === undefined) setContinuarEligeTanque(true)
+      return
+    }
+    setContinuarEligeTanque(false)
+    setTanqueContinuar("")
   }
 
   /** "Parada Operacional": pausa la corrida con un motivo obligatorio. Sigue activa, se puede Continuar o Detener línea. */
@@ -605,7 +628,7 @@ function LineaCard({
                   {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
                   Seguir con el mismo lote
                 </Button>
-                <Button size="sm" onClick={() => accion(onContinuarSiguienteLote)} disabled={enviandoAccion}>
+                <Button size="sm" onClick={() => continuarSiguiente()} disabled={enviandoAccion}>
                   {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
                   Continuar al siguiente lote
                 </Button>
@@ -630,6 +653,55 @@ function LineaCard({
                 <p className="text-xs text-destructive" role="alert">
                   {errorAccion}
                 </p>
+              )}
+              {continuarEligeTanque && (
+                <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-2">
+                  <p className="text-xs text-foreground">
+                    No se detectó solo el tanque del siguiente lote. Elige cuál toma la línea:
+                  </p>
+                  {tanquesListos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Ningún tanque está Listo todavía.</p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select
+                        value={tanqueContinuar === "" ? "" : String(tanqueContinuar)}
+                        onValueChange={(v) => setTanqueContinuar(Number(v))}
+                      >
+                        <SelectTrigger className="w-56">
+                          <SelectValue placeholder="Tanque" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tanquesListos.map((t) => (
+                            <SelectItem key={t.numeroTanque} value={String(t.numeroTanque)}>
+                              Tanque {t.numeroTanque} · {t.saborNombre ?? "Sin sabor"}
+                              {t.lote ? ` · Lote ${t.lote}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        disabled={tanqueContinuar === "" || enviandoAccion}
+                        onClick={() => continuarSiguiente(Number(tanqueContinuar))}
+                      >
+                        {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                        Continuar con ese tanque
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={enviandoAccion}
+                        onClick={() => {
+                          setContinuarEligeTanque(false)
+                          setTanqueContinuar("")
+                          setErrorAccion(null)
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           ) : pausada && lineaTurno ? (
