@@ -389,9 +389,10 @@ grant execute on function finalizar_turno(uuid, date, time) to anon, authenticat
 
 -- ------------------------------------------------------------
 -- F. activar_linea(): idéntica a 20261006 salvo el bloque de guardas.
---    - Ya NO auto-cierra la corrida vieja de la línea sin PT.
---    - Rechaza si la línea ya tiene una corrida activa (hay que
---      detenerla y cargar su PT).
+--    - Desde Líneas (p_confirmar_inicio = false): rechaza si la línea ya
+--      tiene una corrida en curso — hay que Detener línea + cargar PT.
+--    - Desde Recepción (p_confirmar_inicio = true): reemplaza la corrida
+--      heredada sin confirmar, como hoy (no produjo nada en este turno).
 --    - Rechaza si el lote de ese tanque tiene una corrida en
 --      ESPERANDO_PT (de cualquier línea).
 --    - Se retira la guarda antiduplicados vieja: repetir línea+lote con
@@ -428,9 +429,13 @@ begin
     raise exception 'El tanque % no está Listo (liberado) — no se puede tomar todavía.', p_numero_tanque;
   end if;
 
-  -- Guarda: la línea ya tiene una corrida en curso (activa o en Parada
-  -- Operacional). Hay que detenerla y cargar su PT antes de arrancar otra.
-  if exists (
+  -- Guarda: desde la página de Líneas (p_confirmar_inicio = false) no se
+  -- puede activar sobre una corrida en curso — hay que Detener línea y
+  -- cargar su PT primero. Desde Recepción (p_confirmar_inicio = true) sí
+  -- se reemplaza: ahí se corrige la corrida heredada antes de que
+  -- produzca nada en este turno ("confirmar/corregir lo heredado",
+  -- Contexto del plan).
+  if not coalesce(p_confirmar_inicio, false) and exists (
     select 1 from turno_lineas
     where turno_id = p_turno_id and linea_id = v_linea_id and activa
   ) then
@@ -448,6 +453,12 @@ begin
     raise exception 'Hay una corrida detenida sobre el Lote % sin su Producto Terminado. Cárgalo antes de volver a activar.',
       v_tanque.lote;
   end if;
+
+  -- Recepción reemplaza la corrida heredada; desde Líneas nunca se llega
+  -- acá con una corrida activa (la guarda de arriba ya cortó).
+  update turno_lineas
+  set activa = false, finalizada_en = now()
+  where turno_id = p_turno_id and linea_id = v_linea_id and activa;
 
   insert into turno_lineas (
     turno_id, linea_id, presentacion_id, envases_hora, litros_hora, sabor_id, lote, lote_id, activa, activada_en, activada_por,

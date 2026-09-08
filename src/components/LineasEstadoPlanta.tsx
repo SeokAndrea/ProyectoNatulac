@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Beaker, CheckCircle2, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square, TriangleAlert } from "lucide-react"
+import { Beaker, CheckCircle2, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -60,8 +60,6 @@ export function LineasEstadoPlanta({ modo }: { modo: ModoEstadoPlanta }) {
     activarLinea,
     pausarLinea,
     continuarLinea,
-    terminarSaborLinea,
-    terminarLinea,
     detenerLineaPorFalla,
     continuarSiguienteLote,
     cambiarCondicionLinea,
@@ -90,6 +88,7 @@ export function LineasEstadoPlanta({ modo }: { modo: ModoEstadoPlanta }) {
             modo={modo}
             areaCodigo={session?.area ?? null}
             lineaTurno={corridas.find((c) => c.linea === l.codigo && c.activa) ?? null}
+            corridaEsperandoPt={corridas.find((c) => c.linea === l.codigo && c.esperandoCierre) ?? null}
             lineaEstado={lineasEstado.find((le) => le.linea === l.codigo) ?? null}
             tanquesListos={tanquesListos}
             presentaciones={presentaciones}
@@ -97,8 +96,6 @@ export function LineasEstadoPlanta({ modo }: { modo: ModoEstadoPlanta }) {
             onActivar={activarLinea}
             onPausar={pausarLinea}
             onContinuar={continuarLinea}
-            onTerminarSabor={terminarSaborLinea}
-            onTerminarLinea={terminarLinea}
             onDetenerLineaPorFalla={detenerLineaPorFalla}
             onContinuarSiguienteLote={continuarSiguienteLote}
             onConfirmarEstadoLinea={confirmarEstadoLinea}
@@ -115,6 +112,7 @@ function LineaCard({
   modo,
   areaCodigo,
   lineaTurno,
+  corridaEsperandoPt,
   lineaEstado,
   tanquesListos,
   presentaciones,
@@ -122,8 +120,6 @@ function LineaCard({
   onActivar,
   onPausar,
   onContinuar,
-  onTerminarSabor,
-  onTerminarLinea,
   onDetenerLineaPorFalla,
   onContinuarSiguienteLote,
   onConfirmarEstadoLinea,
@@ -134,15 +130,14 @@ function LineaCard({
   modo: ModoEstadoPlanta
   areaCodigo: string | null
   lineaTurno: Corrida | null
+  corridaEsperandoPt: Corrida | null
   lineaEstado: LineaEstado | null
   tanquesListos: TanqueRecepcion[]
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   velocidades: ReturnType<typeof useCatalogosLive>["velocidades"]
   onActivar: (datos: DatosActivarLinea) => Promise<Resultado>
-  onPausar: (corridaId: string) => Promise<Resultado>
+  onPausar: (corridaId: string, motivo?: string) => Promise<Resultado>
   onContinuar: (corridaId: string) => Promise<Resultado>
-  onTerminarSabor: (corridaId: string) => Promise<Resultado>
-  onTerminarLinea: (corridaId: string) => Promise<Resultado>
   onDetenerLineaPorFalla: (corridaId: string, motivo: string) => Promise<Resultado>
   onContinuarSiguienteLote: (corridaId: string) => Promise<Resultado>
   onConfirmarEstadoLinea: (corridaId: string) => Promise<Resultado>
@@ -153,14 +148,14 @@ function LineaCard({
   const loteTerminado = lineaTurno?.loteTerminado != null
   const condicionLinea = lineaEstado?.condicion ?? "DETENIDA"
   const [editando, setEditando] = useState(false)
-  const [detener, setDetener] = useState(false)
-  /** "Falla" en Detener: a diferencia de Parada/Terminó, pide motivo antes de confirmar — igual que DETENIDA más abajo. */
-  const [fallaPendiente, setFallaPendiente] = useState(false)
-  const [editandoEstadoLinea, setEditandoEstadoLinea] = useState(false)
+  /** Confirmación de "Activar corrida": el resumen de qué se va a activar antes de mandarlo (cambio brusco → confirmar dos veces). */
+  const [confirmarActivar, setConfirmarActivar] = useState(false)
+  /** "Parada Operacional": muestra el textarea del motivo (obligatorio) antes de pausar. */
+  const [mostrarParada, setMostrarParada] = useState(false)
+  /** "Detener línea": 2ª confirmación — deja la corrida esperando el PT. */
+  const [confirmarDetener, setConfirmarDetener] = useState(false)
   const [enviandoEstadoLinea, setEnviandoEstadoLinea] = useState(false)
   const [errorEstadoLinea, setErrorEstadoLinea] = useState<string | null>(null)
-  /** DETENIDA lleva una nota libre (falla u observación, máx. 140): al elegirla no se guarda de inmediato, se muestra el textarea y luego se confirma. */
-  const [detenidaPendiente, setDetenidaPendiente] = useState(false)
   const [observacionBorrador, setObservacionBorrador] = useState(lineaEstado?.observacion ?? "")
   const [presentacion, setPresentacion] = useState<PresentacionCodigo | "">(lineaTurno?.presentacion ?? "")
   const [envasesHora, setEnvasesHora] = useState<number | "">(lineaTurno?.envasesHora ?? "")
@@ -185,6 +180,7 @@ function LineaCard({
   async function empezarEdicion() {
     setNumeroTanque("")
     setError(null)
+    setConfirmarActivar(false)
     setEditando(true)
 
     if (lineaTurno) {
@@ -213,8 +209,13 @@ function LineaCard({
 
   const valido = presentacion !== "" && envasesHora !== "" && numeroTanque !== ""
 
+  /** Paso 1: llenar el formulario y pasar al resumen. Paso 2 (confirmarActivar): mandar. */
   async function guardar() {
     if (!valido) return
+    if (!confirmarActivar) {
+      setConfirmarActivar(true)
+      return
+    }
     setGuardando(true)
     setError(null)
     const resultado = await onActivar({
@@ -230,6 +231,12 @@ function LineaCard({
       return
     }
     setEditando(false)
+    setConfirmarActivar(false)
+  }
+
+  function cerrarEdicion() {
+    setEditando(false)
+    setConfirmarActivar(false)
   }
 
   async function accion(fn: (corridaId: string) => Promise<Resultado>) {
@@ -238,23 +245,36 @@ function LineaCard({
     setErrorAccion(null)
     const resultado = await fn(lineaTurno.id)
     setEnviandoAccion(false)
-    setDetener(false)
     if (!resultado.ok) setErrorAccion(resultado.error)
   }
 
-  /** "Detener por falla": termina la corrida y anota el motivo en un solo paso — ver detenerLineaPorFalla en src/lib/produccion/ajustes.ts. */
-  async function confirmarFalla() {
-    if (!lineaTurno) return
+  /** "Parada Operacional": pausa la corrida con un motivo obligatorio. Sigue activa, se puede Continuar o Detener línea. */
+  async function confirmarParada() {
+    if (!lineaTurno || observacionBorrador.trim() === "") return
     setEnviandoAccion(true)
     setErrorAccion(null)
-    const resultado = await onDetenerLineaPorFalla(lineaTurno.id, observacionBorrador)
+    const resultado = await onPausar(lineaTurno.id, observacionBorrador.trim())
     setEnviandoAccion(false)
     if (!resultado.ok) {
       setErrorAccion(resultado.error)
       return
     }
-    setFallaPendiente(false)
-    setDetener(false)
+    setMostrarParada(false)
+    setObservacionBorrador("")
+  }
+
+  /** "Detener línea": la corrida pasa a Esperando PT + la línea queda Detenida con el motivo. */
+  async function confirmarDetenerLinea() {
+    if (!lineaTurno) return
+    setEnviandoAccion(true)
+    setErrorAccion(null)
+    const resultado = await onDetenerLineaPorFalla(lineaTurno.id, observacionBorrador.trim())
+    setEnviandoAccion(false)
+    if (!resultado.ok) {
+      setErrorAccion(resultado.error)
+      return
+    }
+    setConfirmarDetener(false)
     setObservacionBorrador("")
   }
 
@@ -265,100 +285,47 @@ function LineaCard({
     setEnviandoEstadoLinea(false)
     if (!resultado.ok) {
       setErrorEstadoLinea(resultado.error)
-      return
     }
-    setDetenidaPendiente(false)
-    setEditandoEstadoLinea(false)
   }
 
-  function elegirCondicionLinea(v: CondicionLinea) {
-    if (v === "DETENIDA") {
-      // No se guarda de inmediato: se muestra el textarea de falla/observación y se confirma con el botón.
-      setObservacionBorrador(lineaEstado?.observacion ?? "")
-      setDetenidaPendiente(true)
-      return
-    }
-    setDetenidaPendiente(false)
-    cambiarEstadoLinea(v)
-  }
-
-  /** Control de estado continuo de la línea (sin corrida activa) — Select de las condiciones + nota libre en DETENIDA + atajos de CIP. */
-  function renderEstadoLinea() {
-    const mostrarNotaDetenida = detenidaPendiente || condicionLinea === "DETENIDA"
+  /** Botones de condición de línea SIN corrida activa: Sin programación / En cambio de Operación / CIP. */
+  function renderCondicionBotones() {
     return (
-      <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+      <div className="flex flex-col gap-2">
         {condicionLinea === "CIP" ? (
-          <p className="text-xs text-muted-foreground">
-            Proceso de limpieza{lineaEstado?.cipIniciadoEn ? ` desde las ${lineaEstado.cipIniciadoEn.slice(11, 16)}` : ""}.
-          </p>
-        ) : (
-          <Select
-            value={detenidaPendiente ? "DETENIDA" : condicionLinea}
-            onValueChange={(v) => elegirCondicionLinea(v as CondicionLinea)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {/* "Lista" no se ofrece para elegir a mano — nadie la usa en la
-                  planta (plan-rework-tanques-lineas-recepcion.md §12). Sigue
-                  existiendo por dentro como destino de "Terminó CIP". */}
-              <SelectItem value="DETENIDA">Detenida</SelectItem>
-              <SelectItem value="CAMBIO_PRESENTACION">Cambio de Presentación</SelectItem>
-              <SelectItem value="SIN_PROGRAMACION">Sin programación</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-
-        {condicionLinea !== "CIP" && mostrarNotaDetenida && (
-          <div className="flex flex-col gap-1.5">
-            <Textarea
-              value={observacionBorrador}
-              onChange={(e) => setObservacionBorrador(e.target.value.slice(0, 140))}
-              maxLength={140}
-              rows={2}
-              placeholder="Falla u observación (opcional) — se muestra en el dashboard"
-              className="text-sm"
-            />
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-muted-foreground">{observacionBorrador.length}/140</span>
-              <Button
-                size="sm"
-                disabled={enviandoEstadoLinea}
-                onClick={() => cambiarEstadoLinea("DETENIDA", observacionBorrador)}
-              >
-                {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-                {condicionLinea === "DETENIDA" && !detenidaPendiente ? "Guardar nota" : "Marcar Detenida"}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          {condicionLinea === "CIP" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              En CIP{lineaEstado?.cipIniciadoEn ? ` desde las ${lineaEstado.cipIniciadoEn.slice(11, 16)}` : ""}.
+            </p>
             <Button size="sm" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("LISTA")}>
               {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
               Terminó CIP
             </Button>
-          ) : (
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={condicionLinea === "SIN_PROGRAMACION" ? "default" : "outline"}
+              disabled={enviandoEstadoLinea}
+              onClick={() => cambiarEstadoLinea("SIN_PROGRAMACION")}
+            >
+              Sin programación
+            </Button>
+            <Button
+              size="sm"
+              variant={condicionLinea === "CAMBIO_PRESENTACION" ? "default" : "outline"}
+              disabled={enviandoEstadoLinea}
+              onClick={() => cambiarEstadoLinea("CAMBIO_PRESENTACION")}
+            >
+              En cambio de Operación
+            </Button>
             <Button size="sm" variant="outline" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("CIP")}>
               {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
               Iniciar CIP
             </Button>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setDetenidaPendiente(false)
-              setEditandoEstadoLinea(false)
-            }}
-            disabled={enviandoEstadoLinea}
-          >
-            Cerrar
-          </Button>
-        </div>
-
+          </div>
+        )}
         {errorEstadoLinea && (
           <p className="text-xs text-destructive" role="alert">
             {errorEstadoLinea}
@@ -368,83 +335,85 @@ function LineaCard({
     )
   }
 
-  /** "¿Parada momentánea, terminó el lote, falla, o solo la línea?" — compartido entre Preparación y el "Detener" de Status. */
-  function renderDetenerConfirm() {
-    // "Falla" pide motivo antes de confirmar (plan-rework-tanques-lineas-recepcion.md §12:
-    // corta la corrida Y anota el motivo en un solo paso, no dos que se pueden desincronizar).
-    if (fallaPendiente) {
-      return (
-        <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-          <p className="text-xs text-foreground">
-            La línea se detiene y el tanque se conserva para cuando se retome. Anota que pasó (opcional).
-          </p>
-          <Textarea
-            value={observacionBorrador}
-            onChange={(e) => setObservacionBorrador(e.target.value.slice(0, 140))}
-            maxLength={140}
-            rows={2}
-            placeholder="Falla — se muestra en el dashboard"
-            className="text-sm"
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">{observacionBorrador.length}/140</span>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setFallaPendiente(false)} disabled={enviandoAccion}>
-                Cancelar
-              </Button>
-              <Button size="sm" onClick={confirmarFalla} disabled={enviandoAccion}>
-                {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <TriangleAlert className="size-3.5" />}
-                Confirmar falla
-              </Button>
-            </div>
-          </div>
-          {errorAccion && (
-            <p className="text-xs text-destructive" role="alert">
-              {errorAccion}
-            </p>
-          )}
-        </div>
-      )
-    }
-
+  /** "Parada Operacional": pausa la corrida con un motivo OBLIGATORIO. */
+  function renderParadaOperacional() {
     return (
       <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-        <p className="text-xs text-muted-foreground">
-          ¿Fue una parada momentánea, una falla que corta la corrida, se terminó el lote, o solo se para la línea (el
-          tanque sigue Listo)?
+        <p className="text-xs text-foreground">
+          Parada Operacional — la corrida se pausa (se puede Continuar o Detener línea). Escribe el motivo.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => accion(onPausar)} disabled={enviandoAccion}>
-            {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PauseCircle className="size-3.5" />}
-            Parada
+        <Textarea
+          value={observacionBorrador}
+          onChange={(e) => setObservacionBorrador(e.target.value.slice(0, 140))}
+          maxLength={140}
+          rows={2}
+          placeholder="Motivo de la parada — se muestra en el dashboard"
+          className="text-sm"
+        />
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-muted-foreground">{observacionBorrador.length}/140</span>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setMostrarParada(false)
+                setObservacionBorrador("")
+              }}
+              disabled={enviandoAccion}
+            >
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={confirmarParada} disabled={enviandoAccion || observacionBorrador.trim() === ""}>
+              {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PauseCircle className="size-3.5" />}
+              Confirmar parada
+            </Button>
+          </div>
+        </div>
+        {errorAccion && (
+          <p className="text-xs text-destructive" role="alert">
+            {errorAccion}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  /** "Detener línea": 2ª confirmación. La corrida queda Esperando PT (se cierra al cargar el Producto Terminado). */
+  function renderDetenerLinea() {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-3">
+        <p className="text-xs text-foreground">
+          Esto detiene la corrida{lineaTurno?.lote ? ` del Lote ${lineaTurno.lote}` : ""}. Queda <span className="font-medium">esperando que cargues su Producto Terminado</span> para cerrarse. No se puede deshacer.
+        </p>
+        <Textarea
+          value={observacionBorrador}
+          onChange={(e) => setObservacionBorrador(e.target.value.slice(0, 140))}
+          maxLength={140}
+          rows={2}
+          placeholder="Motivo (opcional) — se muestra en el dashboard"
+          className="text-sm"
+        />
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setConfirmarDetener(false)
+              setObservacionBorrador("")
+            }}
+            disabled={enviandoAccion}
+          >
+            Cancelar
           </Button>
           <Button
             size="sm"
-            variant="outline"
-            className="border-warning/40 text-warning-foreground hover:bg-warning-soft/40"
-            onClick={() => setFallaPendiente(true)}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={confirmarDetenerLinea}
             disabled={enviandoAccion}
           >
-            <TriangleAlert className="size-3.5" />
-            Falla
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-destructive/40 text-destructive hover:bg-destructive/10"
-            onClick={() => accion(onTerminarSabor)}
-            disabled={enviandoAccion}
-          >
-            <Square className="size-3.5" />
-            Terminó Lote
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => accion(onTerminarLinea)} disabled={enviandoAccion}>
-            <Square className="size-3.5" />
-            Terminó Línea
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setDetener(false)} disabled={enviandoAccion}>
-            <PlayCircle className="size-3.5" />
-            Continuar
+            {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" />}
+            Sí, detener línea
           </Button>
         </div>
         {errorAccion && (
@@ -535,6 +504,15 @@ function LineaCard({
           </p>
         )}
 
+        {confirmarActivar && valido && tanqueElegido && (
+          <p className="rounded-md bg-muted/60 p-2 text-xs text-foreground">
+            Vas a activar <span className="font-medium">{nombreLinea}</span> con{" "}
+            <span className="font-medium">{tanqueElegido.saborNombre ?? "sin sabor"}</span>
+            {tanqueElegido.lote ? ` · Lote ${tanqueElegido.lote}` : ""} del Tanque {tanqueElegido.numeroTanque}, a{" "}
+            {presentacion} ml · {envasesHora} env/h. ¿Confirmar?
+          </p>
+        )}
+
         {error && (
           <p className="text-xs text-destructive" role="alert">
             {error}
@@ -544,9 +522,9 @@ function LineaCard({
         <div className="flex flex-wrap gap-2">
           <Button size="sm" disabled={!valido || guardando} onClick={guardar}>
             {guardando ? <Loader2 className="size-3.5 animate-spin" /> : null}
-            Guardar
+            {confirmarActivar ? "Sí, activar corrida" : "Activar corrida"}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setEditando(false)}>
+          <Button size="sm" variant="ghost" onClick={cerrarEdicion}>
             Cancelar
           </Button>
         </div>
@@ -606,11 +584,17 @@ function LineaCard({
         )}
 
         {modo === "preparacion" &&
-          (!editando && loteTerminado && lineaTurno ? (
+          (editando ? (
+            renderFormularioEdicion()
+          ) : mostrarParada ? (
+            renderParadaOperacional()
+          ) : confirmarDetener ? (
+            renderDetenerLinea()
+          ) : loteTerminado && lineaTurno ? (
             <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
               <p className="text-xs text-foreground">
-                Se terminó el lote{lineaTurno.lote ? ` ${lineaTurno.lote}` : ""} que estaba usando esta corrida — ¿terminó el
-                sabor o sigue con el siguiente lote?
+                Se terminó el lote{lineaTurno.lote ? ` ${lineaTurno.lote}` : ""} de esta corrida — ¿sigue con el siguiente lote o
+                se detiene la línea?
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => accion(onContinuarSiguienteLote)} disabled={enviandoAccion}>
@@ -621,11 +605,14 @@ function LineaCard({
                   variant="outline"
                   size="sm"
                   className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                  onClick={() => accion(onTerminarSabor)}
+                  onClick={() => {
+                    setObservacionBorrador("")
+                    setConfirmarDetener(true)
+                  }}
                   disabled={enviandoAccion}
                 >
                   <Square className="size-3.5" />
-                  Terminó Lote
+                  Detener línea
                 </Button>
               </div>
               {errorAccion && (
@@ -634,7 +621,103 @@ function LineaCard({
                 </p>
               )}
             </div>
-          ) : !editando && pausada && lineaTurno ? (
+          ) : pausada && lineaTurno ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">Parada Operacional.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion}>
+                  {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                  Continuar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    setObservacionBorrador("")
+                    setConfirmarDetener(true)
+                  }}
+                  disabled={enviandoAccion}
+                >
+                  <Square className="size-3.5" />
+                  Detener línea
+                </Button>
+              </div>
+              {errorAccion && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorAccion}
+                </p>
+              )}
+            </div>
+          ) : activa && lineaTurno ? (
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => {
+                  setObservacionBorrador("")
+                  setMostrarParada(true)
+                }}
+              >
+                <PauseCircle className="size-3.5" />
+                Parada Operacional
+              </Button>
+              {errorAccion && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorAccion}
+                </p>
+              )}
+            </div>
+          ) : corridaEsperandoPt ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
+              <p className="text-xs text-foreground">
+                Corrida detenida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} — carga su Producto
+                Terminado para cerrarla.
+              </p>
+              {renderCondicionBotones()}
+              <Button variant="outline" size="sm" className="self-start" onClick={empezarEdicion}>
+                <PlayCircle className="size-3.5" />
+                Activar otra corrida
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" size="sm" className="self-start" onClick={empezarEdicion}>
+                <PlayCircle className="size-3.5" />
+                Activar corrida
+              </Button>
+              {renderCondicionBotones()}
+            </div>
+          ))}
+
+        {modo === "status" &&
+          lineaTurno &&
+          (editando ? (
+            renderFormularioEdicion()
+          ) : mostrarParada ? (
+            renderParadaOperacional()
+          ) : confirmarDetener ? (
+            renderDetenerLinea()
+          ) : !lineaTurno.confirmadoInicioEn ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
+              <p className="text-sm text-foreground">{nombreLinea}: así quedó del turno anterior — confirma o corrige.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" disabled={enviandoAccion} onClick={() => accion(onConfirmarEstadoLinea)}>
+                  {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                  Confirmar
+                </Button>
+                <Button size="sm" variant="outline" onClick={empezarEdicion}>
+                  Corregir
+                </Button>
+              </div>
+              {errorAccion && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorAccion}
+                </p>
+              )}
+            </div>
+          ) : pausada ? (
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion}>
                 {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
@@ -644,94 +727,36 @@ function LineaCard({
                 variant="outline"
                 size="sm"
                 className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                onClick={() => accion(onTerminarSabor)}
-                disabled={enviandoAccion}
+                onClick={() => {
+                  setObservacionBorrador("")
+                  setConfirmarDetener(true)
+                }}
               >
                 <Square className="size-3.5" />
-                Terminó Lote
+                Detener línea
               </Button>
-              <Button variant="outline" size="sm" onClick={() => accion(onTerminarLinea)} disabled={enviandoAccion}>
-                <Square className="size-3.5" />
-                Terminó Línea
-              </Button>
-            </div>
-          ) : !editando && !detener && editandoEstadoLinea ? (
-            renderEstadoLinea()
-          ) : !editando && !detener ? (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={empezarEdicion}>
-                <PenLine className="size-3.5" />
-                {activa ? "Editar" : "Activar corrida"}
-              </Button>
-              {activa ? (
-                <Button variant="outline" size="sm" onClick={() => setDetener(true)}>
-                  <PauseCircle className="size-3.5" />
-                  Detener
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={() => setEditandoEstadoLinea(true)}>
-                  <PenLine className="size-3.5" />
-                  Editar
-                </Button>
-              )}
-            </div>
-          ) : !editando && detener ? (
-            renderDetenerConfirm()
-          ) : (
-            renderFormularioEdicion()
-          ))}
-
-        {modo === "status" && lineaTurno && !editando && !detener && (
-          !lineaTurno.confirmadoInicioEn ? (
-            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
-              <p className="text-sm text-foreground">{nombreLinea}: así quedó del turno anterior — confirma o corrige.</p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" disabled={enviandoAccion} onClick={() => accion(onConfirmarEstadoLinea)}>
-                  {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-                  Confirmar
-                </Button>
-                <Button size="sm" variant="outline" onClick={empezarEdicion}>
-                  Editar
-                </Button>
-              </div>
-              {errorAccion && (
-                <p className="text-xs text-destructive" role="alert">
-                  {errorAccion}
-                </p>
-              )}
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
               <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={empezarEdicion}>
                 <PenLine className="size-3.5" />
-                Editar
+                Corregir
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setDetener(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setObservacionBorrador("")
+                  setMostrarParada(true)
+                }}
+              >
                 <PauseCircle className="size-3.5" />
-                Detener
+                Parada Operacional
               </Button>
             </div>
-          )
-        )}
-
-        {modo === "status" && lineaTurno && detener && renderDetenerConfirm()}
-        {modo === "status" && lineaTurno && editando && renderFormularioEdicion()}
-
-        {modo === "status" &&
-          !activa &&
-          (editandoEstadoLinea ? (
-            renderEstadoLinea()
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="self-start text-muted-foreground"
-              onClick={() => setEditandoEstadoLinea(true)}
-            >
-              <PenLine className="size-3.5" />
-              Editar
-            </Button>
           ))}
+
+        {modo === "status" && !activa && renderCondicionBotones()}
       </CardContent>
     </Card>
   )
