@@ -621,12 +621,14 @@ y sin ninguna lógica de turno nocturno (`src/lib/sesionTurno.tsx`). El `codigo`
 que solo `turnos.fecha` y `turnos.codigo` quedan mal — pero el Panel y las estadísticas
 filtran por `turnos.fecha`, así que el turno "desaparece" del día correcto.
 
-**Arreglo (regla en el servidor, sin cambio de UI — encaja con "un solo camino correcto"):**
-en `iniciar_turno`, si `p_turno_tipo_codigo = 'TURNO_3'` y `p_hora_inicio < '06:00'`, usar
-`p_fecha - 1` para la fecha **y** para el `codigo`. El Turno 3 va de ~22:00 a ~06:00, así que
-cualquier arranque antes de las 06:00 pertenece operativamente al día anterior; el Turno 3
-nunca "empieza de cero" a la 01:00 para su propia fecha. Confirmar el umbral con el dueño
-antes de escribir la migración (¿06:00 fijo? ¿lo define el `turno_tipo`?).
+**Arreglo — HECHO en `20261019090000_turno_nocturno_fecha_operativa.sql`** (regla en el
+servidor, sin cambio de UI). Data-driven, sin umbral fijo: usa las horas nominales del propio
+`turno_tipo` (`turno_tipos` ya tiene `hora_inicio` / `hora_fin` — T3 = 22:30 → 07:00). Si el
+turno_tipo **cruza medianoche** (`hora_fin < hora_inicio`) y se activa **antes de `hora_fin`**
+nominal (la cola de la madrugada), la fecha operativa y el `codigo` usan `p_fecha - 1`.
+`hora_inicio` se guarda tal cual (el reloj real). Si cambian el horario de T3, la regla lo
+sigue. T1/T2 no cruzan medianoche → nunca se ajusta.
+`scripts/test-turno-nocturno-fecha.sql`.
 
 **Corrección puntual del turno de Javier** (una vez, aparte de la migración):
 `scripts/fix-turno-fecha-anterior.sql` — `update turnos set fecha = fecha - 1, codigo = …`

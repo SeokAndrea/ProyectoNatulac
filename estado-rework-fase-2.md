@@ -8,9 +8,9 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
 
 ## Resumen
 
-**6 migraciones nuevas** (`20261013`–`20261018`) + su frontend, listas para
-subir **como un solo batch**. 13 commits, desde `4d8f75b` hasta `0a22290`.
-`npm run build` + `npm test` (58) en verde en cada commit.
+**7 migraciones nuevas** (`20261013`–`20261019`) + su frontend, listas para
+subir **como un solo batch**. Desde `4d8f75b`. `npm run build` + `npm test`
+(58) en verde en cada commit.
 
 La Fase 1 (arquitectura de 3 módulos) ya estaba cerrada antes de empezar
 esto.
@@ -113,18 +113,21 @@ sobre `cerrar_corrida_si_esperando`). Se consolida:
 `scripts/test-costura2-cierre-corrida.sql`
 → `fc29b1f` (base) · `6256380` (frontend Líneas) · `25d33e6` (fix cierre PT) · `0a22290` (fix Finalizar)
 
+### `20261019` — Turno nocturno: la fecha es la del día operativo (§2.10)
+Bug real (Javier, noche 2026-09-07→08): activó el Turno 3 pasada la
+medianoche y quedó como Turno 3 del día siguiente. Ahora `iniciar_turno`,
+si el `turno_tipo` cruza medianoche (`hora_fin < hora_inicio`, T3 =
+22:30→07:00) y se activa antes de `hora_fin` nominal (la cola de la
+madrugada), usa `p_fecha - 1` para `fecha` y `codigo`. Data-driven, sin
+umbral fijo — si cambian el horario de T3 la regla lo sigue. Sin cambio de
+frontend. `scripts/test-turno-nocturno-fecha.sql`.
+La corrección puntual de la fila ya mal está en
+`scripts/fix-turno-fecha-anterior.sql` (plano para el SQL editor de
+Supabase). → `d2d5684` (plan+script) · migración: este commit
+
 ---
 
-## Hecho — solo plan / scripts (sin migración todavía)
-
-### §2.10 — Turno 3 después de medianoche
-Bug real (Javier, noche 2026-09-07→08): activó el Turno 3 pasada la
-medianoche y quedó como Turno 3 del día siguiente. `iniciar_turno` toma
-`p_fecha` del frontend como `fechaLocal(now())`, sin lógica de turno
-nocturno. Plan §2.10: regla en `iniciar_turno` (si `TURNO_3` y
-`hora_inicio < 06:00` → `p_fecha - 1`, umbral a confirmar).
-`scripts/fix-turno-fecha-anterior.sql` — corrección puntual de la fila ya
-mal, plano para el SQL editor de Supabase. **Migración pendiente.** → `d2d5684`
+## Hecho — solo plan / scripts (sin migración)
 
 ### Plan reescrito — costura 2 / §2.2
 Modelo de dos estados documentado, tabla de 7 casos línea→tanque→PT,
@@ -159,17 +162,16 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 | **§2.5** | Capturar el residuo de línea (~5% / 500 L) al cortar un lote — hoy ese volumen desaparece sin rastro. |
 | **§2.6** | Envases buenos (Contador 2) como comparación visible de toda corrida (`Δenvases = |buenos − PT|`). |
 | **§2.9** | Dropear columnas muertas de `producto_terminado` (`producto_retenido`, `cajas_retenidas`, `editado_por`, `editado_en`); retirar el mecanismo de entregas parciales. **Destructivo → push propio.** |
-| **§2.10** | La migración de `iniciar_turno` (hoy solo existe el plan + el hotfix script). |
 
 ---
 
 ## Cómo subir
 
-- Las **6 migraciones** (`20261013`–`20261018`) + **todo el frontend** van
+- Las **7 migraciones** (`20261013`–`20261019`) + **todo el frontend** van
   **JUNTAS**: un WinSCP + un `npx supabase db push` + un
   `docker compose --profile preview up -d --build`. **No** partir el batch —
   cada migración cambia nombres de RPC / comportamiento y su frontend va con
-  ella.
+  ella. (`20261019` no tiene frontend.)
 - Antes del push, si hay Docker: correr los `scripts/test-*.sql` sobre
   `supabase db reset` local (hoy no hay Docker en la laptop → los scripts
   quedan escritos para cuando lo haya).
