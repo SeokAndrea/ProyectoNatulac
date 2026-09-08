@@ -355,7 +355,7 @@ type OnRegistrarContador = (datos: {
   corridaId: string
   linea: Corrida["linea"]
   envasesLlenadora: number
-  /** Contador 2, opcional: envases buenos — ver ContadorRegistro.envasesBuenos en src/lib/produccion/tipos.ts. */
+  /** Contador 2 (envases buenos), obligatorio — ver ContadorRegistro.envasesBuenos en src/lib/produccion/tipos.ts. */
   envasesBuenos?: number | null
   justificacion: string
   /** true = lectura de referencia de una entrega parcial (no cuenta para merma). */
@@ -408,7 +408,7 @@ function FilaProductoTerminado({
 
   const [editandoError, setEditandoError] = useState(false)
   const [envasesLlenadora, setEnvasesLlenadora] = useState("")
-  /** Contador 2, opcional: envases buenos — ver ContadorRegistro.envasesBuenos en turno.tsx. */
+  /** Contador 2 (envases buenos), obligatorio junto con el contador de la llenadora. */
   const [envasesBuenos, setEnvasesBuenos] = useState("")
   /**
    * Sin parciales: Paletas/Cajas son el TOTAL actual (se editan, reemplazan).
@@ -454,12 +454,18 @@ function FilaProductoTerminado({
   const hayIncremento = nPaletas > 0 || nCajasSueltas > 0
   const hayDatos = hayContadorNuevo || hayProducto
   const modoCorreccion = estaCerrada && editandoError
+  /** El Contador 2 (envases buenos) es OBLIGATORIO junto con el contador de la llenadora, y no puede superarlo. */
+  const buenosValido =
+    !hayContadorNuevo ||
+    (nuevoContadorBuenos !== null && nuevoContadorBuenos >= 0 && nuevoContadorBuenos <= nuevoContador)
   const valido =
     hayDatos &&
+    buenosValido &&
     (!puedeElegirProximoEstado || proximoEstado !== null) &&
     (!requiereJustificacion || justificacion.trim() !== "")
   /** "Entrega parcial": solo con un incremento de producto cargado, mientras la corrida sigue activa. */
-  const puedeEntregaParcial = puedeElegirProximoEstado && hayIncremento && (!requiereJustificacion || justificacion.trim() !== "")
+  const puedeEntregaParcial =
+    puedeElegirProximoEstado && hayIncremento && buenosValido && (!requiereJustificacion || justificacion.trim() !== "")
   const textoBoton = modoCorreccion
     ? "Guardar corrección"
     : puedeElegirProximoEstado
@@ -715,7 +721,7 @@ function FilaProductoTerminado({
               value={envasesLlenadora}
               onChange={(e) => setEnvasesLlenadora(e.target.value)}
             />
-            <Label htmlFor={`contador-buenos-${lineaTurno.id}`}>Envases buenos (Contador 2, opcional)</Label>
+            <Label htmlFor={`contador-buenos-${lineaTurno.id}`}>Envases buenos (Contador 2)</Label>
             <Input
               id={`contador-buenos-${lineaTurno.id}`}
               type="number"
@@ -723,7 +729,15 @@ function FilaProductoTerminado({
               placeholder="Envases buenos"
               value={envasesBuenos}
               onChange={(e) => setEnvasesBuenos(e.target.value)}
+              aria-invalid={hayContadorNuevo && !buenosValido}
             />
+            {hayContadorNuevo && !buenosValido && (
+              <p className="text-xs text-destructive" role="alert">
+                {envasesBuenos === ""
+                  ? "El Contador 2 (envases buenos) es obligatorio junto con el contador de la llenadora."
+                  : "Los envases buenos no pueden superar el total de la llenadora."}
+              </p>
+            )}
             {modoIncremental && (
               <p className="text-xs text-muted-foreground">
                 En una entrega parcial es solo de referencia. El que cuenta para la merma es el contador final.

@@ -582,10 +582,15 @@ rastro.
 
 ### 2.6 — Envases buenos como validación estándar de toda corrida
 
-Elevar Contador 2 de "parche para PT que excede el volumen" a comparación visible en toda
-corrida (`Δenvases = |buenos − PT_envases|`) — con la salvedad de que hoy ambos números los
-tipea el mismo supervisor (evidencia independiente real recién cuando lo cargue el robot,
-fuera de este plan).
+**Parcial hecho (2026-09-08):** el Contador 2 (envases buenos) **dejó de ser opcional** en el
+formulario de Producto Terminado — es obligatorio junto con el contador de la llenadora, y no
+puede superarlo (`ProductoTerminado.tsx`, validación de frontend). Con esto la corroboración
+de "PT que excede el volumen preparado" (`realidadPreparacion.ts`) siempre tiene el dato.
+
+**Pendiente:** mostrar el `Δenvases = |buenos − PT_envases|` como comparación visible en toda
+corrida; guard equivalente del lado servidor en `registrar_contador` (hoy solo lo fuerza el
+frontend). Salvedad de siempre: ambos números los tipea el mismo supervisor — evidencia
+independiente real recién cuando lo cargue el robot (Fase 3).
 
 ### 2.7 — Checkpoint pendiente, no se implementa todavía
 

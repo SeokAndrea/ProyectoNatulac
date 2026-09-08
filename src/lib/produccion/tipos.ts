@@ -69,7 +69,7 @@ export interface ContadorRegistro {
   linea: LineaCodigo
   corridaId: string | null
   envasesLlenadora: number
-  /** Contador 2, opcional: envases buenos — no se usa para merma de envase, sirve para corroborar un PT que "excede lo preparado" (Reportes). */
+  /** Contador 2 (envases buenos), obligatorio junto con el contador de la llenadora. No entra en la merma de envase; corrobora el PT y la merma de semielaborado (Reportes). */
   envasesBuenos: number | null
   justificacion: string
   /** Lectura de una entrega parcial: solo referencia, NO cuenta para merma. */

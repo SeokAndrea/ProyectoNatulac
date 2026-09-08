@@ -23,7 +23,7 @@ const nombreCondicionLinea: Record<CondicionLinea, string> = {
   DETENIDA: "Detenida",
   LISTA: "Lista para arrancar",
   CIP: "En CIP",
-  CAMBIO_PRESENTACION: "Cambio de Presentación",
+  CAMBIO_PRESENTACION: "En cambio de operación",
   SIN_PROGRAMACION: "Sin programación",
 }
 const badgeVariantCondicionLinea: Record<CondicionLinea, "success" | "warning" | "muted" | "danger" | "info"> = {
