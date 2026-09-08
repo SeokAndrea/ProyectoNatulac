@@ -100,6 +100,34 @@ export async function medirTanque(
   return { ok: true, data }
 }
 
+/**
+ * Después de transferir: si el tanque origen NO quedó vacío, capturar los
+ * litros que quedaron. Reabre el lote origen con ese resto (tanque →
+ * Con Restos) y le baja al lote destino el mismo volumen (llegó de
+ * menos), con constancia en `preparaciones_ajuste`. Ver migración
+ * 20261024090000. Solo aplica a transferencias de líquido / a tanque
+ * Limpio (no a "mover el lote entero").
+ */
+export async function capturarRestoOrigenTransferencia(
+  usuario: string,
+  turnoId: string,
+  numeroTanqueOrigen: 1 | 2 | 3,
+  litrosResto: number,
+): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("capturar_resto_origen_transferencia", {
+    p_usuario: usuario,
+    p_turno_id: turnoId,
+    p_numero_tanque_origen: numeroTanqueOrigen,
+    p_litros_resto: litrosResto,
+  })
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? "No se pudo registrar el resto del tanque. Intenta de nuevo." }
+  }
+
+  return { ok: true, data }
+}
+
 // ------------------------------------------------------------
 // TODO (Fase 2 del plan, §2.1) — `cambiarCondicionTanque` todavía hace el
 // toggle de CIP (Iniciar/Terminó CIP) y el confirmar INICIO/FIN de un

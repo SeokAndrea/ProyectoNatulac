@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase"
 import {
   ajustarPreparacion as ajustarPreparacionAccion,
   cambiarCondicionTanque as cambiarCondicionTanqueAccion,
+  capturarRestoOrigenTransferencia as capturarRestoOrigenTransferenciaAccion,
   desvasarTanque as desvasarTanqueAccion,
   medirTanque as medirTanqueAccion,
   transferirTanque as transferirTanqueAccion,
@@ -60,6 +61,8 @@ export interface UsePreparacionResultado {
   desvasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   /** Relectura física: corrige `volumen_l` al valor medido — herramienta de excepción. */
   medirTanque: (numeroTanque: 1 | 2 | 3, volumenReal: number) => Promise<Resultado>
+  /** Después de transferir: captura los litros que quedaron en el tanque origen (no quedó vacío). */
+  capturarRestoOrigenTransferencia: (numeroTanqueOrigen: 1 | 2 | 3, litrosResto: number) => Promise<Resultado>
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
   /** TODO (Fase 2 del plan): todavía hace CIP + confirmar INICIO/FIN — ver ajustes.ts. */
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
@@ -157,6 +160,13 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     return resultado
   }
 
+  async function capturarRestoOrigenTransferencia(numeroTanqueOrigen: 1 | 2 | 3, litrosResto: number): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await capturarRestoOrigenTransferenciaAccion(usuario, turnoId, numeroTanqueOrigen, litrosResto)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
   async function confirmarEstadoTanque(numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN"): Promise<Resultado> {
     if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
     const resultado = await confirmarEstadoTanqueAccion(usuario, turnoId, numeroTanque, momento)
@@ -183,6 +193,7 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     transferirTanque,
     desvasarTanque,
     medirTanque,
+    capturarRestoOrigenTransferencia,
     confirmarEstadoTanque,
     cambiarCondicionTanque,
   }

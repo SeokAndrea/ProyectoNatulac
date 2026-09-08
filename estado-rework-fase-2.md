@@ -13,7 +13,8 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
 
 **Seguimiento (push propio, todavía sin subir):** `20261022`
 (`seguir_mismo_lote`) + `20261023` (`continuar_siguiente_lote` con tanque
-manual) + su frontend — van juntos, ver más abajo.
+manual) + `20261024` (resto en el origen post-transferencia) + su
+frontend — van juntos, ver más abajo.
 
 `npm run build` + `npm test` (58) en verde en cada commit.
 
@@ -202,6 +203,26 @@ Destrabe puntual del turno de Dany:
 Supabase — hace la transición a mano; sirve incluso antes de subir la
 migración).
 
+### `20261024` — Resto en el tanque origen después de transferir (§2.4 / §2.5)
+`transferir_tanque` asume que TODO el volumen del origen se movió y deja
+el tanque en SUCIO. En la práctica quedan litros pegados al fondo: ese
+semielaborado desaparece (el tanque marca vacío pero tiene líquido, y el
+lote destino quedó acreditado de más en `volumen_inicial_l`).
+- **Frontend, paso 1 obligatorio**: antes de transferir, "Medí el Tanque
+  {origen}" — se confirma/corrige el volumen real (por `medir_tanque`) y
+  la transferencia mueve ESE número. Nunca sobre un valor sin medir.
+- **`capturar_resto_origen_transferencia(usuario, turno_id, tanque_origen,
+  litros_resto)` NUEVA** — después de transferir (+ medir destino), el
+  cierre pregunta "¿el Tanque {origen} quedó vacío?". Si no: reabre el
+  lote origen con el resto (tanque → Con Restos), le devuelve el crédito
+  (`volumen_inicial_l += resto`), y le baja al lote destino `volumen_l` y
+  `volumen_inicial_l` en el mismo resto — todo con constancia en
+  `preparaciones_ajuste`. Solo LÍQUIDO / destino Limpio (no modo LOTE).
+  Idempotente. NO toca `transferir_tanque` ni ninguna tabla.
+- Regla que cierra: medir cada tanque mientras tiene su identidad;
+  editar después de transferir = corregir el lote equivocado.
+`scripts/test-resto-origen-transferencia.sql` → este commit
+
 ---
 
 ## Hecho — solo plan / scripts (sin migración)
@@ -246,13 +267,16 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 - Las **9 migraciones** (`20261013`–`20261021`) + su frontend **ya se
   subieron** (2026-09-08).
-- **`20261022` (`seguir_mismo_lote`) + `20261023`
-  (`continuar_siguiente_lote` con tanque manual)** son un push propio y
-  van juntos: WinSCP del frontend (`LineasEstadoPlanta.tsx`,
-  `produccion/ajustes.ts`, `produccion/useProduccion.ts`) +
-  `npx supabase db push` (`20261022` aditiva; `20261023` es drop+create
-  de una sola función, misma firma + 1 param opcional) +
-  `docker compose --profile preview up -d --build`.
+- **`20261022`–`20261024`** son un push propio y van juntos:
+  - `20261022` `seguir_mismo_lote` (aditiva).
+  - `20261023` `continuar_siguiente_lote` con tanque manual (drop+create,
+    misma firma + 1 param opcional).
+  - `20261024` `capturar_resto_origen_transferencia` (aditiva).
+  - Frontend: `produccion/{ajustes,useProduccion}.ts`,
+    `LineasEstadoPlanta.tsx`, `preparacion/{ajustes,usePreparacion}.ts`,
+    `EstadoPlantaTabs.tsx`.
+  - WinSCP + `npx supabase db push` + `docker compose --profile preview
+    up -d --build`.
 - El turno de Dany se puede destrabar YA, sin esperar el deploy, con
   `scripts/fix-turno-dany-continuar-lote.sql`.
 - Batch original — para referencia: iba **JUNTO** (un WinSCP + un

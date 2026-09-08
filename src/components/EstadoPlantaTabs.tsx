@@ -101,6 +101,7 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
     transferirTanque,
     desvasarTanque,
     medirTanque,
+    capturarRestoOrigenTransferencia,
   } = usePreparacion()
   const { corridas, cargando: cargandoProduccion } = useProduccion()
 
@@ -133,6 +134,7 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
           onTransferir={transferirTanque}
           onDesvasar={desvasarTanque}
           onMedirTanque={medirTanque}
+          onCapturarRestoOrigen={capturarRestoOrigenTransferencia}
         />
       ))}
     </div>
@@ -198,6 +200,7 @@ function TanqueCard({
   onTransferir,
   onDesvasar,
   onMedirTanque,
+  onCapturarRestoOrigen,
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
@@ -220,6 +223,7 @@ function TanqueCard({
   ) => Promise<Resultado>
   onDesvasar: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   onMedirTanque: (numeroTanque: 1 | 2 | 3, volumenReal: number) => Promise<Resultado>
+  onCapturarRestoOrigen: (numeroTanqueOrigen: 1 | 2 | 3, litrosResto: number) => Promise<Resultado>
 }) {
   const [editando, setEditando] = useState(false)
   const [mostrarFormPrep, setMostrarFormPrep] = useState(false)
@@ -231,14 +235,21 @@ function TanqueCard({
   const [errorAjuste, setErrorAjuste] = useState<string | null>(null)
   const [cambiandoCip, setCambiandoCip] = useState(false)
   const [mostrarTransferir, setMostrarTransferir] = useState(false)
+  /** Paso 1 obligatorio: confirmar/corregir el volumen real del tanque ORIGEN antes de mover. */
+  const [origenConfirmado, setOrigenConfirmado] = useState(false)
+  const [volOrigenReal, setVolOrigenReal] = useState("")
+  const [confirmandoOrigen, setConfirmandoOrigen] = useState(false)
   const [tanqueDestino, setTanqueDestino] = useState<1 | 2 | 3 | "">("")
   const [modoTransferencia, setModoTransferencia] = useState<ModoTransferencia>("LIQUIDO")
   const [motivoTransferencia, setMotivoTransferencia] = useState<MotivoTransferencia>("CONSOLIDAR_RESTOS")
   const [confirmandoRedireccion, setConfirmandoRedireccion] = useState(false)
   const [transfiriendo, setTransfiriendo] = useState(false)
   const [errorTransferir, setErrorTransferir] = useState<string | null>(null)
-  /** Después de transferir: medir el tanque destino para fijar el volumen real (no solo el calculado). */
+  /** Después de transferir: medir el tanque destino + confirmar si el origen quedó vacío. */
   const [medirDestino, setMedirDestino] = useState<1 | 2 | 3 | null>(null)
+  const [origenTransferido, setOrigenTransferido] = useState<1 | 2 | 3 | null>(null)
+  const [modoTransferido, setModoTransferido] = useState<ModoTransferencia | null>(null)
+  const [restoOrigen, setRestoOrigen] = useState("0")
   const [volMedido, setVolMedido] = useState("")
   const [midiendo, setMidiendo] = useState(false)
   const [errorMedir, setErrorMedir] = useState<string | null>(null)
@@ -263,6 +274,42 @@ function TanqueCard({
       (t.condicion === "LIMPIO" || ((t.condicion === "LISTO" || t.condicion === "STANDBY") && t.saborId !== null && t.saborId === tanque.saborId)),
   )
 
+  function abrirTransferir() {
+    setMostrarTransferir(true)
+    setOrigenConfirmado(false)
+    setVolOrigenReal(String(tanque.volumenL ?? 0))
+    setErrorTransferir(null)
+  }
+
+  function cerrarTransferir() {
+    setMostrarTransferir(false)
+    setOrigenConfirmado(false)
+    setTanqueDestino("")
+    setModoTransferencia("LIQUIDO")
+    setMotivoTransferencia("CONSOLIDAR_RESTOS")
+    setConfirmandoRedireccion(false)
+    setErrorTransferir(null)
+  }
+
+  /** Paso 1: confirmar el volumen real del origen. Si cambió, se registra por medir_tanque antes de mover. */
+  async function confirmarOrigen() {
+    const real = Number(volOrigenReal)
+    if (!Number.isFinite(real) || real < 0) return
+    if (real === (tanque.volumenL ?? 0)) {
+      setOrigenConfirmado(true)
+      return
+    }
+    setConfirmandoOrigen(true)
+    setErrorTransferir(null)
+    const resultado = await onMedirTanque(tanque.numeroTanque, real)
+    setConfirmandoOrigen(false)
+    if (!resultado.ok) {
+      setErrorTransferir(resultado.error)
+      return
+    }
+    setOrigenConfirmado(true)
+  }
+
   async function transferir() {
     if (tanqueDestino === "" || transferExcedeMax) return
     if (corridaActivaEnEsteTanque && !confirmandoRedireccion) {
@@ -278,7 +325,11 @@ function TanqueCard({
       return
     }
     setMostrarTransferir(false)
+    setOrigenConfirmado(false)
     setMedirDestino(tanqueDestino as 1 | 2 | 3)
+    setOrigenTransferido(tanque.numeroTanque)
+    setModoTransferido(modoTransferencia)
+    setRestoOrigen("0")
     setVolMedido("")
     setErrorMedir(null)
     setTanqueDestino("")
@@ -298,20 +349,49 @@ function TanqueCard({
   /** Tanque destino tal como quedó DESPUÉS de la transferencia (dato fresco del turno). */
   const destinoMedicion = medirDestino !== null ? tanquesDelTurno.find((t) => t.numeroTanque === medirDestino) : undefined
 
+  /** Puede capturarse un resto en el origen salvo que se haya movido el lote entero. */
+  const puedeCapturarResto = origenTransferido !== null && modoTransferido !== "LOTE"
+
+  function cerrarMedicion() {
+    setMedirDestino(null)
+    setOrigenTransferido(null)
+    setModoTransferido(null)
+    setRestoOrigen("0")
+    setVolMedido("")
+    setErrorMedir(null)
+  }
+
+  /** Cierre de la transferencia: primero el resto del origen (si quedó), después el volumen real del destino. */
   async function guardarMedicion() {
-    if (!destinoMedicion || destinoMedicion.saborId === null) return
-    const real = Number(volMedido)
-    if (!Number.isFinite(real) || real < 0) return
+    if (!destinoMedicion) return
+    const resto = Number(restoOrigen)
+    const real = volMedido.trim() === "" ? null : Number(volMedido)
+    if (real !== null && (!Number.isFinite(real) || real < 0)) return
+    if (puedeCapturarResto && (!Number.isFinite(resto) || resto < 0)) return
+
     setMidiendo(true)
     setErrorMedir(null)
-    const resultado = await onMedirTanque(destinoMedicion.numeroTanque, real)
-    setMidiendo(false)
-    if (!resultado.ok) {
-      setErrorMedir(resultado.error)
-      return
+
+    if (puedeCapturarResto && resto > 0 && origenTransferido !== null) {
+      const r1 = await onCapturarRestoOrigen(origenTransferido, resto)
+      if (!r1.ok) {
+        setMidiendo(false)
+        setErrorMedir(r1.error)
+        return
+      }
     }
-    setMedirDestino(null)
-    setVolMedido("")
+
+    if (real !== null && destinoMedicion.saborId !== null) {
+      const r2 = await onMedirTanque(destinoMedicion.numeroTanque, real)
+      if (!r2.ok) {
+        setMidiendo(false)
+        setErrorMedir(r2.error)
+        return
+      }
+    }
+
+    setMidiendo(false)
+    cerrarMedicion()
   }
 
   async function desvasar() {
@@ -536,7 +616,7 @@ function TanqueCard({
                   Iniciar CIP
                 </Button>
                 {tieneResto && destinosDisponibles.length > 0 && (
-                  <Button size="sm" variant="outline" onClick={() => setMostrarTransferir(true)}>
+                  <Button size="sm" variant="outline" onClick={abrirTransferir}>
                     <ArrowRightLeft className="size-3.5" />
                     Transferir
                   </Button>
@@ -562,7 +642,43 @@ function TanqueCard({
           </p>
         )}
 
-        {modo === "preparacion" && mostrarTransferir && (
+        {modo === "preparacion" && mostrarTransferir && !origenConfirmado && (
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
+            <p className="text-xs text-foreground">
+              Antes de mover: <span className="font-medium">medí el Tanque {tanque.numeroTanque}</span> y confirmá cuánto tiene
+              de verdad. Se transfiere ese volumen.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                className="h-8 w-32"
+                value={volOrigenReal}
+                onChange={(e) => setVolOrigenReal(e.target.value)}
+              />
+              <span className="text-xs text-muted-foreground">L</span>
+              <Button
+                size="sm"
+                disabled={confirmandoOrigen || volOrigenReal.trim() === "" || Number(volOrigenReal) < 0}
+                onClick={confirmarOrigen}
+              >
+                {confirmandoOrigen ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                {Number(volOrigenReal) === (tanque.volumenL ?? 0) ? "Es correcto, seguir" : "Guardar y seguir"}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={confirmandoOrigen} onClick={cerrarTransferir}>
+                Cancelar
+              </Button>
+            </div>
+            {errorTransferir && (
+              <p className="text-xs text-destructive" role="alert">
+                {errorTransferir}
+              </p>
+            )}
+          </div>
+        )}
+
+        {modo === "preparacion" && mostrarTransferir && origenConfirmado && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
             <p className="text-xs text-muted-foreground">
               Manda los <span className="font-medium text-foreground">{volumenTransferido.toLocaleString("es-CO")} L</span> de{" "}
@@ -675,19 +791,7 @@ function TanqueCard({
                 {transfiriendo ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRightLeft className="size-3.5" />}
                 {confirmandoRedireccion ? "Sí, transferir" : "Transferir"}
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setMostrarTransferir(false)
-                  setTanqueDestino("")
-                  setModoTransferencia("LIQUIDO")
-                  setMotivoTransferencia("CONSOLIDAR_RESTOS")
-                  setConfirmandoRedireccion(false)
-                  setErrorTransferir(null)
-                }}
-                disabled={transfiriendo}
-              >
+              <Button size="sm" variant="ghost" onClick={cerrarTransferir} disabled={transfiriendo}>
                 Cancelar
               </Button>
             </div>
@@ -695,29 +799,64 @@ function TanqueCard({
         )}
 
         {modo === "preparacion" && medirDestino !== null && destinoMedicion && (
-          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
-            <p className="text-xs text-muted-foreground">
-              El Tanque {destinoMedicion.numeroTanque} quedó con ~
-              <span className="font-medium text-foreground">{(destinoMedicion.volumenL ?? 0).toLocaleString("es-CO")} L</span>{" "}
-              (calculado por la transferencia). Mide el tanque y confirma el volumen real.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                className="h-8 w-32"
-                placeholder={String(destinoMedicion.volumenL ?? 0)}
-                value={volMedido}
-                onChange={(e) => setVolMedido(e.target.value)}
-              />
-              <span className="text-xs text-muted-foreground">L</span>
-              <Button size="sm" disabled={midiendo || volMedido.trim() === ""} onClick={guardarMedicion}>
+          <div className="flex flex-col gap-3 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
+            <p className="text-xs text-foreground">Transferencia hecha. Cerrá los dos tanques con lo que midas de verdad.</p>
+
+            {puedeCapturarResto && origenTransferido !== null && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs text-foreground">
+                  ¿El Tanque {origenTransferido} quedó vacío? Si no, ¿cuántos L quedaron?
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    className="h-8 w-28"
+                    value={restoOrigen}
+                    onChange={(e) => setRestoOrigen(e.target.value)}
+                  />
+                  <span className="text-xs text-muted-foreground">L (0 = quedó vacío)</span>
+                </div>
+                {Number(restoOrigen) > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Esos {Number(restoOrigen).toLocaleString("es-CO")} L vuelven como resto en el Tanque {origenTransferido} y se
+                    le descuentan al Tanque {destinoMedicion.numeroTanque}.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs text-foreground">
+                Volumen real del Tanque {destinoMedicion.numeroTanque} (~
+                {(destinoMedicion.volumenL ?? 0).toLocaleString("es-CO")} L calculado):
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  className="h-8 w-32"
+                  placeholder={String(destinoMedicion.volumenL ?? 0)}
+                  value={volMedido}
+                  onChange={(e) => setVolMedido(e.target.value)}
+                />
+                <span className="text-xs text-muted-foreground">L</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                disabled={midiendo || (volMedido.trim() === "" && !(puedeCapturarResto && Number(restoOrigen) > 0))}
+                onClick={guardarMedicion}
+              >
                 {midiendo ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                Guardar volumen real
+                Guardar cierre
               </Button>
-              <Button size="sm" variant="ghost" disabled={midiendo} onClick={() => setMedirDestino(null)}>
-                Está bien así
+              <Button size="sm" variant="ghost" disabled={midiendo} onClick={cerrarMedicion}>
+                Todo quedó bien
               </Button>
             </div>
             {errorMedir && (
