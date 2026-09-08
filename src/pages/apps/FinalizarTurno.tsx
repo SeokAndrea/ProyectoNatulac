@@ -47,6 +47,7 @@ export default function FinalizarTurno() {
   const navigate = useNavigate()
   const [finalizando, setFinalizando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  const [errorFinalizar, setErrorFinalizar] = useState<string | null>(null)
   const [sabores, setSabores] = useState<Sabor[]>([])
   const [cerrado, setCerrado] = useState<{ codigoTurno: string; actaUrl: string | null; errorActa: string | null } | null>(null)
 
@@ -111,6 +112,7 @@ export default function FinalizarTurno() {
     }
     if (!session || !sesion.turnoId || !sesion.codigo || !sesion.fecha || !sesion.turnoTipo || !sesion.grupo) return
     setFinalizando(true)
+    setErrorFinalizar(null)
 
     // Se guarda todo ANTES de cerrar — sesion.finalizarTurno() limpia la
     // identidad del turno, y con turnoId en null los 4 hooks (sesion,
@@ -128,7 +130,14 @@ export default function FinalizarTurno() {
       contadores: prod.contadores,
       productoTerminado: pt.registros,
     }
-    await sesion.finalizarTurno()
+    const resultadoCierre = await sesion.finalizarTurno()
+    if (!resultadoCierre.ok) {
+      // p. ej. una corrida detenida sin su Producto Terminado (costura 2).
+      setFinalizando(false)
+      setConfirmando(false)
+      setErrorFinalizar(resultadoCierre.error)
+      return
+    }
 
     let actaUrl: string | null = null
     let errorActa: string | null = null
@@ -329,6 +338,16 @@ export default function FinalizarTurno() {
                 <li key={i}>{item}</li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {errorFinalizar && (
+          <div
+            className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+            role="alert"
+          >
+            <AlertTriangle className="size-4 shrink-0" />
+            <span>{errorFinalizar}</span>
           </div>
         )}
 

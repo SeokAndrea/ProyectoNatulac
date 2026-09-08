@@ -161,10 +161,9 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     if (!turnoId) {
       return { ok: false as const, error: "No hay un turno en curso." }
     }
-    // TODO (Fase 1, paso 3 - Producto Terminado): acá va el chequeo de que
-    // toda corrida activa tenga su PT cargado antes de cerrar (costura 2
-    // del plan) — todavía no existe el módulo de Producción/PT para
-    // consultarlo, se suma cuando esos módulos estén.
+    // El chequeo de "no cerrar con una corrida en ESPERANDO_PT" vive en la
+    // RPC finalizar_turno (migración 20261018090000, costura 2). Acá solo
+    // se propaga el mensaje.
     const { error } = await supabase.rpc("finalizar_turno", {
       p_turno_id: turnoId,
       p_fecha_fin: fechaLocal(new Date()),
@@ -172,7 +171,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     })
 
     if (error) {
-      return { ok: false as const, error: "No se pudo finalizar el turno. Intenta de nuevo." }
+      return { ok: false as const, error: error.message || "No se pudo finalizar el turno. Intenta de nuevo." }
     }
 
     tomarIdentidad(null)
