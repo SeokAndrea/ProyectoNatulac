@@ -56,16 +56,16 @@ export async function transferirTanque(
   return { ok: true, data }
 }
 
-/** Guarda el resto de un tanque a pipa (reserva) para una preparación futura. */
-export async function envasarTanque(usuario: string, turnoId: string, numeroTanque: 1 | 2 | 3): Promise<Resultado & { data?: unknown }> {
-  const { data, error } = await supabase.rpc("envasar_tanque", {
+/** Desvasa: guarda el resto de un tanque en una pipa para una preparación futura. */
+export async function desvasarTanque(usuario: string, turnoId: string, numeroTanque: 1 | 2 | 3): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("desvasar_tanque", {
     p_usuario: usuario,
     p_turno_id: turnoId,
     p_numero_tanque: numeroTanque,
   })
 
   if (error || !data) {
-    return { ok: false, error: error?.message ?? "No se pudo guardar en la pipa. Intenta de nuevo." }
+    return { ok: false, error: error?.message ?? "No se pudo desvasar a la pipa. Intenta de nuevo." }
   }
 
   return { ok: true, data }
@@ -85,7 +85,7 @@ export async function envasarTanque(usuario: string, turnoId: string, numeroTanq
 //     Reemplazo: confirmación antes de "Terminó Lote" (plan §2.1-bis).
 //   - descartarRestoTanque: en la operación real nunca se descarta nada
 //     de verdad — todo resto se transfiere (transferirTanque) o se
-//     guarda en pipa (envasarTanque), ambas ya arriba en este archivo.
+//     guarda en pipa (desvasarTanque), ambas ya arriba en este archivo.
 // Hoy siguen acá porque la Fase 2 (que las retira de la base) todavía no
 // corrió — sacarlas de este módulo antes de tiempo le quitaría 3
 // capacidades reales a los supervisores sin haber construido el

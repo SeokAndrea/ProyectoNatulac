@@ -21,7 +21,7 @@ import {
   ajustarPreparacion as ajustarPreparacionAccion,
   cambiarCondicionTanque as cambiarCondicionTanqueAccion,
   descartarRestoTanque as descartarRestoTanqueAccion,
-  envasarTanque as envasarTanqueAccion,
+  desvasarTanque as desvasarTanqueAccion,
   reactivarLote as reactivarLoteAccion,
   transferirTanque as transferirTanqueAccion,
 } from "./ajustes"
@@ -56,7 +56,7 @@ export interface UsePreparacionResultado {
     numeroTanqueDestino: 1 | 2 | 3,
     modo: ModoTransferencia,
   ) => Promise<Resultado>
-  envasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
+  desvasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
   /** TODO (Fase 2 del plan): se retira junto con las otras 2 de abajo — ver ajustes.ts. */
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
@@ -143,9 +143,9 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     return resultado
   }
 
-  async function envasarTanque(numeroTanque: 1 | 2 | 3): Promise<Resultado> {
+  async function desvasarTanque(numeroTanque: 1 | 2 | 3): Promise<Resultado> {
     if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
-    const resultado = await envasarTanqueAccion(usuario, turnoId, numeroTanque)
+    const resultado = await desvasarTanqueAccion(usuario, turnoId, numeroTanque)
     if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
     return resultado
   }
@@ -188,7 +188,7 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     liberarLote,
     ajustarPreparacion,
     transferirTanque,
-    envasarTanque,
+    desvasarTanque,
     confirmarEstadoTanque,
     cambiarCondicionTanque,
     reactivarLote,

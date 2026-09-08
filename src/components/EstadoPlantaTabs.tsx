@@ -21,7 +21,7 @@ import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
 import { TanqueEditForm } from "@/components/TanqueEditForm"
 import { TanqueVisual } from "@/components/TanqueVisual"
 import { useAuth } from "@/lib/auth"
-import { listarReservasTobos, type ReservaTobo } from "@/lib/reservasTobos"
+import { listarDesvases, type Desvase } from "@/lib/desvases"
 import { colorSabor } from "@/lib/coloresSabor"
 import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
 import { cn } from "@/lib/utils"
@@ -41,11 +41,11 @@ const TANK_CAPACITY = 20000
 const TANK_MAX_VOLUMEN = 30000
 
 /**
- * Desvase (guardar el resto de un tanque aparte, ver envasarTanque en
- * src/lib/turno.tsx) estaba pausado porque no tenía un uso claro.
- * Ahora sí lo tiene: es una de las 3 alternativas del guardrail #1
- * (plan-rework-tanques-lineas-recepcion.md §6) para cuando NO se
- * quiere sumar el resto al lote nuevo.
+ * Desvase (sacar el resto de un tanque y guardarlo en pipa, ver
+ * desvasarTanque en src/lib/preparacion/ajustes.ts) estaba pausado
+ * porque no tenía un uso claro. Ahora sí lo tiene: es una de las 3
+ * alternativas del guardrail #1 (plan-rework-tanques-lineas-recepcion.md
+ * §6) para cuando NO se quiere sumar el resto al lote nuevo.
  */
 const DESVASE_HABILITADO = true
 
@@ -94,7 +94,7 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
     liberarLote,
     ajustarPreparacion,
     transferirTanque,
-    envasarTanque,
+    desvasarTanque,
     reactivarLote,
     descartarRestoTanque,
   } = usePreparacion()
@@ -127,7 +127,7 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
           onLiberarLote={liberarLote}
           onAjustar={ajustarPreparacion}
           onTransferir={transferirTanque}
-          onEnvasar={envasarTanque}
+          onDesvasar={desvasarTanque}
           onReactivarLote={reactivarLote}
           onDescartarResto={descartarRestoTanque}
         />
@@ -193,7 +193,7 @@ function TanqueCard({
   onLiberarLote,
   onAjustar,
   onTransferir,
-  onEnvasar,
+  onDesvasar,
   onReactivarLote,
   onDescartarResto,
 }: {
@@ -211,7 +211,7 @@ function TanqueCard({
   onLiberarLote: (loteId: string) => Promise<Resultado>
   onAjustar: (loteId: string, litros: number, detalle: string | null) => Promise<Resultado>
   onTransferir: (numeroTanqueOrigen: 1 | 2 | 3, numeroTanqueDestino: 1 | 2 | 3, modo: ModoTransferencia) => Promise<Resultado>
-  onEnvasar: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
+  onDesvasar: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   onReactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
   onDescartarResto: (numeroTanque: 1 | 2 | 3, motivo: string) => Promise<Resultado>
 }) {
@@ -237,9 +237,9 @@ function TanqueCard({
   const [errorMedir, setErrorMedir] = useState<string | null>(null)
   const [reactivando, setReactivando] = useState(false)
   const [errorReactivar, setErrorReactivar] = useState<string | null>(null)
-  const [confirmandoEnvasar, setConfirmandoEnvasar] = useState(false)
-  const [envasando, setEnvasando] = useState(false)
-  const [errorEnvasar, setErrorEnvasar] = useState<string | null>(null)
+  const [confirmandoDesvase, setConfirmandoDesvase] = useState(false)
+  const [desvasando, setDesvasando] = useState(false)
+  const [errorDesvase, setErrorDesvase] = useState<string | null>(null)
   /** Guardrail #1, opción "Descartar" (plan-rework-tanques-lineas-recepcion.md §6). */
   const [mostrarDescartar, setMostrarDescartar] = useState(false)
   const [motivoDescarte, setMotivoDescarte] = useState("")
@@ -332,20 +332,20 @@ function TanqueCard({
     setVolMedido("")
   }
 
-  async function envasar() {
-    if (!confirmandoEnvasar) {
-      setConfirmandoEnvasar(true)
+  async function desvasar() {
+    if (!confirmandoDesvase) {
+      setConfirmandoDesvase(true)
       return
     }
-    setEnvasando(true)
-    setErrorEnvasar(null)
-    const resultado = await onEnvasar(tanque.numeroTanque)
-    setEnvasando(false)
+    setDesvasando(true)
+    setErrorDesvase(null)
+    const resultado = await onDesvasar(tanque.numeroTanque)
+    setDesvasando(false)
     if (!resultado.ok) {
-      setErrorEnvasar(resultado.error)
+      setErrorDesvase(resultado.error)
       return
     }
-    setConfirmandoEnvasar(false)
+    setConfirmandoDesvase(false)
   }
 
   async function reactivar() {
@@ -620,13 +620,13 @@ function TanqueCard({
                   </Button>
                 )}
                 {DESVASE_HABILITADO && tieneResto && (
-                  <Button size="sm" variant="outline" onClick={envasar} disabled={envasando}>
-                    {envasando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageOpen className="size-3.5" />}
-                    {confirmandoEnvasar ? "¿Seguro? Sí, desvasar" : "Desvase"}
+                  <Button size="sm" variant="outline" onClick={desvasar} disabled={desvasando}>
+                    {desvasando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageOpen className="size-3.5" />}
+                    {confirmandoDesvase ? "¿Seguro? Sí, desvasar" : "Desvase"}
                   </Button>
                 )}
-                {DESVASE_HABILITADO && confirmandoEnvasar && (
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmandoEnvasar(false)} disabled={envasando}>
+                {DESVASE_HABILITADO && confirmandoDesvase && (
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmandoDesvase(false)} disabled={desvasando}>
                     Cancelar
                   </Button>
                 )}
@@ -645,9 +645,9 @@ function TanqueCard({
             </div>
           ))}
 
-        {errorEnvasar && (
+        {errorDesvase && (
           <p className="text-xs text-destructive" role="alert">
-            {errorEnvasar}
+            {errorDesvase}
           </p>
         )}
 
@@ -850,26 +850,26 @@ function FormularioIniciarPreparacion({
   const [agua, setAgua] = useState("")
   const [azucar, setAzucar] = useState("")
   const [acidoCitrico, setAcidoCitrico] = useState("")
-  const [reservas, setReservas] = useState<ReservaTobo[]>([])
-  const [reservaId, setReservaId] = useState("")
+  const [desvasesGuardados, setDesvasesGuardados] = useState<Desvase[]>([])
+  const [desvaseId, setDesvaseId] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
   useEffect(() => {
-    setReservaId("")
+    setDesvaseId("")
     if (!DESVASE_HABILITADO || !saborId || !areaCodigo) {
-      setReservas([])
+      setDesvasesGuardados([])
       return
     }
-    listarReservasTobos(usuarioSesion, areaCodigo, saborId).then(setReservas)
+    listarDesvases(usuarioSesion, areaCodigo, saborId).then(setDesvasesGuardados)
   }, [saborId, areaCodigo, usuarioSesion])
 
   const saborElegido = sabores.find((s) => s.id === saborId)
   const unidadPrep = unidadPreparacion(saborElegido ? `${saborElegido.nombre} ${saborElegido.familiaNombre}` : null)
-  const reservaElegida = reservas.find((r) => r.id === reservaId)
+  const desvaseElegido = desvasesGuardados.find((r) => r.id === desvaseId)
   const litrosEstimados =
     saborElegido?.volumen && tambores !== "" && Number(tambores) > 0
-      ? Math.round(Number(tambores) * saborElegido.volumen) + volumenRestante + (reservaElegida?.litros ?? 0)
+      ? Math.round(Number(tambores) * saborElegido.volumen) + volumenRestante + (desvaseElegido?.litros ?? 0)
       : null
   const excedeCapacidad = litrosEstimados !== null && litrosEstimados > TANK_CAPACITY
 
@@ -887,7 +887,7 @@ function FormularioIniciarPreparacion({
       agua: agua.trim() === "" ? null : Number(agua),
       azucar: azucar.trim() === "" ? null : Number(azucar),
       acidoCitrico: acidoCitrico.trim() === "" ? null : Number(acidoCitrico),
-      reservaId: reservaId || null,
+      desvaseId: desvaseId || null,
     })
     setEnviando(false)
     if (!resultado.ok) {
@@ -933,13 +933,13 @@ function FormularioIniciarPreparacion({
         />
       </div>
 
-      {DESVASE_HABILITADO && saborId !== "" && reservas.length > 0 && (
-        <Select value={reservaId} onValueChange={setReservaId}>
+      {DESVASE_HABILITADO && saborId !== "" && desvasesGuardados.length > 0 && (
+        <Select value={desvaseId} onValueChange={setDesvaseId}>
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Sumar algo guardado (opcional)" />
+            <SelectValue placeholder="Sumar un desvase guardado (opcional)" />
           </SelectTrigger>
           <SelectContent>
-            {reservas.map((r) => (
+            {desvasesGuardados.map((r) => (
               <SelectItem key={r.id} value={r.id}>
                 {r.litros.toLocaleString("es-CO")} L · desvasado {new Date(r.creadoEn).toLocaleDateString("es-CO")}
                 {r.loteOrigen ? ` · Lote ${r.loteOrigen}` : ""}
@@ -953,7 +953,7 @@ function FormularioIniciarPreparacion({
         <p className={cn("text-xs", excedeCapacidad ? "font-medium text-destructive" : "text-muted-foreground")}>
           ≈ <span className="font-medium text-foreground">{litrosEstimados.toLocaleString("es-CO")} L</span> con este sabor (
           {saborElegido?.volumen?.toLocaleString("es-CO")} L por tambor)
-          {reservaElegida ? ` + ${reservaElegida.litros.toLocaleString("es-CO")} L guardados` : ""}
+          {desvaseElegido ? ` + ${desvaseElegido.litros.toLocaleString("es-CO")} L guardados` : ""}
           {excedeCapacidad && ` — supera la capacidad del tanque (${TANK_CAPACITY.toLocaleString("es-CO")} L)`}
         </p>
       )}

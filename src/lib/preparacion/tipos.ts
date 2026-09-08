@@ -90,8 +90,8 @@ export interface DatosIniciarPreparacion {
   agua: number | null
   azucar: number | null
   acidoCitrico: number | null
-  /** Algo guardado (a pipa) a sumar — ver envasarTanque — null si no hay o no se eligió ninguna. */
-  reservaId: string | null
+  /** Un desvase guardado (en pipa) a sumar — ver desvasarTanque — null si no hay o no se eligió ninguno. */
+  desvaseId: string | null
 }
 
 /**

@@ -413,14 +413,22 @@ ahí el PT total es simplemente 0/0, una respuesta válida y explícita, no un v
 
 Tabla nueva `transferencias` (`turno_id, tanque_origen, tanque_destino, litros, modo, motivo,
 usuario_id, creado_en`) con `motivo` enum: `CONSOLIDAR_RESTOS | ENRUTAR_MANIFOLD |
-LIBERAR_LOTE | RESERVA_PIPA` — el enrutamiento por manifold (mover el lote para no parar la
-línea, confirmado en el Contexto) es uno de los cuatro motivos reales, no un caso aparte.
+DESVASE_PIPA` — el enrutamiento por manifold (mover el lote para no parar la línea, confirmado
+en el Contexto) es uno de los motivos reales, no un caso aparte.
 
-**Nota de vocabulario:** lo que el código llama `reservas_tobos` en planta se dice **pipas**,
-no tobos. El identificador interno (tabla, columnas, nombres de función) se deja como está —
-renombrarlo es puro riesgo de migración sin ningún beneficio funcional — pero todo texto nuevo
-de cara al supervisor dice "pipa"/"pipas", nunca "tobo". Se suma a las reglas de redacción del
-Contexto.
+`LIBERAR_LOTE` se descartó (decisión del dueño): existió alguna vez porque a veces
+"reemplazaban todo" — era manejo de desastre, no una categoría real. Todo resto de
+semielaborado va a otro tanque (`CONSOLIDAR_RESTOS` / `ENRUTAR_MANIFOLD`) o a una pipa
+(`DESVASE_PIPA`); descartarlo no existe en la operación.
+
+**Nota de vocabulario — `envasar` ≠ `desvasar`:** "Envasar" en la planta es poner el jugo en
+su empaque final (Producto Terminado). Lo que la función `envasar_tanque()` hacía es lo
+contrario: sacar el resto de semielaborado de un tanque a una **pipa** para otro turno — eso es
+**desvasar**. Decisión del dueño (revierte lo que decía antes esta nota): los identificadores
+se renombran para que digan lo que hacen — `reservas_tobos` → `desvases`, `envasar_tanque` →
+`desvasar_tanque`, `listar_reservas_tobos` → `listar_desvases`, `iniciar_preparacion.p_reserva_id`
+→ `p_desvase_id` (migración `20261015090000_renombrar_desvase.sql` + su frontend). El texto de
+cara al supervisor dice "Desvasar"/"Desvase"; "pipa" se mantiene como el nombre del contenedor.
 
 **`descartar_resto_tanque` se elimina (ver 2.1) — no se le agrega enum de motivo, no hace
 falta.** El guardrail #1 (`plan-rework-tanques-lineas-recepcion.md` §6) queda con dos opciones
@@ -547,9 +555,11 @@ archivo. Inventario real (no una lista aspiracional — grounded en lo que hay h
 `ProtectedRoute.tsx`, y los componentes de UI genérica (`AppShell`, `AppHeader`, `EmptyState`,
 `Logo`, etc.).
 
-**Nota de vocabulario que se suma a la de "pipa" (Contexto):** `reservasTobos.ts` pasa a
-`reservasPipas.ts` al moverse — mismo criterio, el identificador de base no se toca, el nombre
-del archivo/las funciones de cara al código sí.
+**Nota de vocabulario:** el renombre `desvase` ya se hizo en la Fase 2
+(`20261015090000_renombrar_desvase.sql`): `reservasTobos.ts` → `desvases.ts`, base incluida
+(`reservas_tobos` → `desvases`, `envasar_tanque` → `desvasar_tanque`). Ver la nota de la
+sección 2.4. `turno.tsx` quedó con los nombres viejos a propósito — se borra entero en esta
+fase, no vale la pena tocarlo antes.
 
 Esta fase se hace **después** de que las Fases 1-3 vacíen `turno.tsx` — mover Auditoría/Historial
 antes tendría que seguir leyendo del `TurnoProvider` viejo en vez de los 3 módulos nuevos, doble

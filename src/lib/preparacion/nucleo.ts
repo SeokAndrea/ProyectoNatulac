@@ -28,7 +28,7 @@ export async function iniciarPreparacion(
     p_agua: datos.agua,
     p_azucar: datos.azucar,
     p_acido_citrico: datos.acidoCitrico,
-    p_reserva_id: datos.reservaId,
+    p_desvase_id: datos.desvaseId,
   })
 
   if (error || !data) {
