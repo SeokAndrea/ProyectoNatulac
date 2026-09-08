@@ -16,8 +16,8 @@ import type { FilaProductoTerminado, ProductoTerminadoRegistro } from "@/lib/pro
  * completo (construirHistorial(), src/lib/historial.ts). Reutiliza el
  * mismo "turno_json" que arma turno_activo_de() (ver
  * supabase/migrations/20260901090000_historial_auditoria.sql).
- * También vive acá lo de reabrir turnos, actas (PDF real, ver
- * src/lib/actaPdf.ts) y el vistazo de turnos activos por área.
+ * También vive acá lo de actas (PDF real, ver src/lib/actaPdf.ts) y el
+ * vistazo de turnos activos por área.
  */
 
 /**
@@ -181,44 +181,9 @@ export async function eliminarTurno(
   return { ok: true }
 }
 
-/** Vuelve un turno CERRADO a ABIERTO para corregirlo y volver a Finalizar (genera la V1 del acta). */
-export async function reabrirTurno(
-  usuarioSesion: string,
-  turnoId: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await supabase.rpc("reabrir_turno", { p_usuario: usuarioSesion, p_turno_id: turnoId })
-  if (error) {
-    return { ok: false, error: error.message || "No se pudo reabrir el turno. Intenta de nuevo." }
-  }
-  return { ok: true }
-}
-
-/**
- * Corregir Producto Terminado de un turno REAL (no solo los cargados
- * por Crear Turno) desde la pestaña "Editar Turno" (src/pages/apps/CrearTurno.tsx)
- * — ej. le faltó una paleta a un lote y el turno ya cerró. Reusa
- * registrar_producto_terminado() del lado del servidor con los mismos
- * datos que ya tenía la fila (línea/sabor/presentación/retenido), solo
- * cambia paletas/cajas sueltas — ver
- * supabase/migrations/20260958090000_corregir_producto_terminado_auditoria.sql.
- */
-export async function corregirProductoTerminado(
-  usuarioSesion: string,
-  datos: { turnoLineaId: string; paletas: number; cajasSueltas: number },
-  pagina = "Editar Turno",
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await supabase.rpc("corregir_producto_terminado_auditoria", {
-    p_usuario: usuarioSesion,
-    p_turno_linea_id: datos.turnoLineaId,
-    p_paletas: datos.paletas,
-    p_cajas_sueltas: datos.cajasSueltas,
-    p_pagina: pagina,
-  })
-  if (error) {
-    return { ok: false, error: error.message || "No se pudo corregir. Intenta de nuevo." }
-  }
-  return { ok: true }
-}
+// reabrirTurno() y corregirProductoTerminado() se retiraron en la Fase 2
+// del rework (migración 20261013090000): no hay corrección de un turno ya
+// cerrado a mitad de camino — se espera al cierre y se corrige desde VALIDAR.
 
 export interface Acta {
   id: string

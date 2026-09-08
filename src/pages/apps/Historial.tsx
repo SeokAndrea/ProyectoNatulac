@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ChevronLeft, Download, FileText, Loader2, RotateCcw, Trash2 } from "lucide-react"
+import { ChevronLeft, Download, FileText, Loader2, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { AuditoriaTurnos, type TurnoAuditoria } from "@/components/AuditoriaTurnos"
 import { RegistroCambios } from "@/components/RegistroCambios"
@@ -21,7 +21,6 @@ import {
   listarActas,
   listarTurnosHistorial,
   obtenerTurnoDetalle,
-  reabrirTurno,
   subirYRegistrarActa,
   turnosActivosPorArea,
   urlPublicaActa,
@@ -39,7 +38,7 @@ import {
  *
  * La grilla la arma <AuditoriaTurnos>; esta página trae los datos del
  * rango que ese componente pide (filtro de fecha) y aporta las
- * acciones por turno (acta, reabrir, eliminar). Abajo, colapsados:
+ * acciones por turno (acta, eliminar). Abajo, colapsados:
  * el registro de cambios (auditoría universal), las actas de todas las
  * versiones y la exportación del dataset — todo para SUPERADMINISTRADOR
  * y Administrador de Área, en su alcance.
@@ -57,17 +56,14 @@ export default function Historial() {
   const [auditoria, setAuditoria] = useState<RegistroAuditoria[]>([])
   const [cargando, setCargando] = useState(true)
 
-  /* Detalle de un turno: pantalla aparte con Reabrir / Eliminar /
-   * Generar Acta faltante. Se abre desde el botón "Abrir" de la fila. */
+  /* Detalle de un turno: pantalla aparte con Eliminar / Generar Acta
+   * faltante. Se abre desde el botón "Abrir" de la fila. */
   const [seleccionado, setSeleccionado] = useState<TurnoResumen | null>(null)
   const [detalle, setDetalle] = useState<TurnoHistorial | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [eliminando, setEliminando] = useState(false)
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
-  const [reabriendo, setReabriendo] = useState(false)
-  const [errorReabrir, setErrorReabrir] = useState<string | null>(null)
-  const [reabierto, setReabierto] = useState(false)
   const [tieneActa, setTieneActa] = useState<boolean | null>(null)
   const [generandoActa, setGenerandoActa] = useState(false)
   const [errorActa, setErrorActa] = useState<string | null>(null)
@@ -138,7 +134,6 @@ export default function Historial() {
   async function verDetalle(turno: TurnoResumen) {
     if (!session) return
     setSeleccionado(turno)
-    setReabierto(false)
     setTieneActa(null)
     setErrorActa(null)
     setActaGeneradaUrl(null)
@@ -191,7 +186,6 @@ export default function Historial() {
     setDetalle(null)
     setConfirmandoEliminar(false)
     setErrorEliminar(null)
-    setErrorReabrir(null)
     cargar(rango)
   }
 
@@ -206,19 +200,6 @@ export default function Historial() {
       return
     }
     volver()
-  }
-
-  async function handleReabrir() {
-    if (!session || !seleccionado) return
-    setReabriendo(true)
-    setErrorReabrir(null)
-    const resultado = await reabrirTurno(session.username, seleccionado.id)
-    setReabriendo(false)
-    if (!resultado.ok) {
-      setErrorReabrir(resultado.error)
-      return
-    }
-    setReabierto(true)
   }
 
   if (seleccionado) {
@@ -237,12 +218,6 @@ export default function Historial() {
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                {seleccionado.estado === "CERRADO" && !reabierto && (
-                  <Button variant="outline" onClick={handleReabrir} disabled={reabriendo}>
-                    {reabriendo ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
-                    Reabrir Turno
-                  </Button>
-                )}
                 {seleccionado.estado === "CERRADO" && (
                   <Button
                     variant="outline"
@@ -254,12 +229,6 @@ export default function Historial() {
                   </Button>
                 )}
               </div>
-
-              {reabierto && (
-                <p className="text-sm text-success">
-                  Turno reabierto — el supervisor ya lo puede corregir y volver a Finalizar (eso genera una nueva versión del acta).
-                </p>
-              )}
 
               {detalle.cierreAutomatico && tieneActa === false && !actaGeneradaUrl && (
                 <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
@@ -285,11 +254,6 @@ export default function Historial() {
                     descargarla
                   </a>
                   .
-                </p>
-              )}
-              {errorReabrir && (
-                <p className="text-sm text-destructive" role="alert">
-                  {errorReabrir}
                 </p>
               )}
 
