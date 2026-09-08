@@ -483,6 +483,30 @@ hallazgos más, verificados contra el código real:
   VALIDAR.** Se corrige el texto del mensaje para que diga eso, sin ofrecer un camino de admin
   que no debería existir.
 
+### 2.10 — Turno 3 después de medianoche: la fecha queda del día equivocado
+
+Bug real (Javier, noche del 2026-09-07→08): activó el Turno 3 pasada la medianoche y el
+sistema lo registró como Turno 3 del **día siguiente**. `iniciar_turno` recibe `p_fecha` del
+frontend como `fechaLocal(new Date())` — la fecha de calendario de ese instante, sin selector
+y sin ninguna lógica de turno nocturno (`src/lib/sesionTurno.tsx`). El `codigo`
+(`A20260908_T3G…`) se deriva de esa misma fecha, así que también sale mal. Todo lo demás
+(`preparaciones`, `turno_lineas`, `producto_terminado`, `auditoria`) cuelga de `turno_id`, así
+que solo `turnos.fecha` y `turnos.codigo` quedan mal — pero el Panel y las estadísticas
+filtran por `turnos.fecha`, así que el turno "desaparece" del día correcto.
+
+**Arreglo (regla en el servidor, sin cambio de UI — encaja con "un solo camino correcto"):**
+en `iniciar_turno`, si `p_turno_tipo_codigo = 'TURNO_3'` y `p_hora_inicio < '06:00'`, usar
+`p_fecha - 1` para la fecha **y** para el `codigo`. El Turno 3 va de ~22:00 a ~06:00, así que
+cualquier arranque antes de las 06:00 pertenece operativamente al día anterior; el Turno 3
+nunca "empieza de cero" a la 01:00 para su propia fecha. Confirmar el umbral con el dueño
+antes de escribir la migración (¿06:00 fijo? ¿lo define el `turno_tipo`?).
+
+**Corrección puntual del turno de Javier** (una vez, aparte de la migración):
+`scripts/fix-turno-fecha-anterior.sql` — `update turnos set fecha = fecha - 1, codigo = …`
+por `id`. No hay colisión de `unique` (la restricción de `codigo` se quitó en `20260932`); el
+trigger `fn_turnos_auditar` deja rastro en `turnos_historial`. Antes de correrlo, confirmar
+que no exista ya un Turno 3 real de la fecha correcta para ese grupo/área.
+
 **Verificación de la Fase 2:** cada migración en cadena sobre `supabase db reset` local; un
 script `test-*.sql` por guardrail nuevo; `npm test` + `npm run build` en el frontend. **Al
 cerrar: mismo chequeo de voseo + modal-para-texto-largo que la Fase 1** (Contexto) sobre los
