@@ -20,9 +20,9 @@
 
 
 -- ------------------------------------------------------------
--- 1. Las corridas activas del turno de Dany. Identificá la que quedó
---    trabada y copiá su turno_linea_id (columna "corrida_id").
---    Ajustá el LIKE del código si hace falta.
+-- 1. Las corridas activas del turno de Dany. Identifica la que quedó
+--    trabada y copia su turno_linea_id (columna "corrida_id").
+--    Ajusta el LIKE del código si hace falta.
 -- ------------------------------------------------------------
 select tl.id as corrida_id,
        l.codigo as linea,
@@ -41,8 +41,8 @@ order by tl.activada_en desc;
 
 -- ------------------------------------------------------------
 -- 2. Tanques del mismo turno que están LISTO y tienen un lote asignado
---    — candidatos para el lote siguiente. Copiá el numero_tanque.
---    (Reemplazá 'PEGAR-CORRIDA-ID' por el corrida_id del paso 1.)
+--    — candidatos para el lote siguiente. Copia el numero_tanque.
+--    (Reemplaza 'PEGAR-CORRIDA-ID' por el corrida_id del paso 1.)
 -- ------------------------------------------------------------
 select rt.numero_tanque,
        s.nombre as sabor,
@@ -60,7 +60,7 @@ order by rt.numero_tanque;
 -- ------------------------------------------------------------
 -- 3. Chequeo de seguridad: el tanque elegido NO puede tener ya otra
 --    corrida activa ni una detenida sin su PT. Tiene que dar CERO filas.
---    (Reemplazá 'PEGAR-CORRIDA-ID' y 99 = numero_tanque del paso 2.)
+--    (Reemplaza 'PEGAR-CORRIDA-ID' y 99 = numero_tanque del paso 2.)
 -- ------------------------------------------------------------
 select tl.id, l.codigo as linea, tl.lote, tl.activa, tl.finalizada_en
 from turno_lineas tl
@@ -78,8 +78,8 @@ where tl.turno_id = (select turno_id from turno_lineas where id = 'PEGAR-CORRIDA
 -- ------------------------------------------------------------
 -- 4. Aplicar. Corre dentro de una transacción y termina en ROLLBACK:
 --    muestra el ANTES/DESPUÉS sin tocar nada. Si el DESPUÉS es
---    correcto, cambiá `rollback;` por `commit;` y volvé a correr.
---    (Reemplazá 'PEGAR-CORRIDA-ID' — 4 veces — y 99 = numero_tanque.)
+--    correcto, cambia `rollback;` por `commit;` y vuelve a correr.
+--    (Reemplaza 'PEGAR-CORRIDA-ID' — 4 veces — y 99 = numero_tanque.)
 -- ------------------------------------------------------------
 begin;
 

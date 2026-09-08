@@ -645,7 +645,7 @@ function TanqueCard({
         {modo === "preparacion" && mostrarTransferir && !origenConfirmado && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
             <p className="text-xs text-foreground">
-              Antes de mover: <span className="font-medium">medí el Tanque {tanque.numeroTanque}</span> y confirmá cuánto tiene
+              Antes de mover: <span className="font-medium">mide el Tanque {tanque.numeroTanque}</span> y confirma cuánto tiene
               de verdad. Se transfiere ese volumen.
             </p>
             <div className="flex flex-wrap items-center gap-2">
@@ -800,7 +800,7 @@ function TanqueCard({
 
         {modo === "preparacion" && medirDestino !== null && destinoMedicion && (
           <div className="flex flex-col gap-3 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
-            <p className="text-xs text-foreground">Transferencia hecha. Cerrá los dos tanques con lo que midas de verdad.</p>
+            <p className="text-xs text-foreground">Transferencia hecha. Cierra los dos tanques con lo que midas de verdad.</p>
 
             {puedeCapturarResto && origenTransferido !== null && (
               <div className="flex flex-col gap-1.5">
