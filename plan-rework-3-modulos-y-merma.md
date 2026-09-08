@@ -212,10 +212,18 @@ propia página):
    lo toma, transferir, o desvasar. Ninguna función de Producción puede dejar un tanque en
    estado raro: nunca tuvo el poder de tocarlo.
 
-   **Guard de cierre de turno:** no se puede Finalizar el turno con una corrida en
-   `ESPERANDO_PT`. Además, si al Finalizar hay una corrida **activa o en Parada Operacional**,
-   el cierre de turno pide el PT del tramo producido en ESE turno (ver "PT por tramo de turno"
-   más abajo) — la corrida se cierra con ese PT y sigue fresca en el turno siguiente.
+   **Guard de cierre de turno — Finalizar obliga a dejar cada línea "clean" (agregado
+   2026-09-08):** no se puede Finalizar el turno mientras haya una corrida sin resolver. Por
+   cada línea con corrida:
+   - en `ESPERANDO_PT` (se apretó Detener línea, falta el PT) → hay que cargar el PT.
+   - **activa o en Parada Operacional** → Finalizar **obliga** a: cargar el PT del tramo
+     producido en ESE turno **y** decidir el próximo estado de la salida de la línea:
+     **Terminar** (la corrida se cierra) o **Entregar línea** (sigue en el turno siguiente
+     con un tramo nuevo). Hoy nada obliga a nada: la línea se hereda en silencio y la
+     producción del turno saliente para esa línea queda sin registrar. Esa decisión es un
+     paso obligatorio del cierre de turno, igual que el guard de `ESPERANDO_PT`.
+   - Renombre: `entregar_corrida` → **`entregar_linea`** (identificador y texto). El supervisor
+     "entrega la línea" al siguiente turno, no "la corrida".
 
    **Guard antiduplicados (reemplaza el de `activar_linea` de `20261003`):** el bloqueo pasa a
    ser "no se puede activar una línea si hay una corrida sobre ese lote todavía en
@@ -455,9 +463,10 @@ Resumen de lo que toca la base y el frontend acá:
   `preparaciones`.
 - `revisarCierreDeLote(loteId)` del lado de Preparación (cierra el lote/tanque solo cuando
   `volumen_l ≈ 0` y ninguna corrida activa le apunta).
-- `finalizar_turno` gana el guard: rechaza si hay una corrida en `ESPERANDO_PT`; si hay una
-  activa o en Parada Operacional, recibe el PT del tramo de ESE turno y la deja lista para
-  heredarse.
+- `finalizar_turno` gana el guard: rechaza si hay una corrida en `ESPERANDO_PT`. El flujo de
+  Finalizar además **obliga**, por cada línea con corrida activa/en Parada: cargar el PT del
+  tramo de ESE turno + elegir **Terminar** o **Entregar línea** (renombre de
+  `entregar_corrida`). Nada se hereda en silencio.
 - Guard de `activar_linea` reescrito: bloquea solo mientras haya una corrida sobre ese lote en
   `ESPERANDO_PT` (no "cualquier corrida cerrada este turno" como en `20261003`).
 - `pausar_linea` gana `p_motivo` + columna `turno_lineas.pausa_motivo` — "Parada Operacional"
@@ -481,6 +490,16 @@ la tarjeta de línea queda con estos botones y nada más:
   "obligatorio por ciclo de 36 h / falla larga, guard calculado" queda para el trabajo de
   Estados de línea, no para este paso.
 
+**Frontend — página de Producto Terminado (`ProductoTerminado.tsx`):**
+- Se quita el botón **"Cerrar Lote"** (`BotonCerrarLote` → `terminar_sabor_linea`): en el
+  modelo nuevo las corridas que aparecen ahí ya están en `ESPERANDO_PT` (por eso se listan),
+  y ese botón queda en no-op. Cargar el PT ES lo que cierra la corrida.
+- Para una corrida **ya detenida** (`ESPERANDO_PT`): cargar paletas/cajas → **Enviar** →
+  se cierra. Sin elección de próximo estado (Detener línea ya la decidió).
+- Para una corrida **todavía activa** (típico al cerrar turno): cargar paletas/cajas del
+  tramo → elegir **Terminar** (se cierra) o **Entregar línea** (sigue el próximo turno). Es
+  el `puedeElegirProximoEstado` que ya existe, sin el botón "Cerrar Lote" redundante.
+
 **Casos de referencia (línea → tanque → PT), acordados el 2026-09-08:**
 
 | Caso | Línea | Tanque / Lote | PT |
@@ -490,7 +509,7 @@ la tarjeta de línea queda con estos botones y nada más:
 | Parada Operacional → Detener línea | ESPERANDO_PT → cerrada | lote NO se cierra (le quedan litros) → Preparación: otra línea / transferir / desvasar | 1 registro parcial respecto al lote, completo respecto a la corrida |
 | Lote no vacío, otra línea lo sigue | Corrida 1 cerrada, Corrida 2 se activa sobre el mismo lote | lote abierto entre las dos corridas; se cierra cuando la 2 lo vacía | 2 registros (uno por corrida) |
 | Activada por error | Detener enseguida → ESPERANDO_PT → PT 0/0 → cerrada. NO bloquea re-activar (el bloqueo solo aplica en ESPERANDO_PT) | intacto, lote abierto | 0/0 obligatorio |
-| Turno termina con corrida corriendo/pausada | Finalizar pide el PT del tramo → cierra esa corrida → sigue fresca en el turno nuevo | se hereda; Recepción confirma | 1 PT por turno que cruza; final = último tramo |
+| Turno termina con corrida corriendo/pausada | Finalizar OBLIGA: PT del tramo + elegir Terminar o Entregar línea. Si Entrega → sigue fresca en el turno nuevo | se hereda; Recepción confirma | 1 PT por turno que cruza; final = último tramo |
 | Sin programación / En cambio de Operación | solo sin corrida activa (si hay → Detener línea + PT primero) | no toca nada | no toca nada |
 
 ### 2.3 — Guardrails abiertos de `plan-rework-auditoria.md` §7.5/§7.6
