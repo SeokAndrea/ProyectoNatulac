@@ -411,17 +411,23 @@ local antes de `db push`.
 
 | Pieza | Veredicto | Por qué |
 | --- | --- | --- |
-| `cambiar_condicion_tanque` + `TanqueEditForm` | **Eliminar** | Un solo formulario deja fijar cualquier condición con sabor/lote/volumen/tambores libres, sin los guardrails de `iniciar_preparacion`/`descartar_resto_tanque`. 15 migraciones parchándola, 5 responsabilidades mezcladas |
-| `reactivar_lote` | **Eliminar — bug confirmado en operación real** | "Terminó Lote" pone `turno_lineas.activa = false` ANTES de cerrar el lote/tanque. `reactivar_lote` deshace el lote y el tanque, pero no encuentra fila para reactivar la corrida (ya no hay `activa = true` que matchear) — la corrida queda muerta, bloquea Producto Terminado, y reactivar la línea de cero choca con el candado antiduplicados. Reemplazo: prevenir con confirmación antes de "Terminó Lote" (2.1-bis) + el camino ya correcto de trabajar encima de Con Restos |
+| `cambiar_condicion_tanque` + `TanqueEditForm` | **Eliminar — parcial hecho** | 5 responsabilidades mezcladas. **Ya extraída:** "Medir tanque" (relectura física) → RPC angosta `medir_tanque(numero_tanque, volumen_real)` en `20261021090000` — corrige `volumen_l`, deja el delta en `preparaciones_ajuste`, NO toca `volumen_inicial_l`. **Queda en `cambiar_condicion_tanque`:** el toggle de CIP (Iniciar/Terminó CIP) y el confirmar INICIO/FIN de un tanque heredado — narrowear eso (CIP angosto + `confirmar_estado_tanque`) es un paso posterior. Enfoque "lo más seguro y reversible" (dueño 2026-09-08): aditivo, sin tocar la función vieja todavía. |
+| `reactivar_lote` | **Eliminada** (`20261021090000`) | En el modelo de dos estados de costura 2 no hay "deshacer" un cierre — se previene con el 2º confirm de Detener línea. Sin llamadores SQL; el único frontend era `turno.tsx` muerto. Botón "Reactivar Lote" retirado de `EstadoPlantaTabs`. |
 | `reabrir_turno` | **Eliminar** | Confirmado: ya no se usa en la operación. Su propósito (cargar algo olvidado y regenerar el acta) lo cubre mejor VALIDAR sin reabrir el turno original |
 | `corregir_producto_terminado_auditoria` | **Eliminar** | Código muerto — el wrapper existe pero ningún botón lo llama |
 | `crear_turno_manual`/`editar_fila_turno_manual` | (ya resuelto) | Retiradas en `20261000`, mismo patrón que las de arriba |
-| `descartar_resto_tanque` | **Eliminar** | Confirmado con el dueño: en la operación real nunca se descarta nada de verdad — todo resto se transfiere o se guarda (pipas). La opción "Descartar con motivo" del guardrail #1 modela un caso que no existe en planta |
+| `descartar_resto_tanque` | **Eliminada** (`20261021090000`) | En la operación real nunca se descarta nada — todo resto se transfiere o se guarda en pipa (Desvasar). Botón "Descartar" + su panel retirados de `EstadoPlantaTabs`. |
 | `envasar_tanque` (a pipas — ver nota de vocabulario) | Mantener, una corrección | Puede dejar una corrida activa huérfana — se suma a la consolidación de cierre de la Fase 1 costura 2 |
 | `transferir_tanque` | Mantener, con un bug corregido | Modo LIMPIO deja la fila del origen abierta para siempre (`cerrado_en` nunca se setea) — se corrige parejo en las 3 ramas |
 | `confirmar_estado_tanque`, `cambiar_condicion_linea`, `ajustar_preparacion`, `editar_produccion_validada` | Mantener | Ya son acciones angostas con su propia guarda; revisadas a fondo sin hallazgos nuevos |
 | `confirmar_produccion` | Mantener, aclarar intención | Si Daniela edita y después confirma la misma fila, hoy borra sus overrides en silencio — confirmar si es lo querido |
 | Catálogos (`editar_sabor`, `editar_personal`, etc.) | Mantener, fuera de foco | No tocan turnos en curso |
+
+**CIP en tanques — sin guard duro (dueño, 2026-09-08).** A diferencia de líneas (ciclo de
+36 h), en tanques el CIP es *por uso*, PERO no se puede forzar en `iniciar_preparacion`: en la
+operación real a veces preparan encima de un tanque sucio, no siempre del mismo sabor. Un
+guard "solo se prepara sobre LIMPIO" rompería ese flujo. Los botones Iniciar/Terminó CIP
+quedan como están; el enforcement es una decisión futura que necesita más validación en planta.
 
 **`continuar_siguiente_lote` — se mantiene, pero se endurece ("4x4"):** comparte el mismo bug
 de fondo que `activar_linea` (desactiva la corrida vieja a mano, sin pasar por el chequeo de

@@ -8,7 +8,7 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
 
 ## Resumen
 
-**8 migraciones nuevas** (`20261013`–`20261020`) + su frontend, listas para
+**9 migraciones nuevas** (`20261013`–`20261021`) + su frontend, listas para
 subir **como un solo batch**. Desde `4d8f75b`. `npm run build` + `npm test`
 (58) en verde en cada commit.
 
@@ -113,6 +113,22 @@ sobre `cerrar_corrida_si_esperando`). Se consolida:
 `scripts/test-costura2-cierre-corrida.sql`
 → `fc29b1f` (base) · `6256380` (frontend Líneas) · `25d33e6` (fix cierre PT) · `0a22290` (fix Finalizar)
 
+### `20261021` — `medir_tanque` angosta + retira `reactivar_lote` / `descartar_resto_tanque` (§2.1)
+Enfoque "lo más seguro y reversible" (dueño): aditivo + drop-only.
+- **`medir_tanque(usuario, turno_id, numero_tanque, volumen_real)` NUEVA** — la "relectura
+  física" que vivía escondida en `cambiar_condicion_tanque`: corrige `volumen_l` a lo medido,
+  deja el delta (teórico vs real) en `preparaciones_ajuste`, NO toca `volumen_inicial_l`.
+  Herramienta de excepción (Recepción / "algo se ve raro").
+- **`reactivar_lote` / `descartar_resto_tanque` dropeadas** — sus reemplazos (Transferir /
+  Desvasar / 2º confirm de Detener línea) ya existen.
+- **`cambiar_condicion_tanque` + `TanqueEditForm` se quedan** — todavía hacen el toggle de CIP
+  y el confirmar INICIO/FIN. Narrowear eso es un paso posterior.
+- Frontend `EstadoPlantaTabs.tsx`: "Reactivar Lote" y "Descartar" (+ su panel) retirados;
+  "Medir tanque" ahora llama `medir_tanque`.
+- CIP en tanques: sin guard duro. Nota del dueño: "a veces echan encima de un tanque sucio, no
+  siempre del mismo sabor" — forzar CIP rompería el flujo real.
+`scripts/test-medir-tanque.sql` → este commit
+
 ### `20261020` — Advisory lock en `iniciar_preparacion` + retira `finalizar_lote` (§2.3)
 La guarda de "nº de lote repetido para el mismo sabor en otro tanque de la
 misma área" era check-then-act: dos preparaciones concurrentes del mismo
@@ -166,7 +182,7 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 | Sección | Qué |
 | --- | --- |
-| **§2.1 (tanque)** | Retirar `reactivar_lote`, `descartar_resto_tanque`, `cambiar_condicion_tanque` + `TanqueEditForm` + confirmaciones §2.1-bis. Es el espejo, del lado tanque, de lo que se hizo en líneas con costura 2. |
+| **§2.1 (tanque)** | *Hecho:* `medir_tanque` extraída, `reactivar_lote` y `descartar_resto_tanque` dropeadas (`20261021`). *Falta:* narrowear el CIP + confirmar INICIO/FIN para poder dropear `cambiar_condicion_tanque` + `TanqueEditForm`. |
 | **§2.3** | *Hecho:* advisory lock en `iniciar_preparacion`, `finalizar_lote` dropeada (`20261020`). *Falta:* ampliar `posibleDuplicado` en VALIDAR; decisión del dueño sobre reutilización de nº de lote tras cerrar. |
 | **§2.5** | Capturar el residuo de línea (~5% / 500 L) al cortar un lote — hoy ese volumen desaparece sin rastro. |
 | **§2.6** | Envases buenos (Contador 2) como comparación visible de toda corrida (`Δenvases = |buenos − PT|`). |
@@ -176,7 +192,7 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 ## Cómo subir
 
-- Las **8 migraciones** (`20261013`–`20261020`) + **todo el frontend** van
+- Las **9 migraciones** (`20261013`–`20261021`) + **todo el frontend** van
   **JUNTAS**: un WinSCP + un `npx supabase db push` + un
   `docker compose --profile preview up -d --build`. **No** partir el batch —
   cada migración cambia nombres de RPC / comportamiento y su frontend va con

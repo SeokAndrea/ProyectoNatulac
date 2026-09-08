@@ -73,29 +73,44 @@ export async function desvasarTanque(usuario: string, turnoId: string, numeroTan
   return { ok: true, data }
 }
 
+/**
+ * Medir tanque: relectura física. El supervisor mide el tanque de verdad
+ * y tipea el volumen real; el sistema corrige `volumen_l` y deja el delta
+ * (teórico vs real) en `preparaciones_ajuste`. Herramienta de excepción
+ * (Recepción / "algo se ve raro"), no parte del cierre normal — ver
+ * migración 20261021090000 y el Contexto del plan.
+ */
+export async function medirTanque(
+  usuario: string,
+  turnoId: string,
+  numeroTanque: 1 | 2 | 3,
+  volumenReal: number,
+): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("medir_tanque", {
+    p_usuario: usuario,
+    p_turno_id: turnoId,
+    p_numero_tanque: numeroTanque,
+    p_volumen_real: volumenReal,
+  })
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? "No se pudo guardar la medición. Intenta de nuevo." }
+  }
+
+  return { ok: true, data }
+}
+
 // ------------------------------------------------------------
-// TODO (Fase 2 del plan) — RETIRAR ESTAS 3 FUNCIONES cuando la base de
-// datos cambie. Veredicto ya tomado en plan-rework-3-modulos-y-merma.md
-// §2.1:
-//   - cambiarCondicionTanque ("Editar" libre): un solo formulario deja
-//     fijar cualquier condición/sabor/lote/volumen sin los guardrails de
-//     iniciarPreparacion — la única edición libre que debe sobrevivir es
-//     Recepción, y ni siquiera ahí necesita ser TAN libre.
-//   - reactivarLote: bug confirmado en operación real — terminarSaborLinea
-//     ya puso turno_lineas.activa=false ANTES de que esto corra, así que
-//     nunca encuentra la fila para reactivar la corrida (queda muerta).
-//     Reemplazo: confirmación antes de "Terminó Lote" (plan §2.1-bis).
-//   - descartarRestoTanque: en la operación real nunca se descarta nada
-//     de verdad — todo resto se transfiere (transferirTanque) o se
-//     guarda en pipa (desvasarTanque), ambas ya arriba en este archivo.
-// Hoy siguen acá porque la Fase 2 (que las retira de la base) todavía no
-// corrió — sacarlas de este módulo antes de tiempo le quitaría 3
-// capacidades reales a los supervisores sin haber construido el
-// reemplazo. Cuando la Fase 2 corra: borrar este bloque entero + las 3
-// piezas de UI que lo llaman (EstadoPlantaTabs.tsx, TanqueEditForm).
+// TODO (Fase 2 del plan, §2.1) — `cambiarCondicionTanque` todavía hace el
+// toggle de CIP (Iniciar/Terminó CIP) y el confirmar INICIO/FIN de un
+// tanque heredado. Narrowear eso (CIP angosto + confirmar_estado_tanque)
+// es un paso posterior; hasta entonces queda. `reactivarLote` y
+// `descartarRestoTanque` ya se retiraron (migración 20261021090000):
+// reactivar no existe en el modelo de dos estados; descartar no existe en
+// la operación real (todo resto se transfiere o se desvasa).
 // ------------------------------------------------------------
 
-/** Ver nota de retiro arriba. */
+/** Ver nota arriba. */
 export async function cambiarCondicionTanque(
   usuario: string,
   turnoId: string,
@@ -115,42 +130,6 @@ export async function cambiarCondicionTanque(
 
   if (error || !data) {
     return { ok: false, error: "No se pudo cambiar el tanque. Intenta de nuevo." }
-  }
-
-  return { ok: true, data }
-}
-
-/** Ver nota de retiro arriba. */
-export async function reactivarLote(usuario: string, turnoId: string, numeroTanque: 1 | 2 | 3): Promise<Resultado & { data?: unknown }> {
-  const { data, error } = await supabase.rpc("reactivar_lote", {
-    p_usuario: usuario,
-    p_turno_id: turnoId,
-    p_numero_tanque: numeroTanque,
-  })
-
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? "No se pudo reactivar el lote. Intenta de nuevo." }
-  }
-
-  return { ok: true, data }
-}
-
-/** Ver nota de retiro arriba. */
-export async function descartarRestoTanque(
-  usuario: string,
-  turnoId: string,
-  numeroTanque: 1 | 2 | 3,
-  motivo: string,
-): Promise<Resultado & { data?: unknown }> {
-  const { data, error } = await supabase.rpc("descartar_resto_tanque", {
-    p_usuario: usuario,
-    p_turno_id: turnoId,
-    p_numero_tanque: numeroTanque,
-    p_motivo: motivo.trim() || null,
-  })
-
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? "No se pudo descartar. Intenta de nuevo." }
   }
 
   return { ok: true, data }

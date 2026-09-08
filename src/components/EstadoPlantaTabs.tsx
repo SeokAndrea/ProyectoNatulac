@@ -8,13 +8,10 @@ import {
   Loader2,
   PackageOpen,
   PenLine,
-  RefreshCw,
-  TriangleAlert,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
@@ -103,8 +100,7 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
     ajustarPreparacion,
     transferirTanque,
     desvasarTanque,
-    reactivarLote,
-    descartarRestoTanque,
+    medirTanque,
   } = usePreparacion()
   const { corridas, cargando: cargandoProduccion } = useProduccion()
 
@@ -136,8 +132,7 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
           onAjustar={ajustarPreparacion}
           onTransferir={transferirTanque}
           onDesvasar={desvasarTanque}
-          onReactivarLote={reactivarLote}
-          onDescartarResto={descartarRestoTanque}
+          onMedirTanque={medirTanque}
         />
       ))}
     </div>
@@ -202,8 +197,7 @@ function TanqueCard({
   onAjustar,
   onTransferir,
   onDesvasar,
-  onReactivarLote,
-  onDescartarResto,
+  onMedirTanque,
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
@@ -225,8 +219,7 @@ function TanqueCard({
     motivo: MotivoTransferencia,
   ) => Promise<Resultado>
   onDesvasar: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
-  onReactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
-  onDescartarResto: (numeroTanque: 1 | 2 | 3, motivo: string) => Promise<Resultado>
+  onMedirTanque: (numeroTanque: 1 | 2 | 3, volumenReal: number) => Promise<Resultado>
 }) {
   const [editando, setEditando] = useState(false)
   const [mostrarFormPrep, setMostrarFormPrep] = useState(false)
@@ -249,29 +242,9 @@ function TanqueCard({
   const [volMedido, setVolMedido] = useState("")
   const [midiendo, setMidiendo] = useState(false)
   const [errorMedir, setErrorMedir] = useState<string | null>(null)
-  const [reactivando, setReactivando] = useState(false)
-  const [errorReactivar, setErrorReactivar] = useState<string | null>(null)
   const [confirmandoDesvase, setConfirmandoDesvase] = useState(false)
   const [desvasando, setDesvasando] = useState(false)
   const [errorDesvase, setErrorDesvase] = useState<string | null>(null)
-  /** Guardrail #1, opción "Descartar" (plan-rework-tanques-lineas-recepcion.md §6). */
-  const [mostrarDescartar, setMostrarDescartar] = useState(false)
-  const [motivoDescarte, setMotivoDescarte] = useState("")
-  const [descartando, setDescartando] = useState(false)
-  const [errorDescartar, setErrorDescartar] = useState<string | null>(null)
-
-  async function confirmarDescarte() {
-    setDescartando(true)
-    setErrorDescartar(null)
-    const resultado = await onDescartarResto(tanque.numeroTanque, motivoDescarte)
-    setDescartando(false)
-    if (!resultado.ok) {
-      setErrorDescartar(resultado.error)
-      return
-    }
-    setMostrarDescartar(false)
-    setMotivoDescarte("")
-  }
 
   async function cambiarCip(condicion: "CIP" | "LIMPIO") {
     setCambiandoCip(true)
@@ -331,13 +304,7 @@ function TanqueCard({
     if (!Number.isFinite(real) || real < 0) return
     setMidiendo(true)
     setErrorMedir(null)
-    const resultado = await onCambiarCondicion({
-      numeroTanque: destinoMedicion.numeroTanque,
-      condicion: destinoMedicion.condicion,
-      saborId: destinoMedicion.saborId,
-      volumenL: real,
-      lote: destinoMedicion.lote,
-    })
+    const resultado = await onMedirTanque(destinoMedicion.numeroTanque, real)
     setMidiendo(false)
     if (!resultado.ok) {
       setErrorMedir(resultado.error)
@@ -361,14 +328,6 @@ function TanqueCard({
       return
     }
     setConfirmandoDesvase(false)
-  }
-
-  async function reactivar() {
-    setReactivando(true)
-    setErrorReactivar(null)
-    const resultado = await onReactivarLote(tanque.numeroTanque)
-    setReactivando(false)
-    if (!resultado.ok) setErrorReactivar(resultado.error)
   }
 
   const color = colorSabor(
@@ -420,25 +379,11 @@ function TanqueCard({
           )}
 
           {tanque.condicion === "STANDBY" && (
-            <div className="flex flex-col gap-1.5">
-              <p className="text-sm break-words text-muted-foreground">
-                Resto de {tanque.saborNombre ?? "sabor sin datos"}
-                {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — el lote ya se cerró.
-              </p>
-              {modo === "preparacion" && (
-                <>
-                  <Button size="sm" variant="outline" className="self-start" disabled={reactivando} onClick={reactivar}>
-                    {reactivando ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-                    Reactivar Lote
-                  </Button>
-                  {errorReactivar && (
-                    <p className="text-xs text-destructive" role="alert">
-                      {errorReactivar}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
+            <p className="text-sm break-words text-muted-foreground">
+              Resto de {tanque.saborNombre ?? "sabor sin datos"}
+              {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — el lote ya se cerró. Para usarlo:
+              Transferir o preparar encima (se suma al lote nuevo).
+            </p>
           )}
 
           {tanque.condicion === "EN_PREPARACION" && (
@@ -573,50 +518,12 @@ function TanqueCard({
               }}
               onCancelar={() => setMostrarFormPrep(false)}
             />
-          ) : mostrarDescartar ? (
-            <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-              <p className="text-xs text-foreground">
-                Se van a descartar los {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L de {tanque.saborNombre} — quedan
-                como merma de este lote. Contá qué pasó (opcional).
-              </p>
-              <Textarea
-                value={motivoDescarte}
-                onChange={(e) => setMotivoDescarte(e.target.value.slice(0, 140))}
-                maxLength={140}
-                rows={2}
-                placeholder="Motivo del descarte"
-                className="text-sm"
-              />
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">{motivoDescarte.length}/140</span>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => setMostrarDescartar(false)} disabled={descartando}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                    variant="outline"
-                    onClick={confirmarDescarte}
-                    disabled={descartando}
-                  >
-                    {descartando ? <Loader2 className="size-3.5 animate-spin" /> : <TriangleAlert className="size-3.5" />}
-                    Confirmar descarte
-                  </Button>
-                </div>
-              </div>
-              {errorDescartar && (
-                <p className="text-xs text-destructive" role="alert">
-                  {errorDescartar}
-                </p>
-              )}
-            </div>
           ) : (
             <div className="flex flex-col gap-2">
               {tieneResto && (
                 <p className="text-xs text-muted-foreground">
                   Quedan {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L de {tanque.saborNombre} sin usar — al preparar
-                  encima, se suman solos al lote nuevo. Para otra cosa: Transferir, Desvase, o Descartar.
+                  encima, se suman solos al lote nuevo. Para otra cosa: Transferir o Desvase.
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
@@ -643,17 +550,6 @@ function TanqueCard({
                 {DESVASE_HABILITADO && confirmandoDesvase && (
                   <Button size="sm" variant="ghost" onClick={() => setConfirmandoDesvase(false)} disabled={desvasando}>
                     Cancelar
-                  </Button>
-                )}
-                {tieneResto && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                    onClick={() => setMostrarDescartar(true)}
-                  >
-                    <TriangleAlert className="size-3.5" />
-                    Descartar
                   </Button>
                 )}
               </div>

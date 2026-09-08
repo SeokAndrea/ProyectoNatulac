@@ -20,9 +20,8 @@ import { supabase } from "@/lib/supabase"
 import {
   ajustarPreparacion as ajustarPreparacionAccion,
   cambiarCondicionTanque as cambiarCondicionTanqueAccion,
-  descartarRestoTanque as descartarRestoTanqueAccion,
   desvasarTanque as desvasarTanqueAccion,
-  reactivarLote as reactivarLoteAccion,
+  medirTanque as medirTanqueAccion,
   transferirTanque as transferirTanqueAccion,
 } from "./ajustes"
 import { confirmarEstadoTanque as confirmarEstadoTanqueAccion, iniciarPreparacion as iniciarPreparacionAccion, liberarLote as liberarLoteAccion } from "./nucleo"
@@ -59,13 +58,11 @@ export interface UsePreparacionResultado {
     motivo: MotivoTransferencia,
   ) => Promise<Resultado>
   desvasarTanque: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
+  /** Relectura física: corrige `volumen_l` al valor medido — herramienta de excepción. */
+  medirTanque: (numeroTanque: 1 | 2 | 3, volumenReal: number) => Promise<Resultado>
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
-  /** TODO (Fase 2 del plan): se retira junto con las otras 2 de abajo — ver ajustes.ts. */
+  /** TODO (Fase 2 del plan): todavía hace CIP + confirmar INICIO/FIN — ver ajustes.ts. */
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
-  /** TODO (Fase 2 del plan): se retira — ver ajustes.ts. */
-  reactivarLote: (numeroTanque: 1 | 2 | 3) => Promise<Resultado>
-  /** TODO (Fase 2 del plan): se retira — ver ajustes.ts. */
-  descartarRestoTanque: (numeroTanque: 1 | 2 | 3, motivo: string) => Promise<Resultado>
 }
 
 /**
@@ -153,6 +150,13 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     return resultado
   }
 
+  async function medirTanque(numeroTanque: 1 | 2 | 3, volumenReal: number): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await medirTanqueAccion(usuario, turnoId, numeroTanque, volumenReal)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
   async function confirmarEstadoTanque(numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN"): Promise<Resultado> {
     if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
     const resultado = await confirmarEstadoTanqueAccion(usuario, turnoId, numeroTanque, momento)
@@ -160,24 +164,10 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     return resultado
   }
 
-  // TODO (Fase 2 del plan): estas 3 se retiran junto con ajustes.ts — ver la nota ahí.
+  // TODO (Fase 2 del plan §2.1): todavía hace CIP + confirmar INICIO/FIN — ver la nota en ajustes.ts.
   async function cambiarCondicionTanque(datos: DatosCambiarTanque): Promise<Resultado> {
     if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
     const resultado = await cambiarCondicionTanqueAccion(usuario, turnoId, datos)
-    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
-    return resultado
-  }
-
-  async function reactivarLote(numeroTanque: 1 | 2 | 3): Promise<Resultado> {
-    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
-    const resultado = await reactivarLoteAccion(usuario, turnoId, numeroTanque)
-    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
-    return resultado
-  }
-
-  async function descartarRestoTanque(numeroTanque: 1 | 2 | 3, motivo: string): Promise<Resultado> {
-    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
-    const resultado = await descartarRestoTanqueAccion(usuario, turnoId, numeroTanque, motivo)
     if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
     return resultado
   }
@@ -192,9 +182,8 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     ajustarPreparacion,
     transferirTanque,
     desvasarTanque,
+    medirTanque,
     confirmarEstadoTanque,
     cambiarCondicionTanque,
-    reactivarLote,
-    descartarRestoTanque,
   }
 }
