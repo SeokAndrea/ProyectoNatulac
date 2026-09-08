@@ -662,12 +662,12 @@ function LineaCard({
                   {tanquesListos.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Ningún tanque está Listo todavía.</p>
                   ) : (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-col gap-2">
                       <Select
                         value={tanqueContinuar === "" ? "" : String(tanqueContinuar)}
                         onValueChange={(v) => setTanqueContinuar(Number(v))}
                       >
-                        <SelectTrigger className="w-56">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Tanque" />
                         </SelectTrigger>
                         <SelectContent>
@@ -679,26 +679,28 @@ function LineaCard({
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button
-                        size="sm"
-                        disabled={tanqueContinuar === "" || enviandoAccion}
-                        onClick={() => continuarSiguiente(Number(tanqueContinuar))}
-                      >
-                        {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
-                        Continuar con ese tanque
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={enviandoAccion}
-                        onClick={() => {
-                          setContinuarEligeTanque(false)
-                          setTanqueContinuar("")
-                          setErrorAccion(null)
-                        }}
-                      >
-                        Cancelar
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          disabled={tanqueContinuar === "" || enviandoAccion}
+                          onClick={() => continuarSiguiente(Number(tanqueContinuar))}
+                        >
+                          {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                          Continuar con ese tanque
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={enviandoAccion}
+                          onClick={() => {
+                            setContinuarEligeTanque(false)
+                            setTanqueContinuar("")
+                            setErrorAccion(null)
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>

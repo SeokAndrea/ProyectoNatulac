@@ -644,20 +644,22 @@ function TanqueCard({
 
         {modo === "preparacion" && mostrarTransferir && !origenConfirmado && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
-            <p className="text-xs text-foreground">
+            <p className="text-xs break-words text-foreground">
               Antes de mover: <span className="font-medium">mide el Tanque {tanque.numeroTanque}</span> y confirma cuánto tiene
               de verdad. Se transfiere ese volumen.
             </p>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <Input
                 type="number"
                 inputMode="decimal"
                 min="0"
-                className="h-8 w-32"
+                className="h-8 w-24"
                 value={volOrigenReal}
                 onChange={(e) => setVolOrigenReal(e.target.value)}
               />
               <span className="text-xs text-muted-foreground">L</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 disabled={confirmandoOrigen || volOrigenReal.trim() === "" || Number(volOrigenReal) < 0}
@@ -724,16 +726,16 @@ function TanqueCard({
             {destinoConLotePropio && (
               <div className="flex flex-col gap-1.5">
                 <p className="text-xs text-muted-foreground">
-                  El tanque destino ya tiene su propio lote — ¿cuál de los dos identidades se queda?
+                  El tanque destino ya tiene su propio lote — ¿qué identidad se queda?
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     size="sm"
                     variant={modoTransferencia === "LIQUIDO" ? "default" : "outline"}
                     onClick={() => setModoTransferencia("LIQUIDO")}
                   >
-                    Líquido — se suma al lote del destino
+                    Líquido
                   </Button>
                   <Button
                     type="button"
@@ -741,9 +743,14 @@ function TanqueCard({
                     variant={modoTransferencia === "LOTE" ? "default" : "outline"}
                     onClick={() => setModoTransferencia("LOTE")}
                   >
-                    Lote — este lote se queda con lo que ya tenía el destino
+                    Lote
                   </Button>
                 </div>
+                <p className="text-[11px] break-words text-muted-foreground">
+                  {modoTransferencia === "LIQUIDO"
+                    ? "El líquido se suma al lote que ya tiene el destino."
+                    : "Este lote se muda al tanque destino y absorbe lo que el destino ya tenía."}
+                </p>
               </div>
             )}
 
@@ -782,7 +789,7 @@ function TanqueCard({
               </p>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 disabled={tanqueDestino === "" || transfiriendo || transferExcedeMax}
@@ -800,26 +807,29 @@ function TanqueCard({
 
         {modo === "preparacion" && medirDestino !== null && destinoMedicion && (
           <div className="flex flex-col gap-3 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
-            <p className="text-xs text-foreground">Transferencia hecha. Cierra los dos tanques con lo que midas de verdad.</p>
+            <p className="text-xs break-words text-foreground">
+              Transferencia hecha. Cierra los dos tanques con lo que midas de verdad.
+            </p>
 
             {puedeCapturarResto && origenTransferido !== null && (
               <div className="flex flex-col gap-1.5">
-                <p className="text-xs text-foreground">
+                <p className="text-xs break-words text-foreground">
                   ¿El Tanque {origenTransferido} quedó vacío? Si no, ¿cuántos L quedaron?
                 </p>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Input
                     type="number"
                     inputMode="decimal"
                     min="0"
-                    className="h-8 w-28"
+                    className="h-8 w-24"
                     value={restoOrigen}
                     onChange={(e) => setRestoOrigen(e.target.value)}
                   />
-                  <span className="text-xs text-muted-foreground">L (0 = quedó vacío)</span>
+                  <span className="text-xs text-muted-foreground">L</span>
                 </div>
+                <p className="text-[11px] text-muted-foreground">0 = quedó vacío.</p>
                 {Number(restoOrigen) > 0 && (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] break-words text-muted-foreground">
                     Esos {Number(restoOrigen).toLocaleString("es-CO")} L vuelven como resto en el Tanque {origenTransferido} y se
                     le descuentan al Tanque {destinoMedicion.numeroTanque}.
                   </p>
@@ -828,16 +838,16 @@ function TanqueCard({
             )}
 
             <div className="flex flex-col gap-1.5">
-              <p className="text-xs text-foreground">
+              <p className="text-xs break-words text-foreground">
                 Volumen real del Tanque {destinoMedicion.numeroTanque} (~
                 {(destinoMedicion.volumenL ?? 0).toLocaleString("es-CO")} L calculado):
               </p>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Input
                   type="number"
                   inputMode="decimal"
                   min="0"
-                  className="h-8 w-32"
+                  className="h-8 w-24"
                   placeholder={String(destinoMedicion.volumenL ?? 0)}
                   value={volMedido}
                   onChange={(e) => setVolMedido(e.target.value)}
@@ -1038,7 +1048,7 @@ function FormularioIniciarPreparacion({
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={!valido || enviando} onClick={handleSubmit}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
           Iniciar Preparación
