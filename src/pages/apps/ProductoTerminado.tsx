@@ -263,9 +263,6 @@ function ListaCorridas({
               contadorActual={contadores
                 .filter((c) => c.corridaId === l.id && !c.parcial)
                 .reduce((a, c) => a + c.envasesLlenadora, 0)}
-              contadorParcialRef={contadores
-                .filter((c) => c.corridaId === l.id && c.parcial)
-                .reduce((a, c) => a + c.envasesLlenadora, 0)}
               presentaciones={presentaciones}
               registroExistente={productoTerminado.find((p) => p.corridaId === l.id) ?? null}
               onRegistrarProducto={onRegistrarProducto}
@@ -371,7 +368,6 @@ function FilaProductoTerminado({
   lineaTurno,
   nombreLinea,
   contadorActual,
-  contadorParcialRef,
   presentaciones,
   registroExistente,
   onRegistrarProducto,
@@ -382,8 +378,6 @@ function FilaProductoTerminado({
   lineaTurno: Corrida
   nombreLinea: string
   contadorActual: number
-  /** Suma de las lecturas de contador tomadas en entregas parciales — solo referencia, no cuenta para merma. */
-  contadorParcialRef: number
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   registroExistente: ProductoTerminadoRegistro | null
   onRegistrarProducto: OnRegistrarProducto
@@ -451,7 +445,6 @@ function FilaProductoTerminado({
 
   const hayContadorNuevo = envasesLlenadora !== "" && nuevoContador > 0
   const hayProducto = (paletas !== "" || cajasSueltas !== "") && nPaletas >= 0 && nCajasSueltas >= 0
-  const hayIncremento = nPaletas > 0 || nCajasSueltas > 0
   const hayDatos = hayContadorNuevo || hayProducto
   const modoCorreccion = estaCerrada && editandoError
   /** El Contador 2 (envases buenos) es OBLIGATORIO junto con el contador de la llenadora, y no puede superarlo. */
@@ -463,63 +456,11 @@ function FilaProductoTerminado({
     buenosValido &&
     (!puedeElegirProximoEstado || proximoEstado !== null) &&
     (!requiereJustificacion || justificacion.trim() !== "")
-  /** "Entrega parcial": solo con un incremento de producto cargado, mientras la corrida sigue activa. */
-  const puedeEntregaParcial =
-    puedeElegirProximoEstado && hayIncremento && buenosValido && (!requiereJustificacion || justificacion.trim() !== "")
   const textoBoton = modoCorreccion
     ? "Guardar corrección"
     : puedeElegirProximoEstado
       ? "Cerrar"
       : "Registrar"
-
-  function limpiarCampos() {
-    setPaletas("")
-    setCajasSueltas("")
-    setEnvasesLlenadora("")
-    setEnvasesBuenos("")
-    setJustificacion("")
-  }
-
-  /** Registra una entrega parcial: suma el incremento, deja la corrida abierta. El contador va como referencia. */
-  async function entregarParcial() {
-    if (!puedeEntregaParcial || enviando) return
-    setEnviando(true)
-    setError(null)
-
-    if (hayContadorNuevo) {
-      const resultado = await onRegistrarContador({
-        corridaId: lineaTurno.id,
-        linea: lineaTurno.linea,
-        envasesLlenadora: nuevoContador,
-        envasesBuenos: nuevoContadorBuenos,
-        justificacion: justificacion.trim(),
-        parcial: true,
-      })
-      if (!resultado.ok) {
-        setEnviando(false)
-        setError(resultado.error)
-        return
-      }
-    }
-
-    const resultado = await onRegistrarProducto({
-      corridaId: lineaTurno.id,
-      linea: lineaTurno.linea,
-      saborId: saborId || null,
-      presentacion: lineaTurno.presentacion,
-      paletas: nPaletas,
-      cajasSueltas: nCajasSueltas,
-      parcial: true,
-    })
-    if (!resultado.ok) {
-      setEnviando(false)
-      setError(resultado.error)
-      return
-    }
-
-    setEnviando(false)
-    limpiarCampos()
-  }
 
   async function guardar() {
     if (!valido) return
@@ -740,8 +681,8 @@ function FilaProductoTerminado({
             )}
             {modoIncremental && (
               <p className="text-xs text-muted-foreground">
-                En una entrega parcial es solo de referencia. El que cuenta para la merma es el contador final.
-                {contadorParcialRef > 0 && ` Referencia parcial acumulada: ${contadorParcialRef.toLocaleString("es-CO")} envases.`}
+                Esta corrida quedó con entregas parciales de antes — el contador que cuenta para la merma es el del cierre
+                definitivo.
               </p>
             )}
           </div>
@@ -833,30 +774,6 @@ function FilaProductoTerminado({
                 {p.usuarioNombre ? ` · ${p.usuarioNombre}` : ""}
               </p>
             ))}
-          </div>
-        )}
-
-        {puedeElegirProximoEstado && (
-          <div className="flex flex-col gap-1.5">
-            <Label>Entrega parcial</Label>
-            <button
-              type="button"
-              onClick={entregarParcial}
-              disabled={!puedeEntregaParcial || enviando}
-              title="Suma solo las paletas nuevas al acumulado y deja la corrida abierta"
-              className={cn(
-                "flex w-full items-center justify-center gap-2 rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors",
-                "border-foreground/25 text-foreground hover:bg-muted/60",
-                "disabled:pointer-events-none disabled:opacity-40",
-              )}
-            >
-              {enviando && <Loader2 className="size-3.5 animate-spin" />}
-              Sumar paletas y continuar lote
-            </button>
-            <p className="text-xs text-muted-foreground">
-              Carga solo las paletas nuevas desde la última entrega. El contador queda como referencia; el que cuenta es el del
-              cierre definitivo.
-            </p>
           </div>
         )}
 
