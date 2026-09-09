@@ -43,8 +43,24 @@ export function construirHistorial(
 ): EventoHistorial[] {
   const eventos: EventoHistorial[] = []
 
+  /*
+   * Piso de la línea de tiempo: el instante en que arrancó el turno.
+   * turno_json() trae lotes / corridas / tanques HEREDADOS de turnos
+   * anteriores — el lote abierto del área, la corrida que sigue activa
+   * (ver iniciar_turno y el turno_json de 20261010) — para poder medir
+   * el consumo del tramo. Pero sus timestamps de creación / activación
+   * son de OTRO turno, y sin este piso aparecían mezclados y
+   * desordenados al principio de la secuencia. Un sub-evento que SÍ
+   * pasó en este turno (liberar / cerrar un lote heredado) igual entra:
+   * se filtra por su propia hora, no por la del lote.
+   */
+  const inicioTurno = comoFecha(turno.horaInicio, turno.fecha).getTime()
+  const MARGEN_MS = 5 * 60_000 // tolera desfases menores (hora "pelada" vs timestamp ISO)
+
   function agregar(valor: string, seccion: string, detalle: string) {
-    eventos.push({ momento: comoFecha(valor, turno.fecha).getTime(), hora: formatearHora(valor, turno.fecha), seccion, detalle })
+    const momento = comoFecha(valor, turno.fecha).getTime()
+    if (Number.isFinite(momento) && Number.isFinite(inicioTurno) && momento < inicioTurno - MARGEN_MS) return
+    eventos.push({ momento, hora: formatearHora(valor, turno.fecha), seccion, detalle })
   }
 
   agregar(turno.horaInicio, "Comenzar Turno", `${nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)} · ${nombrePorCodigo(GRUPOS, turno.grupo)}`)

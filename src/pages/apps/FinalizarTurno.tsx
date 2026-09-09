@@ -105,7 +105,16 @@ export default function FinalizarTurno() {
       .map((l) => `Producto Terminado — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`),
   ]
 
+  /*
+   * Case 6 — corridas todavía activas sin resolver: bloqueo DURO (no
+   * "Finalizar de todos modos"). Hay que ir a Producto Terminado, cargar
+   * el PT del tramo de este turno y elegir Terminar o Entregar línea. Si
+   * no, la producción de esa línea en este turno se pierde.
+   */
+  const lineasSinResolver = prod.corridas.filter((c) => c.activa && c.entregadaEn === null)
+
   async function handleFinalizar() {
+    if (lineasSinResolver.length > 0) return
     if (itemsFaltantes.length > 0 && !confirmando) {
       setConfirmando(true)
       return
@@ -327,7 +336,25 @@ export default function FinalizarTurno() {
           </SeccionColapsable>
         </div>
 
-        {confirmando && itemsFaltantes.length > 0 && (
+        {lineasSinResolver.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+            <p className="flex items-center gap-1.5 font-medium">
+              <AlertTriangle className="size-4 shrink-0" />
+              {lineasSinResolver.length === 1 ? "Esta línea sigue activa" : "Estas líneas siguen activas"}:{" "}
+              {lineasSinResolver.map((c) => nombrePorCodigo(lineas, c.linea)).join(", ")}
+            </p>
+            <p>
+              Carga su Producto Terminado de este turno (0 paletas / 0 cajas si no produjo nada) y elige{" "}
+              <span className="font-medium">Terminar</span> o <span className="font-medium">Entregar línea</span> antes de
+              finalizar.
+            </p>
+            <Button asChild size="sm" variant="outline" className="self-start">
+              <Link to="/producto-terminado">Ir a Producto Terminado</Link>
+            </Button>
+          </div>
+        )}
+
+        {confirmando && itemsFaltantes.length > 0 && lineasSinResolver.length === 0 && (
           <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
             <p className="flex items-center gap-1.5 font-medium">
               <AlertTriangle className="size-4 shrink-0" />
@@ -355,10 +382,12 @@ export default function FinalizarTurno() {
           variant="outline"
           className="border-destructive/40 text-destructive hover:bg-destructive/10"
           onClick={handleFinalizar}
-          disabled={finalizando}
+          disabled={finalizando || lineasSinResolver.length > 0}
         >
           {finalizando ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
-          {confirmando && itemsFaltantes.length > 0 ? "Finalizar de todos modos" : "Finalizar Turno (genera el Acta)"}
+          {confirmando && itemsFaltantes.length > 0 && lineasSinResolver.length === 0
+            ? "Finalizar de todos modos"
+            : "Finalizar Turno (genera el Acta)"}
         </Button>
       </div>
     </AppShell>

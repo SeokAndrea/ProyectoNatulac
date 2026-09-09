@@ -244,6 +244,9 @@ function FilaCorrida({
         <Badge variant={BADGE[fila.estado]}>
           {fila.estado === "PENDIENTE" ? "Pendiente" : fila.estado === "CONFIRMADO" ? "Confirmado" : "Editado"}
         </Badge>
+        {fila.sinPt && fila.cierreAutomatico && (
+          <Badge variant="warning">Sin Producto Terminado — el turno cerró solo</Badge>
+        )}
         {!editando && (
           <div className="flex shrink-0 items-center gap-1.5">
             <Button

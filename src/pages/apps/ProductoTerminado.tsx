@@ -31,6 +31,8 @@ import { LIMITE_MERMA } from "@/lib/turno"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
+import { usePreparacion } from "@/lib/preparacion/usePreparacion"
+import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
@@ -53,6 +55,15 @@ function infoSabor(nombre: string | null): { color: string; Icono: typeof Apple 
   let hash = 0
   for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) % 997
   return { color: COLORES_SABOR_FALLBACK[hash % COLORES_SABOR_FALLBACK.length], Icono: Droplets }
+}
+
+/** Misma normalización que normalizar_lote() en la base: sirve para casar una corrida con su tanque por número de lote. */
+function normalizarLote(lote: string | null): string | null {
+  if (lote === null) return null
+  const t = lote.trim()
+  if (t === "") return null
+  if (!/^[0-9]+$/.test(t)) return t
+  return (t.replace(/^0+/, "") || "0").padStart(4, "0")
 }
 
 /*
@@ -79,8 +90,9 @@ export default function ProductoTerminado() {
     terminarSaborLinea,
   } = useProduccion()
   const { registros: productoTerminado, cargando: cargandoPT, registrarProductoTerminado } = useProductoTerminado()
+  const { tanques, preparaciones, medirTanque, cargando: cargandoPreparacion } = usePreparacion()
   const { lineas, presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
-  const cargando = sesion.cargando || cargandoProduccion || cargandoPT
+  const cargando = sesion.cargando || cargandoProduccion || cargandoPT || cargandoPreparacion
 
   if (cargando || cargandoCatalogos) {
     return (
@@ -139,12 +151,15 @@ export default function ProductoTerminado() {
           corridas={pendientes}
           contadores={contadores}
           productoTerminado={productoTerminado}
+          tanques={tanques}
+          preparaciones={preparaciones}
           lineas={lineas}
           presentaciones={presentaciones}
           onRegistrarProducto={registrarProductoTerminado}
           onRegistrarContador={registrarContador}
           onEntregarCorrida={entregarCorrida}
           onTerminarSabor={terminarSaborLinea}
+          onMedirTanque={medirTanque}
         />
 
         {cerradas.length > 0 && (
@@ -152,12 +167,15 @@ export default function ProductoTerminado() {
             corridas={cerradas}
             contadores={contadores}
             productoTerminado={productoTerminado}
+            tanques={tanques}
+            preparaciones={preparaciones}
             lineas={lineas}
             presentaciones={presentaciones}
             onRegistrarProducto={registrarProductoTerminado}
             onRegistrarContador={registrarContador}
             onEntregarCorrida={entregarCorrida}
             onTerminarSabor={terminarSaborLinea}
+            onMedirTanque={medirTanque}
           />
         )}
       </div>
@@ -171,22 +189,28 @@ function ListaCorridas({
   corridas,
   contadores,
   productoTerminado,
+  tanques,
+  preparaciones,
   lineas,
   presentaciones,
   onRegistrarProducto,
   onRegistrarContador,
   onEntregarCorrida,
   onTerminarSabor,
+  onMedirTanque,
 }: {
   corridas: Corrida[]
   contadores: ContadorRegistro[]
   productoTerminado: ProductoTerminadoRegistro[]
+  tanques: TanqueRecepcion[]
+  preparaciones: PreparacionRegistro[]
   lineas: ReturnType<typeof useCatalogosLive>["lineas"]
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   onRegistrarProducto: OnRegistrarProducto
   onRegistrarContador: OnRegistrarContador
   onEntregarCorrida: OnEntregarCorrida
   onTerminarSabor: OnTerminarSabor
+  onMedirTanque: OnMedirTanque
 }) {
   const grupos = agruparPorSaborYLote(corridas)
   const [saborAbierto, setSaborAbierto] = useState<string | null>(grupos.length === 1 ? grupos[0].key : null)
@@ -264,11 +288,14 @@ function ListaCorridas({
                 .filter((c) => c.corridaId === l.id && !c.parcial)
                 .reduce((a, c) => a + c.envasesLlenadora, 0)}
               presentaciones={presentaciones}
+              tanques={tanques}
+              preparaciones={preparaciones}
               registroExistente={productoTerminado.find((p) => p.corridaId === l.id) ?? null}
               onRegistrarProducto={onRegistrarProducto}
               onRegistrarContador={onRegistrarContador}
               onEntregarCorrida={onEntregarCorrida}
               onTerminarSabor={onTerminarSabor}
+              onMedirTanque={onMedirTanque}
             />
           ))}
         </div>
@@ -282,22 +309,28 @@ function CorridasCerradas({
   corridas,
   contadores,
   productoTerminado,
+  tanques,
+  preparaciones,
   lineas,
   presentaciones,
   onRegistrarProducto,
   onRegistrarContador,
   onEntregarCorrida,
   onTerminarSabor,
+  onMedirTanque,
 }: {
   corridas: Corrida[]
   contadores: ContadorRegistro[]
   productoTerminado: ProductoTerminadoRegistro[]
+  tanques: TanqueRecepcion[]
+  preparaciones: PreparacionRegistro[]
   lineas: ReturnType<typeof useCatalogosLive>["lineas"]
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   onRegistrarProducto: OnRegistrarProducto
   onRegistrarContador: OnRegistrarContador
   onEntregarCorrida: OnEntregarCorrida
   onTerminarSabor: OnTerminarSabor
+  onMedirTanque: OnMedirTanque
 }) {
   const [abierto, setAbierto] = useState(false)
 
@@ -316,12 +349,15 @@ function CorridasCerradas({
           corridas={corridas}
           contadores={contadores}
           productoTerminado={productoTerminado}
+          tanques={tanques}
+          preparaciones={preparaciones}
           lineas={lineas}
           presentaciones={presentaciones}
           onRegistrarProducto={onRegistrarProducto}
           onRegistrarContador={onRegistrarContador}
           onEntregarCorrida={onEntregarCorrida}
           onTerminarSabor={onTerminarSabor}
+          onMedirTanque={onMedirTanque}
         />
       )}
     </div>
@@ -361,6 +397,7 @@ type OnRegistrarContador = (datos: {
 
 type OnEntregarCorrida = (corridaId: string) => Promise<ResultadoAccion>
 type OnTerminarSabor = (corridaId: string) => Promise<ResultadoAccion>
+type OnMedirTanque = (numeroTanque: 1 | 2 | 3, volumenReal: number) => Promise<ResultadoAccion>
 
 type ProximoEstado = "TERMINO_SABOR" | "CONTINUA"
 
@@ -369,21 +406,27 @@ function FilaProductoTerminado({
   nombreLinea,
   contadorActual,
   presentaciones,
+  tanques,
+  preparaciones,
   registroExistente,
   onRegistrarProducto,
   onRegistrarContador,
   onEntregarCorrida,
   onTerminarSabor,
+  onMedirTanque,
 }: {
   lineaTurno: Corrida
   nombreLinea: string
   contadorActual: number
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
+  tanques: TanqueRecepcion[]
+  preparaciones: PreparacionRegistro[]
   registroExistente: ProductoTerminadoRegistro | null
   onRegistrarProducto: OnRegistrarProducto
   onRegistrarContador: OnRegistrarContador
   onEntregarCorrida: OnEntregarCorrida
   onTerminarSabor: OnTerminarSabor
+  onMedirTanque: OnMedirTanque
 }) {
   const saborId = registroExistente?.saborId ?? lineaTurno.saborId
   /** Ya se decidió el destino de esta corrida (Terminó Corrida o Entregada al siguiente turno) — queda bloqueada salvo "Editar un error". */
@@ -404,6 +447,23 @@ function FilaProductoTerminado({
   const [proximoEstado, setProximoEstado] = useState<ProximoEstado | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  /** Tras cerrar una corrida (Terminar / Entregar) se pide medir el tanque de ese lote — así deja de verse "lleno" y no se re-corre. */
+  const [medicionTanque, setMedicionTanque] = useState<TanqueRecepcion | null>(null)
+  const [medicionValor, setMedicionValor] = useState("")
+  const [enviandoMedicion, setEnviandoMedicion] = useState(false)
+  const [errorMedicion, setErrorMedicion] = useState<string | null>(null)
+
+  /** El tanque Liberado que alimenta esta corrida (por sabor + número de lote). null si ya se cerró / vació. */
+  function tanqueDeEstaCorrida(): TanqueRecepcion | null {
+    return (
+      tanques.find(
+        (t) =>
+          (t.condicion === "LISTO" || t.condicion === "STANDBY") &&
+          t.saborId === saborId &&
+          normalizarLote(t.lote) === normalizarLote(lineaTurno.lote),
+      ) ?? null
+    )
+  }
 
   const presentacion = presentaciones.find((p) => p.codigo === lineaTurno.presentacion)
   const nPaletas = Number(paletas) || 0
@@ -450,6 +510,8 @@ function FilaProductoTerminado({
 
   async function guardar() {
     if (!valido) return
+    // Si esta pasada CIERRA la corrida (Terminar / Entregar), después se pide medir el tanque.
+    const cerrando = !modoCorreccion && proximoEstado !== null
     setEnviando(true)
     setError(null)
 
@@ -511,6 +573,101 @@ function FilaProductoTerminado({
     setJustificacion("")
     setProximoEstado(null)
     setEditandoError(false)
+
+    if (cerrando) {
+      const tanque = tanqueDeEstaCorrida()
+      if (tanque) {
+        setMedicionTanque(tanque)
+        setMedicionValor("")
+        setErrorMedicion(null)
+      }
+    }
+  }
+
+  // Tras cerrar la corrida: medir el tanque de ese lote (queda antes de la
+  // vista "Cerrada" para que el paso no se pierda cuando la corrida ya se cerró).
+  if (medicionTanque) {
+    const prepTanque = preparaciones.find(
+      (p) => p.numeroTanque === medicionTanque.numeroTanque && p.cerradoEn === null,
+    )
+    const nMedicion = Number(medicionValor)
+    const medicionValida = medicionValor.trim() !== "" && Number.isFinite(nMedicion) && nMedicion >= 0
+
+    const guardarMedicion = async () => {
+      if (!medicionValida || !medicionTanque) return
+      setEnviandoMedicion(true)
+      setErrorMedicion(null)
+      const resultado = await onMedirTanque(medicionTanque.numeroTanque, nMedicion)
+      setEnviandoMedicion(false)
+      if (!resultado.ok) {
+        setErrorMedicion(resultado.error)
+        return
+      }
+      setMedicionTanque(null)
+      setMedicionValor("")
+    }
+
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <span className="rounded-lg border-2 border-foreground/25 px-2.5 py-1 text-lg font-bold tracking-wide">
+                {nombreLinea}
+              </span>
+              {lineaTurno.lote && <span className="text-lg font-normal text-muted-foreground">Lote {lineaTurno.lote}</span>}
+            </CardTitle>
+            <Badge variant="warning">Medir Tanque {medicionTanque.numeroTanque}</Badge>
+          </div>
+          <CardDescription>Se cargó el Producto Terminado</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            Mide el Tanque {medicionTanque.numeroTanque} y anota cuántos litros quedaron. Así el tanque deja de verse lleno
+            y no se vuelve a correr por error; si quedó en cero, el lote se cierra solo.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={`medicion-${lineaTurno.id}`}>Litros en el Tanque {medicionTanque.numeroTanque}</Label>
+            <Input
+              id={`medicion-${lineaTurno.id}`}
+              type="number"
+              min={0}
+              placeholder="Litros medidos"
+              value={medicionValor}
+              onChange={(e) => setMedicionValor(e.target.value)}
+            />
+            {prepTanque?.volumenActualL != null && (
+              <p className="text-xs text-muted-foreground">
+                Teórico ahora: {prepTanque.volumenActualL.toLocaleString("es-CO")} L
+              </p>
+            )}
+          </div>
+          {errorMedicion && (
+            <p className="text-sm text-destructive" role="alert">
+              {errorMedicion}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={guardarMedicion} disabled={!medicionValida || enviandoMedicion}>
+              {enviandoMedicion ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+              Guardar medición
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={enviandoMedicion}
+              onClick={() => {
+                setMedicionTanque(null)
+                setMedicionValor("")
+                setErrorMedicion(null)
+              }}
+            >
+              No medir ahora
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   // Línea parada: no se carga producto terminado hasta reanudarla (desde Preparación).

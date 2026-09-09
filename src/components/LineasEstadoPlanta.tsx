@@ -151,6 +151,8 @@ function LineaCard({
   const pausada = lineaTurno?.pausadaEn != null
   const loteTerminado = lineaTurno?.loteTerminado != null
   const condicionLinea = lineaEstado?.condicion ?? "DETENIDA"
+  /** Sin corrida activa, pero quedó una corrida detenida esperando que se cargue su Producto Terminado. */
+  const esperandoPt = !activa && corridaEsperandoPt !== null
   const [editando, setEditando] = useState(false)
   /** Confirmación de "Activar corrida": el resumen de qué se va a activar antes de mandarlo (cambio brusco → confirmar dos veces). */
   const [confirmarActivar, setConfirmarActivar] = useState(false)
@@ -581,10 +583,28 @@ function LineaCard({
             {nombreLinea}
           </p>
           <Badge
-            variant={!activa ? badgeVariantCondicionLinea[condicionLinea] : loteTerminado ? "warning" : pausada ? "warning" : "success"}
+            variant={
+              esperandoPt
+                ? "warning"
+                : !activa
+                  ? badgeVariantCondicionLinea[condicionLinea]
+                  : loteTerminado
+                    ? "warning"
+                    : pausada
+                      ? "warning"
+                      : "success"
+            }
             className="shrink-0"
           >
-            {!activa ? nombreCondicionLinea[condicionLinea] : loteTerminado ? "Terminó el Lote" : pausada ? "Parada" : "Corriendo"}
+            {esperandoPt
+              ? "Esperando PT"
+              : !activa
+                ? nombreCondicionLinea[condicionLinea]
+                : loteTerminado
+                  ? "Terminó el Lote"
+                  : pausada
+                    ? "Parada"
+                    : "Corriendo"}
           </Badge>
         </div>
 
@@ -758,9 +778,9 @@ function LineaCard({
             <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
               <p className="text-xs text-foreground">
                 Corrida detenida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} — carga su Producto
-                Terminado para cerrarla.
+                Terminado para cerrarla. Hasta entonces la línea no cambia de estado (Sin programación / Cambio de
+                Presentación / CIP).
               </p>
-              {renderCondicionBotones()}
               <Button variant="outline" size="sm" className="self-start" onClick={empezarEdicion}>
                 <PlayCircle className="size-3.5" />
                 Activar otra corrida
@@ -841,7 +861,19 @@ function LineaCard({
             </div>
           ))}
 
-        {modo === "status" && !activa && renderCondicionBotones()}
+        {modo === "status" &&
+          !activa &&
+          (corridaEsperandoPt ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
+              <p className="text-xs text-foreground">
+                {nombreLinea} tiene una corrida detenida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} —
+                falta cargar su Producto Terminado (en la página Producto Terminado) para cerrarla. Hasta entonces la línea
+                no cambia de estado (Sin programación / Cambio de Presentación / CIP).
+              </p>
+            </div>
+          ) : (
+            renderCondicionBotones()
+          ))}
       </CardContent>
     </Card>
   )

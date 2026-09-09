@@ -27,6 +27,9 @@ export const ROLES = [
   { codigo: "SUPERVISOR", nombre: "Supervisor" },
   { codigo: "ADMINISTRADOR_AREA", nombre: "Administrador de Área" },
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
+  // Solo lectura: Panel de Producción + página Paradas. Las paradas las
+  // carga Mantenimiento en un Sheet externo, no en la app.
+  { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
 ] as const
 
 export type RolCodigo = (typeof ROLES)[number]["codigo"]

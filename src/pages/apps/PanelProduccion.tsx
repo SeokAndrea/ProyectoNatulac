@@ -79,6 +79,8 @@ import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/ti
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
+import type { Parada } from "@/lib/paradas"
+import { TopFallasPanel } from "@/components/TopFallasPanel"
 import { cn } from "@/lib/utils"
 
 /** La merma de semielaborado tiene su propia tolerancia, más estricta que la de envases — amarillo/rojo proporcionales a ese máximo, en vez de los umbrales fijos (3%/5%) de la merma de envase. */
@@ -979,10 +981,10 @@ export default function PanelProduccion() {
               </SeccionColapsable>
 
               <SeccionColapsable
-                titulo="Paradas por línea"
-                descripcion="El catálogo de paradas todavía no existe — esto va a explicar la diferencia entre la meta esperada y lo producido."
+                titulo="Top Fallas — paradas por línea"
+                descripcion="Downtime del turno por línea, con los equipos que más pararon. Datos de los reportes de Mantenimiento."
               >
-                <ParadasPorLineaPlaceholder lineas={lineas} />
+                <ParadasDelTurno lineas={lineas} area={areaEfectiva} turnoTipo={turnoTipo} fecha={fecha} />
               </SeccionColapsable>
 
               {(areaEfectiva === "PRUEBAS" || areaEfectiva === "ASEPTICO") && (
@@ -1474,40 +1476,40 @@ function MermaBloque({
   )
 }
 
-/** Placeholder de paradas por línea: la estructura ya está armada, solo falta el catálogo real de paradas. */
-function ParadasPorLineaPlaceholder({ lineas }: { lineas: LineaLive[] }) {
-  const motivosMock = [
-    ["Falla mecánica", 8],
-    ["Cambio de formato", 6],
-    ["Falta de insumo", 4],
-  ] as const
-  const totalMock = motivosMock.reduce((a, [, minutos]) => a + minutos, 0)
+/*
+ * Top Fallas del Panel: downtime del turno por categoría + por línea.
+ * FASE A lee el fixture (paradasDemo) filtrado por área + turno + fecha
+ * del panel; FASE B pasará a paradas_de_turno(). El render vive en
+ * <TopFallasPanel> (compartido con el preview /paradas-demo).
+ */
+function ParadasDelTurno({
+  lineas,
+  area,
+  turnoTipo,
+  fecha,
+}: {
+  lineas: LineaLive[]
+  area: string | null
+  turnoTipo: string
+  fecha: string
+}) {
+  const [paradas, setParadas] = useState<Parada[]>([])
+  useEffect(() => {
+    let vivo = true
+    import("@/lib/paradasDemoFixture").then(({ paradasDemo }) => {
+      if (!vivo) return
+      setParadas(
+        paradasDemo().filter(
+          (p) => p.inicio.slice(0, 10) === fecha && p.turnoTipo === turnoTipo && (!area || area === "PRUEBAS" || p.area === area),
+        ),
+      )
+    })
+    return () => {
+      vivo = false
+    }
+  }, [area, turnoTipo, fecha])
 
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {lineas
-        .filter((l) => l.activo)
-        .map((l) => (
-          <div key={l.codigo} className="rounded-xl border border-dashed border-border bg-muted/30 p-3">
-            <div className="mb-2 flex items-baseline justify-between gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">{l.nombre}</h3>
-              <span className="num text-xs font-semibold text-danger">{totalMock} min</span>
-            </div>
-            <ol className="flex flex-col gap-1.5">
-              {motivosMock.map(([motivo, minutos], i) => (
-                <li key={motivo} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span>
-                    <b className="num mr-1.5 text-primary">0{i + 1}</b>
-                    {motivo}
-                  </span>
-                  <span className="num shrink-0 text-foreground">{minutos} min</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        ))}
-    </div>
-  )
+  return <TopFallasPanel paradas={paradas} lineas={lineas} />
 }
 
 

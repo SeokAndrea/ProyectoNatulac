@@ -24,7 +24,7 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
      con solo deployar; falta después una **vista de tendencia** (hoy el
      Panel solo lee la última lectura vía
      `lectura_servicios_industriales_actual()`).
-2. Push del batch `20261022`–`20261024` (ver "Cómo subir").
+2. Push del batch `20261022`–`20261030` (ver "Cómo subir").
 
 ---
 
@@ -35,8 +35,21 @@ cómo subirlo. Última actualización: **2026-09-08**. Rama:
 
 **Seguimiento (push propio, todavía sin subir):** `20261022`
 (`seguir_mismo_lote`) + `20261023` (`continuar_siguiente_lote` con tanque
-manual) + `20261024` (resto en el origen post-transferencia) + su
-frontend — van juntos, ver más abajo.
+manual) + `20261024` (resto en el origen post-transferencia) + `20261025`
+(repone la guarda antiduplicados de corrida que `20261018` dejó caer —
+regresión del Turno 3 de Javier, Lote 0009 corrido 7×) + `20261026`
+(`medir_tanque` revisa el cierre del lote) + `20261027`
+(`cambiar_condicion_linea` bloquea si hay corrida ESPERANDO_PT) +
+`20261028` (Case 6: `finalizar_turno` bloquea si hay una corrida activa
+sin entregar) + `20261029` (`turno_json`: la tarjeta del tanque muestra
+el volumen VIVO del lote abierto, no el congelado de `recepcion_tanques`
+— resuelve el `OJO -- PROBAR EN PLANTA` de `20261018`) + `20261030` (el
+cron `cerrar_turnos_vencidos` sella las corridas sin resolver del turno
+abandonado + VALIDAR las muestra con `sin_pt` para que el analista cargue
+el número real) + su frontend (Producto Terminado pide medir el tanque al
+cerrar una corrida; Status/Líneas muestra la corrida que espera su PT;
+Finalizar bloquea duro con una línea activa; VALIDAR marca "Sin Producto
+Terminado — el turno cerró solo") — van juntos, ver más abajo.
 
 `npm run build` + `npm test` (58) en verde en cada commit.
 
@@ -258,16 +271,22 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 ## Falta — dentro de costura 2 (gaps del análisis del 2026-09-08)
 
-1. **Case 6 — PT por tramo de turno, *forzado*.** Hoy la página PT obliga
-   a elegir "Terminar / Entregar línea" por corrida activa, y Finalizar
-   avisa — pero se puede "Finalizar de todos modos" con una corrida activa
-   (solo `ESPERANDO_PT` bloquea duro). Si una corrida cruza el borde de
-   turno sin su PT del tramo → la producción de ese turno para esa línea no
-   se registra. Falta: hard-enforce en Finalizar + renombre
-   **`entregar_corrida` → `entregar_linea`** (identificador + texto).
+1. **Case 6 — PT por tramo de turno, *forzado*. HECHO (2026-09-09, `20261028`).**
+   `finalizar_turno` ahora rechaza también si hay una corrida **`activa` y
+   `entregada_en` NULL** (nombra la(s) línea(s)); `FinalizarTurno.tsx` hace
+   bloqueo DURO (sin "Finalizar de todos modos") con link a Producto
+   Terminado. Para destrabar: por cada línea activa, cargar el PT del tramo
+   (0/0 si no produjo — raro, pero se registra el 0 explícito) y elegir
+   Terminar o Entregar línea. `scripts/test-finalizar-turno-corrida-activa.sql`.
+   *No* se hizo el renombre `entregar_corrida → entregar_linea` (cosmético,
+   queda para Fase 4).
 2. **STANDBY** — decidido dejarlo (tanque con resto → LISTO en vez de
-   STANDBY). Marcado `PROBAR EN PLANTA` en la migración — confirmar que no
-   confunde ni rompe vistas del dashboard que filtren por STANDBY.
+   STANDBY). El `OJO -- PROBAR EN PLANTA` de `20261018` se confirmó: el
+   Turno 3 de Javier mostró que un tanque LISTO con el volumen **congelado**
+   confunde al supervisor (re-corre la línea). Mitigado por `20261029` (la
+   tarjeta muestra el volumen vivo, baja con cada PT) + la guarda antidup
+   (`20261025`) + el prompt de medición (`20261026`). Falta todavía:
+   confirmar que ninguna vista del dashboard filtra por STANDBY.
 3. **Parciales en `ProductoTerminado.tsx`** — el mecanismo "Sumar paletas y
    continuar lote" / `modoIncremental` sigue ahí. Se retira con §2.9.
 
@@ -279,7 +298,7 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 | --- | --- |
 | **§2.1 (tanque)** | *Hecho:* `medir_tanque` extraída, `reactivar_lote` y `descartar_resto_tanque` dropeadas (`20261021`). *Falta:* narrowear el CIP + confirmar INICIO/FIN para poder dropear `cambiar_condicion_tanque` + `TanqueEditForm`. |
 | **§2.3** | *Hecho:* advisory lock en `iniciar_preparacion`, `finalizar_lote` dropeada (`20261020`). *Falta:* ampliar `posibleDuplicado` en VALIDAR; decisión del dueño sobre reutilización de nº de lote tras cerrar. |
-| **§2.5** | Capturar el residuo de línea (~5% / 500 L) al cortar un lote — hoy ese volumen desaparece sin rastro. |
+| **§2.5** | **DESCARTADO (2026-09-09).** No se captura la estimación del residuo de línea: el dato no se conoce, ahora los supervisores paran la línea a contar, y medir tanque tras PT ya deja el delta en `preparaciones_ajuste`. Se retoma solo si aparece un hueco real. |
 | **§2.6** | *Hecho:* Contador 2 (envases buenos) obligatorio en el form de PT, no puede superar la llenadora (`aa8a9ea`... `8fdcf42`). *Falta:* mostrar el `Δenvases` visible en toda corrida; guard de servidor en `registrar_contador`. |
 | **§2.9** | *Hecho:* frontend sin entregas parciales — ya no se pueden crear (`ced6b2e`). *Falta (destructivo, push propio, necesita Docker):* dropear `producto_terminado_parciales` + columnas `{tiene_parciales, producto_retenido, cajas_retenidas, editado_por, editado_en}` + `contadores.parcial`; reescribir 6 funciones que las referencian (`registrar_producto_terminado`, `registrar_contador`, `turno_json`, `listar_validacion_produccion`, `estadisticas_produccion`, `historial_dia_area`). |
 
@@ -289,18 +308,60 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 - Las **9 migraciones** (`20261013`–`20261021`) + su frontend **ya se
   subieron** (2026-09-08).
-- **`20261022`–`20261024`** son un push propio y van juntos:
+- **`20261022`–`20261030`** son un push propio y van juntos:
   - `20261022` `seguir_mismo_lote` (aditiva).
   - `20261023` `continuar_siguiente_lote` con tanque manual (drop+create,
     misma firma + 1 param opcional).
   - `20261024` `capturar_resto_origen_transferencia` (aditiva).
+  - `20261025` repone la guarda antiduplicados en `activar_linea` +
+    `continuar_siguiente_lote` (`create or replace`, sin cambio de firma;
+    va DESPUÉS de `20261023`). `scripts/test-reponer-antiduplicados-corrida.sql`.
+  - `20261026` `medir_tanque` llama a `revisar_cierre_de_lote` al final
+    (`create or replace`, sin cambio de firma). Frontend:
+    `ProductoTerminado.tsx` pide "Medir Tanque N" después de cerrar una
+    corrida (Terminar / Entregar) — así el tanque deja de verse lleno y no
+    se re-corre; si mide 0, el lote se cierra.
+    `scripts/test-medir-tanque-cierre.sql`.
+  - `20261027` `cambiar_condicion_linea` rechaza si la línea tiene una
+    corrida detenida sin PT (ESPERANDO_PT) — misma guarda que ya tiene
+    `activar_linea` (`create or replace`, sin cambio de firma).
+    `scripts/test-cambiar-condicion-linea-esperando-pt.sql`. Frontend:
+    `LineasEstadoPlanta.tsx` — con una corrida ESPERANDO_PT (Status y
+    Líneas) se muestra el aviso "carga su Producto Terminado" + badge
+    "Esperando PT", y **NO** los 3 botones de condición (Sin programación /
+    Cambio de Presentación / CIP) — coherente con la guarda del servidor.
+    Los 3 botones siguen apareciendo para una línea sin corrida.
+  - `20261028` Case 6: `finalizar_turno` rechaza si hay una corrida
+    `activa` sin entregar (`create or replace`, sin cambio de firma).
+    `scripts/test-finalizar-turno-corrida-activa.sql`. Frontend:
+    `FinalizarTurno.tsx` bloqueo duro + link a Producto Terminado.
+  - `20261029` `turno_json`: bloque `tanques[]`, `volumen_l` lee el
+    volumen VIVO del lote (`prep_t.volumen_l`) cuando el tanque está
+    LISTO/STANDBY con lote abierto; si no, `rt.volumen_l` como antes.
+    `create or replace`, cuerpo idéntico a `20261011` salvo ese `case`
+    (verificado con `git diff` de los cuerpos). Frontend: **ninguno**
+    (todos los consumidores leen `volumen_l`). Verificación (sin Docker):
+    `scripts/verificar-tanque-volumen-vivo.sql` — plano, solo `SELECT`,
+    contra el proyecto de pruebas.
+  - `20261030` `cerrar_turnos_vencidos` sella corridas sin resolver
+    (activa sin entregar / ESPERANDO_PT) del turno abandonado por el cron
+    + `revisar_cierre_de_lote`; `listar_validacion_produccion` suma el
+    filtro `cierre_automatico` y el flag `sin_pt`. Las dos `create or
+    replace`, sin cambio de firma. `scripts/test-cron-sella-corridas.sql`.
+    Frontend: `validacion.ts` + `ValidarLista.tsx` (badge "Sin Producto
+    Terminado — el turno cerró solo").
   - Frontend: `produccion/{ajustes,useProduccion}.ts`,
     `LineasEstadoPlanta.tsx`, `preparacion/{ajustes,usePreparacion}.ts`,
-    `EstadoPlantaTabs.tsx`.
+    `EstadoPlantaTabs.tsx`, `ProductoTerminado.tsx`, `FinalizarTurno.tsx`,
+    `validacion.ts`, `ValidarLista.tsx`.
   - WinSCP + `npx supabase db push` + `docker compose --profile preview
     up -d --build`.
 - El turno de Dany se puede destrabar YA, sin esperar el deploy, con
   `scripts/fix-turno-dany-continuar-lote.sql`.
+- El Turno 3 de Javier (`A20260908_T3G1`, Lote 0009 corrido 7×) se
+  limpia con `scripts/fix-turno-javier-t3-lotes-duplicados.sql` — correr
+  DESPUÉS de subir `20261025` (si no, se vuelve a ensuciar). Necesita el
+  conteo real de paletas de Javier.
 - Batch original — para referencia: iba **JUNTO** (un WinSCP + un
   `db push` + un rebuild). Cada migración cambiaba nombres de RPC /
   comportamiento y su frontend iba con ella. (`20261019` no tiene frontend.)
@@ -310,7 +371,7 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 - **Riesgo consciente:**
   - SQL de `20261018` sin probar local (no hay Docker). Los `test-*.sql`
     cubren los caminos principales.
-  - Case 6 avisado, no forzado (ver gap 1).
+  - Case 6 forzado (20261028) — Finalizar bloquea con corrida activa.
   - Retraining de supervisores: se fue "Editar" de una corrida en curso y
     "Cerrar Lote"; el flujo nuevo es Detener línea → cargar PT. `activar_linea`
     desde Líneas rechaza si ya hay corrida en vez de reemplazarla en silencio.

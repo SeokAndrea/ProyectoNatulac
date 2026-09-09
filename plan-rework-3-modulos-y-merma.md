@@ -576,9 +576,20 @@ salida.
 
 ### 2.5 — Línea: capturar el residuo no contado al cortar un lote
 
-Al terminar una corrida, preguntar explícitamente si se paró la línea a contar. Si no, capturar
-una estimación (o la marca "sin contar, ~5% típico") en vez de que ese volumen desaparezca sin
-rastro.
+**Decisión 2026-09-09 — NO se implementa.** El dueño lo descartó por ahora:
+- El número (cajas retenidas en el bowl/tuberías) todavía no se conoce, y pedir una estimación
+  a ciegas mete ruido en vez de sacarlo.
+- A partir de ahora los supervisores **van a parar la línea a contar** de verdad, así que el
+  hueco entre `volumen_l` medido y el PT se va a achicar solo.
+- La medición de tanque tras el PT (`20261026` + `ProductoTerminado.tsx`) ya deja el residuo
+  visible como delta teórico↔real en `preparaciones_ajuste`; los guardrails de vista
+  (`plan-rework-auditoria.md` §7.1–7.4) ya impiden mostrar un número imposible.
+- Se retoma solo si, viendo el comportamiento real de los supervisores, aparece un hueco
+  concreto. La "regla del residuo descartado" (§2.7) sigue esperando a planta.
+
+~~Al terminar una corrida, preguntar explícitamente si se paró la línea a contar. Si no,
+capturar una estimación (o la marca "sin contar, ~5% típico") en vez de que ese volumen
+desaparezca sin rastro.~~
 
 ### 2.6 — Envases buenos como validación estándar de toda corrida
 
@@ -673,7 +684,13 @@ mensajes nuevos de 2.1-bis, 2.3-bis, 2.5 y 2.9.
 
 ---
 
-## Fase 3 — Rol Robot: la pieza que habilita subir paletas sin volver a abrir la edición
+## Fase 3 — Rol Robot [FASE EN CONSIDERACIÓN — NO ejecutar]
+
+> **Estado (2026-09-09):** el dueño la puso EN CONSIDERACIÓN. No se toca
+> nada de esta fase — ni migraciones, ni rol `ROBOT_PALETIZADOR`, ni
+> tabla de borrador, ni `reportar_conteo_robot`, ni el prellenado del
+> cierre — hasta que el dueño diga explícitamente de retomarla. El texto
+> de abajo queda como diseño de referencia, no como trabajo pendiente.
 
 El motivo real de todo este orden: una vez que PT es "un solo total al cierre, confirmar en
 vez de editar" (Contexto), el robot paletizador deja de necesitar ningún permiso de edición —

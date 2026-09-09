@@ -10,6 +10,7 @@ import Lineas from "@/pages/apps/Lineas"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
+import Paradas from "@/pages/apps/Paradas"
 import Programacion from "@/pages/apps/Programacion"
 import HistorialDia from "@/pages/apps/HistorialDia"
 import Personal from "@/pages/apps/Personal"
@@ -19,6 +20,7 @@ import Validar from "@/pages/apps/Validar"
 import ServiciosIndustriales from "@/pages/apps/ServiciosIndustriales"
 import AuditoriaDemo from "@/pages/apps/AuditoriaDemo"
 import ValidarDemo from "@/pages/apps/ValidarDemo"
+import ParadasDemo from "@/pages/apps/ParadasDemo"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 /*
@@ -109,6 +111,16 @@ export default function App() {
         }
       />
       <Route
+        path="/paradas"
+        element={
+          <ProtectedRoute
+            rolesPermitidos={["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPERVISOR", "MANTENIMIENTO"]}
+          >
+            <Paradas />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/programacion"
         element={
           <ProtectedRoute>
@@ -167,6 +179,7 @@ export default function App() {
       {/* Previews de diseño sin login ni DB — se pueden borrar. */}
       <Route path="/auditoria-demo" element={<AuditoriaDemo />} />
       <Route path="/validar-demo" element={<ValidarDemo />} />
+      <Route path="/paradas-demo" element={<ParadasDemo />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

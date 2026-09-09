@@ -68,6 +68,10 @@ export interface FilaValidacion {
   sabor: string | null
   lote: string | null
   estado: EstadoValidacion
+  /** true = la corrida quedó sin Producto Terminado (el turno se cerró solo por el cron). El analista tiene que cargar el número real. */
+  sinPt: boolean
+  /** true = el turno se cerró automáticamente (cron), no lo finalizó el supervisor. */
+  cierreAutomatico: boolean
   /** Lo que cargó el supervisor (siempre presente). */
   supervisor: ValoresProduccion
   /** Overrides guardados si `estado === "EDITADO"` (los campos que Daniela cambió). */
@@ -96,6 +100,8 @@ interface FilaRpc {
   presentacion: string
   sabor: string | null
   lote: string | null
+  sin_pt?: boolean
+  cierre_automatico?: boolean
   supervisor: {
     paletas: number
     cajas_sueltas: number
@@ -133,6 +139,8 @@ export async function listarValidacionProduccion(
     sabor: r.sabor,
     lote: r.lote,
     estado: r.estado,
+    sinPt: r.sin_pt ?? false,
+    cierreAutomatico: r.cierre_automatico ?? false,
     supervisor: {
       paletas: r.supervisor.paletas,
       cajasSueltas: r.supervisor.cajas_sueltas,

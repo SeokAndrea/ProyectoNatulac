@@ -14,6 +14,7 @@ import {
   CalendarClock,
   CalendarRange,
   Thermometer,
+  Wrench,
 } from "lucide-react"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 
@@ -132,6 +133,16 @@ export const apps: AppDef[] = [
     href: "/panel-produccion",
     icon: RadioTower,
     requiereTurno: false,
+    atajo: true,
+  },
+  {
+    slug: "paradas",
+    title: "Paradas",
+    description: "Downtime de las líneas: fallas, cuánto duraron y qué código se repite más.",
+    href: "/paradas",
+    icon: Wrench,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPERVISOR", "MANTENIMIENTO"],
     atajo: true,
   },
   {
