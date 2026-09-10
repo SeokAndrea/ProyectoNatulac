@@ -88,3 +88,10 @@ ejemplo-2lineas,CERRADO,07:00,15:00,1,Manzana,L-101,10000,400,si,LINEA_T1,1000,1
 ejemplo-2lineas,CERRADO,07:00,15:00,2,Pera,L-102,8000,200,si,LINEA_T2,250,24,100,12000,si,90000,37,10,7750,1.07,,,4000,3750,
 ejemplo-lote-compartido,CERRADO,15:00,22:30,1,Naranja,L-200,12000,5700,si,LINEA_T1,1000,12,60,8400,no,40000,55,30,3990,0.1,0.32,2.06,,,34.9
 ejemplo-lote-compartido,CERRADO,15:00,22:30,1,Naranja,L-200,12000,5700,si,LINEA_T1,1000,12,60,8400,si,22000,30,20,2180,0.73,,,5250,1833,
+# preparar encima: lote cerrado con 380 L de resto que se mudó al lote siguiente.
+# consumo = 17000 - 380 = 16620 = PT  ->  rendimiento 100 % (merma 0). Sin el
+# arreglo 20261034 el lote quedaba en 16620/380 y daba merma negativa (>100 %).
+preparar-encima-resto,CERRADO,07:00,15:00,3,Pera,0003,17000,380,si,LINEA_T1,1000,12,60,9000,no,199440,277,0,16620,,,0,,,
+# red de seguridad: si igual entra un negativo sub-margen (tramo 16240, PT 16620),
+# la merma del turno se muestra 0, nunca por encima de 100 %.
+merma-semi-no-negativa,CERRADO,07:00,15:00,3,Pera,0009,16240,0,si,LINEA_T1,1000,12,60,9000,no,199440,277,0,16620,,,0,,,

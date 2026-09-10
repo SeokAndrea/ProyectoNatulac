@@ -101,8 +101,14 @@ export function mermaSemielaboradoTurno(
     presentaciones,
   )
 
+  const pctCrudo = pctRendimiento(consumo, producido)
+
   return {
-    pct: pctRendimiento(consumo, producido),
+    // Nunca por debajo de 0 (rendimiento > 100 %). Con el guardrail de
+    // calcularConsumoYProducido, un negativo residual solo puede venir de
+    // ruido de medición sub-margen: se muestra como 0 (sin pérdida
+    // medible), no como un número imposible.
+    pct: pctCrudo !== null && pctCrudo < 0 ? 0 : pctCrudo,
     consumo,
     litrosProducidos: producido,
     litrosConsumidos: consumo,

@@ -119,7 +119,16 @@ export function calcularConsumoYProducido(
       ptExcedeViCorroborado = litrosBuenos !== null && Math.abs(litrosBuenos - ptLote) <= ptLote * TOLERANCIA_ENVASES_BUENOS
     }
 
-    if (tramo === null || tramo <= 0 || (ptExcedeVi && !ptExcedeViCorroborado)) {
+    // PT que supera el propio tramo consumido del lote (más allá del ruido
+    // de redondeo) = dato inconsistente: no puede salir más Producto
+    // Terminado del que bajó del tanque. Fuera del %, así no lo empuja por
+    // encima de 100. El arreglo de fondo vive en la migración 20261034
+    // (preparar encima / transferir ya no encogen volumen_inicial_l del
+    // lote que cierra); esto es la red de seguridad para datos viejos.
+    const ptExcedeTramo =
+      tramo !== null && tramo > 0 && ptLote > tramo * MARGEN_REDONDEO && !ptExcedeViCorroborado
+
+    if (tramo === null || tramo <= 0 || (ptExcedeVi && !ptExcedeViCorroborado) || ptExcedeTramo) {
       litrosSinContraste += ptLote
       continue
     }
