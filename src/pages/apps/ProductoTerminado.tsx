@@ -288,6 +288,9 @@ function ListaCorridas({
               contadorActual={contadores
                 .filter((c) => c.corridaId === l.id && !c.parcial)
                 .reduce((a, c) => a + c.envasesLlenadora, 0)}
+              contadorBuenosActual={contadores
+                .filter((c) => c.corridaId === l.id && !c.parcial)
+                .reduce((a, c) => a + (c.envasesBuenos ?? 0), 0)}
               presentaciones={presentaciones}
               tanques={tanques}
               preparaciones={preparaciones}
@@ -406,6 +409,7 @@ function FilaProductoTerminado({
   lineaTurno,
   nombreLinea,
   contadorActual,
+  contadorBuenosActual,
   presentaciones,
   tanques,
   preparaciones,
@@ -419,6 +423,8 @@ function FilaProductoTerminado({
   lineaTurno: Corrida
   nombreLinea: string
   contadorActual: number
+  /** Suma de Contador 2 (envases buenos) de esta corrida, sin contadores parciales. */
+  contadorBuenosActual: number
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   tanques: TanqueRecepcion[]
   preparaciones: PreparacionRegistro[]
@@ -467,6 +473,21 @@ function FilaProductoTerminado({
   }
 
   const presentacion = presentaciones.find((p) => p.codigo === lineaTurno.presentacion)
+  /**
+   * Δ envases = |Contador 2 (buenos) − envases confirmados por PT|. Ambos
+   * números los tipea el mismo supervisor (no es evidencia independiente
+   * real, eso llega recién con el robot — Fase 3) pero corrobora que uno
+   * no se olvidó de actualizar cuando el otro cambió. null si falta
+   * cualquiera de los dos (§2.6).
+   */
+  const envasesPtRegistroExistente = registroExistente
+    ? (registroExistente.paletas * (presentacion?.cajasXPaleta ?? 0) + registroExistente.cajasSueltas) *
+      (presentacion?.envasesXCaja ?? 0)
+    : null
+  const deltaEnvases =
+    envasesPtRegistroExistente !== null && contadorBuenosActual > 0
+      ? Math.abs(contadorBuenosActual - envasesPtRegistroExistente)
+      : null
   const nPaletas = Number(paletas) || 0
   const nCajasSueltas = Number(cajasSueltas) || 0
   const cajasXPaleta = presentacion?.cajasXPaleta ?? 0
@@ -757,6 +778,12 @@ function FilaProductoTerminado({
               <p className="text-xs text-muted-foreground">Estado</p>
               <p className="font-medium text-foreground">
                 {lineaTurno.entregadaEn ? `Entregada a las ${horaCortaPlanta(lineaTurno.entregadaEn, lineaTurno.entregadaEn)}` : "Sabor terminado"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Δ envases (buenos vs. PT)</p>
+              <p className="font-medium text-foreground">
+                {deltaEnvases !== null ? deltaEnvases.toLocaleString("es-CO") : "—"}
               </p>
             </div>
           </div>

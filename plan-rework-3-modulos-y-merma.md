@@ -600,11 +600,10 @@ de "PT que excede el volumen preparado" (`realidadPreparacion.ts`) siempre tiene
 
 **Hecho (2026-09-11):** guard equivalente del lado servidor en `registrar_contador` — antes solo
 lo forzaba el frontend (migración `20261036090000_guard_envases_buenos_registrar_contador.sql`):
-Contador 2 obligatorio, no negativo, no puede superar la llenadora.
-
-**Pendiente:** mostrar el `Δenvases = |buenos − PT_envases|` como comparación visible en toda
-corrida. Salvedad de siempre: ambos números los tipea el mismo supervisor — evidencia
-independiente real recién cuando lo cargue el robot (Fase 3).
+Contador 2 obligatorio, no negativo, no puede superar la llenadora. `Δenvases = |buenos −
+PT_envases|` visible en la tarjeta de la corrida cerrada de `ProductoTerminado.tsx`. Salvedad de
+siempre: ambos números los tipea el mismo supervisor — evidencia independiente real recién
+cuando lo cargue el robot (Fase 3).
 
 ### 2.7 — Checkpoint pendiente, no se implementa todavía
 
