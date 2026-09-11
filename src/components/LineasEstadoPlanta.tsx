@@ -13,6 +13,7 @@ import { useCatalogosLive, presentacionesPorLineaLive, velocidadesParaLive } fro
 import { obtenerUltimaConfiguracionLinea } from "@/lib/lineas"
 import { colorSabor } from "@/lib/coloresSabor"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
+import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { CondicionLinea, Corrida, DatosActivarLinea, DatosCambiarLinea, LineaEstado } from "@/lib/produccion/tipos"
@@ -20,7 +21,7 @@ import type { CondicionLinea, Corrida, DatosActivarLinea, DatosCambiarLinea, Lin
 type Resultado = { ok: true } | { ok: false; error: string }
 
 const nombreCondicionLinea: Record<CondicionLinea, string> = {
-  DETENIDA: "Detenida",
+  DETENIDA: "Parada",
   LISTA: "Lista para arrancar",
   CIP: "En CIP",
   CAMBIO_PRESENTACION: "Cambio de Presentación",
@@ -154,7 +155,7 @@ function LineaCard({
   /** Sin corrida activa, pero quedó una corrida detenida esperando que se cargue su Producto Terminado. */
   const esperandoPt = !activa && corridaEsperandoPt !== null
   const [editando, setEditando] = useState(false)
-  /** Confirmación de "Activar corrida": el resumen de qué se va a activar antes de mandarlo (cambio brusco → confirmar dos veces). */
+  /** Confirmación de "Arrancar línea": el resumen de qué se va a arrancar antes de mandarlo (cambio brusco → confirmar dos veces). */
   const [confirmarActivar, setConfirmarActivar] = useState(false)
   /** "Parada Operacional": muestra el textarea del motivo (obligatorio) antes de pausar. */
   const [mostrarParada, setMostrarParada] = useState(false)
@@ -317,14 +318,21 @@ function LineaCard({
     }
   }
 
-  /** Botones de condición de línea SIN corrida activa: Sin programación / Cambio de Presentación / CIP. */
-  function renderCondicionBotones() {
+  /**
+   * Botones de condición de línea: Sin programación / Cambio de Presentación / CIP.
+   * `bloqueadoPorCorrida` = la línea tiene una corrida activa (o detenida sin
+   * su Producto Terminado): se muestran los 3 pero deshabilitados y con la
+   * razón, porque `cambiar_condicion_linea` los rechaza en ese estado
+   * (migración 20261027).
+   */
+  function renderCondicionBotones({ bloqueadoPorCorrida = false }: { bloqueadoPorCorrida?: boolean } = {}) {
+    const deshabilitado = enviandoEstadoLinea || bloqueadoPorCorrida
     return (
       <div className="flex flex-col gap-2">
-        {condicionLinea === "CIP" ? (
+        {condicionLinea === "CIP" && !bloqueadoPorCorrida ? (
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs text-muted-foreground">
-              En CIP{lineaEstado?.cipIniciadoEn ? ` desde las ${lineaEstado.cipIniciadoEn.slice(11, 16)}` : ""}.
+              En CIP{lineaEstado?.cipIniciadoEn ? ` desde las ${horaCortaPlanta(lineaEstado.cipIniciadoEn, lineaEstado.cipIniciadoEn)}` : ""}.
             </p>
             <Button size="sm" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("LISTA")}>
               {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
@@ -335,25 +343,30 @@ function LineaCard({
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
-              variant={condicionLinea === "SIN_PROGRAMACION" ? "default" : "outline"}
-              disabled={enviandoEstadoLinea}
+              variant={!bloqueadoPorCorrida && condicionLinea === "SIN_PROGRAMACION" ? "default" : "outline"}
+              disabled={deshabilitado}
               onClick={() => cambiarEstadoLinea("SIN_PROGRAMACION")}
             >
               Sin programación
             </Button>
             <Button
               size="sm"
-              variant={condicionLinea === "CAMBIO_PRESENTACION" ? "default" : "outline"}
-              disabled={enviandoEstadoLinea}
+              variant={!bloqueadoPorCorrida && condicionLinea === "CAMBIO_PRESENTACION" ? "default" : "outline"}
+              disabled={deshabilitado}
               onClick={() => cambiarEstadoLinea("CAMBIO_PRESENTACION")}
             >
               Cambio de Presentación
             </Button>
-            <Button size="sm" variant="outline" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("CIP")}>
+            <Button size="sm" variant="outline" disabled={deshabilitado} onClick={() => cambiarEstadoLinea("CIP")}>
               {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
               Iniciar CIP
             </Button>
           </div>
+        )}
+        {bloqueadoPorCorrida && (
+          <p className="text-[11px] text-muted-foreground">
+            Para cambiar el estado de la línea, primero detén la corrida y carga su Producto Terminado.
+          </p>
         )}
         {errorEstadoLinea && (
           <p className="text-xs text-destructive" role="alert">
@@ -535,7 +548,7 @@ function LineaCard({
 
         {confirmarActivar && valido && tanqueElegido && (
           <p className="rounded-md bg-muted/60 p-2 text-xs text-foreground">
-            Vas a activar <span className="font-medium">{nombreLinea}</span> con{" "}
+            Vas a arrancar <span className="font-medium">{nombreLinea}</span> con{" "}
             <span className="font-medium">{tanqueElegido.saborNombre ?? "sin sabor"}</span>
             {tanqueElegido.lote ? ` · Lote ${tanqueElegido.lote}` : ""} del Tanque {tanqueElegido.numeroTanque}, a{" "}
             {presentacion} ml · {envasesHora} env/h. ¿Confirmar?
@@ -551,7 +564,7 @@ function LineaCard({
         <div className="flex flex-wrap gap-2">
           <Button size="sm" disabled={!valido || guardando} onClick={guardar}>
             {guardando ? <Loader2 className="size-3.5 animate-spin" /> : null}
-            {confirmarActivar ? "Sí, activar corrida" : "Activar corrida"}
+            {confirmarActivar ? "Sí, arrancar línea" : "Arrancar línea"}
           </Button>
           <Button size="sm" variant="ghost" onClick={cerrarEdicion}>
             Cancelar
@@ -783,14 +796,14 @@ function LineaCard({
               </p>
               <Button variant="outline" size="sm" className="self-start" onClick={empezarEdicion}>
                 <PlayCircle className="size-3.5" />
-                Activar otra corrida
+                Arrancar otra línea
               </Button>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
               <Button variant="outline" size="sm" className="self-start" onClick={empezarEdicion}>
                 <PlayCircle className="size-3.5" />
-                Activar corrida
+                Arrancar línea
               </Button>
               {renderCondicionBotones()}
             </div>
@@ -842,28 +855,33 @@ function LineaCard({
               </Button>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={empezarEdicion}>
-                <PenLine className="size-3.5" />
-                Corregir
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setObservacionBorrador("")
-                  setMostrarParada(true)
-                }}
-              >
-                <PauseCircle className="size-3.5" />
-                Parada Operacional
-              </Button>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={empezarEdicion}>
+                  <PenLine className="size-3.5" />
+                  Corregir
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setObservacionBorrador("")
+                    setMostrarParada(true)
+                  }}
+                >
+                  <PauseCircle className="size-3.5" />
+                  Parada Operacional
+                </Button>
+              </div>
+              {renderCondicionBotones({ bloqueadoPorCorrida: true })}
             </div>
           ))}
 
         {modo === "status" &&
           !activa &&
-          (corridaEsperandoPt ? (
+          (editando ? (
+            renderFormularioEdicion()
+          ) : corridaEsperandoPt ? (
             <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
               <p className="text-xs text-foreground">
                 {nombreLinea} tiene una corrida detenida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} —
@@ -872,7 +890,13 @@ function LineaCard({
               </p>
             </div>
           ) : (
-            renderCondicionBotones()
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" size="sm" className="self-start" onClick={empezarEdicion}>
+                <PlayCircle className="size-3.5" />
+                Arrancar línea
+              </Button>
+              {renderCondicionBotones()}
+            </div>
           ))}
       </CardContent>
     </Card>
