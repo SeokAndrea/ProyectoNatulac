@@ -56,7 +56,14 @@ export function horaDelDiaPlanta(d: Date = new Date()): number {
  *    del navegador.
  */
 export function instantePlanta(valor: string, fechaAncla: string): Date {
-  if (/^\d{2}:\d{2}(:\d{2})?$/.test(valor)) {
+  // Postgres manda `time`/`hora pelada` con microsegundos ("15:20:54.528313"),
+  // no solo "HH:MM"/"HH:MM:SS" — sin el `(\.\d+)?` esto no matcheaba
+  // NINGÚN turno.horaInicio real (la fixture de demo sí es limpia,
+  // "07:00:00", por eso /auditoria-demo nunca lo agarró) y caía al
+  // último `return`, que arma un string sin fecha → Invalid Date →
+  // truena en el primer .format() de toda la Auditoría, página en
+  // blanco (sin Error Boundary en la app). Bug real, 2026-09-11.
+  if (/^\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(valor)) {
     const hora = valor.length === 5 ? `${valor}:00` : valor
     return new Date(`${fechaAncla}T${hora}${OFFSET_PLANTA}`)
   }
