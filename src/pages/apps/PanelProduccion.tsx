@@ -79,6 +79,7 @@ import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/ti
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
+import { fechaPlanta, horaCortaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import type { Parada } from "@/lib/paradas"
 import { TopFallasPanel } from "@/components/TopFallasPanel"
 import { cn } from "@/lib/utils"
@@ -107,19 +108,26 @@ const HORARIOS: Record<string, { inicio: string; fin: string }> = {
 }
 
 function haceDias(n: number) {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
+  return restarDias(fechaPlanta(), n)
 }
 
 function turnoTipoActual(): string {
-  const ahora = new Date().getHours() * 60 + new Date().getMinutes()
+  const [h, m] = horaPlanta().split(":").map(Number)
+  const ahora = h * 60 + m
   if (ahora >= 7 * 60 && ahora < 15 * 60) return "TURNO_1"
   if (ahora >= 15 * 60 && ahora < 22 * 60 + 30) return "TURNO_2"
   return "TURNO_3"
 }
 
-type EstadoLinea = "activa" | "parada" | "esperando_cierre" | "libre"
+type EstadoLinea =
+  | "activa"
+  | "parada"
+  | "esperando_cierre"
+  | "cambio_presentacion"
+  | "cip"
+  | "sin_programacion"
+  | "detenida"
+  | "libre"
 
 interface LineaConEstado {
   codigo: string
@@ -167,6 +175,10 @@ const ESTADO_LINEA_INFO: Record<EstadoLinea, { label: string; dot: string; ring:
   activa: { label: "Activa", dot: "bg-success", ring: "bg-success" },
   parada: { label: "Parada", dot: "bg-warning", ring: "bg-warning" },
   esperando_cierre: { label: "Esperando cierre", dot: "bg-danger", ring: "bg-danger" },
+  cambio_presentacion: { label: "Cambio de Presentación", dot: "bg-warning", ring: "bg-warning" },
+  cip: { label: "En CIP", dot: "bg-warning", ring: "bg-warning" },
+  sin_programacion: { label: "Sin programación", dot: "bg-info", ring: "bg-info" },
+  detenida: { label: "Parada", dot: "bg-danger", ring: "bg-danger" },
   libre: { label: "Libre", dot: "bg-muted-foreground", ring: "bg-muted-foreground" },
 }
 
@@ -197,6 +209,15 @@ function ultimaAccionDeTurno(
   return new Date(Math.max(...timestamps.map((t) => new Date(t).getTime())))
 }
 
+/** Condición continua de la línea (sin corrida) → estado del Panel. */
+const ESTADO_POR_CONDICION: Partial<Record<LineaEstado["condicion"], EstadoLinea>> = {
+  CAMBIO_PRESENTACION: "cambio_presentacion",
+  CIP: "cip",
+  SIN_PROGRAMACION: "sin_programacion",
+  DETENIDA: "detenida",
+  // LISTA (o sin registro) → "libre".
+}
+
 /** Una fila por línea del área (catálogo completo), cruzada con la corrida actual/últimamente tocada de las corridas del módulo Producción. */
 function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[], lineasCatalogo: LineaLive[]): LineaConEstado[] {
   return lineasCatalogo.map((lc) => {
@@ -213,7 +234,11 @@ function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[], lineas
     if (esperandoCierre) {
       return { codigo: lc.codigo, nombre: lc.nombre, estado: "esperando_cierre", corrida: esperandoCierre, observacion }
     }
-    return { codigo: lc.codigo, nombre: lc.nombre, estado: "libre", corrida: null, observacion }
+    // Sin corrida: el Panel refleja la condición continua de la línea
+    // (Cambio de Presentación / CIP / Sin programación / Detenida), no
+    // solo "Libre" para todas. Ver LineasEstadoPlanta.tsx.
+    const estado: EstadoLinea = (estadoContinuo && ESTADO_POR_CONDICION[estadoContinuo.condicion]) ?? "libre"
+    return { codigo: lc.codigo, nombre: lc.nombre, estado, corrida: null, observacion }
   })
 }
 
@@ -280,7 +305,7 @@ export default function PanelProduccion() {
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   const [cargando, setCargando] = useState(true)
   const [enVivo, setEnVivo] = useState(true)
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
+  const [fecha, setFecha] = useState(() => fechaPlanta())
   const [turnoTipo, setTurnoTipo] = useState(() => turnoTipoActual())
   const [buscado, setBuscado] = useState(false)
   /*
@@ -604,9 +629,7 @@ export default function PanelProduccion() {
   const lineaParadaHaceMas = [...filasLineas]
     .filter((f) => f.minutosParada !== null)
     .sort((a, b) => (b.minutosParada ?? 0) - (a.minutosParada ?? 0))[0] ?? null
-  const hh = String(ahora.getHours()).padStart(2, "0")
-  const mm = String(ahora.getMinutes()).padStart(2, "0")
-  const ss = String(ahora.getSeconds()).padStart(2, "0")
+  const [hh, mm, ss] = horaPlanta(ahora).split(":")
 
   const tanquesListos = prep.tanques.filter((t) => t.condicion === "LISTO").length
   const lineasActivas = lineasEstado.filter((l) => l.estado === "activa").length
@@ -899,7 +922,7 @@ export default function PanelProduccion() {
                           <span className="text-right">Cajas producidas</span>
                           <span className="text-right">Litros producidos</span>
                           <span className="text-right">Eficiencia</span>
-                          <span className="text-right">Tiempo detenida</span>
+                          <span className="text-right">Tiempo de parada</span>
                           <span className="text-right">Merma</span>
                         </div>
                         {filasLineas.map((f) =>
@@ -980,12 +1003,14 @@ export default function PanelProduccion() {
                 )}
               </SeccionColapsable>
 
-              <SeccionColapsable
-                titulo="Top Fallas — paradas por línea"
-                descripcion="Downtime del turno por línea, con los equipos que más pararon. Datos de los reportes de Mantenimiento."
-              >
-                <ParadasDelTurno lineas={lineas} area={areaEfectiva} turnoTipo={turnoTipo} fecha={fecha} />
-              </SeccionColapsable>
+              {areaEfectiva === "PRUEBAS" && (
+                <SeccionColapsable
+                  titulo="Top Fallas — paradas por línea"
+                  descripcion="Downtime del turno por clase (programada / no programada / ociosa) y por línea. Módulo Paradas — todavía en Área de Pruebas."
+                >
+                  <ParadasDelTurno lineas={lineas} turnoTipo={turnoTipo} fecha={fecha} />
+                </SeccionColapsable>
+              )}
 
               {(areaEfectiva === "PRUEBAS" || areaEfectiva === "ASEPTICO") && (
                 <SeccionColapsable
@@ -1385,7 +1410,7 @@ function TanqueCard({
             {tanque.condicion === "SUCIO"
               ? "Pendiente de limpieza."
               : tanque.condicion === "CIP"
-                ? `Proceso de limpieza${tanque.cipIniciadoEn ? ` desde las ${tanque.cipIniciadoEn.slice(11, 16)}` : ""}.`
+                ? `Proceso de limpieza${tanque.cipIniciadoEn ? ` desde las ${horaCortaPlanta(tanque.cipIniciadoEn, tanque.cipIniciadoEn)}` : ""}.`
                 : "Disponible para llenar."}
           </p>
         )}
@@ -1477,19 +1502,18 @@ function MermaBloque({
 }
 
 /*
- * Top Fallas del Panel: downtime del turno por categoría + por línea.
- * FASE A lee el fixture (paradasDemo) filtrado por área + turno + fecha
- * del panel; FASE B pasará a paradas_de_turno(). El render vive en
- * <TopFallasPanel> (compartido con el preview /paradas-demo).
+ * Top Fallas del Panel: downtime del turno por clase + por línea.
+ * FASE A′ lee el fixture (paradasDemo) filtrado por turno + fecha del
+ * panel; FASE B′ pasará a paradas_de_turno(). El render vive en
+ * <TopFallasPanel> (compartido con el preview /paradas-demo). Solo se
+ * monta en Área de Pruebas (ver el render del Panel).
  */
 function ParadasDelTurno({
   lineas,
-  area,
   turnoTipo,
   fecha,
 }: {
   lineas: LineaLive[]
-  area: string | null
   turnoTipo: string
   fecha: string
 }) {
@@ -1498,16 +1522,12 @@ function ParadasDelTurno({
     let vivo = true
     import("@/lib/paradasDemoFixture").then(({ paradasDemo }) => {
       if (!vivo) return
-      setParadas(
-        paradasDemo().filter(
-          (p) => p.inicio.slice(0, 10) === fecha && p.turnoTipo === turnoTipo && (!area || area === "PRUEBAS" || p.area === area),
-        ),
-      )
+      setParadas(paradasDemo().filter((p) => p.inicio.slice(0, 10) === fecha && p.turnoTipo === turnoTipo))
     })
     return () => {
       vivo = false
     }
-  }, [area, turnoTipo, fecha])
+  }, [turnoTipo, fecha])
 
   return <TopFallasPanel paradas={paradas} lineas={lineas} />
 }

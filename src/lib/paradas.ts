@@ -1,74 +1,80 @@
 import { supabase } from "@/lib/supabase"
 
 /*
- * Módulo Paradas (downtime de Mantenimiento). Los datos vienen de un
- * Google Sheet externo que se sincroniza a la tabla `paradas`
- * (FASE B — todavía sin migración). FASE A: la página y el Panel se
- * arman contra `src/lib/paradasDemoFixture.ts` para revisar el diseño
- * sin base.
+ * Módulo Paradas — downtime de las líneas. Rumbo 2026-09-10 (ver
+ * plan-paradas.md): el eje pasa a PROGRAMADA / NO_PROGRAMADA / OCIOSO.
+ *
+ *  - PROGRAMADA y OCIOSO: las carga el supervisor a mano en la página de
+ *    Registro (elige línea, tipo del catálogo, hora de inicio; luego
+ *    vuelve y cierra con hora de fin).
+ *  - NO_PROGRAMADA: solo lectura en la app; idealmente se sincroniza del
+ *    Sheet de Mantenimiento (FASE C′ — todavía sin base).
+ *
+ * FASE A′: todo corre contra src/lib/paradasDemoFixture.ts para iterar el
+ * diseño sin Supabase.
  *
  * Regla de negocio (dueño, 2026-09-09): la duración la calcula el
- * programa (`fin − inicio`), NO se usa la columna DOWNTIME del Sheet.
- * `procuraMin` (tiempo de espera de repuesto) se guarda como dato
- * informativo y no entra en la duración.
+ * programa (fin − inicio). Cada tipo trae un "tiempo guía" (duración
+ * estándar); el desvío (real − guía) alimenta la eficiencia.
  */
 
-export type EstatusParada = "FINALIZADO" | "PENDIENTE" | (string & {})
+export type ClaseParada = "PROGRAMADA" | "NO_PROGRAMADA" | "OCIOSO"
+export type OrigenParada = "MANUAL" | "SHEET"
 
-/**
- * Categoría de parada:
- *  - OPERACIONAL: la carga el supervisor ("Parada Operacional" — pausa de línea con motivo).
- *  - EXTERNA: la carga el supervisor (causa fuera de la línea — falta de insumo, corte de luz, etc.).
- *  - MECANICA: la carga Mantenimiento en el Sheet (falla de equipo). Es la que sincroniza `paradas`.
+/** Orden fijo para todos los repartos por clase. */
+export const CLASES_PARADA: ClaseParada[] = ["PROGRAMADA", "NO_PROGRAMADA", "OCIOSO"]
+
+export const NOMBRE_CLASE: Record<ClaseParada, string> = {
+  PROGRAMADA: "Programada",
+  NO_PROGRAMADA: "No programada",
+  OCIOSO: "Tiempo ocioso",
+}
+
+/** Color semántico por clase (tokens del tema). */
+export const COLOR_CLASE: Record<ClaseParada, string> = {
+  PROGRAMADA: "bg-info",
+  NO_PROGRAMADA: "bg-danger",
+  OCIOSO: "bg-warning",
+}
+
+// ------------------------------------------------------------
+// Catálogo de tipos
+// ------------------------------------------------------------
+
+/** Un tipo del catálogo de paradas. En FASE B′ pasa a la tabla `paradas_tipos` (editable en Edición de Datos). */
+export interface TipoParada {
+  codigo: string
+  nombre: string
+  clase: ClaseParada
+  /** Duración estándar en minutos. null = sin guía (ej. "Final de Producción"). */
+  tiempoGuiaMin: number | null
+  /** Código de la planilla de Mantenimiento (PPL1 / PPEL1…). Se guarda tal cual. */
+  codigoPlanilla: string
+}
+
+/*
+ * Seed del catálogo PROGRAMADA (lista del dueño, 2026-09-10). Los códigos
+ * PPL1 / PPEL1 se guardan tal cual, a la espera de confirmar qué agrupan.
  */
-export type CategoriaParada = "OPERACIONAL" | "EXTERNA" | "MECANICA"
+export const CATALOGO_PROGRAMADA: TipoParada[] = [
+  { codigo: "ARRANQUE_PRODUCCION", nombre: "Arranque de Producción", clase: "PROGRAMADA", tiempoGuiaMin: 180, codigoPlanilla: "PPL1" },
+  { codigo: "CAMBIO_LOTE", nombre: "Cambio de Lote", clase: "PROGRAMADA", tiempoGuiaMin: 10, codigoPlanilla: "PPL1" },
+  { codigo: "CAMBIO_SABOR", nombre: "Cambio de Sabor", clase: "PROGRAMADA", tiempoGuiaMin: 25, codigoPlanilla: "PPL1" },
+  { codigo: "DESCANSO_LEGAL", nombre: "Descanso Legal", clase: "PROGRAMADA", tiempoGuiaMin: 30, codigoPlanilla: "PPL1" },
+  { codigo: "FINAL_PRODUCCION", nombre: "Final de Producción", clase: "PROGRAMADA", tiempoGuiaMin: null, codigoPlanilla: "PPL1" },
+  { codigo: "LIMPIEZA_INTERMEDIA", nombre: "Limpieza Intermedia Programada", clase: "PROGRAMADA", tiempoGuiaMin: 180, codigoPlanilla: "PPL1" },
+  { codigo: "ORDEN_LIMPIEZA_FIN_TURNO", nombre: "Orden y Limpieza del Área — Final de Turno", clase: "PROGRAMADA", tiempoGuiaMin: 15, codigoPlanilla: "PPL1" },
+  { codigo: "MANTENIMIENTO_PROGRAMADO", nombre: "Mantenimiento Programado / Cambio de Presentación", clase: "PROGRAMADA", tiempoGuiaMin: 180, codigoPlanilla: "PPL1" },
+  { codigo: "DESARROLLO_PRODUCTO", nombre: "Desarrollo de Producto / Insumo", clase: "PROGRAMADA", tiempoGuiaMin: null, codigoPlanilla: "PPL1" },
+  { codigo: "LIBERACION_VAPOR", nombre: "Liberación de Vapor", clase: "PROGRAMADA", tiempoGuiaMin: null, codigoPlanilla: "PPL1" },
+  { codigo: "TRANSFERENCIA_ENERGIA", nombre: "Transferencia de Energía Eléctrica / Preventivo", clase: "PROGRAMADA", tiempoGuiaMin: null, codigoPlanilla: "PPEL1" },
+]
 
-export const NOMBRE_CATEGORIA: Record<CategoriaParada, string> = {
-  OPERACIONAL: "Operacional",
-  EXTERNA: "Externa",
-  MECANICA: "Mecánica (Mantenimiento)",
-}
+export const tipoProgramadaPorCodigo = (codigo: string) => CATALOGO_PROGRAMADA.find((t) => t.codigo === codigo) ?? null
 
-/**
- * Corte de luz: tras la caída de suministro la máquina aséptica pide
- * CIP antes de rearrancar, así que el impacto real se asume en al menos
- * `PISO_LUZ_MIN` minutos aunque el reporte muestre un tramo más corto.
- */
-export const PISO_LUZ_MIN = 180
-
-/** ¿Es una parada por corte de luz? (subsistema de suministro eléctrico o mención explícita). */
-export function esParadaDeLuz(p: Pick<Parada, "subsistemaCodigo" | "descripcion">): boolean {
-  if (p.subsistemaCodigo && /-ELE-|SUMINISTRO EL[EÉ]CTRICO/i.test(p.subsistemaCodigo)) return true
-  return /(ca[ií]da|corte|falla)\s+(de\s+)?(suministro\s+el[eé]ctrico|luz|energ[ií]a)/i.test(p.descripcion)
-}
-
-/** Una parada, con los nombres ya resueltos (forma que devolverá `listar_paradas`). */
-export interface Parada {
-  id: string
-  categoria: CategoriaParada
-  area: string // 'ASEPTICO' | 'VACIO'
-  turnoTipo: string // 'TURNO_1' | 'TURNO_2' | 'TURNO_3'
-  turnoCodigo: string | null
-  linea: string // 'LINEA_1' | 'LINEA_2' | 'LINEA_3'
-  equipoCodigo: string
-  equipoNombre: string
-  subsistemaCodigo: string | null
-  subsistemaNombre: string | null
-  descripcion: string
-  supervisorNombre: string
-  reporta: string | null // 'SUPERVISOR' | 'TECNICO'
-  estatus: EstatusParada
-  /** ISO local 'YYYY-MM-DDTHH:MM:SS'. */
-  inicio: string
-  /** null = parada abierta (en curso). */
-  fin: string | null
-  /** TIEMPO DE PROCURA — informativo, NO entra en la duración. */
-  procuraMin: number | null
-  /** DOWNTIME crudo del Sheet — solo para comparar con el cálculo propio. */
-  downtimeSheetMin: number | null
-  /** Piso de minutos asumido (ej. 180 para corte de luz por el CIP). `duracionMin` nunca devuelve menos. */
-  pisoMin: number | null
-}
+// ------------------------------------------------------------
+// Líneas y turnos
+// ------------------------------------------------------------
 
 /** Las 3 líneas físicas (mismo criterio en todas las áreas). */
 export const LINEAS_PARADAS = [
@@ -81,56 +87,52 @@ export const nombreLineaParada = (codigo: string) =>
   LINEAS_PARADAS.find((l) => l.codigo === codigo)?.nombre ?? codigo
 export const nombreTurnoParada = (tt: string) => `Turno ${tt.replace("TURNO_", "")}`
 
-export interface EquipoParada {
-  codigo: string
-  nombre: string
-}
-export interface SubsistemaParada {
-  equipoCodigo: string
-  codigo: string
-  nombre: string
-}
-
-/** Forma cruda del fixture: las fechas son relativas a HOY (ver `paradasDemo()`). */
-export interface ParadaDemoRaw {
-  reporteId: string
-  categoria: CategoriaParada
-  pisoMin: number | null
-  area: string
-  turnoTipo: string
-  lineaCodigo: string
-  equipoCodigo: string
-  equipoNombre: string
-  subsistemaCodigo: string | null
-  subsistemaNombre: string | null
-  descripcion: string
-  supervisorNombre: string
-  reporta: string | null
-  estatus: string
-  offsetDias: number
-  hora: string
-  duracionMinReal: number | null
-  procuraMin: number | null
-  downtimeSheetMin: number | null
-}
-
 // ------------------------------------------------------------
-// Cálculo propio de la duración
+// Una parada
 // ------------------------------------------------------------
 
-/**
- * Duración en minutos: `fin − inicio` (o `ahora − inicio` si está
- * abierta), nunca menos que `pisoMin` (ej. 180 min para corte de luz
- * por el CIP forzado).
- */
-export function duracionMin(p: Parada, ahora: Date = new Date()): number {
-  const ini = new Date(p.inicio).getTime()
-  const fin = p.fin ? new Date(p.fin).getTime() : ahora.getTime()
-  const calc = Math.max(0, Math.round((fin - ini) / 60000))
-  return Math.max(calc, p.pisoMin ?? 0)
+/** Una parada, con los nombres ya resueltos (forma que devolverá `listar_paradas`). */
+export interface Parada {
+  id: string
+  clase: ClaseParada
+  origen: OrigenParada
+  lineaCodigo: string // 'LINEA_1' | 'LINEA_2' | 'LINEA_3'
+  turnoTipo: string // 'TURNO_1' | 'TURNO_2' | 'TURNO_3'
+  /** Tipo del catálogo. null solo para OCIOSO (texto libre). */
+  tipoCodigo: string | null
+  tipoNombre: string
+  /** Heredado del tipo al momento de registrar (o cargado a mano en Ocioso). */
+  tiempoGuiaMin: number | null
+  /** Texto libre — obligatorio en OCIOSO, opcional en el resto. */
+  nota: string | null
+  /** ISO local 'YYYY-MM-DDTHH:MM:SS'. */
+  inicio: string
+  /** null = parada abierta (en curso / "Continúa" al cerrar el turno). */
+  fin: string | null
+  supervisorNombre: string | null
 }
 
 export const paradaAbierta = (p: Parada) => p.fin === null
+
+// ------------------------------------------------------------
+// Duración y desvío
+// ------------------------------------------------------------
+
+/** Duración en minutos: `fin − inicio` (o `ahora − inicio` si está abierta). */
+export function duracionMin(p: Pick<Parada, "inicio" | "fin">, ahora: Date = new Date()): number {
+  const ini = new Date(p.inicio).getTime()
+  const fin = p.fin ? new Date(p.fin).getTime() : ahora.getTime()
+  return Math.max(0, Math.round((fin - ini) / 60000))
+}
+
+/**
+ * Desvío contra el tiempo guía: `duración real − tiempo guía`.
+ * Positivo = se pasó; negativo = más corta. null si el tipo no tiene guía.
+ */
+export function desvioMin(p: Parada, ahora?: Date): number | null {
+  if (p.tiempoGuiaMin == null) return null
+  return duracionMin(p, ahora) - p.tiempoGuiaMin
+}
 
 export function fmtDuracion(min: number): string {
   if (min < 1) return "< 1 min"
@@ -140,90 +142,114 @@ export function fmtDuracion(min: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m} min`
 }
 
+/** "+18 min" / "−5 min" / "en guía". */
+export function fmtDesvio(min: number): string {
+  if (min === 0) return "en guía"
+  const signo = min > 0 ? "+" : "−"
+  return `${signo}${fmtDuracion(Math.abs(min))}`
+}
+
 // ------------------------------------------------------------
-// Agregaciones (compartidas por la página y el Panel de Producción)
+// Agregaciones (compartidas por el Panel de Paradas y el de Producción)
 // ------------------------------------------------------------
 
-export interface GrupoParada {
-  /** código (de subsistema o de equipo). */
-  clave: string
-  /** texto legible para mostrar. */
+export interface ResumenClase {
+  clase: ClaseParada
   etiqueta: string
   veces: number
   minutos: number
 }
-
-/** Frecuencia + minutos por CÓDIGO de subsistema — "cuántas veces se repite cada código". */
-export function agruparPorCodigo(paradas: Parada[], ahora?: Date): GrupoParada[] {
-  const m = new Map<string, GrupoParada>()
-  for (const p of paradas) {
-    const clave = p.subsistemaCodigo ?? "—"
-    const etiqueta = p.subsistemaCodigo
-      ? `${p.subsistemaCodigo}${p.subsistemaNombre ? ` · ${p.subsistemaNombre}` : ""}`
-      : "Sin código de subsistema"
-    const g = m.get(clave) ?? { clave, etiqueta, veces: 0, minutos: 0 }
-    g.veces += 1
-    g.minutos += duracionMin(p, ahora)
-    m.set(clave, g)
-  }
-  return [...m.values()].sort((a, b) => b.veces - a.veces || b.minutos - a.minutos)
-}
-
-/** Minutos + frecuencia por EQUIPO (para el "Top Fallas" del Panel). */
-export function agruparPorEquipo(paradas: Parada[], ahora?: Date): GrupoParada[] {
-  const m = new Map<string, GrupoParada>()
-  for (const p of paradas) {
-    const g = m.get(p.equipoCodigo) ?? { clave: p.equipoCodigo, etiqueta: p.equipoNombre, veces: 0, minutos: 0 }
-    g.veces += 1
-    g.minutos += duracionMin(p, ahora)
-    m.set(p.equipoCodigo, g)
-  }
-  return [...m.values()].sort((a, b) => b.minutos - a.minutos || b.veces - a.veces)
-}
-
-export interface ResumenCategoria {
-  categoria: CategoriaParada
-  etiqueta: string
-  veces: number
-  minutos: number
-}
-/** Reparto del tiempo perdido entre Operacional / Externa / Mecánica. */
-export function resumenPorCategoria(paradas: Parada[], ahora?: Date): ResumenCategoria[] {
-  const orden: CategoriaParada[] = ["OPERACIONAL", "EXTERNA", "MECANICA"]
-  return orden.map((categoria) => {
-    const dela = paradas.filter((p) => p.categoria === categoria)
+/** Reparto del tiempo perdido entre Programada / No programada / Ocioso (orden fijo). */
+export function resumenPorClase(paradas: Parada[], ahora?: Date): ResumenClase[] {
+  return CLASES_PARADA.map((clase) => {
+    const dela = paradas.filter((p) => p.clase === clase)
     return {
-      categoria,
-      etiqueta: NOMBRE_CATEGORIA[categoria],
+      clase,
+      etiqueta: NOMBRE_CLASE[clase],
       veces: dela.length,
       minutos: dela.reduce((a, p) => a + duracionMin(p, ahora), 0),
     }
   })
 }
 
-export interface ResumenLinea {
+export interface ResumenLineaParada {
   linea: string
   veces: number
   minutos: number
+  /** minutos por clase, para el desglose de cada línea. */
+  porClase: Record<ClaseParada, number>
 }
-export function minutosPorLinea(paradas: Parada[], ahora?: Date): ResumenLinea[] {
-  const m = new Map<string, ResumenLinea>()
+export function minutosPorLinea(paradas: Parada[], ahora?: Date): ResumenLineaParada[] {
+  const m = new Map<string, ResumenLineaParada>()
+  for (const l of LINEAS_PARADAS) {
+    m.set(l.codigo, { linea: l.codigo, veces: 0, minutos: 0, porClase: { PROGRAMADA: 0, NO_PROGRAMADA: 0, OCIOSO: 0 } })
+  }
   for (const p of paradas) {
-    const g = m.get(p.linea) ?? { linea: p.linea, veces: 0, minutos: 0 }
+    const g = m.get(p.lineaCodigo) ?? {
+      linea: p.lineaCodigo,
+      veces: 0,
+      minutos: 0,
+      porClase: { PROGRAMADA: 0, NO_PROGRAMADA: 0, OCIOSO: 0 },
+    }
+    const min = duracionMin(p, ahora)
     g.veces += 1
-    g.minutos += duracionMin(p, ahora)
-    m.set(p.linea, g)
+    g.minutos += min
+    g.porClase[p.clase] += min
+    m.set(p.lineaCodigo, g)
   }
   return [...m.values()].sort((a, b) => a.linea.localeCompare(b.linea))
 }
 
-export interface PuntoDia {
+export interface GrupoTipo {
+  codigo: string
+  nombre: string
+  clase: ClaseParada
+  veces: number
+  minutos: number
+  /** suma del tiempo guía de las paradas de este tipo que SÍ tienen guía. */
+  guiaMin: number
+  /** minutos − guiaMin, contando solo las que tienen guía. null si ninguna la tiene. */
+  desvioMin: number | null
+}
+/** Minutos + frecuencia + desvío por TIPO — "qué tipo pesa más y cuánto se pasa de su guía". */
+export function porTipo(paradas: Parada[], ahora?: Date): GrupoTipo[] {
+  const m = new Map<string, GrupoTipo & { _conGuia: number }>()
+  for (const p of paradas) {
+    const clave = p.tipoCodigo ?? `OCIOSO:${p.tipoNombre}`
+    const g = m.get(clave) ?? {
+      codigo: clave,
+      nombre: p.tipoNombre,
+      clase: p.clase,
+      veces: 0,
+      minutos: 0,
+      guiaMin: 0,
+      desvioMin: null,
+      _conGuia: 0,
+    }
+    const min = duracionMin(p, ahora)
+    g.veces += 1
+    g.minutos += min
+    if (p.tiempoGuiaMin != null) {
+      g.guiaMin += p.tiempoGuiaMin
+      g._conGuia += min
+    }
+    m.set(clave, g)
+  }
+  return [...m.values()]
+    .map(({ _conGuia, ...g }) => ({
+      ...g,
+      desvioMin: g.guiaMin > 0 || _conGuia > 0 ? _conGuia - g.guiaMin : null,
+    }))
+    .sort((a, b) => b.minutos - a.minutos || b.veces - a.veces)
+}
+
+export interface PuntoDiaParada {
   dia: string // 'YYYY-MM-DD'
   minutos: number
   veces: number
 }
-export function agruparPorDia(paradas: Parada[], ahora?: Date): PuntoDia[] {
-  const m = new Map<string, PuntoDia>()
+export function agruparPorDia(paradas: Parada[], ahora?: Date): PuntoDiaParada[] {
+  const m = new Map<string, PuntoDiaParada>()
   for (const p of paradas) {
     const dia = p.inicio.slice(0, 10)
     const g = m.get(dia) ?? { dia, minutos: 0, veces: 0 }
@@ -241,25 +267,23 @@ export function agruparPorDia(paradas: Parada[], ahora?: Date): PuntoDia[] {
 export interface FiltrosParadas {
   desde: string // 'YYYY-MM-DD'
   hasta: string
-  area?: string
   linea?: string
-  equipo?: string
+  clase?: ClaseParada
 }
 
 /**
- * FASE A: lee el fixture (todo el rango, se filtra en memoria).
- * FASE B: pasa a `supabase.rpc("listar_paradas", {...})` — la firma y la
- * forma de `Parada` no cambian, así que la página no se toca.
+ * FASE A′: lee el fixture (todo el rango, se filtra en memoria).
+ * FASE B′: pasa a `supabase.rpc("listar_paradas", {...})` — la firma y la
+ * forma de `Parada` no cambian, así que las páginas no se tocan.
  */
 export async function listarParadas(filtros: FiltrosParadas): Promise<Parada[]> {
-  void supabase // FASE B
+  void supabase // FASE B′/C′
   const { paradasDemo } = await import("@/lib/paradasDemoFixture")
   return paradasDemo().filter((p) => {
     const dia = p.inicio.slice(0, 10)
     if (dia < filtros.desde || dia > filtros.hasta) return false
-    if (filtros.area && p.area !== filtros.area) return false
-    if (filtros.linea && p.linea !== filtros.linea) return false
-    if (filtros.equipo && p.equipoCodigo !== filtros.equipo) return false
+    if (filtros.linea && p.lineaCodigo !== filtros.linea) return false
+    if (filtros.clase && p.clase !== filtros.clase) return false
     return true
   })
 }

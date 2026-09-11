@@ -11,7 +11,6 @@ import {
   Beaker,
   Factory,
   RadioTower,
-  CalendarClock,
   CalendarRange,
   Thermometer,
   Wrench,
@@ -137,22 +136,27 @@ export const apps: AppDef[] = [
   },
   {
     slug: "paradas",
-    title: "Paradas",
-    description: "Downtime de las líneas: fallas, cuánto duraron y qué código se repite más.",
+    title: "Registrar Paradas",
+    description: "Paradas programadas y tiempo ocioso, por línea — el supervisor las carga a mano.",
     href: "/paradas",
     icon: Wrench,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPERVISOR", "MANTENIMIENTO"],
+    // TEMPORAL: oculto para todos salvo el Área de Pruebas hasta que el módulo
+    // Paradas (rumbo nuevo, ver plan-paradas.md) tenga base. Para reactivar:
+    // borrar `areasPermitidas` y poner `rolesPermitidos: ["SUPERADMINISTRADOR",
+    // "ADMINISTRADOR_AREA", "SUPERVISOR"]` (acá y en la ruta /paradas de src/App.tsx).
+    areasPermitidas: ["PRUEBAS"],
     atajo: true,
   },
   {
-    slug: "historial-dia",
-    title: "Historial del Día",
-    description: "Qué hizo cada supervisor del área, por hora.",
-    href: "/historial-dia",
-    icon: CalendarClock,
+    slug: "panel-paradas",
+    title: "Panel de Paradas",
+    description: "Downtime de las líneas: tiempo perdido, ocioso y desvío contra el tiempo guía por tipo.",
+    href: "/panel-paradas",
+    icon: RadioTower,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERVISOR"],
+    // TEMPORAL: solo Área de Pruebas, mismo criterio que Registrar Paradas.
+    areasPermitidas: ["PRUEBAS"],
     atajo: true,
   },
   {

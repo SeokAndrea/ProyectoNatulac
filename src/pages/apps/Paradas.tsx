@@ -1,43 +1,39 @@
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
-import { ParadasLista } from "@/components/ParadasLista"
-import { rangoDePreset, type RangoFecha } from "@/lib/auditoriaVista"
+import { RegistroParadas } from "@/components/RegistroParadas"
 import { listarParadas, type Parada } from "@/lib/paradas"
 
 /*
- * Paradas — histórico de downtime de las líneas (lo carga Mantenimiento
- * en un Google Sheet externo; se sincroniza a la tabla `paradas`).
- * Solo lectura. La vista vive en <ParadasLista> (compartida con el
- * preview /paradas-demo). FASE A: listarParadas() lee el fixture.
+ * Registro de Paradas — el supervisor elige una de sus 3 líneas y carga
+ * las paradas PROGRAMADA y el TIEMPO OCIOSO (la pestaña NO PROGRAMADA es
+ * solo lectura, llega del Sheet de Mantenimiento). La vista vive en
+ * <RegistroParadas> (compartida con el preview /paradas-demo).
+ * FASE A′: listarParadas() lee el fixture y el registro no persiste.
  */
 export default function Paradas() {
-  const [rango, setRango] = useState<RangoFecha>(() => rangoDePreset("DIAS_7", ""))
   const [paradas, setParadas] = useState<Parada[] | null>(null)
 
   useEffect(() => {
     let vivo = true
-    listarParadas({ desde: rango.desde, hasta: rango.hasta, area: "ASEPTICO" }).then((filas) => {
+    // rango amplio: la vista de registro trabaja sobre lo del turno, no filtra por fecha
+    listarParadas({ desde: "2000-01-01", hasta: "2999-12-31" }).then((filas) => {
       if (vivo) setParadas(filas)
     })
     return () => {
       vivo = false
     }
-  }, [rango.desde, rango.hasta])
-
-  const onRangoChange = useCallback((r: RangoFecha) => {
-    setRango((actual) => (actual.desde === r.desde && actual.hasta === r.hasta ? actual : r))
   }, [])
 
   return (
-    <AppShell title="Paradas" description="Downtime de las líneas (reportes de Mantenimiento)" fullWidth>
+    <AppShell title="Registrar Paradas" description="Paradas programadas y tiempo ocioso, por línea">
       <div className="mx-auto w-full max-w-3xl">
         {paradas === null ? (
           <div className="flex justify-center py-16 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
           </div>
         ) : (
-          <ParadasLista paradas={paradas} presetInicial="DIAS_7" onRangoChange={onRangoChange} />
+          <RegistroParadas paradas={paradas} />
         )}
       </div>
     </AppShell>

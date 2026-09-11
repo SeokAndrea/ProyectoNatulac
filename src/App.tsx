@@ -10,9 +10,9 @@ import Lineas from "@/pages/apps/Lineas"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
+import PanelParadas from "@/pages/apps/PanelParadas"
 import Paradas from "@/pages/apps/Paradas"
 import Programacion from "@/pages/apps/Programacion"
-import HistorialDia from "@/pages/apps/HistorialDia"
 import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
 import Historial from "@/pages/apps/Historial"
@@ -113,10 +113,22 @@ export default function App() {
       <Route
         path="/paradas"
         element={
-          <ProtectedRoute
-            rolesPermitidos={["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPERVISOR", "MANTENIMIENTO"]}
-          >
+          // TEMPORAL: solo Área de Pruebas hasta que el módulo Paradas (rumbo
+          // nuevo, ver plan-paradas.md) tenga base. Reactivar: cambiar a
+          // rolesPermitidos=["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPERVISOR"]
+          // (acá y en src/lib/apps.tsx).
+          <ProtectedRoute areasPermitidas={["PRUEBAS"]}>
             <Paradas />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/panel-paradas"
+        element={
+          // TEMPORAL: solo Área de Pruebas hasta que el módulo Paradas tenga base
+          // (mismo criterio que /paradas — ver plan-paradas.md y src/lib/apps.tsx).
+          <ProtectedRoute areasPermitidas={["PRUEBAS"]}>
+            <PanelParadas />
           </ProtectedRoute>
         }
       />
@@ -125,14 +137,6 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Programacion />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/historial-dia"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <HistorialDia />
           </ProtectedRoute>
         }
       />

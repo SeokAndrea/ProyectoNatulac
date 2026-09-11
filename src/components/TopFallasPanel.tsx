@@ -1,26 +1,20 @@
 import {
-  agruparPorEquipo,
+  COLOR_CLASE,
   duracionMin,
   fmtDuracion,
-  NOMBRE_CATEGORIA,
-  resumenPorCategoria,
-  type CategoriaParada,
+  NOMBRE_CLASE,
+  porTipo,
+  resumenPorClase,
   type Parada,
 } from "@/lib/paradas"
 
 /*
  * "Top Fallas" del Panel de Producción: el downtime del turno repartido
- * por categoría (Operacional / Externa / Mecánica) y por línea, con los
- * equipos que más pararon en cada una. Componente puro — recibe las
- * paradas ya filtradas al turno. FASE A: el Panel le pasa el fixture;
- * FASE B: paradas_de_turno().
+ * por clase (Programada / No programada / Ocioso) y por línea, con los
+ * tipos que más pesaron en cada una. Componente puro — recibe las
+ * paradas ya filtradas al turno. FASE A′: el Panel le pasa el fixture;
+ * FASE B′: paradas_de_turno().
  */
-
-const dotCat: Record<CategoriaParada, string> = {
-  OPERACIONAL: "bg-info",
-  EXTERNA: "bg-warning",
-  MECANICA: "bg-danger",
-}
 
 export function TopFallasPanel({
   paradas,
@@ -34,20 +28,19 @@ export function TopFallasPanel({
   }
 
   const ahora = new Date()
-  const porCategoria = resumenPorCategoria(paradas, ahora).filter((c) => c.veces > 0)
+  const porClase = resumenPorClase(paradas, ahora).filter((c) => c.veces > 0)
   const totalMin = paradas.reduce((a, p) => a + duracionMin(p, ahora), 0)
 
   return (
     <div className="flex flex-col gap-3">
-      {/* reparto por categoría */}
+      {/* reparto por clase */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="num text-sm font-bold text-danger">{fmtDuracion(totalMin)}</span>
         <span className="text-xs text-muted-foreground">perdidos ·</span>
-        {porCategoria.map((c) => (
-          <span key={c.categoria} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className={`size-2 rounded-full ${dotCat[c.categoria]}`} />
-            {NOMBRE_CATEGORIA[c.categoria].replace(" (Mantenimiento)", "")}{" "}
-            <b className="num text-foreground">{fmtDuracion(c.minutos)}</b> ({c.veces})
+        {porClase.map((c) => (
+          <span key={c.clase} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className={`size-2 rounded-full ${COLOR_CLASE[c.clase]}`} />
+            {NOMBRE_CLASE[c.clase]} <b className="num text-foreground">{fmtDuracion(c.minutos)}</b> ({c.veces})
           </span>
         ))}
       </div>
@@ -57,9 +50,9 @@ export function TopFallasPanel({
         {lineas
           .filter((l) => l.activo !== false)
           .map((l) => {
-            const dela = paradas.filter((p) => p.linea === l.codigo)
+            const dela = paradas.filter((p) => p.lineaCodigo === l.codigo)
             const total = dela.reduce((a, p) => a + duracionMin(p, ahora), 0)
-            const topEquipos = agruparPorEquipo(dela, ahora).slice(0, 3)
+            const topTipos = porTipo(dela, ahora).slice(0, 3)
             return (
               <div key={l.codigo} className="rounded-xl border border-border bg-muted/30 p-3">
                 <div className="mb-2 flex items-baseline justify-between gap-2">
@@ -70,11 +63,11 @@ export function TopFallasPanel({
                   <p className="text-xs text-muted-foreground">Sin paradas.</p>
                 ) : (
                   <ol className="flex flex-col gap-1.5">
-                    {topEquipos.map((g, i) => (
-                      <li key={g.clave} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                    {topTipos.map((g, i) => (
+                      <li key={g.codigo} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                         <span className="min-w-0 truncate">
                           <b className="num mr-1.5 text-primary">0{i + 1}</b>
-                          {g.etiqueta}
+                          {g.nombre}
                           <span className="ml-1 text-muted-foreground/70">({g.veces})</span>
                         </span>
                         <span className="num shrink-0 text-foreground">{fmtDuracion(g.minutos)}</span>
