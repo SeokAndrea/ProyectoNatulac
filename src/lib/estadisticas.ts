@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import type { AreaCodigo, GrupoCodigo, LineaCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
+import { horaPlanta } from "@/lib/tiempoPlanta"
 
 /*
  * Dashboard de producción — construida sobre lo que ya existe (turnos
@@ -165,7 +166,7 @@ export function mermaAgregada(filas: FilaEstadistica[]): number | null {
  * aparecer recién cuando finaliza el turno.
  */
 export function horasTurno(fila: FilaEstadistica): number | null {
-  const horaFin = fila.horaFin ?? (fila.estado === "ABIERTO" ? new Date().toTimeString().slice(0, 8) : null)
+  const horaFin = fila.horaFin ?? (fila.estado === "ABIERTO" ? horaPlanta() : null)
   if (!horaFin) return null
   const [h1, m1] = fila.horaInicio.split(":").map(Number)
   const [h2, m2] = horaFin.split(":").map(Number)

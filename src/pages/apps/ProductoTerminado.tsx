@@ -32,6 +32,7 @@ import { useSesionTurno } from "@/lib/sesionTurno"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
+import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
@@ -755,7 +756,7 @@ function FilaProductoTerminado({
             <div>
               <p className="text-xs text-muted-foreground">Estado</p>
               <p className="font-medium text-foreground">
-                {lineaTurno.entregadaEn ? `Entregada a las ${lineaTurno.entregadaEn.slice(11, 16)}` : "Sabor terminado"}
+                {lineaTurno.entregadaEn ? `Entregada a las ${horaCortaPlanta(lineaTurno.entregadaEn, lineaTurno.entregadaEn)}` : "Sabor terminado"}
               </p>
             </div>
           </div>

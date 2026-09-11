@@ -1,6 +1,7 @@
 import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import { mermaCorrida } from "@/lib/reportes"
+import { diaMesPlanta, horaCortaPlanta, instantePlanta, mismaFechaPlanta } from "@/lib/tiempoPlanta"
 import type { TurnoHistorial } from "@/lib/historialTurnos"
 
 /**
@@ -18,22 +19,22 @@ export interface EventoHistorial {
 }
 
 /**
- * A partir de un timestamp completo (ISO) o de turno.horaInicio (bare
- * "HH:MM:SS", hora local sin fecha — ver src/lib/turno.tsx) arma un
- * Date real, ancorado en turno.fecha para el segundo caso. Un turno
- * nocturno (ej. TURNO_3) cruza medianoche — sin esto, dos eventos de
- * noches distintas del mismo turno no se pueden ordenar ni distinguir.
+ * A partir de un timestamp completo (ISO, de Postgres en UTC) o de
+ * turno.horaInicio (hora pelada "HH:MM:SS", sin fecha) arma un Date
+ * real, anclado a turno.fecha en HORA DE PLANTA (America/Caracas) para
+ * el segundo caso. Un turno nocturno (ej. TURNO_3) cruza medianoche —
+ * sin esto, dos eventos de noches distintas del mismo turno no se
+ * pueden ordenar ni distinguir. Ver src/lib/tiempoPlanta.ts.
  */
 function comoFecha(valor: string, fechaTurno: string): Date {
-  return /^\d{2}:\d{2}/.test(valor) ? new Date(`${fechaTurno}T${valor}`) : new Date(valor)
+  return instantePlanta(valor, fechaTurno)
 }
 
-/** "23:50", o "27/08 00:10" si el evento cayó en una fecha distinta a la de inicio del turno (turno que cruzó medianoche). */
+/** "23:50", o "27/08 00:10" si el evento cayó (en hora de planta) en una fecha distinta a la de inicio del turno (turno que cruzó medianoche). */
 function formatearHora(valor: string, fechaTurno: string): string {
   const d = comoFecha(valor, fechaTurno)
-  const horaTexto = d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })
-  const mismaFecha = d.toLocaleDateString("en-CA") === fechaTurno
-  return mismaFecha ? horaTexto : `${d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit" })} ${horaTexto}`
+  const horaTexto = horaCortaPlanta(valor, fechaTurno)
+  return mismaFechaPlanta(d, fechaTurno) ? horaTexto : `${diaMesPlanta(d)} ${horaTexto}`
 }
 
 export function construirHistorial(

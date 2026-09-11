@@ -123,7 +123,9 @@ describe("coincideBusqueda", () => {
 })
 
 describe("rangoDePreset", () => {
-  const hoy = new Date("2026-09-03T10:00:00")
+  // Anclado a hora de planta (UTC−4) para que el test no dependa de la
+  // zona del runner.
+  const hoy = new Date("2026-09-03T10:00:00-04:00")
 
   it("HOY = solo hoy", () => {
     expect(rangoDePreset("HOY", "", hoy)).toEqual({ desde: "2026-09-03", hasta: "2026-09-03" })

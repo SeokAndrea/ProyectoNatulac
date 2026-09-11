@@ -18,7 +18,7 @@ import {
   type ResumenTurno,
 } from "@/lib/auditoriaVista"
 import type { EventoHistorial } from "@/lib/historial"
-import { fechaLocal } from "@/lib/turno"
+import { fechaPlanta, ZONA_PLANTA } from "@/lib/tiempoPlanta"
 import type { TurnoHistorial, TurnoResumen } from "@/lib/historialTurnos"
 
 /*
@@ -88,7 +88,7 @@ export function AuditoriaTurnos({
   accionesTurno?: (turno: TurnoAuditoria) => ReactNode
 }) {
   const [preset, setPreset] = useState<PresetFecha>(presetInicial)
-  const [fechaExacta, setFechaExacta] = useState(() => fechaLocal(new Date()))
+  const [fechaExacta, setFechaExacta] = useState(() => fechaPlanta())
   const [turnoTipoFiltro, setTurnoTipoFiltro] = useState<string>("TODOS")
   const [busqueda, setBusqueda] = useState("")
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
@@ -433,6 +433,6 @@ function agruparPorFecha(turnos: TurnoEnriquecido[]): { fecha: string; turnos: T
 }
 
 function formatearFecha(fecha: string): string {
-  const d = new Date(`${fecha}T00:00:00`)
-  return d.toLocaleDateString("es-CO", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
+  const d = new Date(`${fecha}T12:00:00-04:00`)
+  return d.toLocaleDateString("es-CO", { timeZone: ZONA_PLANTA, weekday: "long", day: "2-digit", month: "long", year: "numeric" })
 }

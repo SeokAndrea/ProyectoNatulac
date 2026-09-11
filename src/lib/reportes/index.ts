@@ -15,6 +15,7 @@ import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
 import type { PreparacionRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
+import { horaPlanta } from "@/lib/tiempoPlanta"
 import { pctCumplimiento, pctRendimiento } from "./teorico"
 import { calcularConsumoYProducido } from "./realidadPreparacion"
 import { mermaCorrida, mermaEnvasesDeCorridas } from "./realidadProduccion"
@@ -28,13 +29,7 @@ export function horasTranscurridasTurno(horaInicio: string, estado: "ABIERTO" | 
   // "ahora". Así la meta de un turno viejo deja de moverse en cada
   // refresco del Panel y se puede reproducir/verificar contra un valor
   // cargado a mano (ver src/lib/reportes/pruebas.ts y su CSV).
-  const finReloj =
-    estado === "CERRADO" && horaFin
-      ? horaFin
-      : (() => {
-          const ahora = new Date()
-          return `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}:${String(ahora.getSeconds()).padStart(2, "0")}`
-        })()
+  const finReloj = estado === "CERRADO" && horaFin ? horaFin : horaPlanta()
   const [h2, m2] = finReloj.split(":").map(Number)
   let minutos = h2 * 60 + m2 - (h1 * 60 + m1)
   if (minutos < 0) minutos += 24 * 60

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { fechaJornadaPlanta } from "@/lib/tiempoPlanta"
 
 /*
  * Programación diaria (versión mínima): qué se planificó producir en la
@@ -18,13 +19,11 @@ export interface ProgramacionItem {
 
 /**
  * Fecha de la jornada de planta: el día de la empresa corre de 7am a
- * 7am, así que antes de las 7 la jornada sigue siendo la de "ayer".
- * Devuelve "YYYY-MM-DD" en hora local.
+ * 7am (hora de planta, America/Caracas), así que antes de las 7 la
+ * jornada sigue siendo la de "ayer". Devuelve "YYYY-MM-DD".
  */
 export function fechaJornada(ahora: Date = new Date()): string {
-  const d = new Date(ahora)
-  if (d.getHours() < 7) d.setDate(d.getDate() - 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  return fechaJornadaPlanta(ahora)
 }
 
 interface FilaProgramacion {

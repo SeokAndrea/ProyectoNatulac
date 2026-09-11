@@ -16,7 +16,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import type { GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { useAuth } from "@/lib/auth"
-import { fechaLocal, horaLocal, saborSinFamiliaOculta } from "@/lib/turno"
+import { saborSinFamiliaOculta } from "@/lib/turno"
 import type { CondicionTanque } from "@/lib/preparacion/tipos"
 import { supabase } from "@/lib/supabase"
 
@@ -139,14 +139,11 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
       return { ok: false as const, error: "No se pudo identificar el área del usuario." }
     }
 
-    const ahora = new Date()
     const { data, error } = await supabase.rpc("iniciar_turno", {
       p_usuario: usuario,
       p_area_codigo: session.area,
       p_turno_tipo_codigo: turnoTipo,
       p_grupo_codigo: grupo,
-      p_fecha: fechaLocal(ahora),
-      p_hora_inicio: horaLocal(ahora),
     })
 
     if (error || !data) {
@@ -164,11 +161,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     // El chequeo de "no cerrar con una corrida en ESPERANDO_PT" vive en la
     // RPC finalizar_turno (migración 20261018090000, costura 2). Acá solo
     // se propaga el mensaje.
-    const { error } = await supabase.rpc("finalizar_turno", {
-      p_turno_id: turnoId,
-      p_fecha_fin: fechaLocal(new Date()),
-      p_hora_fin: horaLocal(new Date()),
-    })
+    const { error } = await supabase.rpc("finalizar_turno", { p_turno_id: turnoId })
 
     if (error) {
       return { ok: false as const, error: error.message || "No se pudo finalizar el turno. Intenta de nuevo." }

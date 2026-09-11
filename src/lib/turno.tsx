@@ -553,25 +553,16 @@ export interface FilaTurno {
 }
 
 /*
- * Fecha/hora LOCAL del navegador, en vez de dejar que Postgres use
- * current_date/current_time (esas corren en el reloj del servidor,
- * UTC — daban un desfase de varias horas contra la hora real de la
- * planta). Se calculan acá y se mandan como parámetro a
- * iniciar_turno/finalizar_turno.
+ * La fecha/hora del turno la calcula ahora el servidor en hora de
+ * planta (America/Caracas) — ver iniciar_turno/finalizar_turno en la
+ * migración 20261032. Para mostrar o comparar fechas/horas en el
+ * frontend, usar src/lib/tiempoPlanta.ts directamente.
+ *
+ * fechaLocal/horaLocal quedan como alias de fechaPlanta/horaPlanta (ya
+ * no son "locales del navegador") solo para no romper fixtures de demo
+ * que las importaban. Código nuevo: usar tiempoPlanta.
  */
-export function fechaLocal(d: Date) {
-  const anio = d.getFullYear()
-  const mes = String(d.getMonth() + 1).padStart(2, "0")
-  const dia = String(d.getDate()).padStart(2, "0")
-  return `${anio}-${mes}-${dia}`
-}
-
-export function horaLocal(d: Date) {
-  const horas = String(d.getHours()).padStart(2, "0")
-  const minutos = String(d.getMinutes()).padStart(2, "0")
-  const segundos = String(d.getSeconds()).padStart(2, "0")
-  return `${horas}:${minutos}:${segundos}`
-}
+export { fechaPlanta as fechaLocal, horaPlanta as horaLocal } from "@/lib/tiempoPlanta"
 
 export function mapearTurno(fila: FilaTurno): TurnoActivo {
   return {
@@ -757,14 +748,11 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       return { ok: false, error: "No se pudo identificar el área del usuario." }
     }
 
-    const ahora = new Date()
     const { data, error } = await supabase.rpc("iniciar_turno", {
       p_usuario: usuario,
       p_area_codigo: session.area,
       p_turno_tipo_codigo: datos.turnoTipo,
       p_grupo_codigo: datos.grupo,
-      p_fecha: fechaLocal(ahora),
-      p_hora_inicio: horaLocal(ahora),
     })
 
     if (error || !data) {
@@ -1047,12 +1035,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
 
   async function finalizarTurno() {
     if (!turnoActivo) return
-    const ahora = new Date()
-    await supabase.rpc("finalizar_turno", {
-      p_turno_id: turnoActivo.id,
-      p_fecha_fin: fechaLocal(ahora),
-      p_hora_fin: horaLocal(ahora),
-    })
+    await supabase.rpc("finalizar_turno", { p_turno_id: turnoActivo.id })
     setTurnoActivo(null)
   }
 

@@ -2,7 +2,7 @@ import { nombrePorCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import { construirHistorial, type EventoHistorial } from "@/lib/historial"
 import { mermaCorrida, mermaSemielaboradoTurno } from "@/lib/reportes"
-import { fechaLocal } from "@/lib/turno"
+import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import type { TurnoHistorial } from "@/lib/historialTurnos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
@@ -239,18 +239,16 @@ export interface RangoFecha {
 }
 
 export function rangoDePreset(preset: PresetFecha, fechaEspecifica: string, hoy = new Date()): RangoFecha {
-  const menosDias = (n: number) => {
-    const d = new Date(hoy)
-    d.setDate(d.getDate() - n)
-    return fechaLocal(d)
-  }
+  const hoyPlanta = fechaPlanta(hoy)
   switch (preset) {
     case "HOY":
-      return { desde: fechaLocal(hoy), hasta: fechaLocal(hoy) }
-    case "AYER":
-      return { desde: menosDias(1), hasta: menosDias(1) }
+      return { desde: hoyPlanta, hasta: hoyPlanta }
+    case "AYER": {
+      const ayer = restarDias(hoyPlanta, 1)
+      return { desde: ayer, hasta: ayer }
+    }
     case "DIAS_7":
-      return { desde: menosDias(6), hasta: fechaLocal(hoy) }
+      return { desde: restarDias(hoyPlanta, 6), hasta: hoyPlanta }
     case "FECHA":
       return { desde: fechaEspecifica, hasta: fechaEspecifica }
   }
