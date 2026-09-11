@@ -8,6 +8,7 @@ import {
   Loader2,
   PackageOpen,
   PenLine,
+  Ruler,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,13 +16,16 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
+import { MedirTanqueInline } from "@/components/MedirTanqueInline"
 import { TanqueEditForm } from "@/components/TanqueEditForm"
 import { TanqueVisual } from "@/components/TanqueVisual"
 import { useAuth } from "@/lib/auth"
 import { listarDesvases, type Desvase } from "@/lib/desvases"
 import { colorSabor } from "@/lib/coloresSabor"
 import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
+import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import { cn } from "@/lib/utils"
+import { useSesionTurno } from "@/lib/sesionTurno"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import type {
   CondicionTanque,
@@ -53,6 +57,13 @@ const TANK_MAX_VOLUMEN = 30000
  * §6) para cuando NO se quiere sumar el resto al lote nuevo.
  */
 const DESVASE_HABILITADO = true
+
+/**
+ * Insumos de la preparación (agua / azúcar / ácido cítrico) — ocultos
+ * en el formulario "Nueva preparación" por pedido. El state y el envío
+ * siguen intactos: poner en `true` para volver a mostrarlos.
+ */
+const MOSTRAR_INSUMOS_PREPARACION = false
 
 export type ModoEstadoPlanta = "status" | "preparacion"
 
@@ -98,12 +109,14 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
     iniciarPreparacion,
     liberarLote,
     ajustarPreparacion,
+    fijarVolumenLote,
     transferirTanque,
     desvasarTanque,
     medirTanque,
     capturarRestoOrigenTransferencia,
   } = usePreparacion()
   const { corridas, cargando: cargandoProduccion } = useProduccion()
+  const { turnoId } = useSesionTurno()
 
   if (cargando || cargandoProduccion) {
     return (
@@ -131,6 +144,8 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
           onIniciarPreparacion={iniciarPreparacion}
           onLiberarLote={liberarLote}
           onAjustar={ajustarPreparacion}
+          onFijarVolumenLote={fijarVolumenLote}
+          turnoId={turnoId}
           onTransferir={transferirTanque}
           onDesvasar={desvasarTanque}
           onMedirTanque={medirTanque}
@@ -197,6 +212,8 @@ function TanqueCard({
   onIniciarPreparacion,
   onLiberarLote,
   onAjustar,
+  onFijarVolumenLote,
+  turnoId,
   onTransferir,
   onDesvasar,
   onMedirTanque,
@@ -215,6 +232,8 @@ function TanqueCard({
   onIniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onLiberarLote: (loteId: string) => Promise<Resultado>
   onAjustar: (loteId: string, litros: number, detalle: string | null) => Promise<Resultado>
+  onFijarVolumenLote: (loteId: string, volumenReal: number) => Promise<Resultado>
+  turnoId: string | null
   onTransferir: (
     numeroTanqueOrigen: 1 | 2 | 3,
     numeroTanqueDestino: 1 | 2 | 3,
@@ -234,6 +253,10 @@ function TanqueCard({
   const [ajustando, setAjustando] = useState(false)
   const [errorAjuste, setErrorAjuste] = useState<string | null>(null)
   const [cambiandoCip, setCambiandoCip] = useState(false)
+  /** "Medir tanque": relectura física del volumen del lote (medir_tanque). */
+  const [mostrarMedir, setMostrarMedir] = useState(false)
+  /** "Fijar volumen real": corrige el 100% del lote (fijar_volumen_lote) — solo si todavía no corrió ninguna línea. */
+  const [mostrarFijar, setMostrarFijar] = useState(false)
   const [mostrarTransferir, setMostrarTransferir] = useState(false)
   /** Paso 1 obligatorio: confirmar/corregir el volumen real del tanque ORIGEN antes de mover. */
   const [origenConfirmado, setOrigenConfirmado] = useState(false)
@@ -265,6 +288,15 @@ function TanqueCard({
 
   const loteAbierto = preparaciones.find((p) => !p.liberadoEn && !p.cerradoEn) ?? null
   const loteActivo = preparaciones.find((p) => p.liberadoEn && !p.cerradoEn) ?? null
+  /**
+   * Lote propio de este turno, liberado, pero ninguna corrida tomó de
+   * él todavía → todavía es seguro fijar su volumen real (mueve el 100%
+   * del lote). Apenas corre una línea, esto pasa a ser "Medir tanque".
+   */
+  const loteActivoSinCorrida =
+    loteActivo !== null &&
+    loteActivo.turnoId === turnoId &&
+    !corridasDelTurno.some((c) => c.loteId === loteActivo.id)
   const corridaActivaEnEsteTanque = loteActivo ? (corridasDelTurno.find((l) => l.loteId === loteActivo.id && l.activa) ?? null) : null
   /** Guardrail #1: el tanque tiene producto sin usar — al preparar encima, se suma solo por default (ver iniciar_preparacion). */
   const tieneResto = (tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") && (tanque.volumenL ?? 0) > 0
@@ -486,7 +518,8 @@ function TanqueCard({
 
           {tanque.condicion === "CIP" && (
             <p className="text-sm text-muted-foreground">
-              Proceso de limpieza{tanque.cipIniciadoEn ? ` desde las ${tanque.cipIniciadoEn.slice(11, 16)}` : ""}.
+              Proceso de limpieza
+              {tanque.cipIniciadoEn ? ` desde las ${horaCortaPlanta(tanque.cipIniciadoEn, tanque.cipIniciadoEn)}` : ""}.
             </p>
           )}
         </div>
@@ -598,6 +631,25 @@ function TanqueCard({
               }}
               onCancelar={() => setMostrarFormPrep(false)}
             />
+          ) : mostrarMedir ? (
+            <MedirTanqueInline
+              numeroTanque={tanque.numeroTanque}
+              volumenActual={tanque.volumenL}
+              onMedir={(litros) => onMedirTanque(tanque.numeroTanque, litros)}
+              onListo={() => setMostrarMedir(false)}
+              onCancelar={() => setMostrarMedir(false)}
+            />
+          ) : mostrarFijar && loteActivo ? (
+            <MedirTanqueInline
+              numeroTanque={tanque.numeroTanque}
+              volumenActual={loteActivo.volumenPreparadoL}
+              descripcion={`Volumen REAL del lote en el Tanque ${tanque.numeroTanque} — es el 100% del lote (mueve el punto de partida de la merma). Solo mientras ninguna línea haya corrido.`}
+              notaCero={null}
+              guardarTexto="Fijar volumen"
+              onMedir={(litros) => onFijarVolumenLote(loteActivo.id, litros)}
+              onListo={() => setMostrarFijar(false)}
+              onCancelar={() => setMostrarFijar(false)}
+            />
           ) : (
             <div className="flex flex-col gap-2">
               {tieneResto && (
@@ -615,6 +667,18 @@ function TanqueCard({
                   {cambiandoCip ? <Loader2 className="size-3.5 animate-spin" /> : <BroomSparkles className="size-3.5" />}
                   Iniciar CIP
                 </Button>
+                {(tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") &&
+                  (loteActivoSinCorrida ? (
+                    <Button size="sm" variant="outline" onClick={() => setMostrarFijar(true)}>
+                      <Ruler className="size-3.5" />
+                      Fijar volumen real
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setMostrarMedir(true)}>
+                      <Ruler className="size-3.5" />
+                      Medir tanque
+                    </Button>
+                  ))}
                 {tieneResto && destinosDisponibles.length > 0 && (
                   <Button size="sm" variant="outline" onClick={abrirTransferir}>
                     <ArrowRightLeft className="size-3.5" />
@@ -897,6 +961,7 @@ function TanqueCard({
             <TanqueEditForm
               tanque={tanque}
               sabores={sabores}
+              sinVolumen
               onGuardar={async (datos) => {
                 const resultado = await onCambiarCondicion(datos)
                 if (resultado.ok) setEditando(false)
@@ -1006,15 +1071,19 @@ function FormularioIniciarPreparacion({
           value={tambores}
           onChange={(e) => setTambores(e.target.value)}
         />
-        <Input type="number" min={0} placeholder="Agua (L)" value={agua} onChange={(e) => setAgua(e.target.value)} />
-        <Input type="number" min={0} placeholder="Azúcar (kg)" value={azucar} onChange={(e) => setAzucar(e.target.value)} />
-        <Input
-          type="number"
-          min={0}
-          placeholder="Ácido cítrico (kg)"
-          value={acidoCitrico}
-          onChange={(e) => setAcidoCitrico(e.target.value)}
-        />
+        {MOSTRAR_INSUMOS_PREPARACION && (
+          <>
+            <Input type="number" min={0} placeholder="Agua (L)" value={agua} onChange={(e) => setAgua(e.target.value)} />
+            <Input type="number" min={0} placeholder="Azúcar (kg)" value={azucar} onChange={(e) => setAzucar(e.target.value)} />
+            <Input
+              type="number"
+              min={0}
+              placeholder="Ácido cítrico (kg)"
+              value={acidoCitrico}
+              onChange={(e) => setAcidoCitrico(e.target.value)}
+            />
+          </>
+        )}
       </div>
 
       {DESVASE_HABILITADO && saborId !== "" && desvasesGuardados.length > 0 && (

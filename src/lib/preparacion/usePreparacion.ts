@@ -22,6 +22,7 @@ import {
   cambiarCondicionTanque as cambiarCondicionTanqueAccion,
   capturarRestoOrigenTransferencia as capturarRestoOrigenTransferenciaAccion,
   desvasarTanque as desvasarTanqueAccion,
+  fijarVolumenLote as fijarVolumenLoteAccion,
   medirTanque as medirTanqueAccion,
   transferirTanque as transferirTanqueAccion,
 } from "./ajustes"
@@ -52,6 +53,8 @@ export interface UsePreparacionResultado {
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   liberarLote: (loteId: string) => Promise<Resultado>
   ajustarPreparacion: (loteId: string, litros: number, detalle: string | null) => Promise<Resultado>
+  /** Fija el volumen real del lote (100%) — mueve `volumen_l` Y `volumen_inicial_l`. Solo mientras ninguna corrida tomó del lote. */
+  fijarVolumenLote: (loteId: string, volumenReal: number) => Promise<Resultado>
   transferirTanque: (
     numeroTanqueOrigen: 1 | 2 | 3,
     numeroTanqueDestino: 1 | 2 | 3,
@@ -134,6 +137,13 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     return resultado
   }
 
+  async function fijarVolumenLote(loteId: string, volumenReal: number): Promise<Resultado> {
+    if (!usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await fijarVolumenLoteAccion(usuario, loteId, volumenReal)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
   async function transferirTanque(
     numeroTanqueOrigen: 1 | 2 | 3,
     numeroTanqueDestino: 1 | 2 | 3,
@@ -190,6 +200,7 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     iniciarPreparacion,
     liberarLote,
     ajustarPreparacion,
+    fijarVolumenLote,
     transferirTanque,
     desvasarTanque,
     medirTanque,

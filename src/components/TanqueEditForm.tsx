@@ -28,12 +28,15 @@ export function TanqueEditForm({
   onGuardar,
   onCancelar,
   guardarTexto = "Guardar",
+  sinVolumen = false,
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
   onGuardar: (datos: DatosCambiarTanque) => Promise<Resultado>
   onCancelar?: () => void
   guardarTexto?: string
+  /** Oculta el campo Volumen para un tanque Listo/Con restos: los litros se corrigen con "Medir tanque". El volumen actual se manda sin cambios. */
+  sinVolumen?: boolean
 }) {
   const [condicion, setCondicion] = useState<CondicionTanque>(tanque.condicion)
   const [saborId, setSaborId] = useState(tanque.saborId ?? "")
@@ -62,9 +65,7 @@ export function TanqueEditForm({
     (!requiereDatos && !esPrepConDatos) ||
     (requiereDatos &&
       saborId !== "" &&
-      volumenL !== "" &&
-      Number(volumenL) > 0 &&
-      Number(volumenL) <= 20000 &&
+      (sinVolumen || (volumenL !== "" && Number(volumenL) > 0 && Number(volumenL) <= 20000)) &&
       lote.trim() !== "") ||
     (esPrepConDatos && saborId !== "" && tambores !== "" && Number(tambores) > 0 && lote.trim() !== "")
 
@@ -76,7 +77,7 @@ export function TanqueEditForm({
       numeroTanque: tanque.numeroTanque,
       condicion,
       saborId: requiereDatos || esPrepConDatos ? saborId : null,
-      volumenL: requiereDatos ? Number(volumenL) : null,
+      volumenL: requiereDatos ? Number(volumenL) || (tanque.volumenL ?? 0) : null,
       tambores: esPrepConDatos ? Number(tambores) : null,
       lote: requiereDatos || esPrepConDatos ? normalizarLote(lote) : null,
     })
@@ -124,6 +125,10 @@ export function TanqueEditForm({
               value={tambores}
               onChange={(e) => setTambores(e.target.value)}
             />
+          ) : sinVolumen ? (
+            <p className="self-center text-[11px] text-muted-foreground">
+              Litros: se corrigen con «Medir tanque»
+            </p>
           ) : (
             <Input
               type="number"

@@ -34,6 +34,30 @@ export async function ajustarPreparacion(
   return { ok: true, data }
 }
 
+/**
+ * Fija el volumen REAL del lote (el "100%") — pone `volumen_l` Y
+ * `volumen_inicial_l` en el valor medido. Solo mientras ninguna corrida
+ * haya tomado del lote (después de eso la relectura es medirTanque, que
+ * solo toca `volumen_l`). Ver migración 20261033.
+ */
+export async function fijarVolumenLote(
+  usuario: string,
+  loteId: string,
+  volumenReal: number,
+): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("fijar_volumen_lote", {
+    p_usuario: usuario,
+    p_lote_id: loteId,
+    p_volumen_real: volumenReal,
+  })
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? "No se pudo fijar el volumen del lote. Intenta de nuevo." }
+  }
+
+  return { ok: true, data }
+}
+
 export async function transferirTanque(
   usuario: string,
   turnoId: string,
