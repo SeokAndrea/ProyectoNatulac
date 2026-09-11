@@ -165,7 +165,7 @@ export default function FinalizarTurno() {
         errorActa = resultado.error
       }
     } catch {
-      errorActa = "No se pudo generar el PDF del acta. Podés generarla de nuevo desde Auditoría."
+      errorActa = "No se pudo generar el PDF del acta. Puede generarla de nuevo desde Auditoría."
     }
 
     setFinalizando(false)
