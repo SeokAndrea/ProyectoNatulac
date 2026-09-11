@@ -72,6 +72,14 @@ export interface FilaValidacion {
   sinPt: boolean
   /** true = el turno se cerró automáticamente (cron), no lo finalizó el supervisor. */
   cierreAutomatico: boolean
+  /**
+   * true = hay 2+ corridas CON PT propio (cajas > 0) para esta misma
+   * línea+lote+presentación — sin importar si los totales coinciden.
+   * No bloquea nada (repetir línea+lote es legítimo desde costura 2,
+   * ver plan-rework-3-modulos-y-merma.md §2.3): es la red de seguridad
+   * que reemplaza el bloqueo duro de `activar_linea` de `20261003`.
+   */
+  posibleDuplicado: boolean
   /** Lo que cargó el supervisor (siempre presente). */
   supervisor: ValoresProduccion
   /** Overrides guardados si `estado === "EDITADO"` (los campos que Daniela cambió). */
@@ -128,7 +136,7 @@ export async function listarValidacionProduccion(
     p_fecha_hasta: filtros.fechaHasta || null,
   })
   if (error || !data) return []
-  return (data as FilaRpc[]).map((r) => ({
+  const filas = (data as FilaRpc[]).map((r) => ({
     turnoLineaId: r.turno_linea_id,
     turnoCodigo: r.turno_codigo,
     fecha: r.fecha,
@@ -141,6 +149,7 @@ export async function listarValidacionProduccion(
     estado: r.estado,
     sinPt: r.sin_pt ?? false,
     cierreAutomatico: r.cierre_automatico ?? false,
+    posibleDuplicado: false,
     supervisor: {
       paletas: r.supervisor.paletas,
       cajasSueltas: r.supervisor.cajas_sueltas,
@@ -155,6 +164,29 @@ export async function listarValidacionProduccion(
     validadoPorNombre: r.validado_por_nombre,
     validadoEn: r.validado_en,
   }))
+  marcarPosiblesDuplicados(filas)
+  return filas
+}
+
+/**
+ * Agrupa por línea+lote+presentación (mismo criterio que
+ * auditoriaVista.ts) y marca `posibleDuplicado` en toda fila de un
+ * grupo con 2+ corridas con PT propio (cajas > 0) — sin importar si
+ * los totales coinciden. Muta las filas en el lugar, no devuelve nada.
+ */
+function marcarPosiblesDuplicados(filas: FilaValidacion[]): void {
+  const grupos = new Map<string, FilaValidacion[]>()
+  for (const f of filas) {
+    if (f.supervisor.cajas <= 0) continue
+    const k = `${f.linea}|${f.lote ?? ""}|${f.presentacion}`
+    const g = grupos.get(k)
+    if (g) g.push(f)
+    else grupos.set(k, [f])
+  }
+  for (const g of grupos.values()) {
+    if (g.length < 2) continue
+    for (const f of g) f.posibleDuplicado = true
+  }
 }
 
 const ROTULO_CONDICION: Record<string, string> = {

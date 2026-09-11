@@ -531,8 +531,11 @@ la tarjeta de línea queda con estos botones y nada más:
 - **HECHO** — `finalizar_lote` huérfano: confirmado que solo lo llama `src/lib/turno.tsx`
   (TurnoProvider muerto, se borra en Fase 4) y ninguna función SQL. Dropeada en la misma
   migración.
-- **Pendiente** — Duplicados más allá de "totales idénticos": ampliar `posibleDuplicado` a "N
-  corridas con PT propio para línea+lote+presentación", mostrarlo en VALIDAR. Es la red de
+- **Hecho (2026-09-11)** — Duplicados más allá de "totales idénticos": `posibleDuplicado` en
+  VALIDAR (`src/lib/validacion.ts`, `marcarPosiblesDuplicados`) — agrupa por línea+lote+
+  presentación, marca las filas de un grupo con 2+ corridas con PT propio (cajas > 0), sin
+  importar si los totales coinciden. Badge en `ValidarLista.tsx`. Cliente (no RPC): se calcula
+  sobre lo que `listar_validacion_produccion` ya devuelve, sin migración nueva. Es la red de
   seguridad que reemplaza el bloqueo duro de `activar_linea` de `20261003` (ver Fase 1 costura
   2): repetir línea+lote se permite, pero queda marcado para revisión.
 - **Pendiente** — Reutilización de número de lote tras cerrar: sigue pendiente de decisión del

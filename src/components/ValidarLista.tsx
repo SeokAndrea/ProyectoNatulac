@@ -247,6 +247,9 @@ function FilaCorrida({
         {fila.sinPt && fila.cierreAutomatico && (
           <Badge variant="warning">Sin Producto Terminado — el turno cerró solo</Badge>
         )}
+        {fila.posibleDuplicado && (
+          <Badge variant="warning">Posible duplicado — otra corrida de esta línea·lote·presentación</Badge>
+        )}
         {!editando && (
           <div className="flex shrink-0 items-center gap-1.5">
             <Button
