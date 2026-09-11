@@ -555,9 +555,11 @@ descartó: existió porque a veces "reemplazaban todo" — manejo de desastre, n
 real. Todo resto de semielaborado va a otro tanque (`CONSOLIDAR_RESTOS` / `ENRUTAR_MANIFOLD`)
 o a una pipa (Desvasar); descartarlo no existe en la operación.
 
-**Pendiente para 2.1-bis:** la confirmación de Transferir sigue siendo un panel inline, no un
-modal — el selector de motivo se sumó ahí. Pasarlo a modal es trabajo de 2.1-bis (regla de
-redacción 2 del Contexto).
+**Hecho (2026-09-11):** la confirmación de Transferir pasó de panel inline a modal
+(`src/components/ui/dialog.tsx`, nuevo — el proyecto ya traía el paquete unificado `radix-ui`
+con `Dialog` incluido, no hizo falta instalar nada). Mismo contenido y misma lógica de los dos
+pasos (medir origen → elegir destino/motivo/modo), ahora en `<Dialog>` en vez de expandir la
+tarjeta del tanque.
 
 **Nota de vocabulario — `envasar` ≠ `desvasar`:** "Envasar" en la planta es poner el jugo en
 su empaque final (Producto Terminado). Lo que la función `envasar_tanque()` hacía es lo

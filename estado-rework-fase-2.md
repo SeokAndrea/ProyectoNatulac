@@ -380,10 +380,14 @@ bruscas". → `bc051c1` · `10079e7` · `b5e8e16`
 
 ## Checklist de cierre de Fase 2 (del plan, pendiente)
 
-- [ ] `grep` de voseo sobre todo texto nuevo (vos, tenés, sabés, podés,
-      confirmá, mirá, fijate…).
-- [ ] Confirmar que los avisos largos nuevos quedaron como **modal**, no
-      párrafo inline — la confirmación de Transferir sigue inline, es
-      trabajo de §2.1-bis.
+- [x] `grep` de voseo sobre todo texto nuevo (vos, tenés, sabés, podés,
+      confirmá, mirá, fijate…) — 2026-09-11, un solo caso real
+      (`FinalizarTurno.tsx`), corregido.
+- [x] Confirmar que los avisos largos nuevos quedaron como **modal**, no
+      párrafo inline — 2026-09-11: la confirmación de Transferir pasó a
+      `<Dialog>` (`src/components/ui/dialog.tsx`, nuevo).
 - [x] `npm test` + `npm run build` — verde en cada commit.
-- [ ] Actualizar `supabase/ESQUEMA.md` / `MAPA.md`.
+- [~] Actualizar `supabase/ESQUEMA.md` / `MAPA.md` — primer incremento
+      hecho 2026-09-11 (arquitectura de 3 módulos + `recepcion_tanques`
+      corregido); la tabla de migraciones de `ESQUEMA.md` sigue sin
+      completar desde `20260910`, se sigue de a poco.

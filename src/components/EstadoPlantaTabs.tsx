@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
 import { MedirTanqueInline } from "@/components/MedirTanqueInline"
 import { TanqueEditForm } from "@/components/TanqueEditForm"
@@ -706,168 +707,181 @@ function TanqueCard({
           </p>
         )}
 
-        {modo === "preparacion" && mostrarTransferir && !origenConfirmado && (
-          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
-            <p className="text-xs break-words text-foreground">
-              Antes de mover: <span className="font-medium">mide el Tanque {tanque.numeroTanque}</span> y confirma cuánto tiene
-              de verdad. Se transfiere ese volumen.
-            </p>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                className="h-8 w-24"
-                value={volOrigenReal}
-                onChange={(e) => setVolOrigenReal(e.target.value)}
-              />
-              <span className="text-xs text-muted-foreground">L</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                disabled={confirmandoOrigen || volOrigenReal.trim() === "" || Number(volOrigenReal) < 0}
-                onClick={confirmarOrigen}
-              >
-                {confirmandoOrigen ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                {Number(volOrigenReal) === (tanque.volumenL ?? 0) ? "Es correcto, seguir" : "Guardar y seguir"}
-              </Button>
-              <Button size="sm" variant="ghost" disabled={confirmandoOrigen} onClick={cerrarTransferir}>
-                Cancelar
-              </Button>
-            </div>
-            {errorTransferir && (
-              <p className="text-xs text-destructive" role="alert">
-                {errorTransferir}
-              </p>
-            )}
-          </div>
-        )}
+        <Dialog
+          open={modo === "preparacion" && mostrarTransferir}
+          onOpenChange={(open) => {
+            if (!open) cerrarTransferir()
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Transferir Tanque {tanque.numeroTanque}</DialogTitle>
+              {!origenConfirmado && (
+                <DialogDescription>
+                  Antes de mover: mide el Tanque {tanque.numeroTanque} y confirma cuánto tiene de verdad. Se transfiere ese
+                  volumen.
+                </DialogDescription>
+              )}
+            </DialogHeader>
 
-        {modo === "preparacion" && mostrarTransferir && origenConfirmado && (
-          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-            <p className="text-xs text-muted-foreground">
-              Manda los <span className="font-medium text-foreground">{volumenTransferido.toLocaleString("es-CO")} L</span> de{" "}
-              {tanque.saborNombre} a otro tanque con el mismo sabor — este tanque queda Sucio.
-            </p>
-            <Select value={String(tanqueDestino)} onValueChange={(v) => setTanqueDestino(Number(v) as 1 | 2 | 3)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Tanque destino" />
-              </SelectTrigger>
-              <SelectContent>
-                {destinosDisponibles.map((t) => (
-                  <SelectItem key={t.numeroTanque} value={String(t.numeroTanque)}>
-                    {t.condicion === "LIMPIO"
-                      ? `Tanque ${t.numeroTanque} · Limpio (mueve el lote entero)`
-                      : `Tanque ${t.numeroTanque} · ${t.saborNombre} · ${(t.volumenL ?? 0).toLocaleString("es-CO")} L`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="flex flex-col gap-1.5">
-              <p className="text-xs text-muted-foreground">¿Por qué se transfiere?</p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={motivoTransferencia === "CONSOLIDAR_RESTOS" ? "default" : "outline"}
-                  onClick={() => setMotivoTransferencia("CONSOLIDAR_RESTOS")}
-                >
-                  Consolidar restos
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={motivoTransferencia === "ENRUTAR_MANIFOLD" ? "default" : "outline"}
-                  onClick={() => setMotivoTransferencia("ENRUTAR_MANIFOLD")}
-                >
-                  No parar la línea
-                </Button>
-              </div>
-            </div>
-
-            {destinoConLotePropio && (
-              <div className="flex flex-col gap-1.5">
-                <p className="text-xs text-muted-foreground">
-                  El tanque destino ya tiene su propio lote — ¿qué identidad se queda?
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={modoTransferencia === "LIQUIDO" ? "default" : "outline"}
-                    onClick={() => setModoTransferencia("LIQUIDO")}
-                  >
-                    Líquido
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={modoTransferencia === "LOTE" ? "default" : "outline"}
-                    onClick={() => setModoTransferencia("LOTE")}
-                  >
-                    Lote
-                  </Button>
+            {!origenConfirmado ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    className="h-8 w-24"
+                    value={volOrigenReal}
+                    onChange={(e) => setVolOrigenReal(e.target.value)}
+                  />
+                  <span className="text-xs text-muted-foreground">L</span>
                 </div>
-                <p className="text-[11px] break-words text-muted-foreground">
-                  {modoTransferencia === "LIQUIDO"
-                    ? "El líquido se suma al lote que ya tiene el destino."
-                    : "Este lote se muda al tanque destino y absorbe lo que el destino ya tenía."}
+                {errorTransferir && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {errorTransferir}
+                  </p>
+                )}
+                <DialogFooter>
+                  <Button
+                    size="sm"
+                    disabled={confirmandoOrigen || volOrigenReal.trim() === "" || Number(volOrigenReal) < 0}
+                    onClick={confirmarOrigen}
+                  >
+                    {confirmandoOrigen ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                    {Number(volOrigenReal) === (tanque.volumenL ?? 0) ? "Es correcto, seguir" : "Guardar y seguir"}
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={confirmandoOrigen} onClick={cerrarTransferir}>
+                    Cancelar
+                  </Button>
+                </DialogFooter>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Manda los <span className="font-medium text-foreground">{volumenTransferido.toLocaleString("es-CO")} L</span>{" "}
+                  de {tanque.saborNombre} a otro tanque con el mismo sabor — este tanque queda Sucio.
                 </p>
+                <Select value={String(tanqueDestino)} onValueChange={(v) => setTanqueDestino(Number(v) as 1 | 2 | 3)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Tanque destino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {destinosDisponibles.map((t) => (
+                      <SelectItem key={t.numeroTanque} value={String(t.numeroTanque)}>
+                        {t.condicion === "LIMPIO"
+                          ? `Tanque ${t.numeroTanque} · Limpio (mueve el lote entero)`
+                          : `Tanque ${t.numeroTanque} · ${t.saborNombre} · ${(t.volumenL ?? 0).toLocaleString("es-CO")} L`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-xs text-muted-foreground">¿Por qué se transfiere?</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={motivoTransferencia === "CONSOLIDAR_RESTOS" ? "default" : "outline"}
+                      onClick={() => setMotivoTransferencia("CONSOLIDAR_RESTOS")}
+                    >
+                      Consolidar restos
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={motivoTransferencia === "ENRUTAR_MANIFOLD" ? "default" : "outline"}
+                      onClick={() => setMotivoTransferencia("ENRUTAR_MANIFOLD")}
+                    >
+                      No parar la línea
+                    </Button>
+                  </div>
+                </div>
+
+                {destinoConLotePropio && (
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-xs text-muted-foreground">
+                      El tanque destino ya tiene su propio lote — ¿qué identidad se queda?
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={modoTransferencia === "LIQUIDO" ? "default" : "outline"}
+                        onClick={() => setModoTransferencia("LIQUIDO")}
+                      >
+                        Líquido
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={modoTransferencia === "LOTE" ? "default" : "outline"}
+                        onClick={() => setModoTransferencia("LOTE")}
+                      >
+                        Lote
+                      </Button>
+                    </div>
+                    <p className="text-[11px] break-words text-muted-foreground">
+                      {modoTransferencia === "LIQUIDO"
+                        ? "El líquido se suma al lote que ya tiene el destino."
+                        : "Este lote se muda al tanque destino y absorbe lo que el destino ya tenía."}
+                    </p>
+                  </div>
+                )}
+
+                {tanqueDestinoElegido && (
+                  <p className="text-xs text-muted-foreground">
+                    Se transfieren <span className="font-medium text-foreground">{volumenTransferido.toLocaleString("es-CO")} L</span>.
+                    El Tanque {tanqueDestinoElegido.numeroTanque} queda con ~
+                    <span className="font-medium text-foreground">{volumenDestinoResultante.toLocaleString("es-CO")} L</span>{" "}
+                    (calculado — falta medir el tanque).
+                    {volumenDestinoResultante > TANK_CAPACITY && !transferExcedeMax && (
+                      <span className="text-warning">
+                        {" "}
+                        Queda sobre los {TANK_CAPACITY.toLocaleString("es-CO")} L nominales del tanque.
+                      </span>
+                    )}
+                  </p>
+                )}
+
+                {transferExcedeMax && (
+                  <p className="text-xs text-destructive" role="alert">
+                    No se puede: el Tanque {tanqueDestinoElegido?.numeroTanque} quedaría con ~
+                    {volumenDestinoResultante.toLocaleString("es-CO")} L y el máximo permitido es{" "}
+                    {TANK_MAX_VOLUMEN.toLocaleString("es-CO")} L. Baja primero el tanque destino o transfiere a otro.
+                  </p>
+                )}
+
+                {confirmandoRedireccion && corridaActivaEnEsteTanque && (
+                  <p className="text-xs text-warning">
+                    La corrida activa de esta línea va a pasar a tomar del tanque destino al confirmar. ¿Continuar?
+                  </p>
+                )}
+
+                {errorTransferir && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {errorTransferir}
+                  </p>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    size="sm"
+                    disabled={tanqueDestino === "" || transfiriendo || transferExcedeMax}
+                    onClick={transferir}
+                  >
+                    {transfiriendo ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRightLeft className="size-3.5" />}
+                    {confirmandoRedireccion ? "Sí, transferir" : "Transferir"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={cerrarTransferir} disabled={transfiriendo}>
+                    Cancelar
+                  </Button>
+                </DialogFooter>
               </div>
             )}
-
-            {tanqueDestinoElegido && (
-              <p className="text-xs text-muted-foreground">
-                Se transfieren <span className="font-medium text-foreground">{volumenTransferido.toLocaleString("es-CO")} L</span>.
-                El Tanque {tanqueDestinoElegido.numeroTanque} queda con ~
-                <span className="font-medium text-foreground">{volumenDestinoResultante.toLocaleString("es-CO")} L</span>{" "}
-                (calculado — falta medir el tanque).
-                {volumenDestinoResultante > TANK_CAPACITY && !transferExcedeMax && (
-                  <span className="text-warning">
-                    {" "}
-                    Queda sobre los {TANK_CAPACITY.toLocaleString("es-CO")} L nominales del tanque.
-                  </span>
-                )}
-              </p>
-            )}
-
-            {transferExcedeMax && (
-              <p className="text-xs text-destructive" role="alert">
-                No se puede: el Tanque {tanqueDestinoElegido?.numeroTanque} quedaría con ~
-                {volumenDestinoResultante.toLocaleString("es-CO")} L y el máximo permitido es{" "}
-                {TANK_MAX_VOLUMEN.toLocaleString("es-CO")} L. Baja primero el tanque destino o transfiere a otro.
-              </p>
-            )}
-
-            {confirmandoRedireccion && corridaActivaEnEsteTanque && (
-              <p className="text-xs text-warning">
-                La corrida activa de esta línea va a pasar a tomar del tanque destino al confirmar. ¿Continuar?
-              </p>
-            )}
-
-            {errorTransferir && (
-              <p className="text-xs text-destructive" role="alert">
-                {errorTransferir}
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                disabled={tanqueDestino === "" || transfiriendo || transferExcedeMax}
-                onClick={transferir}
-              >
-                {transfiriendo ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRightLeft className="size-3.5" />}
-                {confirmandoRedireccion ? "Sí, transferir" : "Transferir"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={cerrarTransferir} disabled={transfiriendo}>
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
 
         {modo === "preparacion" && medirDestino !== null && destinoMedicion && (
           <div className="flex flex-col gap-3 rounded-lg border border-dashed border-warning/40 bg-warning-soft/30 p-3">
