@@ -10,12 +10,31 @@ migración nueva) y después se actualiza este resumen.
 Estado actual: el esquema y los datos semilla YA están escritos y el
 proyecto YA está vinculado a Supabase (`supabase/.temp/`). Conectados
 de verdad al frontend: `src/lib/personal.ts`, `src/lib/auth.tsx`,
-`src/lib/sabores.ts` y `src/lib/turno.tsx` (turnos, líneas del turno,
-recepción de tanques y contadores). Todavía como copia local
-(hardcodeada) mientras se conecta: `src/lib/catalogos.ts` para
-presentaciones/velocidades/familias/sabores en los formularios que
-no sean Edición de Datos — ver los comentarios en esos archivos y en
-[MAPA.md](../MAPA.md).
+`src/lib/sabores.ts`, y los 3 módulos de dominio
+(`src/lib/preparacion/`, `src/lib/produccion/`,
+`src/lib/productoTerminado.ts` — ver [MAPA.md](../MAPA.md), sección
+"Arquitectura actual"; `src/lib/turno.tsx` es el módulo viejo, se está
+vaciando de a poco). Todavía como copia local (hardcodeada) mientras
+se conecta: `src/lib/catalogos.ts` para áreas/roles/turnos/grupos.
+
+**Brecha conocida de este documento (2026-09-11):** la sección
+"Tablas"/"Funciones" de abajo describe el esquema de las primeras
+~15 migraciones (hasta `20260910`); hoy hay más de 125. Cosas que
+YA cambiaron y este resumen todavía no refleja bien:
+- `recepcion_tanques.condicion` ya NO es `VOLUMEN | SUCIO | VACIO |
+  EN_PREPARACION` — ver la tabla corregida más abajo.
+- `turno_lineas` pasó de "una fila fija por línea" a "una fila por
+  CORRIDA" (`20260909`), y de ahí a un modelo de dos estados donde
+  `ESPERANDO_PT` separa "la línea se detuvo" de "se cerró de verdad"
+  (`20261018`, ver `plan-rework-3-modulos-y-merma.md` Fase 1 costura 2).
+- Tablas nuevas que no están documentadas acá todavía: `preparaciones_ajuste`,
+  `desvases`, `transferencias`, `turnos_historial`, `contadores_historial`,
+  auditoría universal (`registrar_auditoria`), VALIDAR.
+- La tabla "Migraciones, en orden" de más abajo se corta en `20260910`
+  a propósito — completarla de una sola vez es un trabajo grande; se
+  va llenando de a poco. Para lo más reciente, `estado-rework-fase-2.md`
+  y `plan-rework-3-modulos-y-merma.md` tienen el detalle migración por
+  migración de `20261013` en adelante.
 
 ---
 
@@ -235,17 +254,34 @@ sola vez al iniciar el turno, se activa/cambia en cualquier momento
 desde Preparación (`src/pages/apps/Preparacion.tsx`) y `iniciar_turno()`
 copia la fila más reciente de la misma área al turno nuevo en vez de
 pedirla de nuevo. Sabor y volumen solo tienen sentido cuando
-`condicion = 'VOLUMEN'` (sucio/vacío/en preparación no los tienen).
+`condicion` es `LISTO` o `STANDBY` (sucio/limpio/en preparación no
+los tienen).
+
+**Condición actualizada (2026-09-11, reemplaza la tabla vieja de esta
+sección):** `VOLUMEN`→`LISTO` (`20260910`), se agregaron `STANDBY`
+(lote con resto — candidato a fusionarse con `SUCIO`, ver
+`plan-rework-3-modulos-y-merma.md` §"Estados de tanque y línea") y
+`CIP`; `VACIO` se fusionó en `LIMPIO`
+(`20260946090000_eliminar_vacio_fusiona_con_limpio.sql`).
 
 | Columna | Notas |
 |---|---|
 | turno_id, numero_tanque | únicos juntos (1 fila por tanque por turno, tanques 1-3) |
-| sabor_id | FK a `sabores`, obligatorio solo si `condicion = 'VOLUMEN'` |
-| condicion | `VOLUMEN` \| `SUCIO` \| `VACIO` \| `EN_PREPARACION` |
-| volumen_l | 0 a 20.000 |
+| sabor_id | FK a `sabores`, obligatorio solo si `condicion` es `LISTO`/`STANDBY` |
+| condicion | `LISTO` \| `SUCIO` \| `EN_PREPARACION` \| `STANDBY` \| `CIP` \| `LIMPIO` |
+| volumen_l | **derivado en vivo** desde `20261031` (`volumen_vivo_tanque()`, fuente única) — antes era una columna que se "congelaba" |
 | lote | texto libre, cargado a mano |
 | activada_en | cuándo se puso en la condición actual (no se resetea al heredarse a un turno nuevo) |
-| ultimo_sabor_id, ultimo_lote | copiados automáticamente al pasar de `VOLUMEN` a `SUCIO` — para mostrar "último sabor · lote" sin volver a escribirlo |
+| cip_iniciado_en, cip_finalizado_en | ciclo de CIP (`20260942090000_cip_limpio_tanques.sql`) |
+| confirmado_inicio_en/por, confirmado_fin_en/por | confirmar un tanque heredado sin editarlo (`confirmar_estado_tanque`, `20260924`) |
+| ultimo_sabor_id, ultimo_lote | copiados automáticamente al pasar de `LISTO`/`STANDBY` a `SUCIO`/`CIP`/`LIMPIO` — para mostrar "último sabor · lote" sin volver a escribirlo |
+
+Función principal que la toca: `cambiar_condicion_tanque(...)` — hoy
+mezcla varias responsabilidades (toggle de CIP, confirmar INICIO/FIN,
+alta de preparación con datos) que el plan de Fase 2 (§2.1) quiere
+angostar; ya se le extrajeron `medir_tanque` (`20261021`) y
+`fijar_volumen_lote` (`20261033`, corrige el 100% del lote antes de
+que corra la primera línea).
 
 Un tanque `EN_PREPARACION` se resuelve más tarde en la tabla
 `preparaciones` (puede tener varias filas, una por cada vez que se
@@ -315,9 +351,9 @@ coincida con los códigos que ya usaba el frontend — antes solo tenía
 | `iniciar_turno(usuario, area_codigo, turno_tipo_codigo, grupo_codigo, fecha, hora_inicio)` | Crea el turno; ya NO recibe líneas/tanques — los hereda del turno más reciente de la misma área (o arranca con los 3 tanques VACÍO y ninguna línea si es la primera vez) |
 | `activar_linea(usuario, turno_id, linea_codigo, presentacion_volumen_ml, envases_hora, litros_hora, sabor_id, lote, tanque_numero)` | Activa o actualiza una línea en cualquier momento del turno (upsert por `turno_id, linea_id`) |
 | `detener_linea(usuario, turno_id, linea_codigo)` | Borra la fila de esa línea en `turno_lineas` — deja de estar en uso |
-| `cambiar_condicion_tanque(usuario, turno_id, numero_tanque, condicion, sabor_id, volumen_l, lote)` | Cambia la condición de un tanque en cualquier momento; si pasa de VOLUMEN a SUCIO copia el sabor/lote a `ultimo_sabor_id`/`ultimo_lote` |
-| `finalizar_turno(turno_id)` | Cierra el turno (`estado = 'CERRADO'`) |
-| `registrar_contador(turno_id, linea_codigo, envases_llenadora, envases_buenos, envases_desechados, justificacion, usuario)` | Inserta un contador y lo devuelve |
+| `cambiar_condicion_tanque(usuario, turno_id, numero_tanque, condicion, sabor_id, volumen_l, lote, momento?, tambores?)` | **Firma vieja de referencia — ya cambió mucho, ver la nota en la sección `recepcion_tanques` de arriba.** Hoy también maneja CIP y confirmar INICIO/FIN; `medir_tanque` y `fijar_volumen_lote` se le extrajeron aparte |
+| `finalizar_turno(turno_id)` | Cierra el turno; desde `20261018`/`20261028` (costura 2, Fase 1) rechaza si queda una corrida sin resolver (`ESPERANDO_PT`, o activa sin PT del tramo) — ya NO recibe `p_fecha_fin`/`p_hora_fin`, los calcula el servidor en hora de planta (`20261032`) |
+| `registrar_contador(turno_id, turno_linea_id, linea_codigo, envases_llenadora, justificacion, usuario, parcial?, pagina?, envases_buenos)` | Inserta un contador. **Ya no tiene `envases_desechados`** (se calcula, columna generada). `envases_buenos` (Contador 2) es obligatorio desde el servidor y no puede superar `envases_llenadora` (`20261036`, 2026-09-11) |
 
 ## Row Level Security (RLS)
 
@@ -367,3 +403,8 @@ npx supabase db push
 | `20260908090000_estado_planta_sin_turno_abierto.sql` | `estado_planta_actual()` reemplaza a `turno_abierto_ahora()` como fuente de la vista "en vivo" del Panel de Producción: busca el turno más reciente en general (abierto o cerrado), no solo uno con `estado = 'ABIERTO'` — antes, el panel se veía "vacío" en el hueco entre que un supervisor finalizaba su turno y el siguiente empezaba el suyo |
 | `20260909090000_lotes_y_corridas.sql` | Cada preparación pasa a ser un LOTE independiente (no se suman); `turno_lineas` deja de ser una fila fija por línea — ahora una fila por CORRIDA (con `lote_id`, `activa`, `finalizada_en`), `detener_linea` se renombra a `finalizar_linea` y ARCHIVA en vez de borrar; nuevo `finalizar_lote()`; `contadores` pierde `envases_buenos`/`envases_desechados` (un solo valor, `envases_llenadora`, ligado a `turno_linea_id`) y ya no calcula merma como columna generada; `producto_terminado` se re-referencia a `turno_linea_id` (upsert por corrida, no por línea); `estadisticas_produccion()` pasa de "una fila por (turno, línea)" a "una fila por corrida" |
 | `20260910090000_recepcion_y_liberacion.sql` | Condición de tanque `VOLUMEN` se renombra a `LISTO` (dato + constraint). `preparaciones` gana `volumen_l` y `liberado_en`. Nuevo `iniciar_preparacion()`: crea el lote completo (sabor/lote/volumen/tambores/ajustes) de una sola vez y pone el tanque en `EN_PREPARACION` — reemplaza al viejo combo `cambiar_condicion_tanque` + `registrar_preparacion` (que se borra). Nuevo `liberar_lote()`: marca el lote liberado y pasa el tanque a `LISTO`, copiando sabor/lote/volumen. `activar_linea()` cambia de firma: ahora pide `p_numero_tanque` (debe estar `LISTO`) en vez de `p_lote_id` suelto — el lote/sabor se resuelven solos |
+
+**(tabla incompleta a propósito, ver la nota de "brecha conocida" al
+principio del documento — hay más de 125 migraciones después de esta;
+`20260911` en adelante todavía no tiene su fila acá. Se completa de a
+poco, no de una sola vez.)**
