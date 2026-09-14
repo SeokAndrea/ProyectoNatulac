@@ -37,7 +37,7 @@ export default function ParadasDemo() {
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold text-foreground">Panel de Paradas — dashboard</h2>
-        <PanelParadasVista paradas={todas} presetInicial="DIAS_7" />
+        <PanelParadasVista paradas={todas} />
       </section>
 
       <section className="flex flex-col gap-2 rounded-xl border border-border bg-muted/20 p-4">

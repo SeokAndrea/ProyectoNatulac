@@ -110,9 +110,32 @@ export interface Parada {
   /** null = parada abierta (en curso / "Continúa" al cerrar el turno). */
   fin: string | null
   supervisorNombre: string | null
+  /**
+   * Sabor/familia/presentación que corría en esa línea al momento de la
+   * parada — opcionales: null/undefined cuando no aplica (CIP, orden y
+   * limpieza, liberación de vapor: la línea no tenía nada corriendo) o
+   * cuando quien registra la parada no lo sabe (RegistroParadas no pide
+   * este dato — no es algo que el supervisor tipee). Hoy solo lo trae el
+   * fixture de demo (FASE A′); en la base real se resuelve por
+   * línea+instante contra Producción (`turno_lineas`), Paradas no lo
+   * guarda por su cuenta.
+   */
+  saborNombre?: string | null
+  familiaNombre?: string | null
+  presentacionMl?: number | null
 }
 
 export const paradaAbierta = (p: Parada) => p.fin === null
+
+/**
+ * Paradas abiertas ("— Continúa") de estas líneas — usado por Finalizar
+ * Turno / el Acta (FASE A′, plan-paradas.md §3): vista previa contra el
+ * fixture, todavía no está atada al `turno_id` real (eso es FASE B′).
+ */
+export function paradasAbiertasDeLineas(paradas: Parada[], lineasCodigos: Iterable<string>): Parada[] {
+  const set = new Set(lineasCodigos)
+  return paradas.filter((p) => paradaAbierta(p) && set.has(p.lineaCodigo))
+}
 
 // ------------------------------------------------------------
 // Duración y desvío
@@ -210,6 +233,8 @@ export interface GrupoTipo {
   guiaMin: number
   /** minutos − guiaMin, contando solo las que tienen guía. null si ninguna la tiene. */
   desvioMin: number | null
+  /** Solo cuando el agrupado distingue línea (porTipoYLinea) — undefined en porTipo()/porTipoPorFrecuencia(). */
+  lineaCodigo?: string
 }
 /** Minutos + frecuencia + desvío por TIPO — "qué tipo pesa más y cuánto se pasa de su guía". */
 export function porTipo(paradas: Parada[], ahora?: Date): GrupoTipo[] {
@@ -241,6 +266,108 @@ export function porTipo(paradas: Parada[], ahora?: Date): GrupoTipo[] {
       desvioMin: g.guiaMin > 0 || _conGuia > 0 ? _conGuia - g.guiaMin : null,
     }))
     .sort((a, b) => b.minutos - a.minutos || b.veces - a.veces)
+}
+
+/** Mismo agrupado de porTipo(), pero ordenado por CANTIDAD de veces en vez de minutos — "Top Paradas por Frecuencia". */
+export function porTipoPorFrecuencia(paradas: Parada[], ahora?: Date): GrupoTipo[] {
+  return porTipo(paradas, ahora).sort((a, b) => b.veces - a.veces || b.minutos - a.minutos)
+}
+
+/**
+ * Como porTipo(), pero agrupa por TIPO + LÍNEA (no solo tipo) — para los
+ * rankings que mezclan las 3 líneas (Top Paradas por Frecuencia/Tiempo del
+ * Panel): el mismo tipo puede repetirse una vez por línea, y cada fila
+ * sabe de cuál línea es (`lineaCodigo`).
+ */
+export function porTipoYLinea(paradas: Parada[], ahora?: Date): GrupoTipo[] {
+  const m = new Map<string, GrupoTipo & { _conGuia: number }>()
+  for (const p of paradas) {
+    const clave = `${p.lineaCodigo}::${p.tipoCodigo ?? `OCIOSO:${p.tipoNombre}`}`
+    const g = m.get(clave) ?? {
+      codigo: clave,
+      nombre: p.tipoNombre,
+      clase: p.clase,
+      lineaCodigo: p.lineaCodigo,
+      veces: 0,
+      minutos: 0,
+      guiaMin: 0,
+      desvioMin: null,
+      _conGuia: 0,
+    }
+    const min = duracionMin(p, ahora)
+    g.veces += 1
+    g.minutos += min
+    if (p.tiempoGuiaMin != null) {
+      g.guiaMin += p.tiempoGuiaMin
+      g._conGuia += min
+    }
+    m.set(clave, g)
+  }
+  return [...m.values()]
+    .map(({ _conGuia, ...g }) => ({
+      ...g,
+      desvioMin: g.guiaMin > 0 || _conGuia > 0 ? _conGuia - g.guiaMin : null,
+    }))
+    .sort((a, b) => b.minutos - a.minutos || b.veces - a.veces)
+}
+
+/** Mismo agrupado de porTipoYLinea(), ordenado por CANTIDAD de veces — "Top Paradas por Frecuencia". */
+export function porTipoYLineaPorFrecuencia(paradas: Parada[], ahora?: Date): GrupoTipo[] {
+  return porTipoYLinea(paradas, ahora).sort((a, b) => b.veces - a.veces || b.minutos - a.minutos)
+}
+
+// ------------------------------------------------------------
+// Por sabor / familia / presentación — qué se estaba corriendo cuando
+// pasó la parada (ver nota de `Parada`, más abajo del todo). Las que no
+// tienen dato (CIP, orden y limpieza, liberación de vapor) quedan afuera.
+// ------------------------------------------------------------
+
+export interface GrupoAtributo {
+  clave: string
+  veces: number
+  minutos: number
+}
+
+function agruparPorAtributo(paradas: Parada[], obtenerClave: (p: Parada) => string | null | undefined, ahora?: Date): GrupoAtributo[] {
+  const m = new Map<string, GrupoAtributo>()
+  for (const p of paradas) {
+    const clave = obtenerClave(p)
+    if (clave == null) continue
+    const g = m.get(clave) ?? { clave, veces: 0, minutos: 0 }
+    g.veces += 1
+    g.minutos += duracionMin(p, ahora)
+    m.set(clave, g)
+  }
+  return [...m.values()].sort((a, b) => b.minutos - a.minutos || b.veces - a.veces)
+}
+
+export function porSabor(paradas: Parada[], ahora?: Date): GrupoAtributo[] {
+  return agruparPorAtributo(paradas, (p) => p.saborNombre, ahora)
+}
+
+export function porFamilia(paradas: Parada[], ahora?: Date): GrupoAtributo[] {
+  return agruparPorAtributo(paradas, (p) => p.familiaNombre, ahora)
+}
+
+export function porPresentacion(paradas: Parada[], ahora?: Date): GrupoAtributo[] {
+  return agruparPorAtributo(paradas, (p) => (p.presentacionMl != null ? `${p.presentacionMl} ml` : null), ahora)
+}
+
+const MINUTOS_POR_TURNO_APROX = 8 * 60
+
+/**
+ * Disponibilidad aproximada de un conjunto de paradas: 1 − (minutos
+ * perdidos ÷ minutos planificados). `MINUTOS_POR_TURNO_APROX` asume 8h
+ * parejas por turno — aproximación de FASE A′ para el Panel de Paradas;
+ * se afina en FASE B′ contra la duración real de cada `turno_tipo`
+ * (`horasTranscurridasTurno` en src/lib/reportes/index.ts ya hace eso
+ * para un turno puntual, no para un rango).
+ */
+export function disponibilidadAprox(paradas: Parada[], cantidadTurnos: number, cantidadLineas: number, ahora?: Date): number {
+  const planificados = cantidadTurnos * MINUTOS_POR_TURNO_APROX * cantidadLineas
+  if (planificados <= 0) return 100
+  const perdidos = paradas.reduce((a, p) => a + duracionMin(p, ahora), 0)
+  return Math.max(0, Math.min(100, Math.round((1 - perdidos / planificados) * 100)))
 }
 
 export interface PuntoDiaParada {

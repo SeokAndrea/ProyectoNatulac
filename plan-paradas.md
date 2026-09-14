@@ -151,28 +151,27 @@ Restaurar a `rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPE
 
 ## 3. Fases del rumbo nuevo
 
-### FASE A′ — UI contra fixture (rehacer)
+### FASE A′ — UI contra fixture (rehacer) — **HECHA (2026-09-13)**
 
-- [ ] Modelo TS nuevo: `TipoParada` (nombre, clase, tiempoGuiaMin, codigo) +
-  `Parada` (turno, linea, tipo, clase, origen, inicio, fin, nota). Fixture chico.
-- [ ] Página **Registro de Paradas** ([src/pages/apps/Paradas.tsx](src/pages/apps/Paradas.tsx)):
-  - selector de línea (las 3 del turno);
-  - pestaña **Programada** — checklist del catálogo con hora de inicio, guardar
-    parcial (solo inicio) y cerrar (fin), confirmación doble al cerrar (ver
-    memoria de acciones bruscas);
-  - sección **Tiempo Ocioso** — entradas de texto libre + inicio + tiempo guía
-    opcional, cerrar con fin;
-  - pestaña **No Programada** — **solo lectura**, lee del fixture como si viniera
-    del Sheet.
-- [ ] Página **Panel de Paradas** ([src/pages/apps/PanelParadas.tsx](src/pages/apps/PanelParadas.tsx)),
-  estilo Panel de Producción: tiempo perdido / ocioso / disponibilidad por
-  línea, reparto por clase, desvío real vs. tiempo guía por tipo, tendencia por
-  día, lista con filtros.
-- [ ] `TopFallasPanel` del Panel de Producción → modelo nuevo (reflejo resumido
-  del turno: minutos por clase + top tipos por línea).
-- [ ] Resumen **"— Continúa"** en Finalizar Turno / Acta (mock con el fixture).
-- [ ] Rutas + tiles nuevos en [src/App.tsx](src/App.tsx) / [src/lib/apps.tsx](src/lib/apps.tsx)
-  (Panel de Paradas a todos; Registro gated a PRUEBAS hasta FASE B′).
+- [x] Modelo TS nuevo: `TipoParada` (nombre, clase, tiempoGuiaMin, codigo) +
+  `Parada` (turno, linea, tipo, clase, origen, inicio, fin, nota). Fixture chico
+  ([src/lib/paradas.ts](src/lib/paradas.ts), [src/lib/paradasDemoFixture.ts](src/lib/paradasDemoFixture.ts)).
+- [x] Página **Registro de Paradas** ([src/pages/apps/Paradas.tsx](src/pages/apps/Paradas.tsx) +
+  [src/components/RegistroParadas.tsx](src/components/RegistroParadas.tsx)).
+- [x] Página **Panel de Paradas** ([src/pages/apps/PanelParadas.tsx](src/pages/apps/PanelParadas.tsx) +
+  [src/components/PanelParadasVista.tsx](src/components/PanelParadasVista.tsx)).
+- [x] `TopFallasPanel` del Panel de Producción → modelo nuevo.
+- [x] **Hecho (2026-09-13)** — Resumen **"— Continúa"** en Finalizar Turno / Acta:
+  `paradasAbiertasDeLineas()` en `paradas.ts` filtra las paradas abiertas del
+  fixture para las líneas activas del turno; se muestra en una sección
+  "Paradas" de [FinalizarTurno.tsx](src/pages/apps/FinalizarTurno.tsx) (rotulada
+  "vista previa", ver nota abajo) y en una tabla nueva del Acta PDF
+  ([actaPdf.ts](src/lib/actaPdf.ts)). Sigue siendo mock: el fixture no está
+  atado al `turno_id` real (recién en FASE B′), así que lo que se ve es
+  "¿hay alguna parada del fixture abierta ahora mismo en una línea activa de
+  este turno?", no datos reales de esa corrida.
+- [x] Rutas + tiles nuevos en [src/App.tsx](src/App.tsx) / [src/lib/apps.tsx](src/lib/apps.tsx)
+  (gateados a `PRUEBAS` hasta FASE B′, como corresponde a esta fase).
 
 ### FASE B′ — base + persistencia (Programada + Ocioso)
 

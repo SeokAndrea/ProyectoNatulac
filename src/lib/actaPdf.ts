@@ -10,6 +10,7 @@ import type { TanqueEncontrado } from "@/lib/sesionTurno"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
+import type { Parada } from "@/lib/paradas"
 
 /**
  * Genera el acta de turno como PDF (jsPDF + jspdf-autotable) — reemplaza
@@ -31,6 +32,8 @@ export function generarActaPdf(params: {
   corridas: Corrida[]
   contadores: ContadorRegistro[]
   productoTerminado: ProductoTerminadoRegistro[]
+  /** Vista previa FASE A′ (plan-paradas.md §3) — todavía no atado al turno real. */
+  paradasAbiertas?: Parada[]
   supervisorNombre: string
   area: AreaCodigo | null
   lineas: LineaLive[]
@@ -46,8 +49,10 @@ export function generarActaPdf(params: {
     corridas,
     contadores,
     productoTerminado,
+    paradasAbiertas,
     supervisorNombre,
     area,
+    lineas,
     presentaciones,
   } = params
   const doc = new jsPDF({ unit: "mm", format: "a4" })
@@ -131,7 +136,7 @@ export function generarActaPdf(params: {
         const merma = mermaCorrida(corrida.id, contadores, productoTerminado, presentaciones)
         if (merma) {
           mermas.push(merma.pct)
-          const contadorConJustificacion = contadores.find((c) => c.corridaId === corrida.id && c.justificacion && !c.parcial)
+          const contadorConJustificacion = contadores.find((c) => c.corridaId === corrida.id && c.justificacion)
           if (merma.pct > LIMITE_MERMA * 100 && contadorConJustificacion) {
             justificaciones.push(contadorConJustificacion.justificacion)
           }
@@ -160,7 +165,25 @@ export function generarActaPdf(params: {
     body: filasProducido.length > 0 ? filasProducido : [["Sin registros", "—", "—", "—", "—", "—"]],
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  y = (doc as any).lastAutoTable.finalY + 24
+  y = (doc as any).lastAutoTable.finalY + 6
+
+  if (paradasAbiertas && paradasAbiertas.length > 0) {
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "bold")
+    doc.text("PARADAS — CONTINÚAN EN EL TURNO SIGUIENTE", margenX, y)
+
+    autoTable(doc, {
+      startY: y + 2,
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      head: [["Línea", "Tipo"]],
+      body: paradasAbiertas.map((p) => [nombrePorCodigo(lineas, p.lineaCodigo), p.tipoNombre]),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    y = (doc as any).lastAutoTable.finalY + 18
+  } else {
+    y += 18
+  }
 
   if (y > 270) y = 270
   doc.setDrawColor(0, 0, 0)

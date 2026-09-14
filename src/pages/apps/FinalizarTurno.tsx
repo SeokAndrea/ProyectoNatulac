@@ -20,6 +20,8 @@ import { useSesionTurno } from "@/lib/sesionTurno"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
+import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { listarParadas, paradasAbiertasDeLineas, type Parada } from "@/lib/paradas"
 
 /*
  * Finalizar Turno: el resumen formal del turno en curso (datos fijos
@@ -49,12 +51,16 @@ export default function FinalizarTurno() {
   const [confirmando, setConfirmando] = useState(false)
   const [errorFinalizar, setErrorFinalizar] = useState<string | null>(null)
   const [sabores, setSabores] = useState<Sabor[]>([])
+  const [paradas, setParadas] = useState<Parada[]>([])
   const [cerrado, setCerrado] = useState<{ codigoTurno: string; actaUrl: string | null; errorActa: string | null } | null>(null)
 
   const cargando = sesion.cargando || prep.cargando || prod.cargando || pt.cargando
 
   useEffect(() => {
     listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
+    // Paradas — FASE A′ (plan-paradas.md §3): todavía es el fixture, no está
+    // atado a este turno_id. Vista previa de "— Continúa" en Finalizar Turno / Acta.
+    listarParadas({ desde: restarDias(fechaPlanta(), 30), hasta: fechaPlanta() }).then(setParadas)
   }, [])
 
   if (cargando) {
@@ -113,6 +119,13 @@ export default function FinalizarTurno() {
    */
   const lineasSinResolver = prod.corridas.filter((c) => c.activa && c.entregadaEn === null)
 
+  // Paradas que siguen abiertas ("— Continúa") en las líneas de este turno — vista
+  // previa de FASE A′, ver nota del useEffect de arriba.
+  const paradasAbiertas = paradasAbiertasDeLineas(
+    paradas,
+    lineas.filter((l) => l.activo).map((l) => l.codigo),
+  )
+
   async function handleFinalizar() {
     if (lineasSinResolver.length > 0) return
     if (itemsFaltantes.length > 0 && !confirmando) {
@@ -138,6 +151,7 @@ export default function FinalizarTurno() {
       corridas: prod.corridas,
       contadores: prod.contadores,
       productoTerminado: pt.registros,
+      paradasAbiertas,
     }
     const resultadoCierre = await sesion.finalizarTurno()
     if (!resultadoCierre.ok) {
@@ -265,6 +279,26 @@ export default function FinalizarTurno() {
                 })}
             </div>
           </SeccionColapsable>
+
+          {paradasAbiertas.length > 0 && (
+            <SeccionColapsable
+              titulo="Paradas"
+              descripcion="Vista previa — Paradas todavía no está conectado a este turno (FASE A′, plan-paradas.md)."
+              abiertoPorDefecto
+            >
+              <div className="flex flex-col gap-2">
+                {paradasAbiertas.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+                    <div>
+                      <p className="font-medium text-foreground">{nombrePorCodigo(lineas, p.lineaCodigo)}</p>
+                      <p className="text-muted-foreground">{p.tipoNombre}</p>
+                    </div>
+                    <span className="text-xs font-medium text-warning">— Continúa</span>
+                  </div>
+                ))}
+              </div>
+            </SeccionColapsable>
+          )}
 
           {prep.tanques.some((t) => t.condicion === "EN_PREPARACION") && (
             <SeccionColapsable titulo="Preparaciones" descripcion="Tambores y ajustes cargados por tanque.">

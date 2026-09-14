@@ -261,6 +261,21 @@
   }
 }
 
+/* Cinta transportadora del Panel de Paradas (línea corriendo): cajas
+   viajando de un extremo al otro, en loop. Ver src/components/CintaLinea.tsx. */
+@utility belt-box {
+  animation: belt-move 4.8s linear infinite;
+}
+
+@keyframes belt-move {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(820%);
+  }
+}
+
 /* Banner del Panel de Producción: superficie industrial con degradado
    sutil + rejilla técnica encima. */
 @utility panel-banner {
@@ -388,7 +403,8 @@
   .liquid-wave-2,
   .alert-pulse,
   .mixing-vortex,
-  .carrusel-slide {
+  .carrusel-slide,
+  .belt-box {
     animation: none;
   }
 }
