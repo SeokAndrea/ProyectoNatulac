@@ -30,3 +30,10 @@ supabase/.branches
 # backups locales de configuración (contienen credenciales)
 *.bak
 .env.*.bak
+
+# config local de MCP (cada quien arma la suya)
+.mcp.json
+
+# material de referencia de diseño, no código del repo
+/lovable things/
+/UI diseño paradas.pdf
