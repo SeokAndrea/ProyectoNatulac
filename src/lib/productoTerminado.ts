@@ -1,25 +1,15 @@
 /**
- * Módulo Producto Terminado — dueño de `producto_terminado` (y, hasta que
- * la Fase 2 elimine las entregas parciales, `producto_terminado_parciales`).
- * Ver plan-rework-3-modulos-y-merma.md, Fase 1.
+ * Módulo Producto Terminado — dueño de `producto_terminado`. Ver
+ * plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Un solo archivo: a diferencia de Preparación y Producción, acá hay una
  * sola mutación real (registrarProductoTerminado) — no hay nada que
  * separar en núcleo/ajustes.
  *
- * Extraído de src/lib/turno.tsx, mismo comportamiento — con dos
- * excepciones deliberadas, no premature-behavior-change sino terminar de
- * limpiar algo que ya estaba muerto en la práctica:
- *
- * 1. `productoRetenido`/`cajasRetenidas` NO se exponen acá. Confirmado
- *    (plan, §2.9): el frontend ya los manda siempre false/null, ningún
- *    botón real los cambia — se sacan las columnas de base en la Fase 2,
- *    acá simplemente no se les da lugar en el tipo nuevo.
- * 2. `parcial`/`EntregaParcial` SÍ se mantienen — a diferencia del punto
- *    anterior, las entregas parciales están activamente en uso hoy. Se
- *    eliminan recién en la Fase 2 (Contexto del plan: "un solo total al
- *    final del lote") cuando la base deje de soportarlas — sacarlas acá
- *    antes sería cambiar comportamiento sin haber tocado la base.
+ * Fase 2 §2.9 (teardown, 20261037): sin entregas parciales
+ * (`producto_terminado_parciales` se dropeó) y sin `productoRetenido`/
+ * `cajasRetenidas` (ya no tenían uso real, ver plan-validar-produccion.md
+ * §2) — un solo total por corrida, se carga una vez al cerrar.
  */
 import { useCallback, useEffect, useState } from "react"
 import type { LineaCodigo, PresentacionCodigo } from "@/lib/catalogos"
@@ -29,19 +19,10 @@ import { supabase } from "@/lib/supabase"
 
 export type Resultado = { ok: true } | { ok: false; error: string }
 
-export interface EntregaParcial {
-  id: string
-  paletas: number
-  cajasSueltas: number
-  litros: number
-  usuarioNombre: string | null
-  creadoEn: string
-}
-
 /**
  * Producto Terminado: conteo físico de paletas + cajas sueltas de UNA
  * corrida — ligado a corridaId (módulo Producción), no a la línea suelta.
- * TODO (Fase 2): pasa a ser un total único por lote, sin parciales.
+ * Un solo total por corrida: se carga una vez, al cerrar (sin parciales).
  */
 export interface ProductoTerminadoRegistro {
   id: string
@@ -50,13 +31,9 @@ export interface ProductoTerminadoRegistro {
   saborId: string | null
   saborNombre: string | null
   presentacion: PresentacionCodigo
-  /** Total acumulado de la corrida (suma de las entregas parciales + la carga final). */
   paletas: number
   cajasSueltas: number
   litrosProducidos: number
-  /** true si la corrida usó "entrega parcial" — TODO (Fase 2): se elimina, un solo total. */
-  tieneParciales: boolean
-  parciales: EntregaParcial[]
   creadoEn: string
   registradoPorNombre: string | null
 }
@@ -68,8 +45,6 @@ export interface DatosProductoTerminado {
   presentacion: PresentacionCodigo
   paletas: number
   cajasSueltas: number
-  /** true = entrega parcial: paletas/cajas son un incremento que se SUMA. TODO (Fase 2): se elimina. */
-  parcial?: boolean
 }
 
 // ------------------------------------------------------------
@@ -87,15 +62,6 @@ export interface FilaProductoTerminado {
   paletas: number
   cajas_sueltas: number
   litros_producidos: number
-  tiene_parciales: boolean
-  parciales: Array<{
-    id: string
-    paletas: number
-    cajas_sueltas: number
-    litros: number
-    usuario_nombre: string | null
-    creado_en: string
-  }>
   creado_en: string
   registrado_por_nombre: string | null
 }
@@ -119,15 +85,6 @@ export function mapearProductoTerminado(fila: FilaProductoTerminado): ProductoTe
     paletas: fila.paletas,
     cajasSueltas: fila.cajas_sueltas,
     litrosProducidos: fila.litros_producidos,
-    tieneParciales: fila.tiene_parciales ?? false,
-    parciales: (fila.parciales ?? []).map((p) => ({
-      id: p.id,
-      paletas: p.paletas,
-      cajasSueltas: p.cajas_sueltas,
-      litros: p.litros,
-      usuarioNombre: p.usuario_nombre,
-      creadoEn: p.creado_en,
-    })),
     creadoEn: fila.creado_en,
     registradoPorNombre: fila.registrado_por_nombre,
   }
@@ -135,8 +92,6 @@ export function mapearProductoTerminado(fila: FilaProductoTerminado): ProductoTe
 
 // ------------------------------------------------------------
 // Mutación — función suelta, mismo patrón que los otros módulos.
-// productoRetenido/cajasRetenidas se mandan fijos (false/null): ver nota
-// de cabecera, ya están muertos en la práctica.
 // ------------------------------------------------------------
 
 export async function registrarProductoTerminado(
@@ -153,10 +108,6 @@ export async function registrarProductoTerminado(
     p_paletas: datos.paletas,
     p_cajas_sueltas: datos.cajasSueltas,
     p_usuario: usuario,
-    p_producto_retenido: false,
-    p_cajas_retenidas: null,
-    p_parcial: datos.parcial ?? false,
-    p_pagina: "Producto Terminado y Contador",
   })
 
   if (error || !data) {

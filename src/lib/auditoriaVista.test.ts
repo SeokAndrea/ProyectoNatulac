@@ -59,10 +59,10 @@ describe("resumenTurno — por línea", () => {
     expect(l1.sabor).toBe("Fresa")
     expect(l1.lote).toBe(loteFresa)
     expect(l1.cajas).toBe(13 * 120 + 40)
-    // el contador (envases de la llenadora, no parciales) de esa corrida
+    // el contador (envases de la llenadora) de esa corrida
     expect(l1.contador).toBe(
       deivis.detalle.contadores
-        .filter((c) => c.corridaId === "c4" && !c.parcial)
+        .filter((c) => c.corridaId === "c4")
         .reduce((a, c) => a + c.envasesLlenadora, 0),
     )
     expect(l1.contador).toBeGreaterThan(0)

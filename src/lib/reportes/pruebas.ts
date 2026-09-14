@@ -288,7 +288,6 @@ function construirCaso(nombre: string, filas: FilaCaso[]): CasoPrueba {
       envasesLlenadora: f.contadorEnvases,
       envasesBuenos: null,
       justificacion: "",
-      parcial: false,
       creadoEn: "",
     })
 
@@ -302,8 +301,6 @@ function construirCaso(nombre: string, filas: FilaCaso[]): CasoPrueba {
       paletas: f.ptPaletas,
       cajasSueltas: f.ptCajasSueltas,
       litrosProducidos: f.ptLitros,
-      tieneParciales: false,
-      parciales: [],
       creadoEn: "",
       registradoPorNombre: null,
     })

@@ -47,7 +47,6 @@ export function mapearContador(fila: FilaContador): ContadorRegistro {
     envasesLlenadora: fila.envases_llenadora,
     envasesBuenos: fila.envases_buenos ?? null,
     justificacion: fila.justificacion ?? "",
-    parcial: fila.parcial ?? false,
     creadoEn: fila.creado_en,
   }
 }

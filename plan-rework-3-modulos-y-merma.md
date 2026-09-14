@@ -628,13 +628,23 @@ Documentado para que ninguna sesión futura lo "arregle" interpretándolo como u
   + `contadorParcialRef`. Una corrida se carga con su total y listo. Las corridas que YA tenían
   parciales antes del deploy siguen renderizando en modo incremental para poder cerrarlas.
   Reversible, sin migración.
-- **PENDIENTE — teardown de base (migración destructiva, su propio push, necesita `db reset`
-  local).** Dropear la tabla `producto_terminado_parciales` y las columnas
+- **HECHO (2026-09-13) — teardown de base**, migración `20261037090000_dropear_parciales_y_producto_retenido.sql`.
+  Dropeada la tabla `producto_terminado_parciales` y las columnas
   `producto_terminado.{tiene_parciales, producto_retenido, cajas_retenidas, editado_por,
-  editado_en}` + `contadores.parcial`. Requiere **reescribir 6 funciones** que las referencian:
-  `registrar_producto_terminado`, `registrar_contador`, `turno_json`,
-  `listar_validacion_produccion`, `estadisticas_produccion`, `historial_dia_area` — varias de
-  200+ líneas. No se hace a ciegas: va cuando haya Docker para probar la cadena.
+  editado_en}` + `contadores.parcial` (con `delete from contadores where parcial` primero — son
+  checkpoints de referencia, el contador físico es acumulativo así que la lectura final ya trae
+  el total). De paso se dropeó `corregir_producto_terminado_auditoria` (código muerto, §2.1).
+  Reescritas `registrar_producto_terminado` (base real: `20261018`, no `20260975` — el plan tenía
+  la referencia vieja; se preservó el candado de 1h de `20261004` y `revisar_cierre_de_lote()` de
+  costura 2), `registrar_contador`, `turno_json`, `estadisticas_produccion`,
+  `listar_validacion_produccion`. **No son 6 sino 5**: `historial_dia_area` ya se había dropeado
+  en `20261032` (la página "Historial del Día" se eliminó del frontend) — el plan quedó
+  desactualizado en ese punto. Frontend actualizado en el mismo commit (RPC sin los parámetros
+  muertos + tipos/filtros `!c.parcial` limpiados en ~10 archivos). Sin Docker (8 GB de RAM,
+  decisión de no instalarlo) — mismo riesgo consciente que `20261018`/`20261019`; `tsc`+88 tests+
+  `npm run build` en verde. Decisión del dueño: la base se reinicia el 01/10, no hace falta
+  preservar detalle histórico de parciales/retenido. **Falta:** push a producción (WinSCP +
+  `supabase db push` + rebuild).
 
 Con "sin parciales" ya decidido (Contexto — el cambio más grande de los tres), quedan tres
 hallazgos más, verificados contra el código real:

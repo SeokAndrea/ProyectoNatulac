@@ -75,8 +75,6 @@ function pt(litros: number, over: Partial<ProductoTerminadoRegistro> = {}): Prod
     paletas: 0,
     cajasSueltas: 0,
     litrosProducidos: litros,
-    tieneParciales: false,
-    parciales: [],
     creadoEn: "",
     registradoPorNombre: null,
     ...over,

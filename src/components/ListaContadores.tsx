@@ -27,8 +27,7 @@ export function ListaContadores({
   mostrarTotales?: boolean
 }) {
   const { lineas, presentaciones } = useCatalogosLive()
-  // Los contadores "parciales" (referencia de una entrega parcial) no suman al total del turno.
-  const totalLlenadora = contadores.filter((c) => !c.parcial).reduce((a, c) => a + c.envasesLlenadora, 0)
+  const totalLlenadora = contadores.reduce((a, c) => a + c.envasesLlenadora, 0)
 
   return (
     <div className="flex flex-col gap-2">
@@ -43,20 +42,15 @@ export function ListaContadores({
             <div>
               <p className="flex items-center gap-1.5 font-medium text-foreground">
                 {nombrePorCodigo(lineas, c.linea)}
-                {c.parcial && <Badge variant="outline">Parcial</Badge>}
               </p>
               <p className="text-muted-foreground">{c.envasesLlenadora} llenadora</p>
               {requiereJustificacion && c.justificacion && (
                 <p className="mt-1 text-xs text-muted-foreground italic">"{c.justificacion}"</p>
               )}
             </div>
-            {c.parcial ? (
-              <Badge variant="outline">Referencia</Badge>
-            ) : (
-              <Badge variant={requiereJustificacion ? "destructive" : "secondary"}>
-                {merma !== null ? `${merma.pct}%` : "Pendiente"}
-              </Badge>
-            )}
+            <Badge variant={requiereJustificacion ? "destructive" : "secondary"}>
+              {merma !== null ? `${merma.pct}%` : "Pendiente"}
+            </Badge>
           </div>
         )
       })}

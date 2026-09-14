@@ -139,7 +139,7 @@ export function calcularMeta(
       const cajasEsperadas = Math.round(cajasHora * horas)
 
       const envasesLlenadora = contadores
-        .filter((cont) => cont.corridaId === c.id && !cont.parcial)
+        .filter((cont) => cont.corridaId === c.id)
         .reduce((a, cont) => a + cont.envasesLlenadora, 0)
       const cajasReales = pres && pres.envasesXCaja > 0 ? Math.round(envasesLlenadora / pres.envasesXCaja) : 0
 
@@ -207,7 +207,7 @@ export function desglosarCalculos(
     const idxActiva = activas.indexOf(c)
     const metaLinea = idxActiva >= 0 ? (meta.porLinea[idxActiva] ?? null) : null
     const envasesLlenadora = contadores
-      .filter((cont) => cont.corridaId === c.id && !cont.parcial)
+      .filter((cont) => cont.corridaId === c.id)
       .reduce((a, cont) => a + cont.envasesLlenadora, 0)
 
     return {

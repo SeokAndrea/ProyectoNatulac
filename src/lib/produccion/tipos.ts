@@ -72,8 +72,6 @@ export interface ContadorRegistro {
   /** Contador 2 (envases buenos), obligatorio junto con el contador de la llenadora. No entra en la merma de envase; corrobora el PT y la merma de semielaborado (Reportes). */
   envasesBuenos: number | null
   justificacion: string
-  /** Lectura de una entrega parcial: solo referencia, NO cuenta para merma. */
-  parcial: boolean
   creadoEn: string
 }
 
@@ -100,7 +98,6 @@ export interface DatosNuevoContador {
   envasesLlenadora: number
   envasesBuenos?: number | null
   justificacion: string
-  parcial?: boolean
 }
 
 // ------------------------------------------------------------
@@ -142,6 +139,5 @@ export interface FilaContador {
   envases_llenadora: number
   envases_buenos: number | null
   justificacion: string | null
-  parcial: boolean
   creado_en: string
 }

@@ -131,7 +131,7 @@ export function prep(
 export function contador(
   over: Partial<ContadorRegistro> & Pick<ContadorRegistro, "id" | "linea" | "creadoEn" | "envasesLlenadora">,
 ): ContadorRegistro {
-  return { corridaId: null, envasesBuenos: null, justificacion: "", parcial: false, ...over }
+  return { corridaId: null, envasesBuenos: null, justificacion: "", ...over }
 }
 
 export function pt(
@@ -144,8 +144,6 @@ export function pt(
     saborNombre: null,
     presentacion: "350",
     litrosProducidos: 0,
-    tieneParciales: false,
-    parciales: [],
     registradoPorNombre: null,
     ...over,
   }

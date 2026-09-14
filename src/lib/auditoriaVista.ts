@@ -28,7 +28,7 @@ export interface LineaResumen {
   lote: string | null
   /** Cajas de Producto Terminado de esa línea+lote+presentación (corridas duplicadas idénticas contadas una sola vez). */
   cajas: number
-  /** Envases de la llenadora (contador definitivo, sin las lecturas parciales) de esa línea+lote+presentación. */
+  /** Envases de la llenadora de esa línea+lote+presentación. */
   contador: number
   /** Merma de envases (PT vs. contador de la llenadora). null hasta tener los dos datos. */
   mermaEnvasesPct: number | null
@@ -119,7 +119,7 @@ export function resumenTurno(
       firmasVistas.add(firma)
       cajas += cajasCorrida
       contador += turno.contadores
-        .filter((x) => x.corridaId === c.id && !x.parcial)
+        .filter((x) => x.corridaId === c.id)
         .reduce((a, x) => a + x.envasesLlenadora, 0)
       const m = mermaCorrida(c.id, turno.contadores, turno.productoTerminado, presentaciones)
       if (m) {

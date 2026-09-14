@@ -103,7 +103,6 @@ export async function registrarContador(usuario: string, turnoId: string, datos:
     p_envases_llenadora: datos.envasesLlenadora,
     p_justificacion: datos.justificacion,
     p_usuario: usuario,
-    p_parcial: datos.parcial ?? false,
     p_pagina: "Producto Terminado y Contador",
     p_envases_buenos: datos.envasesBuenos ?? null,
   })

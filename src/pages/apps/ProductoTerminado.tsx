@@ -286,10 +286,10 @@ function ListaCorridas({
               lineaTurno={l}
               nombreLinea={nombrePorCodigo(lineas, l.linea)}
               contadorActual={contadores
-                .filter((c) => c.corridaId === l.id && !c.parcial)
+                .filter((c) => c.corridaId === l.id)
                 .reduce((a, c) => a + c.envasesLlenadora, 0)}
               contadorBuenosActual={contadores
-                .filter((c) => c.corridaId === l.id && !c.parcial)
+                .filter((c) => c.corridaId === l.id)
                 .reduce((a, c) => a + (c.envasesBuenos ?? 0), 0)}
               presentaciones={presentaciones}
               tanques={tanques}
@@ -372,10 +372,8 @@ type ResultadoAccion = { ok: true } | { ok: false; error: string }
 
 /*
  * productoRetenido/cajasRetenidas NO están acá: el módulo Producto
- * Terminado nuevo (src/lib/productoTerminado.ts) ya no los expone —
- * confirmado muertos (el frontend siempre mandaba false/null), ver
- * plan-rework-3-modulos-y-merma.md §2.9. registrarProductoTerminado()
- * los manda fijos del lado del módulo.
+ * Terminado (src/lib/productoTerminado.ts) ya no los expone — se
+ * dropearon en la base, ver plan-rework-3-modulos-y-merma.md §2.9.
  */
 type OnRegistrarProducto = (datos: {
   corridaId: string
@@ -384,8 +382,6 @@ type OnRegistrarProducto = (datos: {
   presentacion: PresentacionCodigo
   paletas: number
   cajasSueltas: number
-  /** true = entrega parcial: paletas/cajas se suman al acumulado y la corrida queda abierta. */
-  parcial?: boolean
 }) => Promise<ResultadoAccion>
 
 type OnRegistrarContador = (datos: {
@@ -395,8 +391,6 @@ type OnRegistrarContador = (datos: {
   /** Contador 2 (envases buenos), obligatorio — ver ContadorRegistro.envasesBuenos en src/lib/produccion/tipos.ts. */
   envasesBuenos?: number | null
   justificacion: string
-  /** true = lectura de referencia de una entrega parcial (no cuenta para merma). */
-  parcial?: boolean
 }) => Promise<ResultadoAccion>
 
 type OnEntregarCorrida = (corridaId: string) => Promise<ResultadoAccion>
@@ -423,7 +417,7 @@ function FilaProductoTerminado({
   lineaTurno: Corrida
   nombreLinea: string
   contadorActual: number
-  /** Suma de Contador 2 (envases buenos) de esta corrida, sin contadores parciales. */
+  /** Suma de Contador 2 (envases buenos) de esta corrida. */
   contadorBuenosActual: number
   presentaciones: ReturnType<typeof useCatalogosLive>["presentaciones"]
   tanques: TanqueRecepcion[]

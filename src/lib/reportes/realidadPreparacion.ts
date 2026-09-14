@@ -38,7 +38,7 @@ function litrosBuenosDeLote(
     const pres = presentaciones.find((p) => p.codigo === corrida.presentacion)
     if (!pres) continue
     for (const c of contadores) {
-      if (c.corridaId !== corrida.id || c.parcial || c.envasesBuenos === null) continue
+      if (c.corridaId !== corrida.id || c.envasesBuenos === null) continue
       litros += (c.envasesBuenos * pres.volumenMl) / 1000
       algunaLectura = true
     }

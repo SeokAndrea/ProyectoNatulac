@@ -204,8 +204,6 @@ export interface ContadorRegistro {
    */
   envasesBuenos: number | null
   justificacion: string
-  /** Lectura tomada en una entrega parcial: solo referencia, NO cuenta para merma/estadística. El que cuenta es el del cierre definitivo. */
-  parcial: boolean
   creadoEn: string
 }
 
@@ -216,16 +214,6 @@ export interface ContadorRegistro {
  * activa), pero una corrida nueva (lote nuevo) genera un registro
  * nuevo en vez de pisar el de la corrida anterior.
  */
-/** Una entrega parcial de lote: el incremento de paletas/cajas cargado en ese momento (append-only, para auditoría). */
-export interface EntregaParcial {
-  id: string
-  paletas: number
-  cajasSueltas: number
-  litros: number
-  usuarioNombre: string | null
-  creadoEn: string
-}
-
 export interface ProductoTerminadoRegistro {
   id: string
   linea: LineaCodigo
@@ -233,23 +221,12 @@ export interface ProductoTerminadoRegistro {
   saborId: string | null
   saborNombre: string | null
   presentacion: PresentacionCodigo
-  /** Total acumulado de la corrida (suma de las entregas parciales + la carga final). */
   paletas: number
   cajasSueltas: number
   litrosProducidos: number
-  /** Dato extra, sin uso todavía (no afecta litros/merma/acta). */
-  productoRetenido: boolean
-  cajasRetenidas: number | null
-  /** true si la corrida usó "entrega parcial" — desde ahí paletas/cajas se cargan por incremento, no como total. */
-  tieneParciales: boolean
-  /** Detalle de cada entrega parcial, más nueva al final. Vacío si nunca se usó. */
-  parciales: EntregaParcial[]
   creadoEn: string
   /** Quién lo cargó originalmente. */
   registradoPorNombre: string | null
-  /** Si un admin lo corrigió después desde Editar Turno (ver corregirProductoTerminado en historialTurnos.ts) — null si nunca se tocó. */
-  editadoPorNombre: string | null
-  editadoEn: string | null
 }
 
 /** Foto fija de un tanque, tomada una sola vez cuando el supervisor termina de confirmar/corregir el inicio — ver capturar_tanques_encontrados_si_completo(). */
@@ -472,7 +449,6 @@ interface FilaContador {
   envases_llenadora: number
   envases_buenos: number | null
   justificacion: string | null
-  parcial: boolean
   creado_en: string
 }
 
@@ -486,21 +462,8 @@ interface FilaProductoTerminado {
   paletas: number
   cajas_sueltas: number
   litros_producidos: number
-  producto_retenido: boolean
-  cajas_retenidas: number | null
-  tiene_parciales: boolean
-  parciales: Array<{
-    id: string
-    paletas: number
-    cajas_sueltas: number
-    litros: number
-    usuario_nombre: string | null
-    creado_en: string
-  }>
   creado_en: string
   registrado_por_nombre: string | null
-  editado_por_nombre: string | null
-  editado_en: string | null
 }
 
 interface FilaPreparacion {
@@ -636,7 +599,6 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       envasesLlenadora: c.envases_llenadora,
       envasesBuenos: c.envases_buenos ?? null,
       justificacion: c.justificacion ?? "",
-      parcial: c.parcial ?? false,
       creadoEn: c.creado_en,
     })),
     productoTerminado: fila.producto_terminado.map((p) => ({
@@ -649,21 +611,8 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
       paletas: p.paletas,
       cajasSueltas: p.cajas_sueltas,
       litrosProducidos: p.litros_producidos,
-      productoRetenido: p.producto_retenido,
-      cajasRetenidas: p.cajas_retenidas,
-      tieneParciales: p.tiene_parciales ?? false,
-      parciales: (p.parciales ?? []).map((pp) => ({
-        id: pp.id,
-        paletas: pp.paletas,
-        cajasSueltas: pp.cajas_sueltas,
-        litros: pp.litros,
-        usuarioNombre: pp.usuario_nombre,
-        creadoEn: pp.creado_en,
-      })),
       creadoEn: p.creado_en,
       registradoPorNombre: p.registrado_por_nombre,
-      editadoPorNombre: p.editado_por_nombre,
-      editadoEn: p.editado_en,
     })),
     preparaciones: fila.preparaciones.map((p) => ({
       id: p.id,
@@ -697,9 +646,8 @@ export function mermaCorrida(
   turno: Pick<TurnoActivo, "contadores" | "productoTerminado">,
   presentaciones: PresentacionLive[],
 ): { envasesLlenadora: number; envasesProductoTerminado: number; pct: number } | null {
-  // Los contadores "parciales" son solo referencia de una entrega parcial — la merma se mide contra el contador definitivo.
   const llenadora = turno.contadores
-    .filter((c) => c.turnoLineaId === turnoLineaId && !c.parcial)
+    .filter((c) => c.turnoLineaId === turnoLineaId)
     .reduce((a, c) => a + c.envasesLlenadora, 0)
   const pt = turno.productoTerminado.find((p) => p.turnoLineaId === turnoLineaId)
   if (llenadora === 0 || !pt) return null

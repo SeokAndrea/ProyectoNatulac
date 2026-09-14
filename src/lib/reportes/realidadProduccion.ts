@@ -15,8 +15,7 @@ import { pctRendimiento } from "./teorico"
 
 /**
  * Envases de la llenadora vs. envases de Producto Terminado, de UNA
- * corrida. null si falta el contador definitivo o el PT — los contadores
- * "parciales" son solo referencia, la merma se mide contra el definitivo.
+ * corrida. null si falta el contador o el PT.
  */
 export function mermaCorrida(
   corridaId: string,
@@ -25,7 +24,7 @@ export function mermaCorrida(
   presentaciones: PresentacionLive[],
 ): { envasesLlenadora: number; envasesProductoTerminado: number; pct: number } | null {
   const llenadora = contadores
-    .filter((c) => c.corridaId === corridaId && !c.parcial)
+    .filter((c) => c.corridaId === corridaId)
     .reduce((a, c) => a + c.envasesLlenadora, 0)
   const pt = productoTerminado.find((p) => p.corridaId === corridaId)
   if (llenadora === 0 || !pt) return null
