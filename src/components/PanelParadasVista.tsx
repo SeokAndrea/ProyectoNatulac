@@ -1,20 +1,15 @@
 import { useMemo, useState, type ReactNode } from "react"
-import { AlertTriangle, ChevronDown, ChevronUp, Clock, Gauge, TrendingUp } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Clock, Gauge } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { CintaLinea, type EstadoLineaVista } from "@/components/CintaLinea"
 import { cn } from "@/lib/utils"
-import { fechaPlanta } from "@/lib/tiempoPlanta"
-import { TURNO_TIPOS, nombrePorCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
+import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { type TurnoTipoCodigo } from "@/lib/catalogos"
 import {
   agruparPorDia,
-  COLOR_CLASE,
   disponibilidadAprox,
-  duracionMin,
-  fmtDesvio,
   fmtDuracion,
   LINEAS_PARADAS,
   NOMBRE_CLASE,
@@ -31,17 +26,19 @@ import {
   type GrupoAtributo,
   type GrupoTipo,
   type Parada,
+  type PuntoDiaParada,
 } from "@/lib/paradas"
 
 /*
  * Panel de Paradas — dashboard solo lectura, mismo estilo y misma lógica
  * de filtro que el Panel de Producción: se mira UN turno puntual de UN
  * día (o los 3 turnos de ese día con "Todos"), no un rango — Select de
- * Turno + date picker de Fecha, igual que allá. El "hero" de arriba
- * (ranking + 3 líneas con su cinta animada + KPIs) responde al diseño
- * acordado con el dueño (UI diseño paradas.pdf); las secciones de abajo
- * (real vs. guía, tendencia, lista) son detalle que ya existía y sigue
- * sirviendo. Compartido entre la página real y el preview /paradas-demo.
+ * Turno + date picker de Fecha, igual que allá. Todo el contenido
+ * (ranking + 3 líneas con su cinta animada + KPIs + Sabor/Familia/
+ * Presentación) responde al diseño acordado con el dueño (UI diseño
+ * paradas.pdf) y queda siempre visible, sin secciones colapsables — el
+ * objetivo es que entre entero en una sola pantalla, sin scroll.
+ * Compartido entre la página real y el preview /paradas-demo.
  *
  * `estadoLineas` es el estado EN VIVO de las 3 líneas — a propósito NO
  * depende del filtro de Fecha/Turno de acá abajo (ese filtro es para
@@ -49,6 +46,13 @@ import {
  * real). Si no se pasa (ej. el preview sin login), se muestra un
  * placeholder en vez de inventar un estado.
  */
+
+type PeriodoCodigo = "3D" | "7D" | "RANGO"
+const PERIODO_FILTRO: { codigo: PeriodoCodigo; etiqueta: string }[] = [
+  { codigo: "3D", etiqueta: "Últimos 3 días" },
+  { codigo: "7D", etiqueta: "Últimos 7 días" },
+  { codigo: "RANGO", etiqueta: "Escoger período" },
+]
 
 const TURNO_FILTRO: { codigo: TurnoTipoCodigo | "TODOS"; etiqueta: string }[] = [
   { codigo: "TODOS", etiqueta: "Todos" },
@@ -79,7 +83,9 @@ export function PanelParadasVista({
   /** Estado en vivo de las 3 líneas (no filtrado). Ver nota de cabecera. */
   estadoLineas?: EstadoLineaEnVivo[]
 }) {
-  const [fecha, setFecha] = useState(() => fechaPlanta())
+  const [periodo, setPeriodo] = useState<PeriodoCodigo>("3D")
+  const [rangoDesde, setRangoDesde] = useState(() => fechaPlanta())
+  const [rangoHasta, setRangoHasta] = useState(() => fechaPlanta())
   const [clase, setClase] = useState<ClaseParada | "TODAS">("TODAS")
   const [linea, setLinea] = useState("TODAS")
   const [turno, setTurno] = useState<TurnoTipoCodigo | "TODOS">("TODOS")
@@ -87,28 +93,35 @@ export function PanelParadasVista({
 
   const ahora = useMemo(() => new Date(), [])
 
+  // "Escoger período" usa las 2 fechas elegidas; los otros dos se calculan
+  // desde HOY (fecha de planta) para atrás. hasta siempre >= desde.
+  const { desde, hasta } = useMemo(() => {
+    const hoy = fechaPlanta()
+    if (periodo === "3D") return { desde: restarDias(hoy, 2), hasta: hoy }
+    if (periodo === "7D") return { desde: restarDias(hoy, 6), hasta: hoy }
+    return rangoDesde <= rangoHasta ? { desde: rangoDesde, hasta: rangoHasta } : { desde: rangoHasta, hasta: rangoDesde }
+  }, [periodo, rangoDesde, rangoHasta])
+
   const filtradas = useMemo(() => {
     return paradas
       .filter((p) => {
-        if (p.inicio.slice(0, 10) !== fecha) return false
+        const dia = p.inicio.slice(0, 10)
+        if (dia < desde || dia > hasta) return false
         if (clase !== "TODAS" && p.clase !== clase) return false
         if (linea !== "TODAS" && p.lineaCodigo !== linea) return false
         if (turno !== "TODOS" && p.turnoTipo !== turno) return false
         return true
       })
       .sort((a, b) => b.inicio.localeCompare(a.inicio))
-  }, [paradas, fecha, clase, linea, turno])
+  }, [paradas, desde, hasta, clase, linea, turno])
 
   const abiertas = filtradas.filter(paradaAbierta).length
   const porClase = useMemo(() => resumenPorClase(filtradas, ahora), [filtradas, ahora])
-  const tipos = useMemo(() => porTipo(filtradas, ahora), [filtradas, ahora])
   // Por tipo + línea (no solo tipo): el mismo tipo puede repetirse una vez
   // por línea, cada fila dice de cuál es — ver RankList (mostrarLinea).
   const tiposPorLinea = useMemo(() => porTipoYLinea(filtradas, ahora), [filtradas, ahora])
   const topFrecuencia = useMemo(() => porTipoYLineaPorFrecuencia(filtradas, ahora).slice(0, 5), [filtradas, ahora])
   const topTiempo = useMemo(() => tiposPorLinea.slice(0, 5), [tiposPorLinea])
-  const porDia = useMemo(() => agruparPorDia(filtradas, ahora), [filtradas, ahora])
-  const maxDia = Math.max(1, ...porDia.map((d) => d.minutos))
 
   // Toda la planta (no por línea) — qué sabor/familia/presentación se
   // llevó más paradas. Las que no tienen dato asociado (CIP, orden y
@@ -116,9 +129,19 @@ export function PanelParadasVista({
   const porSaborRes = useMemo(() => porSabor(filtradas, ahora), [filtradas, ahora])
   const porFamiliaRes = useMemo(() => porFamilia(filtradas, ahora), [filtradas, ahora])
   const porPresentacionRes = useMemo(() => porPresentacion(filtradas, ahora), [filtradas, ahora])
+  // Uno por columna de línea (ver el hero, abajo) — no filtrados por esa
+  // línea, son de toda la planta.
+  const ATRIBUTOS_PLANTA = [
+    { titulo: "Paradas por Sabor", items: porSaborRes },
+    { titulo: "Paradas por Familia", items: porFamiliaRes },
+    { titulo: "Paradas por Presentación", items: porPresentacionRes },
+  ]
 
-  // Un solo día: "Todos" son los 3 turnos de esa fecha, un turno puntual es 1.
-  const turnosEnRango = turno === "TODOS" ? 3 : 1
+  // Por día del rango: "Todos" son los 3 turnos de ese día, un turno puntual es 1.
+  const diasEnRango = Math.max(1, Math.round((new Date(hasta).getTime() - new Date(desde).getTime()) / 86_400_000) + 1)
+  const turnosEnRango = (turno === "TODOS" ? 3 : 1) * diasEnRango
+  // Tendencia de la tarjeta "Vista" — un punto por día del rango elegido.
+  const porDia = useMemo(() => agruparPorDia(filtradas, ahora), [filtradas, ahora])
   const disponibilidadPlanta = disponibilidadAprox(filtradas, turnosEnRango, 3, ahora)
   const classMinutes = (c: ClaseParada) => porClase.find((x) => x.clase === c)?.minutos ?? 0
 
@@ -147,8 +170,27 @@ export function PanelParadasVista({
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Fecha</span>
-            <Input type="date" className="h-8 w-40" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <span className="text-xs text-muted-foreground">Período</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {PERIODO_FILTRO.map((p) => (
+                <Button
+                  key={p.codigo}
+                  type="button"
+                  size="sm"
+                  variant={periodo === p.codigo ? "default" : "outline"}
+                  onClick={() => setPeriodo(p.codigo)}
+                >
+                  {p.etiqueta}
+                </Button>
+              ))}
+              {periodo === "RANGO" && (
+                <>
+                  <Input type="date" className="h-8 w-36" value={rangoDesde} onChange={(e) => setRangoDesde(e.target.value)} />
+                  <span className="text-xs text-muted-foreground">a</span>
+                  <Input type="date" className="h-8 w-36" value={rangoHasta} onChange={(e) => setRangoHasta(e.target.value)} />
+                </>
+              )}
+            </div>
           </div>
           <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setMostrarFiltros((v) => !v)}>
             {mostrarFiltros ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
@@ -193,8 +235,81 @@ export function PanelParadasVista({
            listas/números; el centro se recorta a un máximo (260px por
            línea) para que las 3 tarjetas no queden infladas de espacio
            vacío en pantallas grandes. */}
-      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-start gap-3 xl:grid-cols-[320px_repeat(3,minmax(0,260px))_320px] xl:justify-center">
+      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-[300px_repeat(3,320px)_240px] lg:justify-center">
         <div className="flex flex-col gap-3">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">Vista</h2>
+              <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
+            </div>
+            <p className="text-lg font-bold text-foreground">{PERIODO_FILTRO.find((p) => p.codigo === periodo)?.etiqueta}</p>
+            <p className="text-xs text-muted-foreground">
+              {fmtRangoCorto(desde, hasta)} · {TURNO_FILTRO.find((t) => t.codigo === turno)?.etiqueta}
+            </p>
+            <Sparkline datos={porDia} />
+          </div>
+          <RankCard titulo="Top Paradas por Frecuencia" tono="info" items={topFrecuencia} metrica="veces" />
+          <RankCard titulo="Top Paradas por Tiempo" tono="danger" items={topTiempo} metrica="minutos" />
+        </div>
+
+        {/* ---- Cada columna: la tarjeta de línea + su atributo de planta
+             (Sabor/Familia/Presentación) separado, debajo — no forman
+             una sola tarjeta, son dos con su propio marco cada una. Los
+             3 atributos son de TODA la planta, no filtrados por esa
+             línea — van ahí solo para aprovechar el alto de la columna. ---- */}
+        {LINEAS_PARADAS.map((l, i) => {
+          const propias = filtradas.filter((p) => p.lineaCodigo === l.codigo)
+          const eficiencia = disponibilidadAprox(propias, turnosEnRango, 1, ahora)
+          const enVivo = estadoLineas?.find((e) => e.lineaCodigo === l.codigo)
+          const atributo = ATRIBUTOS_PLANTA[i]
+          return (
+            <div key={l.codigo} className="flex min-w-0 flex-col gap-3">
+              <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase text-muted-foreground">Producción</p>
+                    <h2 className="text-lg font-bold text-foreground">{l.nombre}</h2>
+                  </div>
+                  {enVivo && (
+                    <span
+                      className="flex shrink-0 items-center gap-1.5 rounded-full bg-success/10 px-2 py-1 text-[10px] font-bold uppercase text-success"
+                      title="La cinta muestra el turno activo real, no el filtro de arriba"
+                    >
+                      <span className="alert-pulse size-1.5 rounded-full bg-current" />
+                      En vivo
+                    </span>
+                  )}
+                </div>
+                {enVivo ? (
+                  <CintaLinea numeroLinea={i + 1} estado={enVivo.estado} saborNombre={enVivo.saborNombre} lote={enVivo.lote} />
+                ) : (
+                  <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground">
+                    Sin estado en vivo
+                    <br />
+                    (vista previa)
+                  </div>
+                )}
+                <div className={cn("mt-2 flex items-center justify-between gap-2 rounded-lg px-3 py-2", nivelSoft(eficiencia))}>
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Eficiencia</span>
+                  <span className={cn("num text-3xl font-extrabold leading-none", nivelColor(eficiencia))}>{eficiencia}%</span>
+                </div>
+                <div className="mt-2">
+                  <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top paradas por línea</h3>
+                  <RankList items={porTipo(propias, ahora).slice(0, 3)} metrica="minutos" compacto />
+                </div>
+              </div>
+              {atributo && <BarrasAtributo titulo={atributo.titulo} items={atributo.items} />}
+            </div>
+          )
+        })}
+
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1">
+            <Kpi etiqueta="Min. programadas" valor={classMinutes("PROGRAMADA")} icono={<Clock className="size-4" />} tono="text-info" />
+            <Kpi etiqueta="Min. no programadas" valor={classMinutes("NO_PROGRAMADA")} icono={<AlertTriangle className="size-4" />} tono="text-danger" />
+            <Kpi etiqueta="Min. tiempo ocioso" valor={classMinutes("OCIOSO")} tono="text-warning" />
+            <Kpi etiqueta="Paradas registradas" valor={filtradas.length} tono="text-primary" />
+          </div>
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-foreground">Disponibilidad de Planta</h2>
@@ -205,57 +320,6 @@ export function PanelParadasVista({
             </div>
             <p className="mt-3 text-center text-[11px] text-muted-foreground">Aproximada — objetivo ≥ 90%</p>
           </div>
-          <RankCard titulo="Top Paradas por Frecuencia" tono="info" items={topFrecuencia} metrica="veces" />
-          <RankCard titulo="Top Paradas por Tiempo" tono="danger" items={topTiempo} metrica="minutos" />
-        </div>
-
-        {LINEAS_PARADAS.map((l, i) => {
-          const propias = filtradas.filter((p) => p.lineaCodigo === l.codigo)
-          const eficiencia = disponibilidadAprox(propias, turnosEnRango, 1, ahora)
-          const enVivo = estadoLineas?.find((e) => e.lineaCodigo === l.codigo)
-          return (
-            <div key={l.codigo} className="min-w-0 rounded-xl border border-border bg-card p-3 shadow-sm">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase text-muted-foreground">Producción</p>
-                  <h2 className="text-lg font-bold text-foreground">{l.nombre}</h2>
-                </div>
-                {enVivo && (
-                  <span
-                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-success/10 px-2 py-1 text-[10px] font-bold uppercase text-success"
-                    title="La cinta muestra el turno activo real, no el filtro de arriba"
-                  >
-                    <span className="alert-pulse size-1.5 rounded-full bg-current" />
-                    En vivo
-                  </span>
-                )}
-              </div>
-              {enVivo ? (
-                <CintaLinea numeroLinea={i + 1} estado={enVivo.estado} saborNombre={enVivo.saborNombre} lote={enVivo.lote} />
-              ) : (
-                <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground">
-                  Sin estado en vivo
-                  <br />
-                  (vista previa)
-                </div>
-              )}
-              <div className={cn("mt-2 flex items-center justify-between gap-2 rounded-lg px-3 py-2", nivelSoft(eficiencia))}>
-                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Eficiencia</span>
-                <span className={cn("num text-3xl font-extrabold leading-none", nivelColor(eficiencia))}>{eficiencia}%</span>
-              </div>
-              <div className="mt-2">
-                <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top paradas por línea</h3>
-                <RankList items={porTipo(propias, ahora).slice(0, 3)} metrica="minutos" compacto />
-              </div>
-            </div>
-          )
-        })}
-
-        <div className="grid grid-cols-2 content-start gap-2 xl:grid-cols-1">
-          <Kpi etiqueta="Min. programadas" valor={classMinutes("PROGRAMADA")} icono={<Clock className="size-4" />} tono="text-info" />
-          <Kpi etiqueta="Min. no programadas" valor={classMinutes("NO_PROGRAMADA")} icono={<AlertTriangle className="size-4" />} tono="text-danger" />
-          <Kpi etiqueta="Min. tiempo ocioso" valor={classMinutes("OCIOSO")} tono="text-warning" />
-          <Kpi etiqueta="Paradas registradas" valor={filtradas.length} tono="text-primary" />
         </div>
       </div>
 
@@ -265,76 +329,18 @@ export function PanelParadasVista({
           {abiertas === 1 ? "Hay 1 parada en curso" : `Hay ${abiertas} paradas en curso`} en el rango filtrado.
         </div>
       )}
-
-      {/* ---- Paradas por Sabor / Familia / Presentación — toda la planta,
-           no por línea. Qué corría cuando pasó la parada; las que no
-           tienen dato asociado (CIP, orden y limpieza, liberación de
-           vapor) quedan afuera de las 3. ---- */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <BarrasAtributo titulo="Paradas por Sabor" items={porSaborRes} />
-        <BarrasAtributo titulo="Paradas por Familia" items={porFamiliaRes} />
-        <BarrasAtributo titulo="Paradas por Presentación" items={porPresentacionRes} />
-      </div>
-
-      {/* ---- Real vs. tiempo guía ---- */}
-      <SeccionColapsable
-        titulo="Real vs. tiempo guía"
-        descripcion="Cuánto pesa cada tipo y cuánto se desvía de su duración estándar."
-      >
-        {tipos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin paradas en el rango.</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {tipos.slice(0, 20).map((g) => (
-              <li key={g.codigo} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm odd:bg-muted/40">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className={`size-2 shrink-0 rounded-full ${COLOR_CLASE[g.clase]}`} />
-                  <span className="truncate text-foreground">{g.nombre}</span>
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">{g.veces}×</span> · {fmtDuracion(g.minutos)}
-                  {g.desvioMin != null && g.desvioMin !== 0 && (
-                    <span className={g.desvioMin > 0 ? " text-danger" : " text-success"}> · {fmtDesvio(g.desvioMin)}</span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SeccionColapsable>
-
-      {/* ---- Tendencia ---- */}
-      <SeccionColapsable titulo="Tendencia" descripcion="Tiempo perdido por día en el rango.">
-        <div className="flex flex-col gap-1">
-          {porDia.map((d) => (
-            <div key={d.dia} className="flex items-center gap-2 text-xs">
-              <span className="w-14 shrink-0 text-muted-foreground">{d.dia.slice(5)}</span>
-              <div className="h-3 flex-1 overflow-hidden rounded bg-muted">
-                <div className="h-full rounded bg-warning" style={{ width: `${(d.minutos / maxDia) * 100}%` }} />
-              </div>
-              <span className="w-24 shrink-0 text-right text-foreground">{fmtDuracion(d.minutos)}</span>
-            </div>
-          ))}
-          {porDia.length === 0 && (
-            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <TrendingUp className="size-4" /> Sin datos.
-            </p>
-          )}
-        </div>
-      </SeccionColapsable>
-
-      {/* ---- Lista ---- */}
-      <SeccionColapsable titulo="Lista de paradas" descripcion={`${filtradas.length} en el rango filtrado.`}>
-        <div className="flex flex-col gap-2">
-          {filtradas.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No hay paradas con esos filtros.</p>
-          ) : (
-            filtradas.map((p) => <FilaParada key={p.id} parada={p} ahora={ahora} />)
-          )}
-        </div>
-      </SeccionColapsable>
     </div>
   )
+}
+
+const FMT_DIA_CORTO = new Intl.DateTimeFormat("es-VE", { day: "numeric", month: "short" })
+
+/** "YYYY-MM-DD","YYYY-MM-DD" → "14 sep" (mismo día) o "12–14 sep" (rango) — para la tarjeta "Vista". */
+function fmtRangoCorto(desde: string, hasta: string) {
+  const d = FMT_DIA_CORTO.format(new Date(`${desde}T00:00:00`))
+  if (desde === hasta) return d
+  const h = FMT_DIA_CORTO.format(new Date(`${hasta}T00:00:00`))
+  return `${d} – ${h}`
 }
 
 function nivelColor(pct: number) {
@@ -432,6 +438,43 @@ function BarrasAtributo({ titulo, items }: { titulo: string; items: GrupoAtribut
   )
 }
 
+const SPARK_W = 280
+const SPARK_H = 36
+
+/** Tendencia de minutos perdidos por día, dentro del rango elegido — un vistazo en vez de la vieja tabla "Tendencia". */
+function Sparkline({ datos }: { datos: PuntoDiaParada[] }) {
+  if (datos.length < 2) return <p className="mt-2 text-xs text-muted-foreground">Hace falta un período de más de un día para ver la tendencia.</p>
+
+  const max = Math.max(1, ...datos.map((d) => d.minutos))
+  const pad = 4
+  const stepX = (SPARK_W - pad * 2) / (datos.length - 1)
+  const puntos = datos.map((d, i) => ({
+    x: pad + i * stepX,
+    y: pad + (1 - d.minutos / max) * (SPARK_H - pad * 2),
+    dia: d.dia,
+    minutos: d.minutos,
+  }))
+  const path = puntos.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")
+  const ultimoDia = puntos[puntos.length - 1].dia
+
+  return (
+    <svg
+      viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
+      preserveAspectRatio="none"
+      className="mt-2 h-9 w-full"
+      role="img"
+      aria-label={`Tendencia de minutos perdidos por día: ${datos.map((d) => `${d.dia.slice(5)} ${fmtDuracion(d.minutos)}`).join(", ")}`}
+    >
+      <path d={path} fill="none" stroke="var(--info)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      {puntos.map((p) => (
+        <circle key={p.dia} cx={p.x} cy={p.y} r={p.dia === ultimoDia ? 3 : 1.5} fill="var(--info)">
+          <title>{`${p.dia.slice(5)}: ${fmtDuracion(p.minutos)}`}</title>
+        </circle>
+      ))}
+    </svg>
+  )
+}
+
 function Kpi({ etiqueta, valor, icono, tono }: { etiqueta: string; valor: number; icono?: ReactNode; tono: string }) {
   return (
     <article className="flex flex-col items-center rounded-xl border border-border bg-card p-4 text-center shadow-sm">
@@ -442,49 +485,3 @@ function Kpi({ etiqueta, valor, icono, tono }: { etiqueta: string; valor: number
   )
 }
 
-function FilaParada({ parada: p, ahora }: { parada: Parada; ahora: Date }) {
-  const min = duracionMin(p, ahora)
-  const abierta = paradaAbierta(p)
-  const desvio = p.tiempoGuiaMin != null ? min - p.tiempoGuiaMin : null
-
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
-        <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-foreground">
-            <span className={`size-2 shrink-0 rounded-full ${COLOR_CLASE[p.clase]}`} title={NOMBRE_CLASE[p.clase]} />
-            {p.tipoNombre}
-            {p.origen === "SHEET" && <span className="text-[11px] font-normal text-muted-foreground">· del Sheet</span>}
-          </p>
-          {p.nota && <p className="mt-0.5 text-sm text-foreground/90">{p.nota}</p>}
-          <p className="mt-1 text-xs text-muted-foreground">
-            {nombreLineaParada(p.lineaCodigo)} · {nombrePorCodigo(TURNO_TIPOS, p.turnoTipo)} · {p.inicio.slice(0, 10)}{" "}
-            {p.inicio.slice(11, 16)}
-            {p.fin ? `–${p.fin.slice(11, 16)}` : ""}
-            {p.supervisorNombre ? ` · ${p.supervisorNombre}` : ""}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="num flex items-center gap-1 text-sm font-semibold text-foreground">
-            <Clock className="size-3.5 text-muted-foreground" />
-            {fmtDuracion(min)}
-          </span>
-          {abierta ? (
-            <Badge variant="warning" className="gap-1">
-              <AlertTriangle className="size-3" />
-              En curso
-            </Badge>
-          ) : desvio != null && desvio !== 0 ? (
-            <Badge variant={desvio > 0 ? "danger" : "success"} className="font-normal">
-              {fmtDesvio(desvio)} vs. guía
-            </Badge>
-          ) : p.tiempoGuiaMin != null ? (
-            <Badge variant="muted" className="font-normal">
-              en guía
-            </Badge>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  )
-}

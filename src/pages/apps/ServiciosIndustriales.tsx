@@ -112,7 +112,7 @@ export default function ServiciosIndustriales() {
         <Card>
           <CardHeader>
             <CardTitle>Cargar lectura nueva</CardTitle>
-            <CardDescription>Cargá al menos uno de los dos valores.</CardDescription>
+            <CardDescription>Cargar al menos uno de los dos valores.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
