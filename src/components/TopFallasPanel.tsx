@@ -50,7 +50,7 @@ export function TopFallasPanel({
         {lineas
           .filter((l) => l.activo !== false)
           .map((l) => {
-            const dela = paradas.filter((p) => p.lineaCodigo === l.codigo)
+            const dela = paradas.filter((p) => p.lineaCodigo === "LINEA_" + l.codigo.replace(/^LINEA_T?/, ""))
             const total = dela.reduce((a, p) => a + duracionMin(p, ahora), 0)
             const topTipos = porTipo(dela, ahora).slice(0, 3)
             return (

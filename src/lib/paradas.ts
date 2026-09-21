@@ -10,8 +10,8 @@ import { supabase } from "@/lib/supabase"
  *  - NO_PROGRAMADA: solo lectura en la app; idealmente se sincroniza del
  *    Sheet de Mantenimiento (FASE C′ — todavía sin base).
  *
- * FASE A′: todo corre contra src/lib/paradasDemoFixture.ts para iterar el
- * diseño sin Supabase.
+ * Persistencia: migración 20261061 (paradas_tipos, paradas y sus RPC). El
+ * fixture src/lib/paradasDemoFixture.ts solo alimenta el preview /paradas-demo.
  *
  * Regla de negocio (dueño, 2026-09-09): la duración la calcula el
  * programa (fin − inicio). Cada tipo trae un "tiempo guía" (duración
@@ -19,7 +19,7 @@ import { supabase } from "@/lib/supabase"
  */
 
 export type ClaseParada = "PROGRAMADA" | "NO_PROGRAMADA" | "OCIOSO"
-export type OrigenParada = "MANUAL" | "SHEET"
+export type OrigenParada = "MANUAL" | "SHEET" | "MANTENIMIENTO"
 
 /** Orden fijo para todos los repartos por clase. */
 export const CLASES_PARADA: ClaseParada[] = ["PROGRAMADA", "NO_PROGRAMADA", "OCIOSO"]
@@ -58,17 +58,42 @@ export type FamiliaParada =
   | "ESTERILIZACION"
   | "PREPARACION"
   | "CODIFICACION"
+  | "OCIOSO"
+  | "EQUIPO"
+  | "EQUIPO_PROCESO"
 
 export const NOMBRE_FAMILIA: Record<FamiliaParada, string> = {
   PROGRAMADA: "Programada",
-  EXTERNA: "Línea no programada / externa",
-  OPERACIONAL: "Operacional",
+  EXTERNA: "Línea no programada (LNPE)",
+  OPERACIONAL: "Operacional (OP)",
   SUMINISTRO_VAPOR: "Suministro de vapor",
-  SUMINISTRO: "Suministro",
+  SUMINISTRO: "Suministro (S)",
   ESTERILIZACION: "Esterilización / proceso térmico",
   PREPARACION: "Preparación",
   CODIFICACION: "Codificación",
+  OCIOSO: "Tiempo ocioso",
+  EQUIPO: "Equipo de línea",
+  EQUIPO_PROCESO: "Equipo de Proceso (EP)",
 }
+
+/** Una línea donde existe un tipo, con su propia secuencia de código si difiere de la normal. */
+export interface LineaDeTipo {
+  area: string
+  /** LINEA_1 / LINEA_2 / LINEA_3 */
+  linea: string
+  /** null = usa la secuencia normal del tipo. */
+  secuencia: number | null
+  /** Presentaciones (ml) en que existe en esa línea. Vacío o ausente = todas. */
+  presentaciones?: number[] | null
+}
+
+/**
+ * Familias que registra el SUPERVISOR (además del tiempo ocioso): Programadas, Línea no programada (LNPE)
+ * y Operacionales. Todo lo demás de No programada (equipos, Suministro, Equipo de Proceso, Domino) lo
+ * registra Mantenimiento (dueño, 2026-09-21).
+ */
+export const FAMILIAS_SUPERVISOR: FamiliaParada[] = ["PROGRAMADA", "EXTERNA", "OPERACIONAL"]
+export const registraSupervisor = (t: { familia: FamiliaParada }) => FAMILIAS_SUPERVISOR.includes(t.familia)
 
 /** Un tipo del catálogo de paradas. En FASE B′ pasa a la tabla `paradas_tipos` (editable en Edición de Datos). */
 export interface TipoParada {
@@ -76,12 +101,21 @@ export interface TipoParada {
   nombre: string
   clase: ClaseParada
   familia: FamiliaParada
-  /** Duración estándar en minutos. null = sin guía (la mayoría de NO_PROGRAMADA no la tiene). */
+  /** Duración estándar en minutos. Solo las PROGRAMADAS la tienen; en el resto es null. */
   tiempoGuiaMin: number | null
+  /** Equipo al que pertenece la falla (código del catálogo de equipos). null = no es falla de equipo. */
+  equipoCodigo?: string | null
+  /** false = el código NO lleva el número de línea (A3F-1, CAP-1). Por defecto sí (AHL1-1). */
+  codigoConLinea?: boolean
   /** Prefijo del código de planilla de Mantenimiento SIN el número de línea (ej. "PP", "LNPE"). Ver `codigoPlanilla()`. */
   prefijoPlanilla: string
   /** Secuencial dentro de la familia (ej. el "-3" de "LNPEL1-3"). null cuando la familia no lo usa (PROGRAMADA). */
   secuenciaPlanilla: number | null
+  /**
+   * Líneas donde existe el tipo. Vacío o ausente = todas. Si un área tiene filas, el tipo existe SOLO en
+   * esas líneas de esa área (y la secuencia de la fila manda sobre la normal); las áreas sin filas no se afectan.
+   */
+  lineas?: LineaDeTipo[]
 }
 
 /**
@@ -91,9 +125,13 @@ export interface TipoParada {
  * secuencia`). Ej.: TRANSFERENCIA_ENERGIA en Línea 2 → "PPEL2"; FALTA_VAPOR
  * en Línea 3 → "SCL3-1". (Dueño, 2026-09-15: "solo cambiaría el código".)
  */
-export function codigoPlanilla(tipo: TipoParada, lineaCodigo: string): string {
-  const numero = lineaCodigo.replace(/^LINEA_/, "")
-  return `${tipo.prefijoPlanilla}L${numero}${tipo.secuenciaPlanilla != null ? `-${tipo.secuenciaPlanilla}` : ""}`
+export function codigoPlanilla(tipo: TipoParada, lineaCodigo: string, area?: string | null): string {
+  const numero = lineaCodigo.replace(/^LINEA_T?/, "")
+  const linea = tipo.codigoConLinea === false ? "" : `L${numero}`
+  // La secuencia puede cambiar por línea (la Línea 2 numera distinto a la 1 en Operacional, Robot Tavil…).
+  const propia = tipo.lineas?.find((l) => l.linea.replace(/^LINEA_T?/, "") === numero && (!area || l.area === area))
+  const secuencia = propia?.secuencia ?? tipo.secuenciaPlanilla
+  return `${tipo.prefijoPlanilla}${linea}${secuencia != null ? `-${secuencia}` : ""}`
 }
 
 /*
@@ -121,22 +159,22 @@ export const CATALOGO_TIPOS: TipoParada[] = [
   { codigo: "TRANSFERENCIA_ENERGIA", nombre: "Transferencia de Energía Eléctrica / Preventivo", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: null, prefijoPlanilla: "PPE", secuenciaPlanilla: null },
 
   // ---- Línea no programada / externa (LNPEL#-#) ----
-  { codigo: "LINEA_NO_PROG_VENTAS", nombre: "Línea No Programada / Disponibilidad de Ventas", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 1 },
-  { codigo: "LINEA_NO_PROG_INSUMOS_PALETAS", nombre: "Línea No Programada / Falta de Insumos / Paletas", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 2 },
+  { codigo: "LINEA_NO_PROG_VENTAS", nombre: "Disponibilidad de Ventas", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 1 },
+  { codigo: "LINEA_NO_PROG_INSUMOS_PALETAS", nombre: "Falta de Insumos/Paletas", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 2 },
   { codigo: "FALLA_SUMINISTRO_ELECTRICO", nombre: "Falla en Suministro Eléctrico", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 3 },
-  { codigo: "LINEA_NO_PROG_ESPACIO_ALMACEN", nombre: "Línea No Programada / Falta de Espacio de Almacenamiento", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 4 },
+  { codigo: "LINEA_NO_PROG_ESPACIO_ALMACEN", nombre: "Falta de Espacio Almacenamiento", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 4 },
   { codigo: "FERIADO", nombre: "Feriado", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 5 },
   { codigo: "PRESENTACION_NO_PLANIFICADA", nombre: "Presentación No Planificada", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 6 },
 
   // ---- Operacional (OPL#-#) ----
   { codigo: "DESVASE_PRODUCTO", nombre: "Desvase de Producto", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 1 },
-  { codigo: "INSUMOS_NO_CONFORME", nombre: "Insumos No Conforme (Prueba Industrial)", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 2 },
+  { codigo: "INSUMOS_NO_CONFORME", nombre: "Insumos (Prueba Industrial)", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 2 },
   { codigo: "LOGISTICA_LINEA", nombre: "Logística de Línea", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 3 },
   { codigo: "PARADAS_NO_DOCUMENTADAS", nombre: "Paradas No Documentadas", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 4 },
   { codigo: "FALTA_DISPONIBILIDAD_INSUMO", nombre: "Falta de Disponibilidad de Insumo", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 5 },
   { codigo: "FALLA_FALTA_MONTACARGAS", nombre: "Falla / Falta de Montacargas", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 6 },
   { codigo: "FALLA_OPERACIONAL", nombre: "Falla Operacional (Operación)", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 7 },
-  { codigo: "FALTA_OPERADOR", nombre: "Falta de Operador", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 8 },
+  { codigo: "FALTA_OPERADOR", nombre: "Falta de operador", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 8 },
   { codigo: "LOGISTICA_CONDICIONADA_DISTRIBUCION", nombre: "Logística Condicionada por Distribución", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 9 },
 
   // ---- Codificación (IDL#-#) ----
@@ -365,7 +403,7 @@ export interface GrupoTipo {
 export function porTipo(paradas: Parada[], ahora?: Date): GrupoTipo[] {
   const m = new Map<string, GrupoTipo & { _conGuia: number }>()
   for (const p of paradas) {
-    const clave = p.tipoCodigo ?? `OCIOSO:${p.tipoNombre}`
+    const clave = p.tipoCodigo ?? `LIBRE:${p.tipoNombre}`
     const g = m.get(clave) ?? {
       codigo: clave,
       nombre: p.tipoNombre,
@@ -407,7 +445,7 @@ export function porTipoPorFrecuencia(paradas: Parada[], ahora?: Date): GrupoTipo
 export function porTipoYLinea(paradas: Parada[], ahora?: Date): GrupoTipo[] {
   const m = new Map<string, GrupoTipo & { _conGuia: number }>()
   for (const p of paradas) {
-    const clave = `${p.lineaCodigo}::${p.tipoCodigo ?? `OCIOSO:${p.tipoNombre}`}`
+    const clave = `${p.lineaCodigo}::${p.tipoCodigo ?? `LIBRE:${p.tipoNombre}`}`
     const g = m.get(clave) ?? {
       codigo: clave,
       nombre: p.tipoNombre,
@@ -541,21 +579,124 @@ export interface FiltrosParadas {
   hasta: string
   linea?: string
   clase?: ClaseParada
+  /** Solo las paradas de este turno (ignora desde/hasta). */
+  turnoId?: string
+  /** Área de la consulta por fechas: 'ASEPTICO' / 'VACIO' / 'PRUEBAS'. Sin área: las de producción, nunca las de Pruebas. */
+  area?: string | null
 }
 
-/**
- * FASE A′: lee el fixture (todo el rango, se filtra en memoria).
- * FASE B′: pasa a `supabase.rpc("listar_paradas", {...})` — la firma y la
- * forma de `Parada` no cambian, así que las páginas no se tocan.
- */
+interface FilaParada {
+  id: string
+  clase: ClaseParada
+  origen: OrigenParada
+  linea_codigo: string
+  turno_tipo: string
+  tipo_codigo: string | null
+  tipo_nombre: string
+  tiempo_guia_min: number | null
+  nota: string | null
+  justificacion_desvio: string | null
+  inicio: string
+  fin: string | null
+  supervisor_nombre: string | null
+}
+
+/** Lee `listar_paradas` (migración 20261061). Devuelve [] si la lectura falla. */
 export async function listarParadas(filtros: FiltrosParadas): Promise<Parada[]> {
-  void supabase // FASE B′/C′
-  const { paradasDemo } = await import("@/lib/paradasDemoFixture")
-  return paradasDemo().filter((p) => {
-    const dia = p.inicio.slice(0, 10)
-    if (dia < filtros.desde || dia > filtros.hasta) return false
-    if (filtros.linea && p.lineaCodigo !== filtros.linea) return false
-    if (filtros.clase && p.clase !== filtros.clase) return false
-    return true
+  const { data, error } = await supabase.rpc("listar_paradas", {
+    p_desde: filtros.desde,
+    p_hasta: filtros.hasta,
+    p_linea: filtros.linea ?? null,
+    p_clase: filtros.clase ?? null,
+    p_turno_id: filtros.turnoId ?? null,
+    p_area: filtros.area ?? null,
   })
+  if (error || !data) return []
+  return (data as FilaParada[]).map((f) => ({
+    id: f.id,
+    clase: f.clase,
+    origen: f.origen,
+    lineaCodigo: f.linea_codigo,
+    turnoTipo: f.turno_tipo,
+    tipoCodigo: f.tipo_codigo,
+    tipoNombre: f.tipo_nombre,
+    tiempoGuiaMin: f.tiempo_guia_min != null ? Number(f.tiempo_guia_min) : null,
+    nota: f.nota,
+    justificacionDesvio: f.justificacion_desvio,
+    inicio: f.inicio,
+    fin: f.fin,
+    supervisorNombre: f.supervisor_nombre,
+  }))
+}
+
+export interface DatosRegistroParada {
+  turnoId: string
+  lineaCodigo: string
+  /** null = Ocioso de texto libre (la nota es obligatoria). */
+  tipoCodigo: string | null
+  minutos: number
+  nota: string | null
+  justificacionDesvio: string | null
+}
+
+/** Guarda una parada ya cerrada en el turno (`registrar_parada`). El servidor calcula inicio/fin. */
+export async function registrarParada(
+  usuario: string,
+  datos: DatosRegistroParada,
+  pagina: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc("registrar_parada", {
+    p_usuario: usuario,
+    p_turno_id: datos.turnoId,
+    p_linea_codigo: datos.lineaCodigo,
+    p_tipo_codigo: datos.tipoCodigo,
+    p_minutos: datos.minutos,
+    p_nota: datos.nota,
+    p_justificacion_desvio: datos.justificacionDesvio,
+    p_pagina: pagina,
+  })
+  if (error) return { ok: false, error: error.message || "No se pudo guardar la parada. Intenta de nuevo." }
+  return { ok: true }
+}
+
+// ------------------------------------------------------------
+// Paradas de Mantenimiento (migración 20261070)
+// ------------------------------------------------------------
+
+type Resultado = { ok: true } | { ok: false; error: string }
+
+export interface DatosParadaMantenimiento {
+  lineaCodigo: string
+  tipoCodigo: string
+  /** Hora de planta, 'YYYY-MM-DDTHH:MM:SS'. */
+  inicio: string
+  /** null = en curso. */
+  fin: string | null
+  nota: string | null
+}
+
+/** Registra una parada de Mantenimiento (sin fin queda en curso). Solo el área de Mantenimiento; el servidor lo valida. */
+export async function registrarParadaMantenimiento(usuario: string, datos: DatosParadaMantenimiento, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("registrar_parada_mantenimiento", {
+    p_usuario: usuario,
+    p_linea_codigo: datos.lineaCodigo,
+    p_tipo_codigo: datos.tipoCodigo,
+    p_inicio: datos.inicio,
+    p_fin: datos.fin,
+    p_nota: datos.nota,
+    p_pagina: pagina,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo guardar la parada. Intenta de nuevo." } : { ok: true }
+}
+
+/** Cierra una parada en curso (fin = ahora). */
+export async function cerrarParadaMantenimiento(usuario: string, paradaId: string, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("cerrar_parada_mantenimiento", { p_usuario: usuario, p_parada_id: paradaId, p_pagina: pagina })
+  return error ? { ok: false, error: error.message || "No se pudo cerrar la parada. Intenta de nuevo." } : { ok: true }
+}
+
+/** Elimina una parada cargada por error (queda en Auditoría). */
+export async function eliminarParadaMantenimiento(usuario: string, paradaId: string, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("eliminar_parada_mantenimiento", { p_usuario: usuario, p_parada_id: paradaId, p_pagina: pagina })
+  return error ? { ok: false, error: error.message || "No se pudo eliminar la parada. Intenta de nuevo." } : { ok: true }
 }

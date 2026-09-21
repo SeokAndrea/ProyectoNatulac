@@ -18,6 +18,7 @@ import {
   Calculator,
   FlaskConical,
   Scale,
+  BookOpen,
 } from "lucide-react"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 
@@ -161,11 +162,30 @@ export const apps: AppDef[] = [
     href: "/paradas",
     icon: Wrench,
     requiereTurno: false,
-    // TEMPORAL: oculto para todos salvo el Área de Pruebas hasta que el módulo
-    // Paradas (rumbo nuevo, ver plan-paradas.md) tenga base. Para reactivar:
-    // borrar `areasPermitidas` y poner `rolesPermitidos: ["SUPERADMINISTRADOR",
-    // "ADMINISTRADOR_AREA", "SUPERVISOR"]` (acá y en la ruta /paradas de src/App.tsx).
-    areasPermitidas: ["PRUEBAS"],
+    // Solo supervisores registran paradas; tiene que coincidir con la ruta /paradas de src/App.tsx.
+    rolesPermitidos: ["SUPERVISOR"],
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    atajo: true,
+  },
+  {
+    slug: "catalogo-paradas",
+    title: "Catálogo de Paradas",
+    description: "Editar los tipos de parada, su clase, código y tiempo guía.",
+    href: "/catalogo-paradas",
+    icon: Wrench,
+    requiereTurno: false,
+    // Solo SUPERADMINISTRADOR (el Área de Pruebas también entra). Tiene que coincidir con la ruta en src/App.tsx.
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
+  },
+  {
+    slug: "paradas-mantenimiento",
+    title: "Paradas de Mantenimiento",
+    description: "Registrar las paradas de Aséptico con el catálogo de siempre, con hora de inicio y fin.",
+    href: "/paradas-mantenimiento",
+    icon: Wrench,
+    requiereTurno: false,
+    // Solo el área de Mantenimiento (el Área de Pruebas también entra). Coincide con la ruta en src/App.tsx.
+    areasPermitidas: ["MANTENIMIENTO"],
     atajo: true,
   },
   {
@@ -175,8 +195,7 @@ export const apps: AppDef[] = [
     href: "/panel-paradas",
     icon: RadioTower,
     requiereTurno: false,
-    // TEMPORAL: solo Área de Pruebas, mismo criterio que Registrar Paradas.
-    areasPermitidas: ["PRUEBAS"],
+    // Dashboard de solo lectura: visible para cualquier sesión, como el Panel de Producción.
     atajo: true,
   },
   {
@@ -188,6 +207,15 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     // Programación es de producción — Servicios Industriales no la necesita.
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    atajo: true,
+  },
+  {
+    // Placeholder: sin href, el hub la muestra deshabilitada ("Próximamente").
+    slug: "manual",
+    title: "Manual",
+    description: "Manual de usuario de la aplicación.",
+    icon: BookOpen,
+    requiereTurno: false,
     atajo: true,
   },
   {

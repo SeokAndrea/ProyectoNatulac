@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { generarActaPdf } from "@/lib/actaPdf"
+import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { miTurnoDetalle, misTurnosSinActa, subirYRegistrarActa } from "@/lib/historialTurnos"
 import { listarLecturasServiciosIndustrialesDeTurno } from "@/lib/panelProduccion"
 
@@ -32,6 +33,7 @@ export function useGenerarActasPendientes(): void {
         const turno = await miTurnoDetalle(session.username, turnoId)
         if (!turno) continue
         const serviciosIndustriales = await listarLecturasServiciosIndustrialesDeTurno(turnoId)
+        const paradas = await cargarParadasDelTurno(turnoId)
         try {
           const blob = await generarActaPdf({
             codigo: turno.codigo,
@@ -46,6 +48,7 @@ export function useGenerarActasPendientes(): void {
             productoTerminado: turno.productoTerminado,
             novedades: turno.novedades,
             ajustesVolumen: turno.ajustesVolumen,
+            paradas,
             serviciosIndustriales,
             supervisorNombre: session.nombre || session.username,
             area: session.area,

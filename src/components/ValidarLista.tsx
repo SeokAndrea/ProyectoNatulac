@@ -5,10 +5,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { rangoDePreset, turnoEnFiltro, type PresetFecha, type RangoFecha } from "@/lib/auditoriaVista"
 import {
+  deltaEnvases,
+  derivarValores,
   efectivo,
   type EstadoValidacion,
   type FilaValidacion,
   type OverridesValidacion,
+  type ParadaValidar,
   type TanqueEstado,
   type TurnoTanques,
   type ValoresProduccion,
@@ -20,7 +23,9 @@ import {
  * supervisor y, si se editó, los corregidos al lado. Botones Sí /
  * Editar por fila (form inline). Arriba de las corridas de cada
  * supervisor, los tanques recibidos y dejados del turno (para cruzar
- * contra el acta). Ver plan-validar-produccion.md §3.
+ * contra el acta) y las paradas del turno, solo lectura. Al editar paletas,
+ * cajas sueltas o contadores, cajas / litros / mermas se recalculan solos.
+ * Ver plan-validar-produccion.md §3.
  */
 const NUM = new Intl.NumberFormat("es-CO")
 const PCT = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 })
@@ -41,6 +46,7 @@ const BADGE: Record<EstadoValidacion, "muted" | "success" | "warning"> = {
 export function ValidarLista({
   filas,
   tanquesPorTurno = {},
+  paradasPorTurno = {},
   cargando = false,
   onConfirmar,
   onEditar,
@@ -50,6 +56,8 @@ export function ValidarLista({
   filas: FilaValidacion[]
   /** Tanques recibidos / dejados por código de turno — solo lectura, para cruzar con el acta. */
   tanquesPorTurno?: Record<string, TurnoTanques>
+  /** Paradas registradas por código de turno — solo lectura. */
+  paradasPorTurno?: Record<string, ParadaValidar[]>
   cargando?: boolean
   onConfirmar: (turnoLineaId: string) => void | Promise<void>
   onEditar: (turnoLineaId: string, overrides: OverridesValidacion) => void | Promise<void>
@@ -194,6 +202,7 @@ export function ValidarLista({
                   <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">{tur.area}</span>
                 </p>
                 {tanquesPorTurno[tur.codigo] ? <PanelTanques tanques={tanquesPorTurno[tur.codigo]} /> : null}
+                {paradasPorTurno[tur.codigo]?.length ? <PanelParadasTurno paradas={paradasPorTurno[tur.codigo]} /> : null}
                 {tur.filas.map((f) => (
                   <FilaCorrida key={f.turnoLineaId} fila={f} onConfirmar={onConfirmar} onEditar={onEditar} />
                 ))}
@@ -278,6 +287,12 @@ function FilaCorrida({
           editado={editado}
         />
         <Celda
+          etiqueta="Contador 2 (buenos)"
+          sup={fila.supervisor.envasesBuenos != null ? NUM.format(fila.supervisor.envasesBuenos) : "—"}
+          efe={val("envasesBuenos") != null ? NUM.format(val("envasesBuenos") as number) : "—"}
+          editado={editado}
+        />
+        <Celda
           etiqueta="Consumido → producido"
           sup={`${NUM.format(fila.supervisor.litrosConsumidos)} → ${NUM.format(fila.supervisor.litrosProducidos)} L`}
           efe={`${NUM.format(val("litrosConsumidos"))} → ${NUM.format(val("litrosProducidos"))} L`}
@@ -295,6 +310,7 @@ function FilaCorrida({
           efe={pct(val("mermaSemielaboradoPct"))}
           editado={editado}
         />
+        <DeltaEnvases fila={fila} />
         {fila.validadoPorNombre && (
           <span className="col-span-2 sm:col-span-1">
             <span className="font-medium text-foreground">Validó:</span> {fila.validadoPorNombre}
@@ -320,6 +336,46 @@ function FilaCorrida({
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** Δ envases: |Contador 2 − envases del Producto Terminado| — para detectar que falta actualizar uno de los dos. */
+function DeltaEnvases({ fila }: { fila: FilaValidacion }) {
+  const v = derivarValores(fila.supervisor, fila.datosPresentacion, fila.estado === "EDITADO" ? fila.overrides : null)
+  const d = deltaEnvases(v, fila.datosPresentacion)
+  if (d == null) return null
+  return (
+    <span>
+      <span className="font-medium text-foreground">Δ envases:</span> {NUM.format(d)}
+    </span>
+  )
+}
+
+const ETIQUETA_CLASE = { PROGRAMADA: "Programada", NO_PROGRAMADA: "No programada", OCIOSO: "Ocioso" } as const
+
+/** Paradas del turno por línea — solo lectura. Muestra el desvío contra el tiempo guía y la justificación. */
+function PanelParadasTurno({ paradas }: { paradas: ParadaValidar[] }) {
+  const total = paradas.reduce((a, p) => a + p.minutos, 0)
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
+      <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        Paradas del turno · {paradas.length} · {NUM.format(total)} min
+      </p>
+      <div className="flex flex-col gap-1">
+        {paradas.map((p, i) => {
+          const desvio = p.guia != null ? p.minutos - p.guia : null
+          return (
+            <p key={i} className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{p.linea}</span> · {p.tipo} ({ETIQUETA_CLASE[p.clase]}) ·{" "}
+              {NUM.format(p.minutos)} min
+              {desvio != null ? " · " + (desvio > 0 ? "+" : desvio < 0 ? "−" : "") + NUM.format(Math.abs(desvio)) + " min vs. guía" : ""}
+              {p.justificacion ? " · Justificación: " + p.justificacion : ""}
+              {p.nota ? " · " + p.nota : ""}
+            </p>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -369,29 +425,71 @@ function FormEditar({
   onGuardar: (ov: OverridesValidacion) => void | Promise<void>
 }) {
   const base = fila.supervisor
+  const datos = fila.datosPresentacion
   const ov0 = fila.overrides ?? {}
   const [paletas, setPaletas] = useState(String(ov0.paletas ?? base.paletas))
   const [cajasSueltas, setCajasSueltas] = useState(String(ov0.cajasSueltas ?? base.cajasSueltas))
   const [envases, setEnvases] = useState(String(ov0.envasesLlenadora ?? base.envasesLlenadora))
+  const [buenos, setBuenos] = useState(String(ov0.envasesBuenos ?? base.envasesBuenos ?? ""))
   const [litros, setLitros] = useState(String(ov0.litrosConsumidos ?? base.litrosConsumidos))
   const [lote, setLote] = useState(ov0.lote ?? fila.lote ?? "")
-  const [mEnv, setMEnv] = useState(ov0.mermaEnvasesPct != null ? String(ov0.mermaEnvasesPct) : "")
-  const [mSemi, setMSemi] = useState(ov0.mermaSemielaboradoPct != null ? String(ov0.mermaSemielaboradoPct) : "")
+  // Una merma guardada que coincide con el cálculo se toma como automática (campo vacío);
+  // solo lo distinto es un valor escrito a mano.
+  const auto0 = derivarValores(base, datos, { ...ov0, mermaEnvasesPct: undefined, mermaSemielaboradoPct: undefined })
+  const [mEnv, setMEnv] = useState(
+    ov0.mermaEnvasesPct != null && ov0.mermaEnvasesPct !== auto0.mermaEnvasesPct ? String(ov0.mermaEnvasesPct) : "",
+  )
+  const [mSemi, setMSemi] = useState(
+    ov0.mermaSemielaboradoPct != null && ov0.mermaSemielaboradoPct !== auto0.mermaSemielaboradoPct
+      ? String(ov0.mermaSemielaboradoPct)
+      : "",
+  )
   const [nota, setNota] = useState(ov0.nota ?? "")
   const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function guardar() {
-    setGuardando(true)
+  const numOr = (s: string, prev: number) => (s.trim() === "" || !Number.isFinite(Number(s)) ? prev : Number(s))
+
+  /** Las correcciones que hay escritas ahora (sin la merma automática). */
+  function correcciones(): OverridesValidacion {
     const ov: OverridesValidacion = {}
-    const numOr = (s: string, prev: number) => (s.trim() === "" ? prev : Number(s))
     if (numOr(paletas, base.paletas) !== base.paletas) ov.paletas = numOr(paletas, base.paletas)
     if (numOr(cajasSueltas, base.cajasSueltas) !== base.cajasSueltas) ov.cajasSueltas = numOr(cajasSueltas, base.cajasSueltas)
     if (numOr(envases, base.envasesLlenadora) !== base.envasesLlenadora) ov.envasesLlenadora = numOr(envases, base.envasesLlenadora)
+    if (buenos.trim() !== "" && Number.isFinite(Number(buenos)) && Number(buenos) !== (base.envasesBuenos ?? null)) {
+      ov.envasesBuenos = Number(buenos)
+    }
     if (numOr(litros, base.litrosConsumidos) !== base.litrosConsumidos) ov.litrosConsumidos = numOr(litros, base.litrosConsumidos)
+    if (mEnv.trim() !== "" && Number.isFinite(Number(mEnv))) ov.mermaEnvasesPct = Number(mEnv)
+    if (mSemi.trim() !== "" && Number.isFinite(Number(mSemi))) ov.mermaSemielaboradoPct = Number(mSemi)
+    return ov
+  }
+
+  // Vista previa en vivo: todo lo derivado se recalcula con lo que hay escrito.
+  const ovActual = correcciones()
+  const vista = derivarValores(base, datos, ovActual)
+  const delta = deltaEnvases(vista, datos)
+
+  async function guardar() {
+    const contador = numOr(envases, base.envasesLlenadora)
+    if (buenos.trim() !== "" && Number(buenos) > contador) {
+      setError("El Contador 2 no puede superar el contador de la llenadora.")
+      return
+    }
+    setError(null)
+    setGuardando(true)
+    const ov = correcciones()
     if (lote.trim() && lote.trim() !== (fila.lote ?? "")) ov.lote = lote.trim()
-    if (mEnv.trim() !== "") ov.mermaEnvasesPct = Number(mEnv)
-    if (mSemi.trim() !== "") ov.mermaSemielaboradoPct = Number(mSemi)
     if (nota.trim()) ov.nota = nota.trim()
+    // Si se cambió algún dato y la merma no se escribió a mano, se guarda la calculada:
+    // así el valor validado queda completo para los KPIs.
+    const cambioDatos =
+      ov.paletas != null || ov.cajasSueltas != null || ov.envasesLlenadora != null || ov.envasesBuenos != null || ov.litrosConsumidos != null
+    if (cambioDatos && datos) {
+      const calc = derivarValores(base, datos, ov)
+      if (ov.mermaEnvasesPct == null && calc.mermaEnvasesPct != null) ov.mermaEnvasesPct = calc.mermaEnvasesPct
+      if (ov.mermaSemielaboradoPct == null && calc.mermaSemielaboradoPct != null) ov.mermaSemielaboradoPct = calc.mermaSemielaboradoPct
+    }
     await onGuardar(ov)
     setGuardando(false)
   }
@@ -399,21 +497,40 @@ function FormEditar({
   return (
     <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-3 text-xs">
       <p className="text-muted-foreground">
-        Deja en blanco lo que no cambie. Escribe un % de merma solo para pisar el cálculo.
+        Deja en blanco lo que no cambie. Cajas, litros y mermas se recalculan solos; escribe un % de merma solo para
+        pisar el cálculo.
       </p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Campo etiqueta="Paletas" value={paletas} onChange={setPaletas} />
         <Campo etiqueta="Cajas sueltas" value={cajasSueltas} onChange={setCajasSueltas} />
         <Campo etiqueta="Contador (envases)" value={envases} onChange={setEnvases} />
+        <Campo etiqueta="Contador 2 (buenos)" value={buenos} onChange={setBuenos} />
         <Campo etiqueta="Litros consumidos" value={litros} onChange={setLitros} />
         <Campo etiqueta="Lote" value={lote} onChange={setLote} texto />
-        <Campo etiqueta="Merma envases %" value={mEnv} onChange={setMEnv} />
-        <Campo etiqueta="Merma semi %" value={mSemi} onChange={setMSemi} />
+        <Campo
+          etiqueta="Merma envases %"
+          value={mEnv}
+          onChange={setMEnv}
+          placeholder={vista.mermaEnvasesPct != null ? "auto: " + PCT.format(vista.mermaEnvasesPct) : "auto"}
+        />
+        <Campo
+          etiqueta="Merma semi %"
+          value={mSemi}
+          onChange={setMSemi}
+          placeholder={vista.mermaSemielaboradoPct != null ? "auto: " + PCT.format(vista.mermaSemielaboradoPct) : "auto"}
+        />
         <div className="col-span-2 flex flex-col gap-1 sm:col-span-3">
           <span className="text-muted-foreground">Nota</span>
           <Input className="h-8" value={nota} onChange={(e) => setNota(e.target.value)} />
         </div>
       </div>
+      <p className="rounded-md bg-background px-2 py-1.5 text-muted-foreground">
+        <span className="font-medium text-foreground">Resultado:</span> {NUM.format(vista.cajas)} cajas ·{" "}
+        {NUM.format(vista.litrosConsumidos)} → {NUM.format(vista.litrosProducidos)} L · Merma envases {pct(vista.mermaEnvasesPct)} ·
+        Merma semi {pct(vista.mermaSemielaboradoPct)}
+        {delta != null ? " · Δ envases " + NUM.format(delta) : ""}
+      </p>
+      {error && <p className="text-danger-foreground">{error}</p>}
       <div className="flex gap-2">
         <Button size="sm" disabled={guardando} onClick={guardar}>
           {guardando ? <Loader2 className="size-3.5 animate-spin" /> : "Guardar corrección"}
@@ -431,11 +548,13 @@ function Campo({
   value,
   onChange,
   texto,
+  placeholder,
 }: {
   etiqueta: string
   value: string
   onChange: (v: string) => void
   texto?: boolean
+  placeholder?: string
 }) {
   return (
     <label className="flex flex-col gap-1">
@@ -444,6 +563,7 @@ function Campo({
         className="h-8"
         type={texto ? "text" : "number"}
         inputMode={texto ? "text" : "decimal"}
+        placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

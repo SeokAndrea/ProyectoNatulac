@@ -7,9 +7,11 @@ import {
   confirmarProduccion,
   editarProduccionValidada,
   listarValidacionProduccion,
+  paradasDeTurnos,
   tanquesDeTurnos,
   type FilaValidacion,
   type OverridesValidacion,
+  type ParadaValidar,
   type TurnoTanques,
 } from "@/lib/validacion"
 
@@ -17,7 +19,8 @@ import {
  * Validar (SUPERADMINISTRADOR): revisar cada corrida de los turnos
  * cerrados y marcar SÍ o EDITAR. Solo lo validado alimenta el
  * dashboard de KPIs futuro. La lista y el diseño están en
- * <ValidarLista>; acá se traen los datos y se conectan los RPC.
+ * <ValidarLista>; acá se traen los datos (corridas, tanques y paradas
+ * del turno) y se conectan los RPC.
  * Ver plan-validar-produccion.md.
  */
 export default function Validar() {
@@ -27,6 +30,7 @@ export default function Validar() {
   const [rango, setRango] = useState<RangoFecha>(() => rangoDePreset("AYER", ""))
   const [filas, setFilas] = useState<FilaValidacion[]>([])
   const [tanques, setTanques] = useState<Record<string, TurnoTanques>>({})
+  const [paradas, setParadas] = useState<Record<string, ParadaValidar[]>>({})
   const [cargando, setCargando] = useState(true)
 
   async function cargar(r: RangoFecha) {
@@ -35,7 +39,12 @@ export default function Validar() {
     const lista = await listarValidacionProduccion(usuario, { fechaDesde: r.desde, fechaHasta: r.hasta })
     setFilas(lista)
     const codigos = [...new Set(lista.map((f) => f.turnoCodigo))]
-    setTanques(await tanquesDeTurnos(usuario, codigos))
+    const [tanquesTurnos, paradasTurnos] = await Promise.all([
+      tanquesDeTurnos(usuario, codigos),
+      paradasDeTurnos(usuario, codigos),
+    ])
+    setTanques(tanquesTurnos)
+    setParadas(paradasTurnos)
     setCargando(false)
   }
 
@@ -66,6 +75,7 @@ export default function Validar() {
         <ValidarLista
           filas={filas}
           tanquesPorTurno={tanques}
+          paradasPorTurno={paradas}
           cargando={cargando}
           onConfirmar={handleConfirmar}
           onEditar={handleEditar}

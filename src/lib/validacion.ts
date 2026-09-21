@@ -18,6 +18,8 @@ export interface ValoresProduccion {
   cajas: number
   /** Contador de la llenadora de esa corrida. */
   envasesLlenadora: number
+  /** Contador 2: envases buenos (null = no se cargó). */
+  envasesBuenos?: number | null
   /** Litros que sacó la llenadora (contador × volumen de la presentación). */
   litrosConsumidos: number
   /** Litros que quedaron como producto (cajas × litros/caja). */
@@ -31,11 +33,31 @@ export interface OverridesValidacion {
   paletas?: number
   cajasSueltas?: number
   envasesLlenadora?: number
+  envasesBuenos?: number
   litrosConsumidos?: number
   lote?: string
   mermaEnvasesPct?: number
   mermaSemielaboradoPct?: number
   nota?: string
+}
+
+/** Datos de la presentación de la corrida — sirven para recalcular al editar. */
+export interface DatosPresentacion {
+  cajasXPaleta: number | null
+  envasesXCaja: number | null
+  litrosXCaja: number | null
+  volumenMl: number | null
+}
+
+/** Una parada del turno, solo lectura en Validar. */
+export interface ParadaValidar {
+  linea: string
+  clase: "PROGRAMADA" | "NO_PROGRAMADA" | "OCIOSO"
+  tipo: string
+  minutos: number
+  guia: number | null
+  nota: string | null
+  justificacion: string | null
 }
 
 /** Estado de un tanque en un momento del turno (recibido al inicio / dejado al final). */
@@ -83,6 +105,8 @@ export interface FilaValidacion {
    * `activar_linea` de `20261003`.
    */
   posibleDuplicado: boolean
+  /** Datos de la presentación (cajas/paleta, envases/caja, litros/caja, volumen). Sin ellos no se recalcula solo. */
+  datosPresentacion?: DatosPresentacion | null
   /** Lo que cargó el supervisor (siempre presente). */
   supervisor: ValoresProduccion
   /** Overrides guardados si `estado === "EDITADO"` (los campos que Daniela cambió). */
@@ -91,11 +115,68 @@ export interface FilaValidacion {
   validadoEn: string | null
 }
 
-/** El valor efectivo de un campo: el corregido si se pisó, si no el del supervisor. */
+const redondear1 = (n: number) => Math.round(n * 10) / 10
+
+/**
+ * Valores resultantes de aplicar las correcciones (paletas, cajas sueltas,
+ * contador, contador 2, litros) sobre lo del supervisor, recalculando lo
+ * derivado: cajas, litros producidos/consumidos y ambas mermas. Un % de merma
+ * escrito a mano (`mermaEnvasesPct` / `mermaSemielaboradoPct`) manda sobre el
+ * cálculo. Sin `datos` de la presentación no se puede recalcular y lo derivado
+ * queda como lo calculó el servidor.
+ */
+export function derivarValores(
+  base: ValoresProduccion,
+  datos: DatosPresentacion | null | undefined,
+  ov: OverridesValidacion | null,
+): ValoresProduccion {
+  const o = ov ?? {}
+  const paletas = o.paletas ?? base.paletas
+  const cajasSueltas = o.cajasSueltas ?? base.cajasSueltas
+  const envasesLlenadora = o.envasesLlenadora ?? base.envasesLlenadora
+  const envasesBuenos = o.envasesBuenos ?? base.envasesBuenos ?? null
+
+  const cajas = datos?.cajasXPaleta != null ? paletas * datos.cajasXPaleta + cajasSueltas : base.cajas
+  const litrosProducidos =
+    datos?.litrosXCaja != null && cajas !== base.cajas ? Math.round(cajas * datos.litrosXCaja) : base.litrosProducidos
+  const litrosConsumidos =
+    o.litrosConsumidos ??
+    (datos?.volumenMl != null && envasesLlenadora !== base.envasesLlenadora
+      ? Math.round((envasesLlenadora * datos.volumenMl) / 1000)
+      : base.litrosConsumidos)
+
+  const mermaEnvasesPct =
+    o.mermaEnvasesPct ??
+    (datos?.envasesXCaja != null && envasesLlenadora > 0
+      ? redondear1((1 - (cajas * datos.envasesXCaja) / envasesLlenadora) * 100)
+      : base.mermaEnvasesPct)
+  const mermaSemielaboradoPct =
+    o.mermaSemielaboradoPct ??
+    (litrosConsumidos > 0 ? redondear1((1 - litrosProducidos / litrosConsumidos) * 100) : base.mermaSemielaboradoPct)
+
+  return {
+    paletas,
+    cajasSueltas,
+    cajas,
+    envasesLlenadora,
+    envasesBuenos,
+    litrosConsumidos,
+    litrosProducidos,
+    mermaEnvasesPct,
+    mermaSemielaboradoPct,
+  }
+}
+
+/** El valor efectivo de un campo: el corregido si se pisó (con lo derivado recalculado), si no el del supervisor. */
 export function efectivo<K extends keyof ValoresProduccion>(fila: FilaValidacion, campo: K): ValoresProduccion[K] {
-  const ov = fila.overrides as Record<string, unknown> | null
-  if (fila.estado === "EDITADO" && ov && ov[campo] != null) return ov[campo] as ValoresProduccion[K]
-  return fila.supervisor[campo]
+  if (fila.estado !== "EDITADO" || !fila.overrides) return fila.supervisor[campo]
+  return derivarValores(fila.supervisor, fila.datosPresentacion, fila.overrides)[campo]
+}
+
+/** Δ envases: |Contador 2 − envases del Producto Terminado|. null si falta el Contador 2 o los datos. */
+export function deltaEnvases(v: ValoresProduccion, datos: DatosPresentacion | null | undefined): number | null {
+  if (v.envasesBuenos == null || datos?.envasesXCaja == null) return null
+  return Math.abs(v.envasesBuenos - v.cajas * datos.envasesXCaja)
 }
 
 // ------------------------------------------------------------
@@ -113,11 +194,18 @@ interface FilaRpc {
   lote: string | null
   sin_pt?: boolean
   cierre_automatico?: boolean
+  datos_presentacion?: {
+    cajas_x_paleta: number | null
+    envases_x_caja: number | null
+    litros_x_caja: number | null
+    volumen_ml: number | null
+  } | null
   supervisor: {
     paletas: number
     cajas_sueltas: number
     cajas: number
     envases_llenadora: number
+    envases_buenos?: number | null
     litros_producidos: number
     litros_consumidos: number
     merma_envases_pct: number | null
@@ -153,11 +241,20 @@ export async function listarValidacionProduccion(
     sinPt: r.sin_pt ?? false,
     cierreAutomatico: r.cierre_automatico ?? false,
     posibleDuplicado: false,
+    datosPresentacion: r.datos_presentacion
+      ? {
+          cajasXPaleta: r.datos_presentacion.cajas_x_paleta != null ? Number(r.datos_presentacion.cajas_x_paleta) : null,
+          envasesXCaja: r.datos_presentacion.envases_x_caja != null ? Number(r.datos_presentacion.envases_x_caja) : null,
+          litrosXCaja: r.datos_presentacion.litros_x_caja != null ? Number(r.datos_presentacion.litros_x_caja) : null,
+          volumenMl: r.datos_presentacion.volumen_ml != null ? Number(r.datos_presentacion.volumen_ml) : null,
+        }
+      : null,
     supervisor: {
       paletas: r.supervisor.paletas,
       cajasSueltas: r.supervisor.cajas_sueltas,
       cajas: r.supervisor.cajas,
       envasesLlenadora: r.supervisor.envases_llenadora,
+      envasesBuenos: r.supervisor.envases_buenos ?? null,
       litrosConsumidos: r.supervisor.litros_consumidos,
       litrosProducidos: r.supervisor.litros_producidos,
       mermaEnvasesPct: r.supervisor.merma_envases_pct,
@@ -258,6 +355,15 @@ export async function editarProduccionValidada(
     p_merma_envases_pct: ov.mermaEnvasesPct ?? null,
     p_merma_semielaborado_pct: ov.mermaSemielaboradoPct ?? null,
     p_nota: ov.nota ?? null,
+    p_envases_buenos: ov.envasesBuenos ?? null,
   })
   return error ? { ok: false, error: error.message || "No se pudo guardar la corrección. Intenta de nuevo." } : { ok: true }
+}
+
+/** Las paradas de los turnos pedidos, por código de turno — solo lectura, para revisarlas junto a la producción. */
+export async function paradasDeTurnos(usuario: string, codigos: string[]): Promise<Record<string, ParadaValidar[]>> {
+  if (codigos.length === 0) return {}
+  const { data, error } = await supabase.rpc("paradas_de_turnos", { p_usuario: usuario, p_codigos: codigos })
+  if (error || !data) return {}
+  return data as Record<string, ParadaValidar[]>
 }

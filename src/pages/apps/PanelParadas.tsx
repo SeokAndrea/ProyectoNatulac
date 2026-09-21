@@ -15,7 +15,7 @@ import type { TurnoActivo } from "@/lib/turno"
  * Panel de Paradas — dashboard solo lectura del downtime de las líneas,
  * mismo estilo que el Panel de Producción. El render vive en
  * <PanelParadasVista> (compartido con el preview /paradas-demo).
- * FASE A′: listarParadas() lee el fixture — pero el estado EN VIVO de
+ * listarParadas() lee la base (migración 20261061); el estado EN VIVO de
  * las 3 líneas (la cinta animada) sí sale de datos reales
  * (useProduccion), porque eso ya existe hoy y no depende del módulo
  * Paradas: no tiene sentido mostrar el turno activo "de mentira".
@@ -66,10 +66,12 @@ export default function PanelParadas() {
   // de quien está mirando el Panel — ver nota de cabecera.
   const prod = useProduccion(turno?.id ?? null)
 
+  // Aséptico, Vacío y Pruebas ven solo lo suyo; el resto (superadmin, Mantenimiento…) ve producción, nunca Pruebas.
+  const areaParadas = area === "ASEPTICO" || area === "VACIO" || area === "PRUEBAS" ? area : null
   const cargar = useCallback(() => {
     // rango amplio: la vista filtra por fecha en memoria
-    return listarParadas({ desde: "2000-01-01", hasta: "2999-12-31" })
-  }, [])
+    return listarParadas({ desde: "2000-01-01", hasta: "2999-12-31", area: areaParadas })
+  }, [areaParadas])
 
   useEffect(() => {
     let vivo = true

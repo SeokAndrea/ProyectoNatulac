@@ -21,6 +21,7 @@ import {
   porTipoPorFrecuencia,
   porTipoYLinea,
   porTipoYLineaPorFrecuencia,
+  registraSupervisor,
   resumenPorClase,
   type Parada,
 } from "@/lib/paradas"
@@ -293,5 +294,66 @@ describe("fixture de demo", () => {
     expect(demo.some(paradaAbierta)).toBe(true)
     expect(demo.some((p) => p.clase === "NO_PROGRAMADA" && p.origen === "SHEET")).toBe(true)
     expect(demo.some((p) => p.clase === "OCIOSO" && p.nota)).toBe(true)
+  })
+})
+
+describe("codigoPlanilla sin número de línea", () => {
+  const base = { nombre: "x", clase: "NO_PROGRAMADA" as const, familia: "EQUIPO" as const, tiempoGuiaMin: null }
+  it("con línea: prefijo + L# + secuencia (Helix)", () => {
+    expect(codigoPlanilla({ ...base, codigo: "H", prefijoPlanilla: "AH", secuenciaPlanilla: 3 }, "LINEA_1")).toBe("AHL1-3")
+    expect(codigoPlanilla({ ...base, codigo: "H", prefijoPlanilla: "AH", secuenciaPlanilla: 3 }, "LINEA_3")).toBe("AHL3-3")
+  })
+  it("sin línea: igual en todas (A3 Flex, Cap)", () => {
+    const a3 = { ...base, codigo: "A", prefijoPlanilla: "A3F", secuenciaPlanilla: 1, codigoConLinea: false }
+    expect(codigoPlanilla(a3, "LINEA_1")).toBe("A3F-1")
+    expect(codigoPlanilla({ ...a3, prefijoPlanilla: "CAP" }, "LINEA_3")).toBe("CAP-1")
+  })
+  it("forma general: prefijo + L# sin secuencia", () => {
+    expect(codigoPlanilla({ ...base, codigo: "G", prefijoPlanilla: "CAP", secuenciaPlanilla: null }, "LINEA_1")).toBe("CAPL1")
+  })
+})
+
+describe("codigoPlanilla con secuencia por línea (Operacional)", () => {
+  const insumos = {
+    codigo: "INSUMOS_NO_CONFORME",
+    nombre: "Insumos (Prueba Industrial)",
+    clase: "NO_PROGRAMADA" as const,
+    familia: "OPERACIONAL" as const,
+    tiempoGuiaMin: null,
+    prefijoPlanilla: "OP",
+    secuenciaPlanilla: 2,
+    lineas: [
+      { area: "ASEPTICO", linea: "LINEA_1", secuencia: 2 },
+      { area: "ASEPTICO", linea: "LINEA_2", secuencia: 3 },
+      { area: "ASEPTICO", linea: "LINEA_3", secuencia: 2 },
+    ],
+  }
+  it("la Línea 2 numera distinto a la 1 y a la 3", () => {
+    expect(codigoPlanilla(insumos, "LINEA_1", "ASEPTICO")).toBe("OPL1-2")
+    expect(codigoPlanilla(insumos, "LINEA_2", "ASEPTICO")).toBe("OPL2-3")
+    expect(codigoPlanilla(insumos, "LINEA_3", "ASEPTICO")).toBe("OPL3-2")
+  })
+  it("otra área no toma la secuencia de Aséptico", () => {
+    expect(codigoPlanilla(insumos, "LINEA_2", "VACIO")).toBe("OPL2-2")
+  })
+})
+
+describe("quién registra qué (supervisor / Mantenimiento)", () => {
+  const familia = (f: (typeof CATALOGO_TIPOS)[number]["familia"]) => ({ familia: f })
+  it("el supervisor registra Programadas, Línea no programada (LNPE) y Operacionales", () => {
+    expect(registraSupervisor(familia("PROGRAMADA"))).toBe(true)
+    expect(registraSupervisor(familia("EXTERNA"))).toBe(true)
+    expect(registraSupervisor(familia("OPERACIONAL"))).toBe(true)
+  })
+  it("todo lo demás de No programada es de Mantenimiento", () => {
+    for (const f of ["SUMINISTRO", "EQUIPO_PROCESO", "CODIFICACION", "EQUIPO"] as const) {
+      expect(registraSupervisor(familia(f))).toBe(false)
+    }
+  })
+  it("cada tipo del catálogo inicial es de uno u otro, nunca de ambos", () => {
+    const delSupervisor = CATALOGO_TIPOS.filter((t) => registraSupervisor(t))
+    const suyas = (t: { clase: string; familia: string }) => t.clase === "PROGRAMADA" || t.familia === "EXTERNA" || t.familia === "OPERACIONAL"
+    expect(delSupervisor.every(suyas)).toBe(true)
+    expect(delSupervisor.length).toBe(CATALOGO_TIPOS.filter(suyas).length)
   })
 })

@@ -1,7 +1,8 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
-import { velocidadesParaLive, type LineaLive, type PresentacionLive, type VelocidadLive } from "@/lib/catalogosLive"
+import type { LineaLive, PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
+import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { agruparPorSaborYLote } from "@/lib/agruparProduccion"
 import { textoCondicionTanque } from "@/lib/tanques"
 import { LIMITE_MERMA } from "@/lib/turno"
@@ -11,7 +12,8 @@ import type { TanqueEncontrado } from "@/lib/sesionTurno"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
 import type { TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
-import type { Parada } from "@/lib/paradas"
+import { duracionMin, fmtDesvio, type Parada } from "@/lib/paradas"
+import { codigoDeParadaLive } from "@/lib/paradasCatalogo"
 import type { NovedadTurno } from "@/lib/novedades"
 import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
 
@@ -69,40 +71,6 @@ async function cargarLogoBase64(): Promise<string | null> {
   }
 }
 
-/**
- * Eficiencia promedio del turno para UNA línea: promedio de (envases/hora
- * real ÷ máxima disponible) de cada corrida que tuvo esa línea, ponderado
- * por litros producidos (una corrida sin PT todavía pesa 1, para no
- * desaparecer del promedio). null si la línea no corrió nada.
- *
- * No se reutiliza produccionPorLineaDe() del Panel (esa mira solo la
- * corrida ACTIVA ahora mismo — al generar el acta el turno ya cerró, así
- * que ninguna corrida sigue activa y siempre daría null).
- */
-function eficienciaPromedioLinea(
-  corridas: Corrida[],
-  productoTerminado: ProductoTerminadoRegistro[],
-  velocidades: VelocidadLive[],
-  lineaCodigo: string,
-): number | null {
-  const corridasLinea = corridas.filter((c) => c.linea === lineaCodigo)
-  if (corridasLinea.length === 0) return null
-
-  let sumaPonderada = 0
-  let pesoTotal = 0
-  for (const c of corridasLinea) {
-    const opciones = velocidadesParaLive(velocidades, c.linea, c.presentacion)
-    const maxima = Math.max(c.envasesHora, ...opciones.map((o) => o.envasesHora))
-    if (maxima <= 0) continue
-    const ratio = c.envasesHora / maxima
-    const litros = productoTerminado.filter((p) => p.corridaId === c.id).reduce((a, p) => a + p.litrosProducidos, 0)
-    const peso = litros > 0 ? litros : 1
-    sumaPonderada += ratio * peso
-    pesoTotal += peso
-  }
-  return pesoTotal > 0 ? Math.round((sumaPonderada / pesoTotal) * 100) : null
-}
-
 /** Merma promedio del turno para UNA línea — simple promedio de la merma de cada corrida comparable (mismo criterio que "Producido"). */
 function mermaPromedioLinea(
   corridas: Corrida[],
@@ -132,8 +100,8 @@ export async function generarActaPdf(params: {
   productoTerminado: ProductoTerminadoRegistro[]
   novedades: NovedadTurno[]
   ajustesVolumen: AjusteVolumenRegistro[]
-  /** Vista previa FASE A′ (plan-paradas.md §3) — todavía no atado al turno real. */
-  paradasAbiertas?: Parada[]
+  /** Paradas registradas en este turno (ver cargarParadasDelTurno). Sin este dato la sección no sale. */
+  paradas?: Parada[]
   /** Lecturas de Servicios Industriales con turno_id = este turno (ver migración 20261057). */
   serviciosIndustriales?: LecturaServiciosIndustriales[]
   supervisorNombre: string
@@ -155,13 +123,12 @@ export async function generarActaPdf(params: {
     productoTerminado,
     novedades,
     ajustesVolumen,
-    paradasAbiertas,
+    paradas,
     serviciosIndustriales,
     supervisorNombre,
     area,
     lineas,
     presentaciones,
-    velocidades,
   } = params
   const logoBase64 = await cargarLogoBase64()
   const doc = new jsPDF({ unit: "mm", format: "a4" })
@@ -335,17 +302,32 @@ export async function generarActaPdf(params: {
 
   // ---------------- 2.1 CONDICIONES EFICIENCIA Y MERMA ----------------
   titulo("2.1 CONDICIONES EFICIENCIA Y MERMA")
+  // Meta y eficiencia con paradas (src/lib/eficiencia.ts): base = turno completo; las Programadas y el Ocioso
+  // bajan la meta; las No programadas bajan la eficiencia. El acta se genera con el turno ya cerrado.
+  const eficiencia = eficienciaDelTurno({
+    turnoTipo,
+    estado: "CERRADO",
+    horasTranscurridas: 0,
+    corridas,
+    contadores,
+    presentaciones,
+    paradas: paradas ?? [],
+    lineas: lineas.map((l) => l.codigo),
+  })
+  const num = (n: number | null) => (n !== null ? n.toLocaleString("es-CO") : "—")
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
     styles: { fontSize: 8, cellPadding: 1 },
-    head: [["Línea", "Eficiencia", "Merma"]],
+    head: [["Línea", "Meta (cajas)", "Real (cajas)", "Eficiencia", "Merma"]],
     body: lineas.map((l) => {
-      const ef = eficienciaPromedioLinea(corridas, productoTerminado, velocidades, l.codigo)
+      const e = eficiencia.porLinea.get(l.codigo)
       const merma = mermaPromedioLinea(corridas, contadores, productoTerminado, presentaciones, l.codigo)
       return [
         l.nombre,
-        ef !== null ? `${ef}%` : "—",
+        num(e?.metaCajas ?? null),
+        num(e?.realCajas ?? null),
+        e?.eficienciaPct != null ? `${e.eficienciaPct}%` : "—",
         merma !== null ? `${merma}%${merma > LIMITE_MERMA_PCT ? " ⚠" : ""}` : "—",
       ]
     }),
@@ -385,15 +367,42 @@ export async function generarActaPdf(params: {
   })
   finTabla()
 
-  // ---------------- PARADAS QUE CONTINÚAN (propio del sistema, no del formato original) ----------------
-  if (paradasAbiertas && paradasAbiertas.length > 0) {
-    titulo("PARADAS — CONTINÚAN EN EL TURNO SIGUIENTE")
+  // ---------------- PARADAS DEL TURNO (propio del sistema, no del formato original) ----------------
+  if (paradas) {
+    titulo("PARADAS DEL TURNO")
+    // La línea de la parada viene normalizada (LINEA_1/2/3); la del catálogo puede ser LINEA_T# en Pruebas.
+    const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
+    const nombreLinea = (codigoParada: string) =>
+      lineas.find((l) => numeroLinea(l.codigo) === numeroLinea(codigoParada))?.nombre ?? codigoParada
+    const ordenadas = [...paradas].sort(
+      (a, b) => numeroLinea(a.lineaCodigo).localeCompare(numeroLinea(b.lineaCodigo)) || a.inicio.localeCompare(b.inicio),
+    )
+    const filasParadas = ordenadas.map((p) => {
+      const min = duracionMin(p)
+      const guia = p.tiempoGuiaMin != null ? `${p.tiempoGuiaMin} min · ${fmtDesvio(min - p.tiempoGuiaMin)}` : "—"
+      const comentario = [p.nota, p.justificacionDesvio ? `Justificación: ${p.justificacionDesvio}` : null].filter(Boolean).join(" — ")
+      return [nombreLinea(p.lineaCodigo), codigoDeParadaLive(p) ?? "—", p.tipoNombre, String(min), guia, comentario || "—"]
+    })
+    const totalesPorLinea = new Map<string, number>()
+    for (const p of ordenadas) {
+      totalesPorLinea.set(p.lineaCodigo, (totalesPorLinea.get(p.lineaCodigo) ?? 0) + duracionMin(p))
+    }
+    const totalTurno = [...totalesPorLinea.values()].reduce((a, m) => a + m, 0)
     autoTable(doc, {
       startY: y + 1.5,
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 1 },
-      head: [["Línea", "Tipo"]],
-      body: paradasAbiertas.map((p) => [nombrePorCodigo(lineas, p.lineaCodigo), p.tipoNombre]),
+      columnStyles: { 1: { cellWidth: 20 }, 3: { cellWidth: 12, halign: "right" }, 4: { cellWidth: 28 } },
+      head: [["Línea", "Código", "Parada", "Min", "Guía · desvío", "Comentario"]],
+      body: filasParadas.length > 0 ? filasParadas : [["—", "—", "Sin paradas registradas en el turno.", "—", "—", "—"]],
+      foot:
+        filasParadas.length > 0
+          ? [
+              ...[...totalesPorLinea.entries()].map(([cod, min]) => [`Total ${nombreLinea(cod)}`, "", "", String(min), "", ""]),
+              ["Total del turno", "", "", String(totalTurno), "", ""],
+            ]
+          : undefined,
+      footStyles: { fillColor: [235, 235, 235], textColor: 20, fontStyle: "bold" },
     })
     finTabla()
   }

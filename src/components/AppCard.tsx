@@ -27,7 +27,7 @@ export function AppCard({ app, turnoActivo }: { app: AppDef; turnoActivo: boolea
   const iconoWrap = (
     <div
       className={cn(
-        "flex size-11 items-center justify-center rounded-xl transition-colors",
+        "flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors sm:size-11 sm:rounded-xl",
         bloqueada
           ? "bg-muted text-muted-foreground"
           : resaltada
@@ -37,16 +37,22 @@ export function AppCard({ app, turnoActivo }: { app: AppDef; turnoActivo: boolea
               : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground",
       )}
     >
-      {bloqueada && !app.href ? <Icon className="size-5.5" /> : bloqueada ? <Lock className="size-5" /> : <Icon className="size-5.5" />}
+      {bloqueada && !app.href ? (
+        <Icon className="size-4 sm:size-5.5" />
+      ) : bloqueada ? (
+        <Lock className="size-4 sm:size-5" />
+      ) : (
+        <Icon className="size-4 sm:size-5.5" />
+      )}
     </div>
   )
 
   const textos = (
-    <div>
-      <h2 className={cn("font-medium", bloqueada ? "text-muted-foreground" : resaltada ? "text-destructive" : "text-foreground")}>
+    <div className="min-w-0">
+      <h2 className={cn("text-sm font-medium sm:text-base", bloqueada ? "text-muted-foreground" : resaltada ? "text-destructive" : "text-foreground")}>
         {app.title}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground sm:mt-1 sm:line-clamp-none sm:text-sm">
         {!app.href
           ? "Próximamente."
           : app.bloqueaConTurno && turnoActivo
@@ -69,7 +75,7 @@ export function AppCard({ app, turnoActivo }: { app: AppDef; turnoActivo: boolea
               ? "Ya tienes un turno en curso"
               : "Inicia un turno para habilitar esta sección"
         }
-        className="flex cursor-not-allowed flex-col justify-between gap-6 rounded-2xl border border-border/50 bg-card/60 p-5 opacity-70"
+        className="flex cursor-not-allowed items-center gap-2.5 rounded-xl border border-border/50 bg-card/60 p-3 opacity-70 sm:flex-col sm:items-stretch sm:justify-between sm:gap-6 sm:rounded-2xl sm:p-5"
       >
         {iconoWrap}
         {textos}
@@ -81,7 +87,7 @@ export function AppCard({ app, turnoActivo }: { app: AppDef; turnoActivo: boolea
     <Link
       to={app.href!}
       className={cn(
-        "group flex flex-col justify-between gap-6 rounded-2xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex items-center gap-2.5 rounded-xl border p-3 shadow-sm sm:flex-col sm:items-stretch sm:justify-between sm:gap-6 sm:rounded-2xl sm:p-5 transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         resaltada
           ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
           : app.color

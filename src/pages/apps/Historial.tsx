@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { generarActaPdf } from "@/lib/actaPdf"
+import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { AREAS, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
@@ -152,6 +153,7 @@ export default function Historial() {
     setGenerandoActa(true)
     setErrorActa(null)
     try {
+      const paradas = await cargarParadasDelTurno(detalle.id)
       const blob = await generarActaPdf({
         codigo: detalle.codigo,
         fecha: detalle.fecha,
@@ -165,6 +167,7 @@ export default function Historial() {
         productoTerminado: detalle.productoTerminado,
         novedades: detalle.novedades,
         ajustesVolumen: detalle.ajustesVolumen,
+        paradas,
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,
         lineas,

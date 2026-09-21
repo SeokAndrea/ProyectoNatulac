@@ -66,7 +66,6 @@ import {
 import { type TurnoActivo } from "@/lib/turno"
 import { colorSabor } from "@/lib/coloresSabor"
 import {
-  calcularMeta,
   desglosarCalculos,
   horasTranscurridasTurno,
   mermaEnvasesTurno,
@@ -81,7 +80,9 @@ import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { fechaPlanta, horaCortaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
-import { duracionMin, eficienciaOEE, minutosPorLinea, type Parada } from "@/lib/paradas"
+import { duracionMin, listarParadas, minutosPorLinea, type Parada } from "@/lib/paradas"
+import { eficienciaDelTurno } from "@/lib/eficiencia"
+import { codigoDeParadaLive, useCatalogoParadas } from "@/lib/paradasCatalogo"
 import { TopFallasPanel } from "@/components/TopFallasPanel"
 import { cn } from "@/lib/utils"
 
@@ -341,6 +342,7 @@ export default function PanelProduccion() {
    * columnas se comportan como antes (sin descuento de disponibilidad).
    */
   const [paradasTurno, setParadasTurno] = useState<Parada[]>([])
+  useCatalogoParadas() // carga el catálogo: hace falta para mostrar el código de cada parada
   /*
    * Solo el Super Administrador tiene session.area === null ("ve
    * todas las áreas") — sin este filtro, "en vivo" mostraba el turno
@@ -447,18 +449,17 @@ export default function PanelProduccion() {
 
   useEffect(() => {
     let vivo = true
-    if (areaEfectiva !== "PRUEBAS") {
+    if (!turno?.id) {
       setParadasTurno([])
       return
     }
-    import("@/lib/paradasDemoFixture").then(({ paradasDemo }) => {
-      if (!vivo) return
-      setParadasTurno(paradasDemo().filter((p) => p.inicio.slice(0, 10) === fecha && p.turnoTipo === turnoTipo))
+    listarParadas({ desde: fecha, hasta: fecha, turnoId: turno.id }).then((filas) => {
+      if (vivo) setParadasTurno(filas)
     })
     return () => {
       vivo = false
     }
-  }, [areaEfectiva, fecha, turnoTipo])
+  }, [fecha, turno?.id, tickRefresco])
 
   async function cargarTurnoAnterior(turnoActualId: string | null) {
     if (!areaEfectiva) {
@@ -521,7 +522,29 @@ export default function PanelProduccion() {
   }, [tickRefresco])
 
   const horasTurnoActual = turno ? horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin) : 0
-  const meta = turno ? calcularMeta(prod.corridas, prod.contadores, presentaciones, horasTurnoActual) : null
+  // Meta y eficiencia con paradas (src/lib/eficiencia.ts, plan-eficiencia-meta.md): base = turno completo;
+  // la meta baja con las Programadas y el Ocioso; la eficiencia en vivo es el ritmo.
+  const eficiencia = turno
+    ? eficienciaDelTurno({
+        turnoTipo: turno.turnoTipo,
+        estado: turno.estado,
+        horasTranscurridas: horasTurnoActual,
+        corridas: prod.corridas,
+        contadores: prod.contadores,
+        presentaciones,
+        paradas: paradasTurno,
+        lineas: lineas.map((l) => l.codigo),
+        ahora,
+      })
+    : null
+  const meta = turno
+    ? {
+        pctCumplimiento: eficiencia?.total?.avancePct ?? null,
+        ritmoPct: eficiencia?.total?.eficienciaPct ?? null,
+        totalReales: eficiencia?.total?.realCajas ?? 0,
+        totalEsperadas: eficiencia?.total?.metaCajas ?? 0,
+      }
+    : null
   const horario = HORARIOS[turnoTipo]
   const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
   const lineasEstado = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
@@ -626,7 +649,7 @@ export default function PanelProduccion() {
    */
   const cajasDisplay = import.meta.env.DEV && cajasProducidasTotal === 0 ? 1840 : cajasProducidasTotal
   const litrosDisplay = import.meta.env.DEV && litrosProducidos === 0 ? 24680 : litrosProducidos
-  /** Minutos de parada acumulados en el turno, por línea (Módulo Paradas) — 0 fuera de Área de Pruebas, ver `paradasTurno`. */
+  /** Minutos de parada acumulados en el turno, por línea (Módulo Paradas). Las paradas vienen con la línea normalizada LINEA_1/2/3 (Pruebas usa LINEA_T#), por eso se busca por número. */
   const minutosParadaPorLinea = new Map(minutosPorLinea(paradasTurno, ahora).map((r) => [r.linea, r.minutos]))
   /** Una fila por línea: estado + producción + merma juntos (antes vivían en 3 lugares separados de la pantalla). */
   const filasLineas: FilaLineaCompacta[] = lineasEstado.map((le) => {
@@ -639,7 +662,8 @@ export default function PanelProduccion() {
     // todavía) no le hace perder de vista la merma que sí lleva
     // acumulada la línea en este turno.
     const merma = turno ? mermaLineaTurno(prod.corridas, le.codigo, prod.contadores, pt.registros, presentaciones) : null
-    const minutosParadaAcumulado = minutosParadaPorLinea.get(le.codigo) ?? 0
+    const lineaParadas = "LINEA_" + le.codigo.replace(/^LINEA_T?/, "")
+    const minutosParadaAcumulado = minutosParadaPorLinea.get(lineaParadas) ?? 0
     const minutosProduccion =
       le.estado === "activa" && le.corrida
         ? Math.max(0, Math.round((ahora.getTime() - new Date(le.corrida.activadaEn).getTime()) / 60000))
@@ -648,7 +672,7 @@ export default function PanelProduccion() {
       ...le,
       cajas: prodLinea?.cajas ?? 0,
       litros: prodLinea?.litros ?? 0,
-      eficienciaPct: eficienciaOEE(prodLinea?.eficienciaPct ?? null, minutosParadaAcumulado, horasTurnoActual * 60),
+      eficienciaPct: eficiencia?.porLinea.get(le.codigo)?.eficienciaPct ?? null,
       mermaPct: merma?.pct ?? null,
       minutosParada: minutosParadaAcumulado > 0 ? minutosParadaAcumulado : null,
       minutosProduccion,
@@ -803,8 +827,8 @@ export default function PanelProduccion() {
                 </BannerCelda>
 
                 {/* META */}
-                <BannerCelda icon={Target} label="Cumplimiento de meta" centrado>
-                  <MetaAnillo pct={meta.pctCumplimiento} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
+                <BannerCelda icon={Target} label="Meta del turno" centrado>
+                  <MetaAnillo pct={meta.pctCumplimiento} ritmoPct={meta.ritmoPct} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
                 </BannerCelda>
               </div>
             </>
@@ -924,9 +948,11 @@ export default function PanelProduccion() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-foreground">
-                          {lineas.find((l) => l.codigo === paradaMasLarga.lineaCodigo)?.nombre ?? paradaMasLarga.lineaCodigo}
+                          {lineas.find((l) => "LINEA_" + l.codigo.replace(/^LINEA_T?/, "") === paradaMasLarga.lineaCodigo)?.nombre ??
+                            paradaMasLarga.lineaCodigo}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
+                          {codigoDeParadaLive(paradaMasLarga) ? codigoDeParadaLive(paradaMasLarga) + " · " : ""}
                           {paradaMasLarga.tipoNombre}
                           {paradaMasLarga.saborNombre ? ` · ${paradaMasLarga.saborNombre}` : ""}
                         </p>
@@ -1000,38 +1026,52 @@ export default function PanelProduccion() {
 
               <SeccionColapsable
                 titulo="Meta por línea"
-                descripcion="Cajas reales vs. esperadas (velocidad elegida × horas transcurridas), por línea."
+                descripcion="Meta del turno completo (velocidad elegida × tiempo disponible), avance y ritmo, por línea. Las paradas Programadas y el Ocioso bajan la meta; las No programadas bajan el ritmo."
               >
-                {meta!.porLinea.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Ninguna línea en uso este turno.</p>
+                {!eficiencia || eficiencia.porLinea.size === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {eficiencia === null || turno?.turnoTipo === "12X12"
+                      ? "Sin cálculo para este tipo de turno."
+                      : "Ninguna línea en uso este turno."}
+                  </p>
                 ) : (
                   <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {meta!.porLinea.map((m) => {
-                      const pct = m.cajasEsperadas > 0 ? Math.min(100, Math.round((m.cajasReales / m.cajasEsperadas) * 100)) : 0
+                    {[...eficiencia.porLinea.entries()].map(([codigo, m]) => {
+                      const avance = m.avancePct ?? 0
+                      const barra = Math.max(0, Math.min(100, avance))
+                      const nivel = m.eficienciaPct ?? avance
+                      const horas = (min: number) => (min / 60).toLocaleString("es-CO", { maximumFractionDigits: 1 })
                       return (
-                        <div key={m.linea} className="rounded-xl border border-border bg-background/60 p-3">
+                        <div key={codigo} className="rounded-xl border border-border bg-background/60 p-3">
                           <div className="flex items-baseline justify-between gap-2">
                             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              {nombrePorCodigo(lineas, m.linea)}
+                              {nombrePorCodigo(lineas, codigo)}
                             </span>
-                            <span className="num text-xs font-semibold text-foreground">{pct}%</span>
+                            <span className="num text-xs font-semibold text-foreground">{m.avancePct !== null ? m.avancePct + "%" : "—"}</span>
                           </div>
                           <p className="num mt-1 text-2xl font-bold leading-none">
-                            {m.cajasReales.toLocaleString("es-CO")}
+                            {(m.realCajas ?? 0).toLocaleString("es-CO")}
                             <span className="text-sm font-medium text-muted-foreground">
                               {" "}
-                              / {m.cajasEsperadas.toLocaleString("es-CO")}
+                              / {(m.metaCajas ?? 0).toLocaleString("es-CO")}
                             </span>
                           </p>
                           <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
                             <div
                               className={cn(
                                 "h-full rounded-full transition-[width] duration-700",
-                                pct >= 90 ? "bg-success" : pct >= 60 ? "bg-warning" : "bg-danger",
+                                nivel >= 90 ? "bg-success" : nivel >= 60 ? "bg-warning" : "bg-danger",
                               )}
-                              style={{ width: `${pct}%` }}
+                              style={{ width: `${barra}%` }}
                             />
                           </div>
+                          <p className="mt-2 text-[11px] text-muted-foreground">
+                            Disponible {horas(m.disponibleMin)} h · Ritmo {m.eficienciaPct !== null ? m.eficienciaPct + "%" : "—"}
+                            {m.disponibilidadPct !== null ? " · Disponibilidad " + m.disponibilidadPct + "%" : ""}
+                          </p>
+                          {m.paradasExcedenTiempo && (
+                            <p className="mt-1 text-[11px] text-warning">Las paradas cargadas suman más que el tiempo del turno: revísalas.</p>
+                          )}
                         </div>
                       )
                     })}
@@ -1039,14 +1079,12 @@ export default function PanelProduccion() {
                 )}
               </SeccionColapsable>
 
-              {areaEfectiva === "PRUEBAS" && (
-                <SeccionColapsable
-                  titulo="Top Fallas — paradas por línea"
-                  descripcion="Downtime del turno por clase (programada / no programada / ociosa) y por línea. Módulo Paradas — todavía en Área de Pruebas."
-                >
-                  <TopFallasPanel paradas={paradasTurno} lineas={lineas} />
-                </SeccionColapsable>
-              )}
+              <SeccionColapsable
+                titulo="Top Fallas — paradas por línea"
+                descripcion="Downtime del turno por clase (programada / no programada / ociosa) y por línea."
+              >
+                <TopFallasPanel paradas={paradasTurno} lineas={lineas} />
+              </SeccionColapsable>
 
               {(areaEfectiva === "PRUEBAS" || areaEfectiva === "ASEPTICO") && (
                 <SeccionColapsable
@@ -1190,7 +1228,7 @@ function BannerCelda({
 }
 
 /** Anillo de cumplimiento — conic-gradient sobre tokens del tema. */
-function MetaAnillo({ pct, reales, esperadas }: { pct: number | null; reales: number; esperadas: number }) {
+function MetaAnillo({ pct, ritmoPct, reales, esperadas }: { pct: number | null; ritmoPct: number | null; reales: number; esperadas: number }) {
   if (pct === null) {
     return (
       <div>
@@ -1200,8 +1238,11 @@ function MetaAnillo({ pct, reales, esperadas }: { pct: number | null; reales: nu
     )
   }
 
+  // El anillo muestra el AVANCE hacia la meta del turno; el color lo da el RITMO (eficiencia en vivo),
+  // porque a mitad de turno el avance es bajo aunque todo vaya bien.
   const clamped = Math.max(0, Math.min(100, pct))
-  const color = clamped >= 90 ? "var(--success)" : clamped >= 60 ? "var(--warning)" : "var(--danger)"
+  const nivel = ritmoPct ?? pct
+  const color = nivel >= 90 ? "var(--success)" : nivel >= 60 ? "var(--warning)" : "var(--danger)"
 
   return (
     <div className="flex items-center justify-center gap-2.5">
@@ -1220,7 +1261,9 @@ function MetaAnillo({ pct, reales, esperadas }: { pct: number | null; reales: nu
           {reales.toLocaleString("es-CO")}
           <span className="text-xs font-medium text-muted-foreground"> / {esperadas.toLocaleString("es-CO")}</span>
         </p>
-        <p className="mt-1 text-[11px] text-muted-foreground">Cajas reales vs. meta</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Cajas reales vs. meta del turno{ritmoPct !== null ? " · ritmo " + ritmoPct + "%" : ""}
+        </p>
       </div>
     </div>
   )

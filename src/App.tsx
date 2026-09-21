@@ -12,6 +12,8 @@ import MisActas from "@/pages/apps/MisActas"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
 import PanelParadas from "@/pages/apps/PanelParadas"
 import Paradas from "@/pages/apps/Paradas"
+import CatalogoParadas from "@/pages/apps/CatalogoParadas"
+import ParadasMantenimiento from "@/pages/apps/ParadasMantenimiento"
 import Programacion from "@/pages/apps/Programacion"
 import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
@@ -122,21 +124,35 @@ export default function App() {
         <Route
           path="/paradas"
           element={
-            // TEMPORAL: solo Área de Pruebas hasta que el módulo Paradas (rumbo
-            // nuevo, ver plan-paradas.md) tenga base. Reactivar: cambiar a
-            // rolesPermitidos=["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPERVISOR"]
-            // (acá y en src/lib/apps.tsx).
-            <ProtectedRoute areasPermitidas={["PRUEBAS"]}>
+            // Solo supervisores registran paradas (coincide con src/lib/apps.tsx).
+            <ProtectedRoute rolesPermitidos={["SUPERVISOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
               <Paradas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/catalogo-paradas"
+          element={
+            // Solo SUPERADMINISTRADOR (el Área de Pruebas también entra). Coincide con src/lib/apps.tsx.
+            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+              <CatalogoParadas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/paradas-mantenimiento"
+          element={
+            // Solo el área de Mantenimiento registra estas paradas (el Área de Pruebas también entra). Coincide con src/lib/apps.tsx.
+            <ProtectedRoute areasPermitidas={["MANTENIMIENTO"]}>
+              <ParadasMantenimiento />
             </ProtectedRoute>
           }
         />
         <Route
           path="/panel-paradas"
           element={
-            // TEMPORAL: solo Área de Pruebas hasta que el módulo Paradas tenga base
-            // (mismo criterio que /paradas — ver plan-paradas.md y src/lib/apps.tsx).
-            <ProtectedRoute areasPermitidas={["PRUEBAS"]}>
+            // Dashboard de solo lectura: cualquier sesión, igual que el Panel de Producción.
+            <ProtectedRoute>
               <PanelParadas />
             </ProtectedRoute>
           }

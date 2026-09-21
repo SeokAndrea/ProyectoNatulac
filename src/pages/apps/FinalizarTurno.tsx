@@ -22,8 +22,8 @@ import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import { useNovedadesTurno } from "@/lib/novedades"
 import { listarLecturasServiciosIndustrialesDeTurno, type LecturaServiciosIndustriales } from "@/lib/panelProduccion"
-import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
-import { listarParadas, paradasAbiertasDeLineas, type Parada } from "@/lib/paradas"
+import { duracionMin, fmtDuracion, type Parada } from "@/lib/paradas"
+import { cargarParadasDelTurno, codigoDeParadaLive } from "@/lib/paradasCatalogo"
 
 /*
  * Finalizar Turno: el resumen formal del turno en curso (datos fijos
@@ -62,10 +62,19 @@ export default function FinalizarTurno() {
 
   useEffect(() => {
     listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
-    // Paradas — FASE A′ (plan-paradas.md §3): todavía es el fixture, no está
-    // atado a este turno_id. Vista previa de "— Continúa" en Finalizar Turno / Acta.
-    listarParadas({ desde: restarDias(fechaPlanta(), 30), hasta: fechaPlanta() }).then(setParadas)
   }, [])
+
+  useEffect(() => {
+    // Paradas registradas en ESTE turno — van al resumen de abajo y a la sección "Paradas del turno" del Acta.
+    if (!sesion.turnoId) return
+    let vivo = true
+    cargarParadasDelTurno(sesion.turnoId).then((filas) => {
+      if (vivo) setParadas(filas)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [sesion.turnoId])
 
   useEffect(() => {
     // Lecturas de Servicios Industriales con turno_id = este turno (ver
@@ -131,12 +140,6 @@ export default function FinalizarTurno() {
   const esPruebas = session?.area === "PRUEBAS"
   const lineasSinResolver = esPruebas ? [] : prod.corridas.filter((c) => c.activa && c.entregadaEn === null)
 
-  // Paradas que siguen abiertas ("— Continúa") en las líneas de este turno — vista
-  // previa de FASE A′, ver nota del useEffect de arriba.
-  const paradasAbiertas = paradasAbiertasDeLineas(
-    paradas,
-    lineas.filter((l) => l.activo).map((l) => l.codigo),
-  )
 
   /** Resumen del turno: cajas por línea (paletas × cajas/paleta + sueltas) y litros totales — mismo cálculo que tenía "Producto Terminado por línea". */
   const produccionPorLinea = pt.registros.map((p) => {
@@ -173,7 +176,7 @@ export default function FinalizarTurno() {
       productoTerminado: pt.registros,
       novedades: novedades.novedades,
       ajustesVolumen: prep.ajustesVolumen,
-      paradasAbiertas,
+      paradas,
       serviciosIndustriales,
     }
     const resultadoCierre = await sesion.finalizarTurno()
@@ -228,7 +231,7 @@ export default function FinalizarTurno() {
                   Ver mi acta
                 </a>
               </Button>
-              <p className="text-xs text-muted-foreground">Se abre en una pestaña nueva — desde ahí podés imprimirla.</p>
+              <p className="text-xs text-muted-foreground">Se abre en una pestaña nueva — desde ahí puedes imprimirla.</p>
             </div>
           ) : (
             <p className="text-sm text-destructive" role="alert">
@@ -392,25 +395,38 @@ export default function FinalizarTurno() {
             </div>
           </SeccionColapsable>
 
-          {paradasAbiertas.length > 0 && (
-            <SeccionColapsable
-              titulo="Paradas"
-              descripcion="Vista previa — Paradas todavía no está conectado a este turno (FASE A′, plan-paradas.md)."
-              abiertoPorDefecto
-            >
+          <SeccionColapsable
+            titulo="Paradas del turno"
+            descripcion="Lo que se cargó en Registrar Paradas — sale en el Acta con su comentario."
+            abiertoPorDefecto={paradas.length > 0}
+          >
+            {paradas.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No se registró ninguna parada en este turno.</p>
+            ) : (
               <div className="flex flex-col gap-2">
-                {paradasAbiertas.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
-                    <div>
-                      <p className="font-medium text-foreground">{nombrePorCodigo(lineas, p.lineaCodigo)}</p>
-                      <p className="text-muted-foreground">{p.tipoNombre}</p>
+                {paradas.map((p) => (
+                  <div key={p.id} className="rounded-lg border border-border px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 font-medium text-foreground">
+                        {lineas.find((l) => l.codigo.replace(/^LINEA_T?/, "") === p.lineaCodigo.replace(/^LINEA_/, ""))?.nombre ?? p.lineaCodigo}
+                        <span className="font-normal text-muted-foreground">
+                          {" · "}
+                          {codigoDeParadaLive(p) ? codigoDeParadaLive(p) + " · " : ""}
+                          {p.tipoNombre}
+                        </span>
+                      </p>
+                      <span className="num shrink-0 font-semibold text-warning">{fmtDuracion(duracionMin(p))}</span>
                     </div>
-                    <span className="text-xs font-medium text-warning">— Continúa</span>
+                    {(p.nota || p.justificacionDesvio) && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {[p.nota, p.justificacionDesvio ? "Justificación: " + p.justificacionDesvio : null].filter(Boolean).join(" — ")}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
-            </SeccionColapsable>
-          )}
+            )}
+          </SeccionColapsable>
 
           {prep.tanques.some((t) => t.condicion === "EN_PREPARACION") && (
             <SeccionColapsable titulo="Preparaciones" descripcion="Tambores y ajustes cargados por tanque.">
