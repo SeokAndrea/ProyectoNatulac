@@ -10,6 +10,8 @@ export interface Session {
   /** null = todas las áreas (solo aplica a SuperAdministrador). */
   area: AreaCodigo | null
   rol: RolCodigo
+  /** Flag aparte del rol — quién puede ver el log de errores del cliente (Errores). Ver migración 20261047090000. */
+  veErrores: boolean
   /**
    * true = la persona todavía no pasó el primer ingreso: tiene que
    * confirmar Nombre y Apellido + Cédula y definir una clave propia de
@@ -98,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cedula: perfil.cedula ?? null,
       area: perfil.area_codigo as AreaCodigo | null,
       rol: perfil.rol_codigo as RolCodigo,
+      veErrores: Boolean(perfil.ve_errores),
       // Fuerza el primer ingreso si la base lo marca, o si la clave
       // escrita no cumple la política — esto último el hash no lo
       // puede saber, solo se ve aquí con el texto plano.

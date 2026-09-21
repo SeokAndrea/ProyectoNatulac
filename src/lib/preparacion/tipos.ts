@@ -85,6 +85,46 @@ export interface PreparacionRegistro {
   cerradoEn: string | null
 }
 
+/**
+ * Un movimiento de líquido entre lotes dentro del mismo turno
+ * (transferir_tanque) — para restarlo del tramo del lote que lo
+ * entrega y sumarlo al que lo absorbe (ver realidadPreparacion.ts).
+ * Nombre distinto de `Desvase`/`FilaDesvase` (más abajo en src/lib/desvases.ts,
+ * que es el selector de "usar un desvase guardado" en Preparación —
+ * otro shape, no mezclar).
+ */
+export interface TransferenciaRegistro {
+  id: string
+  litros: number
+  modo: ModoTransferencia | null
+  /** Lote que entrega — sus litros transferidos no cuentan como pérdida en SU tramo. */
+  loteIdOrigen: string | null
+  /** Lote que absorbe. Si nació de ESTA transferencia (modo LIMPIO) ya está en su volumenPreparadoL — no sumar de nuevo. */
+  loteIdDestino: string | null
+  creadoEn: string
+}
+
+/** Un desvase (a pipa) hecho DESDE un lote — solo el lado que entrega: consumirlo después siempre crea un lote nuevo, que ya nace con el monto incluido. */
+export interface DesvaseLoteRegistro {
+  id: string
+  litros: number
+  loteIdOrigen: string | null
+  creadoEn: string
+}
+
+/** Un ajuste de volumen (sumar agua/jugo antes de liberar, botón "Ajustar") — ver ajustar_preparacion() y el Acta de Entrega (§1.7). */
+export interface AjusteVolumenRegistro {
+  id: string
+  loteId: string | null
+  numeroTanque: 1 | 2 | 3 | null
+  lote: string | null
+  saborNombre: string | null
+  litros: number
+  detalle: string | null
+  usuarioNombre: string | null
+  creadoEn: string
+}
+
 export interface DatosIniciarPreparacion {
   numeroTanque: 1 | 2 | 3
   saborId: string | null
@@ -154,4 +194,32 @@ export interface FilaPreparacion {
   creado_en: string
   liberado_en: string | null
   cerrado_en: string | null
+}
+
+export interface FilaTransferencia {
+  id: string
+  litros: number
+  modo: ModoTransferencia | null
+  lote_id_origen: string | null
+  lote_id_destino: string | null
+  creado_en: string
+}
+
+export interface FilaDesvaseLote {
+  id: string
+  litros: number
+  lote_id_origen: string | null
+  creado_en: string
+}
+
+export interface FilaAjusteVolumen {
+  id: string
+  lote_id: string | null
+  numero_tanque: 1 | 2 | 3 | null
+  lote: string | null
+  sabor_nombre: string | null
+  litros: number
+  detalle: string | null
+  usuario_nombre: string | null
+  creado_en: string
 }

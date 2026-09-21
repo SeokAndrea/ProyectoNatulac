@@ -1,12 +1,16 @@
-import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 import { PlayCircle, ClipboardCheck, CalendarDays, Clock, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
+import { RevisionInicioTurno } from "@/components/RevisionInicioTurno"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GRUPOS, TURNO_TIPOS, nombrePorCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
+import { usePreparacion } from "@/lib/preparacion/usePreparacion"
+import { useProduccion } from "@/lib/produccion/useProduccion"
+import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useSesionTurno } from "@/lib/sesionTurno"
 
 const fechaHoy = new Date().toLocaleDateString("es-CO", {
@@ -21,14 +25,23 @@ const fechaHoy = new Date().toLocaleDateString("es-CO", {
  * fijan automáticamente al crear el turno, ver iniciarTurno en
  * src/lib/turno.tsx). Líneas y tanques NO se piden acá — son estado
  * continuo que se hereda solo del turno anterior de la misma área;
- * al confirmar, se manda derecho a Status
- * (src/pages/apps/Status.tsx) para revisarlos.
+ * al confirmar, esta misma página pasa a mostrar la revisión de
+ * inicio (antes era la página aparte "Status") hasta que quede
+ * completa, sin cambiar de ruta.
  */
 export default function ComenzarTurno() {
   const sesion = useSesionTurno()
-  const navigate = useNavigate()
+  const { tanques, cargando: cargandoPreparacion } = usePreparacion()
+  const { corridas, cargando: cargandoProduccion } = useProduccion()
+  const [sabores, setSabores] = useState<Sabor[]>([])
 
-  if (sesion.cargando) {
+  useEffect(() => {
+    listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
+  }, [])
+
+  const cargando = sesion.cargando || cargandoPreparacion || cargandoProduccion
+
+  if (cargando) {
     return (
       <AppShell title="Comenzar Turno" description="Registro de inicio de turno">
         <div className="flex justify-center py-16 text-muted-foreground">
@@ -38,18 +51,31 @@ export default function ComenzarTurno() {
     )
   }
 
-  if (sesion.turnoId) {
-    return <TurnoYaEnCurso codigo={sesion.codigo!} turnoTipo={sesion.turnoTipo!} grupo={sesion.grupo!} />
+  if (!sesion.turnoId) {
+    return <FormularioNuevoTurno onIniciar={sesion.iniciarTurno} />
   }
 
-  return <FormularioNuevoTurno onIniciar={sesion.iniciarTurno} onCreado={() => navigate("/status")} />
+  /** Revisión de inicio completa: los 3 tanques y toda corrida activa quedaron confirmados. */
+  const revisionCompleta =
+    tanques.every((t) => t.confirmadoInicioEn !== null) && corridas.filter((c) => c.activa).every((c) => c.confirmadoInicioEn !== null)
+
+  if (!revisionCompleta) {
+    return (
+      <AppShell title="Comenzar Turno" description={`Turno ${sesion.codigo} · revisa tanques y líneas`} fullWidth>
+        <RevisionInicioTurno sabores={sabores} />
+      </AppShell>
+    )
+  }
+
+  return <TurnoYaEnCurso codigo={sesion.codigo!} turnoTipo={sesion.turnoTipo!} grupo={sesion.grupo!} />
 }
 
 /*
  * "Comenzar Turno" y "Finalizar Turno" son dos páginas separadas: esta
- * solo inicia. Si ya hay un turno en curso, no repite el resumen acá
- * (eso vive en Finalizar Turno, src/pages/apps/FinalizarTurno.tsx) —
- * solo avisa y manda para allá.
+ * solo inicia. Si ya hay un turno en curso y la revisión de inicio ya
+ * quedó completa, no repite el resumen acá (eso vive en Finalizar
+ * Turno, src/pages/apps/FinalizarTurno.tsx) — solo avisa y manda para
+ * allá.
  */
 function TurnoYaEnCurso({ codigo, turnoTipo, grupo }: { codigo: string; turnoTipo: TurnoTipoCodigo; grupo: GrupoCodigo }) {
   return (
@@ -78,10 +104,8 @@ function TurnoYaEnCurso({ codigo, turnoTipo, grupo }: { codigo: string; turnoTip
 
 function FormularioNuevoTurno({
   onIniciar,
-  onCreado,
 }: {
   onIniciar: (turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
-  onCreado: () => void
 }) {
   const [turnoTipo, setTurnoTipo] = useState<TurnoTipoCodigo | "">("")
   const [grupo, setGrupo] = useState<GrupoCodigo | "">("")
@@ -100,9 +124,7 @@ function FormularioNuevoTurno({
     setEnviando(false)
     if (!resultado.ok) {
       setError(resultado.error)
-      return
     }
-    onCreado()
   }
 
   return (
@@ -111,8 +133,8 @@ function FormularioNuevoTurno({
         <CardHeader>
           <CardTitle>Datos del turno</CardTitle>
           <CardDescription>
-            Estos valores se mantienen fijos hasta que finalices el turno. Después vas a Status para
-            revisar tanques y líneas.
+            Estos valores se mantienen fijos hasta que finalices el turno. Después revisas tanques y
+            líneas acá mismo, antes de arrancar producción.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">

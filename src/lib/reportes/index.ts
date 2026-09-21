@@ -13,7 +13,7 @@
  */
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
-import type { PreparacionRegistro } from "@/lib/preparacion/tipos"
+import type { DesvaseLoteRegistro, PreparacionRegistro, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { horaPlanta } from "@/lib/tiempoPlanta"
 import { pctCumplimiento, pctRendimiento } from "./teorico"
@@ -86,6 +86,8 @@ export function mermaSemielaboradoTurno(
   productoTerminado: ProductoTerminadoRegistro[],
   contadores: ContadorRegistro[],
   presentaciones: PresentacionLive[],
+  transferencias: TransferenciaRegistro[] = [],
+  desvases: DesvaseLoteRegistro[] = [],
 ): MermaSemielaboradoTurno {
   const { consumo, producido, hayLoteAbierto, litrosSinContraste } = calcularConsumoYProducido(
     turnoId,
@@ -94,6 +96,8 @@ export function mermaSemielaboradoTurno(
     productoTerminado,
     contadores,
     presentaciones,
+    transferencias,
+    desvases,
   )
 
   const pctCrudo = pctRendimiento(consumo, producido)
@@ -194,6 +198,8 @@ export function desglosarCalculos(
   productoTerminado: ProductoTerminadoRegistro[],
   contadores: ContadorRegistro[],
   presentaciones: PresentacionLive[],
+  transferencias: TransferenciaRegistro[] = [],
+  desvases: DesvaseLoteRegistro[] = [],
 ): DesgloseCalculos {
   const horas = horasTranscurridasTurno(horaInicio, estado, horaFin)
   const meta = calcularMeta(corridas, contadores, presentaciones, horas)
@@ -225,7 +231,16 @@ export function desglosarCalculos(
   })
 
   const mermaEnvase = mermaEnvasesTurno(contadores, productoTerminado, presentaciones)
-  const mermaSemi = mermaSemielaboradoTurno(turnoId, preparaciones, corridas, productoTerminado, contadores, presentaciones)
+  const mermaSemi = mermaSemielaboradoTurno(
+    turnoId,
+    preparaciones,
+    corridas,
+    productoTerminado,
+    contadores,
+    presentaciones,
+    transferencias,
+    desvases,
+  )
 
   return {
     horasTranscurridas: Math.round(horas * 100) / 100,

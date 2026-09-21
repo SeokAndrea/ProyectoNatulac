@@ -13,15 +13,23 @@
 import { supabase } from "@/lib/supabase"
 import type { DatosCambiarTanque, ModoTransferencia, MotivoTransferencia, Resultado } from "./tipos"
 
-/** Solo antes de liberar el lote — suma litros (agua/jugo) al volumen. */
+/**
+ * Solo antes de liberar el lote — suma litros (agua/jugo) al volumen.
+ * `turnoId` es el turno DURANTE el que se hace el ajuste (no
+ * necesariamente el turno en que nació el lote — puede ser uno
+ * heredado) — así el Acta de Entrega lo muestra en el turno correcto,
+ * ver migración 20261049090000.
+ */
 export async function ajustarPreparacion(
   usuario: string,
+  turnoId: string,
   loteId: string,
   litros: number,
   detalle: string | null,
 ): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("ajustar_preparacion", {
     p_usuario: usuario,
+    p_turno_id: turnoId,
     p_lote_id: loteId,
     p_litros: litros,
     p_detalle: detalle,

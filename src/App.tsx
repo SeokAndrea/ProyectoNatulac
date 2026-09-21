@@ -4,24 +4,31 @@ import Login from "@/pages/Login"
 import PrimerIngreso from "@/pages/PrimerIngreso"
 import Hub from "@/pages/Hub"
 import ComenzarTurno from "@/pages/apps/ComenzarTurno"
-import Status from "@/pages/apps/Status"
 import Preparacion from "@/pages/apps/Preparacion"
 import Lineas from "@/pages/apps/Lineas"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
+import MisActas from "@/pages/apps/MisActas"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
 import PanelParadas from "@/pages/apps/PanelParadas"
 import Paradas from "@/pages/apps/Paradas"
 import Programacion from "@/pages/apps/Programacion"
 import Personal from "@/pages/apps/Personal"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
+import CalculadoraBobina from "@/pages/apps/CalculadoraBobina"
+import CalculadoraFormula from "@/pages/apps/CalculadoraFormula"
+import CalculadoraConteoPeso from "@/pages/apps/CalculadoraConteoPeso"
+import Calculadoras from "@/pages/apps/Calculadoras"
 import Historial from "@/pages/apps/Historial"
 import Validar from "@/pages/apps/Validar"
 import ServiciosIndustriales from "@/pages/apps/ServiciosIndustriales"
+import RegistrosServiciosIndustriales from "@/pages/apps/RegistrosServiciosIndustriales"
+import ErroresCliente from "@/pages/apps/ErroresCliente"
 import AuditoriaDemo from "@/pages/apps/AuditoriaDemo"
 import ValidarDemo from "@/pages/apps/ValidarDemo"
 import ParadasDemo from "@/pages/apps/ParadasDemo"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { VersionChecker } from "@/components/VersionChecker"
 
 /*
  * Todas las rutas de la aplicación se declaran aquí. Las páginas
@@ -44,147 +51,198 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<Login />} />
-      <Route
-        path="/hub"
-        element={
-          <ProtectedRoute>
-            <Hub />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/turno"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <ComenzarTurno />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/status"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <Status />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/preparacion"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <Preparacion />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/lineas"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <Lineas />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/producto-terminado"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <ProductoTerminado />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/finalizar-turno"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERVISOR"]}>
-            <FinalizarTurno />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/panel-produccion"
-        element={
-          <ProtectedRoute>
-            <PanelProduccion />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/paradas"
-        element={
-          // TEMPORAL: solo Área de Pruebas hasta que el módulo Paradas (rumbo
-          // nuevo, ver plan-paradas.md) tenga base. Reactivar: cambiar a
-          // rolesPermitidos=["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPERVISOR"]
-          // (acá y en src/lib/apps.tsx).
-          <ProtectedRoute areasPermitidas={["PRUEBAS"]}>
-            <Paradas />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/panel-paradas"
-        element={
-          // TEMPORAL: solo Área de Pruebas hasta que el módulo Paradas tenga base
-          // (mismo criterio que /paradas — ver plan-paradas.md y src/lib/apps.tsx).
-          <ProtectedRoute areasPermitidas={["PRUEBAS"]}>
-            <PanelParadas />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/programacion"
-        element={
-          <ProtectedRoute>
-            <Programacion />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/personal"
-        element={
-          <ProtectedRoute rolesPermitidos={["ADMINISTRADOR_AREA"]}>
-            <Personal />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/edicion-datos"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
-            <EdicionDatos />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/auditoria"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"]}>
-            <Historial />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/validar"
-        element={
-          <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
-            <Validar />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/servicios-industriales"
-        element={
-          <ProtectedRoute areasPermitidas={["SERVICIOS_INDUSTRIALES"]}>
-            <ServiciosIndustriales />
-          </ProtectedRoute>
-        }
-      />
-      {/* Previews de diseño sin login ni DB — se pueden borrar. */}
-      <Route path="/auditoria-demo" element={<AuditoriaDemo />} />
-      <Route path="/validar-demo" element={<ValidarDemo />} />
-      <Route path="/paradas-demo" element={<ParadasDemo />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <VersionChecker />
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route
+          path="/hub"
+          element={
+            <ProtectedRoute>
+              <Hub />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/turno"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERVISOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+              <ComenzarTurno />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/preparacion"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERVISOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+              <Preparacion />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/lineas"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERVISOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+              <Lineas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/producto-terminado"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERVISOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+              <ProductoTerminado />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/finalizar-turno"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERVISOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+              <FinalizarTurno />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mis-actas"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERVISOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+              <MisActas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/panel-produccion"
+          element={
+            <ProtectedRoute>
+              <PanelProduccion />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/paradas"
+          element={
+            // TEMPORAL: solo Área de Pruebas hasta que el módulo Paradas (rumbo
+            // nuevo, ver plan-paradas.md) tenga base. Reactivar: cambiar a
+            // rolesPermitidos=["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA", "SUPERVISOR"]
+            // (acá y en src/lib/apps.tsx).
+            <ProtectedRoute areasPermitidas={["PRUEBAS"]}>
+              <Paradas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/panel-paradas"
+          element={
+            // TEMPORAL: solo Área de Pruebas hasta que el módulo Paradas tenga base
+            // (mismo criterio que /paradas — ver plan-paradas.md y src/lib/apps.tsx).
+            <ProtectedRoute areasPermitidas={["PRUEBAS"]}>
+              <PanelParadas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/programacion"
+          element={
+            <ProtectedRoute areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+              <Programacion />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/personal"
+          element={
+            <ProtectedRoute rolesPermitidos={["ADMINISTRADOR_AREA"]}>
+              <Personal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/edicion-datos"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+              <EdicionDatos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calculadoras"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+              <Calculadoras />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calculadora-bobina"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+              <CalculadoraBobina />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calculadora-formula"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+              <CalculadoraFormula />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calculadora-conteo-peso"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+              <CalculadoraConteoPeso />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/auditoria"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"]}>
+              <Historial />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/validar"
+          element={
+            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+              <Validar />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/servicios-industriales"
+          element={
+            <ProtectedRoute areasPermitidas={["SERVICIOS_INDUSTRIALES"]}>
+              <ServiciosIndustriales />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registros-servicios-industriales"
+          element={
+            <ProtectedRoute areasPermitidas={["SERVICIOS_INDUSTRIALES"]}>
+              <RegistrosServiciosIndustriales />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/errores"
+          element={
+            <ProtectedRoute requiereVeErrores>
+              <ErroresCliente />
+            </ProtectedRoute>
+          }
+        />
+        {/* Previews de diseño sin login ni DB — se pueden borrar. */}
+        <Route path="/auditoria-demo" element={<AuditoriaDemo />} />
+        <Route path="/validar-demo" element={<ValidarDemo />} />
+        <Route path="/paradas-demo" element={<ParadasDemo />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   )
 }

@@ -153,6 +153,8 @@ export function resumenTurno(
     turno.productoTerminado,
     turno.contadores,
     presentaciones,
+    turno.transferencias,
+    turno.desvases,
   )
 
   // Sabor → sus lotes. Se arma de las preparaciones (sabor + lote juntos)

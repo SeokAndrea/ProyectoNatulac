@@ -162,6 +162,10 @@ export function turnoDemo(over: Override): TurnoHistorial {
     contadores: [],
     productoTerminado: [],
     preparaciones: [],
+    transferencias: [],
+    desvases: [],
+    novedades: [],
+    ajustesVolumen: [],
     ...over,
   }
 }

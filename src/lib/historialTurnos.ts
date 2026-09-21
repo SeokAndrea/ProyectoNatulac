@@ -2,12 +2,25 @@ import { supabase } from "@/lib/supabase"
 import type { AreaCodigo, GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { saborSinFamiliaOculta } from "@/lib/turno"
 import type { TanqueEncontrado } from "@/lib/sesionTurno"
-import { mapearPreparacion, mapearTanque } from "@/lib/preparacion/mapear"
-import type { FilaPreparacion, FilaTanque, PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
+import { mapearAjusteVolumen, mapearDesvaseLote, mapearPreparacion, mapearTanque, mapearTransferencia } from "@/lib/preparacion/mapear"
+import type {
+  AjusteVolumenRegistro,
+  DesvaseLoteRegistro,
+  FilaAjusteVolumen,
+  FilaDesvaseLote,
+  FilaPreparacion,
+  FilaTanque,
+  FilaTransferencia,
+  PreparacionRegistro,
+  TanqueRecepcion,
+  TransferenciaRegistro,
+} from "@/lib/preparacion/tipos"
 import { mapearContador, mapearCorrida, mapearLineaEstado } from "@/lib/produccion/mapear"
 import type { Corrida, ContadorRegistro, FilaContador, FilaCorrida, FilaLineaEstado, LineaEstado } from "@/lib/produccion/tipos"
 import { mapearProductoTerminado } from "@/lib/productoTerminado"
 import type { FilaProductoTerminado, ProductoTerminadoRegistro } from "@/lib/productoTerminado"
+import { mapearNovedadTurno } from "@/lib/novedades"
+import type { FilaNovedadTurno, NovedadTurno } from "@/lib/novedades"
 
 /*
  * Auditoría (Super Administrador — todas las áreas menos PRUEBAS — y
@@ -48,6 +61,10 @@ export interface TurnoHistorial {
   lineasEstado: LineaEstado[]
   contadores: ContadorRegistro[]
   productoTerminado: ProductoTerminadoRegistro[]
+  transferencias: TransferenciaRegistro[]
+  desvases: DesvaseLoteRegistro[]
+  novedades: NovedadTurno[]
+  ajustesVolumen: AjusteVolumenRegistro[]
 }
 
 interface FilaTanqueEncontrado {
@@ -79,6 +96,10 @@ interface FilaTurnoHistorial {
   contadores: FilaContador[]
   producto_terminado: FilaProductoTerminado[]
   preparaciones: FilaPreparacion[]
+  transferencias: FilaTransferencia[]
+  desvases: FilaDesvaseLote[]
+  novedades: FilaNovedadTurno[]
+  ajustes_volumen: FilaAjusteVolumen[]
 }
 
 export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
@@ -109,6 +130,10 @@ export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
     lineasEstado: fila.lineas_estado.map(mapearLineaEstado),
     contadores: fila.contadores.map(mapearContador),
     productoTerminado: fila.producto_terminado.map(mapearProductoTerminado),
+    transferencias: fila.transferencias.map(mapearTransferencia),
+    desvases: fila.desvases.map(mapearDesvaseLote),
+    novedades: fila.novedades.map(mapearNovedadTurno),
+    ajustesVolumen: fila.ajustes_volumen.map(mapearAjusteVolumen),
   }
 }
 
@@ -167,6 +192,20 @@ export async function obtenerTurnoDetalle(usuarioSesion: string, turnoId: string
   const { data, error } = await supabase.rpc("turno_detalle", { p_usuario: usuarioSesion, p_turno_id: turnoId })
   if (error || !data) return null
   return mapearTurnoHistorial(data as FilaTurnoHistorial)
+}
+
+/** Mismo turno_json() que obtenerTurnoDetalle(), pero solo para EL PROPIO turno del supervisor (ver src/lib/actasPendientes.ts). */
+export async function miTurnoDetalle(usuarioSesion: string, turnoId: string): Promise<TurnoHistorial | null> {
+  const { data, error } = await supabase.rpc("mi_turno_detalle", { p_usuario: usuarioSesion, p_turno_id: turnoId })
+  if (error || !data) return null
+  return mapearTurnoHistorial(data as FilaTurnoHistorial)
+}
+
+/** Turnos CERRADOS por cierre_automatico (cron, abandonados) del propio supervisor que todavía no tienen acta VIGENTE. */
+export async function misTurnosSinActa(usuarioSesion: string): Promise<{ turnoId: string; turnoCodigo: string }[]> {
+  const { data, error } = await supabase.rpc("mis_turnos_sin_acta", { p_usuario: usuarioSesion })
+  if (error || !data) return []
+  return (data as { turno_id: string; turno_codigo: string }[]).map((f) => ({ turnoId: f.turno_id, turnoCodigo: f.turno_codigo }))
 }
 
 /** Borrado real: solo permite turnos CERRADOS (Postgres lo rechaza si no). */
@@ -237,6 +276,47 @@ export async function listarActas(
     fecha: f.fecha,
     supervisorNombre: f.supervisor_nombre,
     area: f.area_codigo as AreaCodigo,
+  }))
+}
+
+export interface MiActa {
+  id: string
+  turnoId: string
+  codigo: string
+  storagePath: string
+  generadoEn: string
+  turnoCodigo: string
+  fecha: string
+  turnoTipo: TurnoTipoCodigo
+  grupo: GrupoCodigo
+}
+
+interface FilaMiActa {
+  acta_id: string
+  turno_id: string
+  codigo: string
+  storage_path: string
+  generado_en: string
+  turno_codigo: string
+  fecha: string
+  turno_tipo_codigo: string
+  grupo_codigo: string
+}
+
+/** "Mis Actas" (Home del supervisor) — solo las actas VIGENTES de SUS propios turnos, sin exigir rol. */
+export async function misActas(usuarioSesion: string): Promise<MiActa[]> {
+  const { data, error } = await supabase.rpc("mis_actas", { p_usuario: usuarioSesion })
+  if (error || !data) return []
+  return (data as FilaMiActa[]).map((f) => ({
+    id: f.acta_id,
+    turnoId: f.turno_id,
+    codigo: f.codigo,
+    storagePath: f.storage_path,
+    generadoEn: f.generado_en,
+    turnoCodigo: f.turno_codigo,
+    fecha: f.fecha,
+    turnoTipo: f.turno_tipo_codigo as TurnoTipoCodigo,
+    grupo: f.grupo_codigo as GrupoCodigo,
   }))
 }
 

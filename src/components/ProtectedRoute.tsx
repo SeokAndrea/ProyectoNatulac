@@ -7,12 +7,18 @@ export function ProtectedRoute({
   children,
   rolesPermitidos,
   areasPermitidas,
+  areasExcluidas,
+  requiereVeErrores,
 }: {
   children: ReactNode
   /** Si se define, la ruta solo es accesible para estos roles; si no, para cualquier sesión. */
   rolesPermitidos?: RolCodigo[]
   /** Si se define, la ruta solo es accesible para estas áreas (ej. Servicios Industriales, que no tiene un rol propio). */
   areasPermitidas?: AreaCodigo[]
+  /** Si se define, la ruta NO es accesible para estas áreas, aunque el rol califique (ej. Servicios Industriales usa SUPERVISOR pero no debe entrar a las páginas de producción). */
+  areasExcluidas?: AreaCodigo[]
+  /** Si es true, la ruta solo es accesible para usuarios con usuarios.ve_errores = true (flag aparte del rol, ver migración 20261047090000) — hoy solo el dueño. */
+  requiereVeErrores?: boolean
 }) {
   const { session } = useAuth()
   if (!session) return <Navigate to="/" replace />
@@ -24,5 +30,7 @@ export function ProtectedRoute({
   if (esPruebas) return <>{children}</>
   if (rolesPermitidos && !rolesPermitidos.includes(session.rol)) return <Navigate to="/hub" replace />
   if (areasPermitidas && (!session.area || !areasPermitidas.includes(session.area))) return <Navigate to="/hub" replace />
+  if (areasExcluidas && session.area && areasExcluidas.includes(session.area)) return <Navigate to="/hub" replace />
+  if (requiereVeErrores && !session.veErrores) return <Navigate to="/hub" replace />
   return <>{children}</>
 }

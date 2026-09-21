@@ -82,6 +82,16 @@ function normalizarLote(lote: string | null): string | null {
  */
 export default function ProductoTerminado() {
   const sesion = useSesionTurno()
+  /*
+   * Ventana de gracia (15 min, ver TurnoGraciaPT en sesionTurno.tsx):
+   * si el turno propio ya cerró pero sigue dentro de la gracia, esta
+   * página se usa igual — pero SOLO para Producto Terminado (soloPT
+   * más abajo apaga Contador y Terminar/Entregar línea en
+   * FilaProductoTerminado). Evita que un supervisor ansioso que
+   * finalizó el turno le tape a otro la carga de su PT.
+   */
+  const enGraciaPT = !sesion.turnoId && sesion.turnoGraciaPT !== null
+  const turnoIdEfectivo = sesion.turnoId ?? sesion.turnoGraciaPT?.turnoId ?? null
   const {
     corridas,
     contadores,
@@ -89,11 +99,30 @@ export default function ProductoTerminado() {
     registrarContador,
     entregarCorrida,
     terminarSaborLinea,
-  } = useProduccion()
-  const { registros: productoTerminado, cargando: cargandoPT, registrarProductoTerminado } = useProductoTerminado()
-  const { tanques, preparaciones, medirTanque, cargando: cargandoPreparacion } = usePreparacion()
+  } = useProduccion(turnoIdEfectivo)
+  const { registros: productoTerminado, cargando: cargandoPT, registrarProductoTerminado } = useProductoTerminado(turnoIdEfectivo)
+  const {
+    tanques,
+    preparaciones,
+    medirTanque,
+    recargar: recargarPreparacion,
+    cargando: cargandoPreparacion,
+  } = usePreparacion(turnoIdEfectivo)
   const { lineas, presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
   const cargando = sesion.cargando || cargandoProduccion || cargandoPT || cargandoPreparacion
+
+  // Cargar PT baja preparaciones.volumen_l en el servidor, pero esta
+  // página lee el volumen del tanque de usePreparacion() — un hook
+  // aparte que no se entera solo. Sin este refresco, el tanque en
+  // pantalla se queda con el número de ANTES de cargar hasta que se
+  // recarga la página, aunque el servidor ya restó bien (Javier,
+  // 2026-09-16: le pidió a Deivis "bajar" el tanque a mano creyendo que
+  // no se había restado, y esa resta manual duplicó el consumo real).
+  async function registrarProductoTerminadoYRefrescarTanque(datos: Parameters<typeof registrarProductoTerminado>[0]) {
+    const resultado = await registrarProductoTerminado(datos)
+    if (resultado.ok) void recargarPreparacion()
+    return resultado
+  }
 
   if (cargando || cargandoCatalogos) {
     return (
@@ -105,7 +134,7 @@ export default function ProductoTerminado() {
     )
   }
 
-  if (!sesion.turnoId) {
+  if (!turnoIdEfectivo) {
     return (
       <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado" fullWidth>
         <EmptyState
@@ -141,8 +170,19 @@ export default function ProductoTerminado() {
   const cerradas = corridasUsadas.filter((l) => (!l.activa && !l.esperandoCierre) || l.entregadaEn !== null)
 
   return (
-    <AppShell title="Producto Terminado y Contador" description={`Turno ${sesion.codigo}`} fullWidth>
+    <AppShell
+      title="Producto Terminado y Contador"
+      description={enGraciaPT ? `Turno ${sesion.turnoGraciaPT?.codigo} — ya cerrado` : `Turno ${sesion.codigo}`}
+      fullWidth
+    >
       <div className="flex flex-col gap-3">
+        {enGraciaPT && (
+          <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+            <AlertTriangle className="size-4 shrink-0" />
+            Este turno ya se cerró — quedan unos minutos para terminar de cargar el Producto Terminado (Paletas / Cajas
+            sueltas). Contador y Terminar/Entregar línea ya no se pueden tocar acá.
+          </p>
+        )}
         {pendientes.length === 0 && cerradas.length > 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">
             No hay corridas pendientes de carga — todas las de este turno ya están cerradas.
@@ -156,11 +196,12 @@ export default function ProductoTerminado() {
           preparaciones={preparaciones}
           lineas={lineas}
           presentaciones={presentaciones}
-          onRegistrarProducto={registrarProductoTerminado}
+          onRegistrarProducto={registrarProductoTerminadoYRefrescarTanque}
           onRegistrarContador={registrarContador}
           onEntregarCorrida={entregarCorrida}
           onTerminarSabor={terminarSaborLinea}
           onMedirTanque={medirTanque}
+          soloPT={enGraciaPT}
         />
 
         {cerradas.length > 0 && (
@@ -172,11 +213,12 @@ export default function ProductoTerminado() {
             preparaciones={preparaciones}
             lineas={lineas}
             presentaciones={presentaciones}
-            onRegistrarProducto={registrarProductoTerminado}
+            onRegistrarProducto={registrarProductoTerminadoYRefrescarTanque}
             onRegistrarContador={registrarContador}
             onEntregarCorrida={entregarCorrida}
             onTerminarSabor={terminarSaborLinea}
             onMedirTanque={medirTanque}
+            soloPT={enGraciaPT}
           />
         )}
       </div>
@@ -199,6 +241,7 @@ function ListaCorridas({
   onEntregarCorrida,
   onTerminarSabor,
   onMedirTanque,
+  soloPT = false,
 }: {
   corridas: Corrida[]
   contadores: ContadorRegistro[]
@@ -212,6 +255,8 @@ function ListaCorridas({
   onEntregarCorrida: OnEntregarCorrida
   onTerminarSabor: OnTerminarSabor
   onMedirTanque: OnMedirTanque
+  /** Turno ya cerrado, dentro de la ventana de gracia (ver TurnoGraciaPT) — solo Paletas/Cajas sueltas, sin Contador ni Terminar/Entregar línea. */
+  soloPT?: boolean
 }) {
   const grupos = agruparPorSaborYLote(corridas)
   const [saborAbierto, setSaborAbierto] = useState<string | null>(grupos.length === 1 ? grupos[0].key : null)
@@ -300,6 +345,7 @@ function ListaCorridas({
               onEntregarCorrida={onEntregarCorrida}
               onTerminarSabor={onTerminarSabor}
               onMedirTanque={onMedirTanque}
+              soloPT={soloPT}
             />
           ))}
         </div>
@@ -322,6 +368,7 @@ function CorridasCerradas({
   onEntregarCorrida,
   onTerminarSabor,
   onMedirTanque,
+  soloPT = false,
 }: {
   corridas: Corrida[]
   contadores: ContadorRegistro[]
@@ -335,6 +382,7 @@ function CorridasCerradas({
   onEntregarCorrida: OnEntregarCorrida
   onTerminarSabor: OnTerminarSabor
   onMedirTanque: OnMedirTanque
+  soloPT?: boolean
 }) {
   const [abierto, setAbierto] = useState(false)
 
@@ -362,6 +410,7 @@ function CorridasCerradas({
           onEntregarCorrida={onEntregarCorrida}
           onTerminarSabor={onTerminarSabor}
           onMedirTanque={onMedirTanque}
+          soloPT={soloPT}
         />
       )}
     </div>
@@ -413,6 +462,7 @@ function FilaProductoTerminado({
   onEntregarCorrida,
   onTerminarSabor,
   onMedirTanque,
+  soloPT = false,
 }: {
   lineaTurno: Corrida
   nombreLinea: string
@@ -428,14 +478,16 @@ function FilaProductoTerminado({
   onEntregarCorrida: OnEntregarCorrida
   onTerminarSabor: OnTerminarSabor
   onMedirTanque: OnMedirTanque
+  /** Turno cerrado, dentro de la ventana de gracia (ver TurnoGraciaPT en sesionTurno.tsx): solo Paletas/Cajas sueltas — sin Contador ni Terminar/Entregar línea. */
+  soloPT?: boolean
 }) {
   const saborId = registroExistente?.saborId ?? lineaTurno.saborId
   /** Ya se decidió el destino de esta corrida (Terminó Corrida o Entregada al siguiente turno) — queda bloqueada salvo "Editar un error". */
   const estaCerrada = (!lineaTurno.activa && !lineaTurno.esperandoCierre) || lineaTurno.entregadaEn !== null
   /** Corrida en pausa (parada reversible): no se puede cargar producto terminado hasta reanudarla. */
   const estaPausada = lineaTurno.pausadaEn !== null && !estaCerrada
-  /** Sigue corriendo y todavía no se decidió su próximo estado — acá se elige y se cierra de una. */
-  const puedeElegirProximoEstado = lineaTurno.activa && lineaTurno.entregadaEn === null
+  /** Sigue corriendo y todavía no se decidió su próximo estado — acá se elige y se cierra de una. En soloPT nunca se ofrece (la gracia es solo para Paletas/Cajas sueltas). */
+  const puedeElegirProximoEstado = !soloPT && lineaTurno.activa && lineaTurno.entregadaEn === null
 
   const [editandoError, setEditandoError] = useState(false)
   const [envasesLlenadora, setEnvasesLlenadora] = useState("")
@@ -505,7 +557,7 @@ function FilaProductoTerminado({
   /** Todavía no hay contador definitivo (solo lecturas de referencia): la merma que se ve es provisional. */
   const mermaProvisional = mermaPct !== null && contadorActual === 0
 
-  const hayContadorNuevo = envasesLlenadora !== "" && nuevoContador > 0
+  const hayContadorNuevo = !soloPT && envasesLlenadora !== "" && nuevoContador > 0
   const hayProducto = (paletas !== "" || cajasSueltas !== "") && nPaletas >= 0 && nCajasSueltas >= 0
   const hayDatos = hayContadorNuevo || hayProducto
   const modoCorreccion = estaCerrada && editandoError
@@ -808,38 +860,47 @@ function FilaProductoTerminado({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`contador-${lineaTurno.id}`}>Envases llenadora (Contador)</Label>
-            <Input
-              id={`contador-${lineaTurno.id}`}
-              type="number"
-              min={0}
-              placeholder="Sumar al contador"
-              value={envasesLlenadora}
-              onChange={(e) => setEnvasesLlenadora(e.target.value)}
-            />
-            <Label htmlFor={`contador-buenos-${lineaTurno.id}`}>Envases buenos (Contador 2)</Label>
-            <Input
-              id={`contador-buenos-${lineaTurno.id}`}
-              type="number"
-              min={0}
-              placeholder="Envases buenos"
-              value={envasesBuenos}
-              onChange={(e) => setEnvasesBuenos(e.target.value)}
-              aria-invalid={hayContadorNuevo && !buenosValido}
-            />
-            {hayContadorNuevo && !buenosValido && (
-              <p className="text-xs text-destructive" role="alert">
-                {envasesBuenos === ""
-                  ? "El Contador 2 (envases buenos) es obligatorio junto con el contador de la llenadora."
-                  : "Los envases buenos no pueden superar el total de la llenadora."}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Sabor</Label>
-            <p className="flex h-9 items-center text-sm text-foreground">{lineaTurno.saborNombre ?? "—"}</p>
-          </div>
+          {soloPT ? (
+            <div className="flex flex-col gap-2">
+              <Label>Sabor</Label>
+              <p className="flex h-9 items-center text-sm text-foreground">{lineaTurno.saborNombre ?? "—"}</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`contador-${lineaTurno.id}`}>Envases llenadora (Contador)</Label>
+                <Input
+                  id={`contador-${lineaTurno.id}`}
+                  type="number"
+                  min={0}
+                  placeholder="Sumar al contador"
+                  value={envasesLlenadora}
+                  onChange={(e) => setEnvasesLlenadora(e.target.value)}
+                />
+                <Label htmlFor={`contador-buenos-${lineaTurno.id}`}>Envases buenos (Contador 2)</Label>
+                <Input
+                  id={`contador-buenos-${lineaTurno.id}`}
+                  type="number"
+                  min={0}
+                  placeholder="Envases buenos"
+                  value={envasesBuenos}
+                  onChange={(e) => setEnvasesBuenos(e.target.value)}
+                  aria-invalid={hayContadorNuevo && !buenosValido}
+                />
+                {hayContadorNuevo && !buenosValido && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {envasesBuenos === ""
+                      ? "El Contador 2 (envases buenos) es obligatorio junto con el contador de la llenadora."
+                      : "Los envases buenos no pueden superar el total de la llenadora."}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Sabor</Label>
+                <p className="flex h-9 items-center text-sm text-foreground">{lineaTurno.saborNombre ?? "—"}</p>
+              </div>
+            </>
+          )}
           <div className="flex flex-col gap-2">
             <Label htmlFor={`paletas-${lineaTurno.id}`}>Paletas</Label>
             <Input

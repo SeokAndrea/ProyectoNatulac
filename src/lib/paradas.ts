@@ -41,36 +41,146 @@ export const COLOR_CLASE: Record<ClaseParada, string> = {
 // Catálogo de tipos
 // ------------------------------------------------------------
 
+/**
+ * Familia del tipo — agrupa el catálogo para reportes/filtros y explica el
+ * prefijo del código de planilla. PROGRAMADA es la única familia de clase
+ * PROGRAMADA; el resto son NO_PROGRAMADA, cargadas a mano por el supervisor
+ * (rumbo confirmado por el dueño, 2026-09-15). Las paradas MECÁNICAS (falla
+ * de equipo/subsistema) no tienen familia en este catálogo: siguen viniendo
+ * del Sheet de Mantenimiento como texto libre (`tipoCodigo: null`), FASE C′.
+ */
+export type FamiliaParada =
+  | "PROGRAMADA"
+  | "EXTERNA"
+  | "OPERACIONAL"
+  | "SUMINISTRO_VAPOR"
+  | "SUMINISTRO"
+  | "ESTERILIZACION"
+  | "PREPARACION"
+  | "CODIFICACION"
+
+export const NOMBRE_FAMILIA: Record<FamiliaParada, string> = {
+  PROGRAMADA: "Programada",
+  EXTERNA: "Línea no programada / externa",
+  OPERACIONAL: "Operacional",
+  SUMINISTRO_VAPOR: "Suministro de vapor",
+  SUMINISTRO: "Suministro",
+  ESTERILIZACION: "Esterilización / proceso térmico",
+  PREPARACION: "Preparación",
+  CODIFICACION: "Codificación",
+}
+
 /** Un tipo del catálogo de paradas. En FASE B′ pasa a la tabla `paradas_tipos` (editable en Edición de Datos). */
 export interface TipoParada {
   codigo: string
   nombre: string
   clase: ClaseParada
-  /** Duración estándar en minutos. null = sin guía (ej. "Final de Producción"). */
+  familia: FamiliaParada
+  /** Duración estándar en minutos. null = sin guía (la mayoría de NO_PROGRAMADA no la tiene). */
   tiempoGuiaMin: number | null
-  /** Código de la planilla de Mantenimiento (PPL1 / PPEL1…). Se guarda tal cual. */
-  codigoPlanilla: string
+  /** Prefijo del código de planilla de Mantenimiento SIN el número de línea (ej. "PP", "LNPE"). Ver `codigoPlanilla()`. */
+  prefijoPlanilla: string
+  /** Secuencial dentro de la familia (ej. el "-3" de "LNPEL1-3"). null cuando la familia no lo usa (PROGRAMADA). */
+  secuenciaPlanilla: number | null
+}
+
+/**
+ * Código real de planilla para un tipo EN UNA LÍNEA dada: el nombre, la
+ * clase y el tiempo guía son los mismos en las 3 líneas — solo cambia el
+ * número de línea dentro del código (`prefijoPlanilla + "L" + número +
+ * secuencia`). Ej.: TRANSFERENCIA_ENERGIA en Línea 2 → "PPEL2"; FALTA_VAPOR
+ * en Línea 3 → "SCL3-1". (Dueño, 2026-09-15: "solo cambiaría el código".)
+ */
+export function codigoPlanilla(tipo: TipoParada, lineaCodigo: string): string {
+  const numero = lineaCodigo.replace(/^LINEA_/, "")
+  return `${tipo.prefijoPlanilla}L${numero}${tipo.secuenciaPlanilla != null ? `-${tipo.secuenciaPlanilla}` : ""}`
 }
 
 /*
- * Seed del catálogo PROGRAMADA (lista del dueño, 2026-09-10). Los códigos
- * PPL1 / PPEL1 se guardan tal cual, a la espera de confirmar qué agrupan.
+ * Seed del catálogo completo (planilla del dueño, 2026-09-15). Los códigos
+ * de esta lista son los de LÍNEA 1 tal cual los pasó el dueño; para otras
+ * líneas se reconstruyen con `codigoPlanilla()` (mismo prefijo/secuencia,
+ * cambia el número). PROGRAMADA y OCIOSO se cargan a mano en Registro de
+ * Paradas; el resto (EXTERNA/OPERACIONAL/SUMINISTRO_VAPOR/SUMINISTRO/
+ * ESTERILIZACION/PREPARACION/CODIFICACION) también, por decisión del dueño — no se
+ * esperaba al sync del Sheet. Las MECÁNICAS (equipo/subsistema) quedan
+ * fuera de este catálogo: siguen viniendo del Sheet (FASE C′).
  */
-export const CATALOGO_PROGRAMADA: TipoParada[] = [
-  { codigo: "ARRANQUE_PRODUCCION", nombre: "Arranque de Producción", clase: "PROGRAMADA", tiempoGuiaMin: 180, codigoPlanilla: "PPL1" },
-  { codigo: "CAMBIO_LOTE", nombre: "Cambio de Lote", clase: "PROGRAMADA", tiempoGuiaMin: 10, codigoPlanilla: "PPL1" },
-  { codigo: "CAMBIO_SABOR", nombre: "Cambio de Sabor", clase: "PROGRAMADA", tiempoGuiaMin: 25, codigoPlanilla: "PPL1" },
-  { codigo: "DESCANSO_LEGAL", nombre: "Descanso Legal", clase: "PROGRAMADA", tiempoGuiaMin: 30, codigoPlanilla: "PPL1" },
-  { codigo: "FINAL_PRODUCCION", nombre: "Final de Producción", clase: "PROGRAMADA", tiempoGuiaMin: null, codigoPlanilla: "PPL1" },
-  { codigo: "LIMPIEZA_INTERMEDIA", nombre: "Limpieza Intermedia Programada", clase: "PROGRAMADA", tiempoGuiaMin: 180, codigoPlanilla: "PPL1" },
-  { codigo: "ORDEN_LIMPIEZA_FIN_TURNO", nombre: "Orden y Limpieza del Área — Final de Turno", clase: "PROGRAMADA", tiempoGuiaMin: 15, codigoPlanilla: "PPL1" },
-  { codigo: "MANTENIMIENTO_PROGRAMADO", nombre: "Mantenimiento Programado / Cambio de Presentación", clase: "PROGRAMADA", tiempoGuiaMin: 180, codigoPlanilla: "PPL1" },
-  { codigo: "DESARROLLO_PRODUCTO", nombre: "Desarrollo de Producto / Insumo", clase: "PROGRAMADA", tiempoGuiaMin: null, codigoPlanilla: "PPL1" },
-  { codigo: "LIBERACION_VAPOR", nombre: "Liberación de Vapor", clase: "PROGRAMADA", tiempoGuiaMin: null, codigoPlanilla: "PPL1" },
-  { codigo: "TRANSFERENCIA_ENERGIA", nombre: "Transferencia de Energía Eléctrica / Preventivo", clase: "PROGRAMADA", tiempoGuiaMin: null, codigoPlanilla: "PPEL1" },
+export const CATALOGO_TIPOS: TipoParada[] = [
+  // ---- Programada (PPL# / PPEL#) ----
+  { codigo: "ARRANQUE_PRODUCCION", nombre: "Arranque de Producción", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 180, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "CAMBIO_LOTE", nombre: "Cambio de Lote", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 10, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "CAMBIO_SABOR", nombre: "Cambio de Sabor", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 25, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "DESCANSO_LEGAL", nombre: "Descanso Legal", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 30, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "FINAL_PRODUCCION", nombre: "Final de Producción", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: null, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "LIMPIEZA_INTERMEDIA", nombre: "Limpieza Intermedia Programada", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 180, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "ORDEN_LIMPIEZA_FIN_TURNO", nombre: "Orden y Limpieza del Área — Final de Turno", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 15, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "MANTENIMIENTO_PROGRAMADO", nombre: "Mantenimiento Programado / Cambio de Presentación", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 180, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "DESARROLLO_PRODUCTO", nombre: "Desarrollo de Producto / Insumo", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: null, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "LIBERACION_VAPOR", nombre: "Liberación de Vapor", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: null, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+  { codigo: "TRANSFERENCIA_ENERGIA", nombre: "Transferencia de Energía Eléctrica / Preventivo", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: null, prefijoPlanilla: "PPE", secuenciaPlanilla: null },
+
+  // ---- Línea no programada / externa (LNPEL#-#) ----
+  { codigo: "LINEA_NO_PROG_VENTAS", nombre: "Línea No Programada / Disponibilidad de Ventas", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 1 },
+  { codigo: "LINEA_NO_PROG_INSUMOS_PALETAS", nombre: "Línea No Programada / Falta de Insumos / Paletas", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 2 },
+  { codigo: "FALLA_SUMINISTRO_ELECTRICO", nombre: "Falla en Suministro Eléctrico", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 3 },
+  { codigo: "LINEA_NO_PROG_ESPACIO_ALMACEN", nombre: "Línea No Programada / Falta de Espacio de Almacenamiento", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 4 },
+  { codigo: "FERIADO", nombre: "Feriado", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 5 },
+  { codigo: "PRESENTACION_NO_PLANIFICADA", nombre: "Presentación No Planificada", clase: "NO_PROGRAMADA", familia: "EXTERNA", tiempoGuiaMin: null, prefijoPlanilla: "LNPE", secuenciaPlanilla: 6 },
+
+  // ---- Operacional (OPL#-#) ----
+  { codigo: "DESVASE_PRODUCTO", nombre: "Desvase de Producto", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 1 },
+  { codigo: "INSUMOS_NO_CONFORME", nombre: "Insumos No Conforme (Prueba Industrial)", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 2 },
+  { codigo: "LOGISTICA_LINEA", nombre: "Logística de Línea", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 3 },
+  { codigo: "PARADAS_NO_DOCUMENTADAS", nombre: "Paradas No Documentadas", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 4 },
+  { codigo: "FALTA_DISPONIBILIDAD_INSUMO", nombre: "Falta de Disponibilidad de Insumo", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 5 },
+  { codigo: "FALLA_FALTA_MONTACARGAS", nombre: "Falla / Falta de Montacargas", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 6 },
+  { codigo: "FALLA_OPERACIONAL", nombre: "Falla Operacional (Operación)", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 7 },
+  { codigo: "FALTA_OPERADOR", nombre: "Falta de Operador", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 8 },
+  { codigo: "LOGISTICA_CONDICIONADA_DISTRIBUCION", nombre: "Logística Condicionada por Distribución", clase: "NO_PROGRAMADA", familia: "OPERACIONAL", tiempoGuiaMin: null, prefijoPlanilla: "OP", secuenciaPlanilla: 9 },
+
+  // ---- Codificación (IDL#-#) ----
+  { codigo: "FALLA_CODIFICACION", nombre: "Falla en la Codificación", clase: "NO_PROGRAMADA", familia: "CODIFICACION", tiempoGuiaMin: null, prefijoPlanilla: "ID", secuenciaPlanilla: 1 },
+
+  // ---- Suministro de vapor (SCL#-#) ----
+  { codigo: "FALTA_VAPOR", nombre: "Falta de Vapor", clase: "NO_PROGRAMADA", familia: "SUMINISTRO_VAPOR", tiempoGuiaMin: null, prefijoPlanilla: "SC", secuenciaPlanilla: 1 },
+
+  // ---- Suministro (SL#-#) ----
+  { codigo: "BAJA_PRESION_AGUA_DURA", nombre: "Baja Presión de Agua Dura", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 1 },
+  { codigo: "BAJA_PRESION_AGUA_OSMOTIZADA_PRINCIPAL", nombre: "Baja Presión de Agua Osmotizada Principal", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 2 },
+  { codigo: "BAJA_PRESION_AGUA_OSMOTIZADA_SECUNDARIO", nombre: "Baja Presión de Agua Osmotizada Secundario", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 3 },
+  { codigo: "BAJA_PRESION_AIRE_COMPRIMIDO", nombre: "Baja Presión de Aire Comprimido", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 4 },
+  { codigo: "FALLA_GENERADOR_440V", nombre: "Falla en Generador 440V", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 5 },
+  { codigo: "FALLA_GENERADOR_480V", nombre: "Falla en Generador 480V", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 6 },
+  { codigo: "FALLA_SUMINISTRO_AGUA_HELADA", nombre: "Falla en Suministro de Agua Helada", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 7 },
+  { codigo: "ALARMA_440V", nombre: "Alarma 440V", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 8 },
+
+  // ---- Esterilización / proceso térmico (EPTL#-#) ----
+  { codigo: "FALLA_NIVEL_BTD", nombre: "Falla de Nivel del BTD", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 1 },
+  { codigo: "FALLA_SISTEMA_AGUA_CALIENTE", nombre: "Falla en el Sistema de Agua Caliente", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 2 },
+  { codigo: "PERDIDA_ESTERILIDAD", nombre: "Pérdida de Esterilidad", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 3 },
+  { codigo: "RETRASO_ARRANQUE", nombre: "Retraso en el Arranque", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 4 },
+  { codigo: "RETRASO_ESTERILIZACION", nombre: "Retraso en la Esterilización", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 5 },
+  { codigo: "RETRASO_LIMPIEZA", nombre: "Retraso en la Limpieza", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 6 },
+  { codigo: "DESPLACE_INCORRECTO", nombre: "Desplace Incorrecto", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 7 },
+  { codigo: "EMPACADURAS_DETERIORADAS", nombre: "Empacaduras Deterioradas", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 8 },
+  { codigo: "LOGISTICA_CONDICIONADA", nombre: "Logística Condicionada", clase: "NO_PROGRAMADA", familia: "ESTERILIZACION", tiempoGuiaMin: null, prefijoPlanilla: "EPT", secuenciaPlanilla: 9 },
+
+  // ---- Preparación (PL#-#) ----
+  { codigo: "COLEO_PREPARACION", nombre: "Coleo de Preparación", clase: "NO_PROGRAMADA", familia: "PREPARACION", tiempoGuiaMin: null, prefijoPlanilla: "P", secuenciaPlanilla: 1 },
 ]
 
-export const tipoProgramadaPorCodigo = (codigo: string) => CATALOGO_PROGRAMADA.find((t) => t.codigo === codigo) ?? null
+/** Solo la familia PROGRAMADA — para quien necesite ese subconjunto puntual. */
+export const CATALOGO_PROGRAMADA: TipoParada[] = CATALOGO_TIPOS.filter((t) => t.clase === "PROGRAMADA")
+
+export const tipoPorCodigo = (codigo: string) => CATALOGO_TIPOS.find((t) => t.codigo === codigo) ?? null
+
+/** Código de planilla de una parada ya registrada (resuelve su tipo + su línea). null si no tiene tipo de catálogo (Ocioso, Mecánica). */
+export function codigoDeParada(p: Pick<Parada, "tipoCodigo" | "lineaCodigo">): string | null {
+  if (!p.tipoCodigo) return null
+  const tipo = tipoPorCodigo(p.tipoCodigo)
+  return tipo ? codigoPlanilla(tipo, p.lineaCodigo) : null
+}
 
 // ------------------------------------------------------------
 // Líneas y turnos
@@ -105,9 +215,24 @@ export interface Parada {
   tiempoGuiaMin: number | null
   /** Texto libre — obligatorio en OCIOSO, opcional en el resto. */
   nota: string | null
+  /**
+   * Por qué se pasó del tiempo guía — obligatoria en el formulario SOLO
+   * para PROGRAMADA cuando la duración real superó `tiempoGuiaMin` (dueño,
+   * 2026-09-15); separada de `nota` a propósito, que sigue siendo siempre
+   * opcional. null en cualquier otro caso (incluye Ocioso y No Programada,
+   * que no tienen esta obligación aunque tengan guía cargada).
+   */
+  justificacionDesvio: string | null
   /** ISO local 'YYYY-MM-DDTHH:MM:SS'. */
   inicio: string
-  /** null = parada abierta (en curso / "Continúa" al cerrar el turno). */
+  /**
+   * null = parada abierta. SOLO ocurre en Mecánicas (`origen: "SHEET"`) —
+   * quedan abiertas hasta que Mantenimiento las marca finalizada en el
+   * Sheet y el sync trae el `fin` (FASE C′); la app nunca las cierra.
+   * Las paradas manuales (Programada / No Programada manual / Ocioso) se
+   * cargan con duración, no con hora de inicio/fin — quedan siempre
+   * cerradas desde que se guardan, `fin` nunca es null para `origen: "MANUAL"`.
+   */
   fin: string | null
   supervisorNombre: string | null
   /**
@@ -368,6 +493,26 @@ export function disponibilidadAprox(paradas: Parada[], cantidadTurnos: number, c
   if (planificados <= 0) return 100
   const perdidos = paradas.reduce((a, p) => a + duracionMin(p, ahora), 0)
   return Math.max(0, Math.min(100, Math.round((1 - perdidos / planificados) * 100)))
+}
+
+/**
+ * Eficiencia tipo OEE para UNA línea en lo que va del turno: disponibilidad
+ * (tiempo transcurrido − minutos de parada de esa línea, sobre el tiempo
+ * transcurrido) × rendimiento (velocidad real vs. la máxima disponible, ya
+ * calculado aparte — ver `produccionPorLineaDe` en PanelProduccion.tsx).
+ * null si no hay rendimiento que combinar (la línea no tiene corrida activa
+ * ahora mismo, no hay con qué medir velocidad). Con 0 minutos de parada
+ * (todavía no hay paradas cargadas para esa línea) da exactamente el
+ * rendimiento, sin penalizar.
+ */
+export function eficienciaOEE(rendimientoPct: number | null, minutosParadaLinea: number, minutosTranscurridosTurno: number): number | null {
+  if (rendimientoPct === null) return null
+  if (minutosTranscurridosTurno <= 0) return rendimientoPct
+  const disponibilidadPct = Math.max(
+    0,
+    Math.min(100, Math.round(((minutosTranscurridosTurno - minutosParadaLinea) / minutosTranscurridosTurno) * 100)),
+  )
+  return Math.round((disponibilidadPct * rendimientoPct) / 100)
 }
 
 export interface PuntoDiaParada {

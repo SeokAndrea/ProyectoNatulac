@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Droplets, Loader2, Thermometer } from "lucide-react"
+import { Droplets, Fuel, Loader2, Thermometer } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,9 +13,9 @@ import {
 } from "@/lib/panelProduccion"
 
 /*
- * Servicios Industriales: cargar Temperatura del Quantum y Agua
- * Osmotizada — los dos valores que ya se mostraban de solo lectura
- * arriba de Tanques en el Panel de Producción (ver
+ * Servicios Industriales: cargar Temperatura del Quantum, Agua
+ * Osmotizada y Gasoil — los valores que ya se mostraban de solo
+ * lectura arriba de Tanques en el Panel de Producción (ver
  * ServiciosIndustrialesFranja en PanelProduccion.tsx), pero que hasta
  * hoy nadie podía cargar desde ninguna pantalla: la RPC
  * (registrar_lectura_servicios_industriales) y el rol
@@ -29,6 +29,7 @@ export default function ServiciosIndustriales() {
   const [cargando, setCargando] = useState(true)
   const [temperaturaQuantum, setTemperaturaQuantum] = useState("")
   const [aguaOsmotizada, setAguaOsmotizada] = useState("")
+  const [gasoil, setGasoil] = useState("")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState(false)
@@ -40,7 +41,7 @@ export default function ServiciosIndustriales() {
     })
   }, [])
 
-  const valido = temperaturaQuantum.trim() !== "" || aguaOsmotizada.trim() !== ""
+  const valido = temperaturaQuantum.trim() !== "" || aguaOsmotizada.trim() !== "" || gasoil.trim() !== ""
 
   async function guardar() {
     if (!valido || !session || enviando) return
@@ -51,6 +52,7 @@ export default function ServiciosIndustriales() {
       session.username,
       temperaturaQuantum.trim() === "" ? null : Number(temperaturaQuantum),
       aguaOsmotizada.trim() === "" ? null : Number(aguaOsmotizada),
+      gasoil.trim() === "" ? null : Number(gasoil),
     )
     setEnviando(false)
     if (!resultado.ok) {
@@ -60,11 +62,12 @@ export default function ServiciosIndustriales() {
     setLectura(resultado.lectura)
     setTemperaturaQuantum("")
     setAguaOsmotizada("")
+    setGasoil("")
     setGuardado(true)
   }
 
   return (
-    <AppShell title="Servicios Industriales" description="Temperatura del Quantum y Agua Osmotizada">
+    <AppShell title="Servicios Industriales" description="Temperatura del Quantum, Agua Osmotizada y Gasoil">
       <div className="mx-auto flex max-w-lg flex-col gap-4">
         <Card>
           <CardHeader>
@@ -98,6 +101,16 @@ export default function ServiciosIndustriales() {
                     </p>
                   </div>
                 </div>
+                <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
+                  <Fuel className="size-4 shrink-0 text-danger" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Gasoil</p>
+                    <p className="num font-semibold text-foreground">
+                      {lectura?.gasoil?.toLocaleString("es-CO") ?? "—"}
+                      {lectura?.gasoil !== null && lectura?.gasoil !== undefined ? " L" : ""}
+                    </p>
+                  </div>
+                </div>
                 {lectura && (
                   <p className="col-span-2 text-xs text-muted-foreground">
                     {new Date(lectura.actualizadoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
@@ -112,7 +125,7 @@ export default function ServiciosIndustriales() {
         <Card>
           <CardHeader>
             <CardTitle>Cargar lectura nueva</CardTitle>
-            <CardDescription>Cargar al menos uno de los dos valores.</CardDescription>
+            <CardDescription>Cargar al menos uno de los tres valores.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
@@ -135,6 +148,17 @@ export default function ServiciosIndustriales() {
                 placeholder="Ej. 15000"
                 value={aguaOsmotizada}
                 onChange={(e) => setAguaOsmotizada(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="gasoil">Gasoil (L)</Label>
+              <Input
+                id="gasoil"
+                type="number"
+                inputMode="decimal"
+                placeholder="Ej. 200"
+                value={gasoil}
+                onChange={(e) => setGasoil(e.target.value)}
               />
             </div>
 

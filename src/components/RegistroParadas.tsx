@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react"
-import { Clock, Info, Lock, Plus, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Info, Lock, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { fechaLocal } from "@/lib/turno"
+import { fechaLocal, horaLocal } from "@/lib/turno"
 import {
-  CATALOGO_PROGRAMADA,
+  CATALOGO_TIPOS,
+  codigoDeParada,
+  codigoPlanilla,
   duracionMin,
   fmtDesvio,
   fmtDuracion,
@@ -23,17 +24,24 @@ import {
  * el lote/sabor que tiene corriendo AHORA (mismo dato que Producción al
  * activar), solo como contexto para reconocerla de un vistazo. Elegida la
  * línea, dos caminos:
- *  - "Agregar tiempo ocioso": texto libre + hora de inicio (+ fin si ya
- *    se sabe).
+ *  - "Agregar tiempo ocioso": texto libre + duración en minutos.
  *  - "Agregar parada operacional": tipo de falla con autocompletado
- *    contra el catálogo (no texto libre — el catálogo es la única fuente
- *    de tipos programados) + hora de inicio (+ fin si ya se sabe).
- * Debajo, para revisar lo ya cargado: elegir línea, ver las abiertas (con
- * botón para ponerles hora de fin más tarde), lo ya cerrado, y No
- * Programada (solo lectura, llega del Sheet de Mantenimiento).
+ *    contra el catálogo completo (Programada + No Programada manual —
+ *    Externa/Operacional/Suministro (vapor y servicios)/Esterilización/
+ *    Preparación/Codificación, no texto libre) + duración en minutos.
+ *    La clase (PROGRAMADA / NO_PROGRAMADA) la trae el tipo elegido, no la
+ *    elige el supervisor (dueño, 2026-09-15).
+ * El supervisor no anota cuándo empezó ni cuándo terminó — solo cuánto
+ * duró; el inicio/fin que guarda el sistema se calcula solo, anclado al
+ * momento de guardar (dueño, 2026-09-15). Por eso no hay paradas "en
+ * curso" que revisar acá: cada una queda cerrada apenas se carga.
+ * Debajo, para revisar lo ya cargado: elegir línea y ver lo ya cargado.
+ * Las paradas MECÁNICAS (equipo/subsistema) siguen sin catálogo — llegan
+ * del Sheet de Mantenimiento y se muestran aparte, solo lectura (FASE C′,
+ * todavía sin datos reales).
  *
  * FASE A′: el estado vive en memoria (arranca del fixture); "Guardar" no
- * persiste todavía. En FASE B′ esto llama a registrar_parada / cerrar_parada.
+ * persiste todavía. En FASE B′ esto llama a registrar_parada.
  */
 
 export interface LineaDelDia {
@@ -49,18 +57,14 @@ export interface LineaDelDia {
 let contador = 0
 const nuevoId = () => `local-${Date.now()}-${contador++}`
 
-/** Arma un ISO local 'YYYY-MM-DDTHH:MM:SS' de HOY con la hora 'HH:MM'. */
-function isoDeHoy(hora: string): string {
-  return `${fechaLocal(new Date())}T${hora.length === 5 ? `${hora}:00` : hora}`
-}
-
-/** Si la hora de fin quedó antes que la de inicio, cuenta como del día siguiente. */
-function isoFin(inicio: string, horaFin: string): string {
-  const fin = isoDeHoy(horaFin)
-  if (fin > inicio) return fin
-  const d = new Date(inicio)
-  d.setDate(d.getDate() + 1)
-  return `${fechaLocal(d)}T${horaFin.length === 5 ? `${horaFin}:00` : horaFin}`
+/** Ventana inicio/fin anclada a AHORA, a partir de solo la duración en minutos (el supervisor no tipea horas). */
+function ventanaDesdeAhora(minutos: number): { inicio: string; fin: string } {
+  const inicioDate = new Date()
+  const finDate = new Date(inicioDate.getTime() + minutos * 60_000)
+  return {
+    inicio: `${fechaLocal(inicioDate)}T${horaLocal(inicioDate)}`,
+    fin: `${fechaLocal(finDate)}T${horaLocal(finDate)}`,
+  }
 }
 
 const horaCorta = (iso: string) => iso.slice(11, 16)
@@ -86,7 +90,7 @@ export function RegistroParadas({
   const [filas, setFilas] = useState<Parada[]>(iniciales)
   const [lineaVista, setLineaVista] = useState<string>(lineasDia[0].lineaCodigo)
 
-  // Flujo de "Agregar parada": cerrado → elegir corrida → elegir Ocioso/Operacional → formulario.
+  // Flujo de "Agregar parada": cerrado → elegir línea → elegir Ocioso/Operacional → formulario.
   const [agregando, setAgregando] = useState(false)
   const [lineaAgregar, setLineaAgregar] = useState<string | null>(null)
   const [modoAgregar, setModoAgregar] = useState<"OCIOSO" | "OPERACIONAL" | null>(null)
@@ -97,14 +101,9 @@ export function RegistroParadas({
     () => filas.filter((p) => p.lineaCodigo === lineaVista).sort((a, b) => b.inicio.localeCompare(a.inicio)),
     [filas, lineaVista],
   )
-  const abiertas = deLinea.filter(paradaAbierta)
 
   function agregar(p: Omit<Parada, "id" | "lineaCodigo" | "turnoTipo" | "origen">, lineaCodigo: string) {
     setFilas((prev) => [...prev, { ...p, id: nuevoId(), lineaCodigo, turnoTipo: "TURNO_1", origen: "MANUAL" }])
-  }
-
-  function cerrar(id: string, horaFin: string) {
-    setFilas((prev) => prev.map((p) => (p.id === id ? { ...p, fin: isoFin(p.inicio, horaFin) } : p)))
   }
 
   function cerrarFlujoAgregar() {
@@ -190,18 +189,20 @@ export function RegistroParadas({
           </div>
         ) : modoAgregar === "OPERACIONAL" ? (
           <FormOperacional
+            lineaCodigo={lineaElegida.lineaCodigo}
             onCancelar={() => setModoAgregar(null)}
-            onGuardar={(tipo, hora, horaFin, nota) => {
-              const inicio = isoDeHoy(hora)
+            onGuardar={(tipo, minutos, nota, justificacionDesvio) => {
+              const { inicio, fin } = ventanaDesdeAhora(minutos)
               agregar(
                 {
-                  clase: "PROGRAMADA",
+                  clase: tipo.clase,
                   tipoCodigo: tipo.codigo,
                   tipoNombre: tipo.nombre,
                   tiempoGuiaMin: tipo.tiempoGuiaMin,
                   nota: nota || null,
+                  justificacionDesvio,
                   inicio,
-                  fin: horaFin ? isoFin(inicio, horaFin) : null,
+                  fin,
                   supervisorNombre: null,
                 },
                 lineaElegida.lineaCodigo,
@@ -212,8 +213,8 @@ export function RegistroParadas({
         ) : (
           <FormOcioso
             onCancelar={() => setModoAgregar(null)}
-            onGuardar={(hora, horaFin, nota, guiaMin) => {
-              const inicio = isoDeHoy(hora)
+            onGuardar={(minutos, nota, guiaMin) => {
+              const { inicio, fin } = ventanaDesdeAhora(minutos)
               agregar(
                 {
                   clase: "OCIOSO",
@@ -221,8 +222,9 @@ export function RegistroParadas({
                   tipoNombre: "Tiempo ocioso",
                   tiempoGuiaMin: guiaMin,
                   nota,
+                  justificacionDesvio: null,
                   inicio,
-                  fin: horaFin ? isoFin(inicio, horaFin) : null,
+                  fin,
                   supervisorNombre: null,
                 },
                 lineaElegida.lineaCodigo,
@@ -237,42 +239,23 @@ export function RegistroParadas({
       <div>
         <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Viendo</p>
         <div className="flex flex-wrap gap-1.5">
-          {lineasDia.map((c) => {
-            const n = filas.filter((p) => p.lineaCodigo === c.lineaCodigo && paradaAbierta(p)).length
-            return (
-              <Button
-                key={c.lineaCodigo}
-                type="button"
-                size="sm"
-                variant={lineaVista === c.lineaCodigo ? "default" : "outline"}
-                onClick={() => setLineaVista(c.lineaCodigo)}
-              >
-                {c.lineaNombre}
-                {n > 0 && (
-                  <Badge variant={lineaVista === c.lineaCodigo ? "muted" : "warning"} className="ml-1 px-1 font-normal">
-                    {n} en curso
-                  </Badge>
-                )}
-              </Button>
-            )
-          })}
+          {lineasDia.map((c) => (
+            <Button
+              key={c.lineaCodigo}
+              type="button"
+              size="sm"
+              variant={lineaVista === c.lineaCodigo ? "default" : "outline"}
+              onClick={() => setLineaVista(c.lineaCodigo)}
+            >
+              {c.lineaNombre}
+            </Button>
+          ))}
         </div>
       </div>
 
-      {abiertas.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-xl border border-warning/40 bg-warning-soft/30 p-3">
-          <p className="text-xs font-semibold tracking-wide text-warning-foreground uppercase">
-            En curso en {nombreLineaParada(lineaVista)}
-          </p>
-          {abiertas.map((p) => (
-            <FilaAbierta key={p.id} parada={p} ahora={ahora} onCerrar={(h) => cerrar(p.id, h)} />
-          ))}
-        </div>
-      )}
-
       <ListaCerradas
         titulo="Registradas en esta línea"
-        paradas={deLinea.filter((p) => !paradaAbierta(p) && p.clase !== "NO_PROGRAMADA")}
+        paradas={deLinea.filter((p) => !paradaAbierta(p) && p.origen !== "SHEET")}
         ahora={ahora}
       />
 
@@ -280,14 +263,15 @@ export function RegistroParadas({
         <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           <Lock className="mt-0.5 size-4 shrink-0" />
           <span>
-            No programada es solo lectura — se carga en el Sheet de Mantenimiento y se sincroniza acá.
+            Mecánicas (falla de equipo/subsistema) es solo lectura — se carga en el Sheet de Mantenimiento y se
+            sincroniza acá.
           </span>
         </div>
         <ListaCerradas
-          titulo={`No programadas de ${nombreLineaParada(lineaVista)}`}
-          paradas={deLinea.filter((p) => p.clase === "NO_PROGRAMADA")}
+          titulo={`Mecánicas de ${nombreLineaParada(lineaVista)}`}
+          paradas={deLinea.filter((p) => p.origen === "SHEET")}
           ahora={ahora}
-          vacio="Sin paradas no programadas registradas para esta línea."
+          vacio="Sin paradas mecánicas registradas para esta línea."
         />
       </section>
     </div>
@@ -296,21 +280,31 @@ export function RegistroParadas({
 
 // ------------------------------------------------------------
 
-/** Input con autocompletado contra el catálogo — no admite texto libre: "Guardar" solo se habilita con un tipo elegido de la lista. */
-function AutocompleteTipo({ onElegir }: { onElegir: (tipo: TipoParada | null) => void }) {
+/**
+ * Input con autocompletado contra el catálogo completo — no admite texto
+ * libre: "Guardar" solo se habilita con un tipo elegido de la lista. Lista
+ * plana (sin agrupar por familia, pedido del dueño 2026-09-15); cada tipo
+ * muestra su código de planilla PARA LA LÍNEA elegida (`codigoPlanilla`,
+ * ver paradas.ts — mismo tipo, código distinto por línea).
+ */
+function AutocompleteTipo({ lineaCodigo, onElegir }: { lineaCodigo: string; onElegir: (tipo: TipoParada | null) => void }) {
   const [texto, setTexto] = useState("")
   const [abierto, setAbierto] = useState(false)
   const [elegido, setElegido] = useState<TipoParada | null>(null)
 
   const sugerencias =
     texto.trim() === ""
-      ? CATALOGO_PROGRAMADA
-      : CATALOGO_PROGRAMADA.filter((t) => t.nombre.toLowerCase().includes(texto.trim().toLowerCase()))
+      ? CATALOGO_TIPOS
+      : CATALOGO_TIPOS.filter(
+          (t) =>
+            t.nombre.toLowerCase().includes(texto.trim().toLowerCase()) ||
+            codigoPlanilla(t, lineaCodigo).toLowerCase().includes(texto.trim().toLowerCase()),
+        )
 
   return (
     <div className="relative">
       <Input
-        placeholder="Tipo de falla…"
+        placeholder="Tipo de parada o código…"
         value={texto}
         onChange={(e) => {
           setTexto(e.target.value)
@@ -325,7 +319,7 @@ function AutocompleteTipo({ onElegir }: { onElegir: (tipo: TipoParada | null) =>
         className="h-9"
       />
       {abierto && (
-        <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-card shadow-md">
+        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-border bg-card shadow-md">
           {sugerencias.length === 0 ? (
             <li className="px-3 py-2 text-sm text-muted-foreground">Ningún tipo del catálogo coincide.</li>
           ) : (
@@ -333,7 +327,7 @@ function AutocompleteTipo({ onElegir }: { onElegir: (tipo: TipoParada | null) =>
               <li key={t.codigo}>
                 <button
                   type="button"
-                  className="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setTexto(t.nombre)
@@ -342,8 +336,15 @@ function AutocompleteTipo({ onElegir }: { onElegir: (tipo: TipoParada | null) =>
                     onElegir(t)
                   }}
                 >
-                  {t.nombre}
-                  {t.tiempoGuiaMin != null && <span className="ml-2 text-xs text-muted-foreground">guía {fmtDuracion(t.tiempoGuiaMin)}</span>}
+                  <span className="min-w-0 truncate">
+                    {t.nombre}
+                    {t.tiempoGuiaMin != null && (
+                      <span className="ml-2 text-xs text-muted-foreground">guía {fmtDuracion(t.tiempoGuiaMin)}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                    {codigoPlanilla(t, lineaCodigo)}
+                  </span>
                 </button>
               </li>
             ))
@@ -358,34 +359,65 @@ function AutocompleteTipo({ onElegir }: { onElegir: (tipo: TipoParada | null) =>
 }
 
 function FormOperacional({
+  lineaCodigo,
   onCancelar,
   onGuardar,
 }: {
+  lineaCodigo: string
   onCancelar: () => void
-  onGuardar: (tipo: TipoParada, hora: string, horaFin: string, nota: string) => void
+  onGuardar: (tipo: TipoParada, minutos: number, nota: string, justificacionDesvio: string | null) => void
 }) {
   const [tipo, setTipo] = useState<TipoParada | null>(null)
-  const [hora, setHora] = useState("")
-  const [horaFin, setHoraFin] = useState("")
+  const [duracion, setDuracion] = useState("")
   const [nota, setNota] = useState("")
+  const [justificacion, setJustificacion] = useState("")
+
+  const minutos = duracion === "" ? null : Number(duracion)
+  /** Solo PROGRAMADA obliga a justificar el desvío — el resto del catálogo no trae tiempo guía (ver plan §1.3). */
+  const seFuePasada = tipo?.clase === "PROGRAMADA" && tipo.tiempoGuiaMin != null && minutos != null && minutos > tipo.tiempoGuiaMin
+  const valido = tipo != null && minutos != null && minutos > 0 && (!seFuePasada || justificacion.trim() !== "")
 
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm font-semibold text-foreground">Parada operacional</p>
-      <AutocompleteTipo onElegir={setTipo} />
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          Inicio
-          <Input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="h-8 w-32" />
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          Fin (si ya terminó)
-          <Input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className="h-8 w-32" />
-        </label>
-      </div>
+      <AutocompleteTipo
+        lineaCodigo={lineaCodigo}
+        onElegir={(t) => {
+          setTipo(t)
+          setJustificacion("")
+        }}
+      />
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        Duración (minutos)
+        <Input
+          type="number"
+          min={1}
+          value={duracion}
+          onChange={(e) => setDuracion(e.target.value)}
+          className="h-8 w-24"
+          placeholder="—"
+        />
+        {tipo?.tiempoGuiaMin != null && <span>(guía {fmtDuracion(tipo.tiempoGuiaMin)})</span>}
+      </label>
       <Input placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} className="h-8" />
+      {seFuePasada && (
+        <div>
+          <Input
+            placeholder="¿Por qué se pasó del tiempo guía? (obligatorio)"
+            value={justificacion}
+            onChange={(e) => setJustificacion(e.target.value)}
+            className="h-8"
+          />
+          <p className="mt-1 text-xs text-warning-foreground">Se pasó del tiempo guía — hay que explicar por qué.</p>
+        </div>
+      )}
       <div className="flex gap-2">
-        <Button type="button" size="sm" disabled={!tipo || !hora} onClick={() => tipo && onGuardar(tipo, hora, horaFin, nota.trim())}>
+        <Button
+          type="button"
+          size="sm"
+          disabled={!valido}
+          onClick={() => valido && onGuardar(tipo, minutos, nota.trim(), seFuePasada ? justificacion.trim() : null)}
+        >
           Guardar
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancelar}>
@@ -401,12 +433,14 @@ function FormOcioso({
   onGuardar,
 }: {
   onCancelar: () => void
-  onGuardar: (hora: string, horaFin: string, nota: string, guiaMin: number | null) => void
+  onGuardar: (minutos: number, nota: string, guiaMin: number | null) => void
 }) {
-  const [hora, setHora] = useState("")
-  const [horaFin, setHoraFin] = useState("")
+  const [duracion, setDuracion] = useState("")
   const [nota, setNota] = useState("")
   const [guia, setGuia] = useState("")
+
+  const minutos = duracion === "" ? null : Number(duracion)
+  const valido = minutos != null && minutos > 0 && nota.trim() !== ""
 
   return (
     <div className="flex flex-col gap-2">
@@ -417,12 +451,15 @@ function FormOcioso({
       <Input placeholder="¿Qué pasó? (obligatorio)" value={nota} onChange={(e) => setNota(e.target.value)} className="h-8" />
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          Inicio
-          <Input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="h-8 w-32" />
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          Fin (si ya terminó)
-          <Input type="time" value={horaFin} onChange={(e) => setHoraFin(e.target.value)} className="h-8 w-32" />
+          Duración (minutos)
+          <Input
+            type="number"
+            min={1}
+            value={duracion}
+            onChange={(e) => setDuracion(e.target.value)}
+            className="h-8 w-24"
+            placeholder="—"
+          />
         </label>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           Guía (min)
@@ -433,65 +470,14 @@ function FormOcioso({
         <Button
           type="button"
           size="sm"
-          disabled={!hora || !nota.trim()}
-          onClick={() => onGuardar(hora, horaFin, nota.trim(), guia === "" ? null : Number(guia))}
+          disabled={!valido}
+          onClick={() => valido && onGuardar(minutos, nota.trim(), guia === "" ? null : Number(guia))}
         >
           Guardar
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancelar}>
           Cancelar
         </Button>
-      </div>
-    </div>
-  )
-}
-
-function FilaAbierta({ parada: p, ahora, onCerrar }: { parada: Parada; ahora: Date; onCerrar: (hora: string) => void }) {
-  const [cerrando, setCerrando] = useState(false)
-  const [confirmar, setConfirmar] = useState(false)
-  const [hora, setHora] = useState("")
-
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">{p.tipoNombre}</p>
-          <p className="text-xs text-muted-foreground">
-            Desde {horaCorta(p.inicio)} · va {fmtDuracion(duracionMin(p, ahora))}
-            {p.nota ? ` · ${p.nota}` : ""}
-          </p>
-        </div>
-        {!cerrando ? (
-          <Button type="button" size="sm" variant="outline" onClick={() => setCerrando(true)}>
-            <Clock className="size-3.5" />
-            Poner hora de fin
-          </Button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="h-8 w-32" />
-            {!confirmar ? (
-              <Button type="button" size="sm" disabled={!hora} onClick={() => setConfirmar(true)}>
-                Cerrar
-              </Button>
-            ) : (
-              <Button type="button" size="sm" variant="destructive" onClick={() => onCerrar(hora)}>
-                Confirmar cierre
-              </Button>
-            )}
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              onClick={() => {
-                setCerrando(false)
-                setConfirmar(false)
-                setHora("")
-              }}
-            >
-              <X className="size-3.5" />
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -525,7 +511,13 @@ function ListaCerradas({
               >
                 <span className="min-w-0 truncate text-foreground">
                   {p.tipoNombre}
+                  {codigoDeParada(p) && (
+                    <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">{codigoDeParada(p)}</span>
+                  )}
                   {p.nota && <span className="ml-1.5 text-muted-foreground">· {p.nota}</span>}
+                  {p.justificacionDesvio && (
+                    <span className="ml-1.5 text-warning-foreground">· {p.justificacionDesvio}</span>
+                  )}
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {p.fin ? `${horaCorta(p.inicio)}–${horaCorta(p.fin)}` : horaCorta(p.inicio)} ·{" "}

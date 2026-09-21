@@ -73,11 +73,14 @@ export interface FilaValidacion {
   /** true = el turno se cerró automáticamente (cron), no lo finalizó el supervisor. */
   cierreAutomatico: boolean
   /**
-   * true = hay 2+ corridas CON PT propio (cajas > 0) para esta misma
-   * línea+lote+presentación — sin importar si los totales coinciden.
-   * No bloquea nada (repetir línea+lote es legítimo desde costura 2,
-   * ver plan-rework-3-modulos-y-merma.md §2.3): es la red de seguridad
-   * que reemplaza el bloqueo duro de `activar_linea` de `20261003`.
+   * true = hay 2+ corridas CON PT propio (cajas > 0) en el MISMO turno
+   * para esta misma línea+lote+presentación — sin importar si los
+   * totales coinciden. Repetir línea+lote entre turnos distintos (días
+   * distintos) no cuenta: "lote" es texto libre sin fecha ni unicidad
+   * global. No bloquea nada (repetir línea+lote dentro de un turno es
+   * legítimo desde costura 2, ver plan-rework-3-modulos-y-merma.md
+   * §2.3): es la red de seguridad que reemplaza el bloqueo duro de
+   * `activar_linea` de `20261003`.
    */
   posibleDuplicado: boolean
   /** Lo que cargó el supervisor (siempre presente). */
@@ -169,16 +172,24 @@ export async function listarValidacionProduccion(
 }
 
 /**
- * Agrupa por línea+lote+presentación (mismo criterio que
- * auditoriaVista.ts) y marca `posibleDuplicado` en toda fila de un
- * grupo con 2+ corridas con PT propio (cajas > 0) — sin importar si
- * los totales coinciden. Muta las filas en el lugar, no devuelve nada.
+ * Agrupa por turno+línea+lote+presentación y marca `posibleDuplicado`
+ * en toda fila de un grupo con 2+ corridas con PT propio (cajas > 0)
+ * — sin importar si los totales coinciden. Necesita el MISMO turno:
+ * "lote" es texto libre que cada supervisor tipea a mano, sin fecha ni
+ * unicidad global, así que dos turnos distintos (de días distintos)
+ * pueden compartir el mismo número de lote en la misma línea sin que
+ * eso signifique nada raro. Lo sospechoso de verdad — el caso real que
+ * motivó este chequeo (plan-rework-auditoria.md §7: "Línea 1 · Lote
+ * 0004 · 810 cajas × 2") — es la misma línea+lote+presentación
+ * repetida DENTRO del mismo turno. Auditoría (auditoriaVista.ts) ya
+ * queda afuera de este problema porque compara solo dentro de un
+ * turno a la vez. Muta las filas en el lugar, no devuelve nada.
  */
 function marcarPosiblesDuplicados(filas: FilaValidacion[]): void {
   const grupos = new Map<string, FilaValidacion[]>()
   for (const f of filas) {
     if (f.supervisor.cajas <= 0) continue
-    const k = `${f.linea}|${f.lote ?? ""}|${f.presentacion}`
+    const k = `${f.turnoCodigo}|${f.linea}|${f.lote ?? ""}|${f.presentacion}`
     const g = grupos.get(k)
     if (g) g.push(f)
     else grupos.set(k, [f])

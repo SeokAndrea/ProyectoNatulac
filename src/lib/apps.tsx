@@ -3,7 +3,6 @@ import {
   PlayCircle,
   PackageCheck,
   ClipboardCheck,
-  ClipboardList,
   Users,
   DatabaseZap,
   History,
@@ -14,6 +13,11 @@ import {
   CalendarRange,
   Thermometer,
   Wrench,
+  ShieldAlert,
+  FileText,
+  Calculator,
+  FlaskConical,
+  Scale,
 } from "lucide-react"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 
@@ -39,16 +43,26 @@ export interface AppDef {
   rolesPermitidos?: RolCodigo[]
   /** Si se define, la tarjeta solo aparece para usuarios de estas áreas (ej. Servicios Industriales, que no tiene un rol propio). Tiene que coincidir con el areasPermitidas de la misma ruta en src/App.tsx. */
   areasPermitidas?: AreaCodigo[]
+  /**
+   * Si se define, la tarjeta NO aparece para usuarios de estas áreas,
+   * aunque su rol sí califique (ej. Servicios Industriales usa el rol
+   * SUPERVISOR — igual que Aséptico/Vacío — pero no tiene que ver
+   * corridas de producción: Comenzar Turno, Preparación, Líneas,
+   * Producto Terminado, Finalizar Turno, Mis Actas y Programación
+   * quedan afuera para esa área). Tiene que coincidir con el
+   * areasExcluidas de la misma ruta en src/App.tsx.
+   */
+  areasExcluidas?: AreaCodigo[]
   /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
   atajo?: boolean
   /** Se bloquea (gris) cuando SÍ hay un turno en curso — lo opuesto de requiereTurno (ver Comenzar Turno). */
   bloqueaConTurno?: boolean
-  /** Se bloquea (gris) una vez completada la revisión de INICIO — es "de una sola vez", como Comenzar Turno (ver Status y revisionInicioCompleta en turno.tsx). */
-  bloqueaConRevisionInicio?: boolean
   /** Se resalta en rojo cuando hay un turno en curso, para que sea obvio el siguiente paso (ver Finalizar Turno). */
   resaltarConTurno?: boolean
   /** Color fijo del ícono/tarjeta (por defecto: primary) — para distinguir a simple vista pasos como Comenzar/Preparación/Finalizar. */
-  color?: "success" | "blue"
+  color?: "success" | "blue" | "purple" | "warning" | "danger"
+  /** Si es true, la tarjeta solo aparece para usuarios con usuarios.ve_errores = true (flag aparte del rol, ver session.veErrores y migración 20261047090000) — hoy solo el dueño. Tiene que coincidir con el requiereVeErrores de la misma ruta en src/App.tsx. */
+  veErroresSolo?: boolean
 }
 
 /*
@@ -73,18 +87,10 @@ export const apps: AppDef[] = [
     icon: PlayCircle,
     requiereTurno: false,
     rolesPermitidos: ["SUPERVISOR"],
+    // Servicios Industriales usa el rol SUPERVISOR pero no arranca turnos de producción.
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     bloqueaConTurno: true,
     color: "success",
-  },
-  {
-    slug: "status",
-    title: "Status",
-    description: "Verifica el estado real de tanques y líneas contra el sistema, y corrige si no coincide.",
-    href: "/status",
-    icon: ClipboardList,
-    requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR"],
-    bloqueaConRevisionInicio: true,
   },
   {
     slug: "preparacion",
@@ -94,6 +100,7 @@ export const apps: AppDef[] = [
     icon: Beaker,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     color: "blue",
   },
   {
@@ -104,6 +111,7 @@ export const apps: AppDef[] = [
     icon: Factory,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     color: "blue",
   },
   {
@@ -114,6 +122,7 @@ export const apps: AppDef[] = [
     icon: PackageCheck,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
   },
   {
     slug: "finalizar-turno",
@@ -123,7 +132,18 @@ export const apps: AppDef[] = [
     icon: ClipboardCheck,
     requiereTurno: true,
     rolesPermitidos: ["SUPERVISOR"],
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     resaltarConTurno: true,
+  },
+  {
+    slug: "mis-actas",
+    title: "Mis Actas",
+    description: "Actas de tus turnos cerrados — verlas y descargarlas cuando quieras.",
+    href: "/mis-actas",
+    icon: FileText,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERVISOR"],
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
   },
   {
     slug: "panel-produccion",
@@ -166,14 +186,25 @@ export const apps: AppDef[] = [
     href: "/programacion",
     icon: CalendarRange,
     requiereTurno: false,
+    // Programación es de producción — Servicios Industriales no la necesita.
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     atajo: true,
   },
   {
     slug: "servicios-industriales",
     title: "Servicios Industriales",
-    description: "Cargar Temperatura del Quantum y Agua Osmotizada.",
+    description: "Cargar Temperatura del Quantum, Agua Osmotizada y Gasoil.",
     href: "/servicios-industriales",
     icon: Thermometer,
+    requiereTurno: false,
+    areasPermitidas: ["SERVICIOS_INDUSTRIALES"],
+  },
+  {
+    slug: "registros-servicios-industriales",
+    title: "Registros del Área",
+    description: "Historial de Temperatura del Quantum, Agua Osmotizada y Gasoil cargados.",
+    href: "/registros-servicios-industriales",
+    icon: History,
     requiereTurno: false,
     areasPermitidas: ["SERVICIOS_INDUSTRIALES"],
   },
@@ -194,6 +225,26 @@ export const apps: AppDef[] = [
     icon: History,
     requiereTurno: false,
     rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"],
+    color: "blue",
+  },
+  {
+    slug: "validar",
+    title: "Validar",
+    description: "Revisar y fijar los datos de producción de cada turno cerrado — lo validado alimenta los KPIs.",
+    href: "/validar",
+    icon: ListChecks,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    color: "warning",
+  },
+  {
+    slug: "calculadoras",
+    title: "Calculadoras",
+    description: "Fórmula de producto, bobina y conteo por peso.",
+    href: "/calculadoras",
+    icon: Calculator,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
   },
   {
     slug: "edicion-datos",
@@ -205,12 +256,51 @@ export const apps: AppDef[] = [
     rolesPermitidos: ["SUPERADMINISTRADOR"],
   },
   {
-    slug: "validar",
-    title: "Validar",
-    description: "Revisar y fijar los datos de producción de cada turno cerrado — lo validado alimenta los KPIs.",
-    href: "/validar",
-    icon: ListChecks,
+    slug: "errores",
+    title: "Errores",
+    description: "Errores que le salieron a alguien usando la app — quién, cuándo, qué intentaba hacer.",
+    href: "/errores",
+    icon: ShieldAlert,
+    requiereTurno: false,
+    veErroresSolo: true,
+    color: "danger",
+  },
+]
+
+/*
+ * Las 3 calculadoras no aparecen sueltas en el Hub — se agrupan bajo
+ * la tarjeta "Calculadoras" de arriba (ver src/pages/apps/Calculadoras.tsx).
+ * Sus rutas siguen registradas normalmente en src/App.tsx.
+ */
+export const appsCalculadoras: AppDef[] = [
+  {
+    slug: "calculadora-bobina",
+    title: "Calculadora de Bobina",
+    description: "Envases restantes en una bobina de material de empaque, según la medida del core al borde.",
+    href: "/calculadora-bobina",
+    icon: Calculator,
     requiereTurno: false,
     rolesPermitidos: ["SUPERADMINISTRADOR"],
+    color: "success",
+  },
+  {
+    slug: "calculadora-formula",
+    title: "Calculadora de Fórmula",
+    description: "Insumos de materia prima a pedir según el sabor y la cantidad de tambores o kits a preparar.",
+    href: "/calculadora-formula",
+    icon: FlaskConical,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    color: "purple",
+  },
+  {
+    slug: "calculadora-conteo-peso",
+    title: "Calculadora de Conteo por Peso",
+    description: "Pitillos y tapas restantes en una caja, según su peso.",
+    href: "/calculadora-conteo-peso",
+    icon: Scale,
+    requiereTurno: false,
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    color: "blue",
   },
 ]

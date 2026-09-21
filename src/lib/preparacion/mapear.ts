@@ -5,7 +5,18 @@
  * aplicados acá (ver tipos.ts).
  */
 import { saborSinFamiliaOculta } from "@/lib/turno"
-import type { FilaPreparacion, FilaTanque, PreparacionRegistro, TanqueRecepcion } from "./tipos"
+import type {
+  AjusteVolumenRegistro,
+  DesvaseLoteRegistro,
+  FilaAjusteVolumen,
+  FilaDesvaseLote,
+  FilaPreparacion,
+  FilaTanque,
+  FilaTransferencia,
+  PreparacionRegistro,
+  TanqueRecepcion,
+  TransferenciaRegistro,
+} from "./tipos"
 
 export function mapearTanque(fila: FilaTanque): TanqueRecepcion {
   return {
@@ -45,5 +56,39 @@ export function mapearPreparacion(fila: FilaPreparacion): PreparacionRegistro {
     creadoEn: fila.creado_en,
     liberadoEn: fila.liberado_en,
     cerradoEn: fila.cerrado_en,
+  }
+}
+
+export function mapearTransferencia(fila: FilaTransferencia): TransferenciaRegistro {
+  return {
+    id: fila.id,
+    litros: fila.litros,
+    modo: fila.modo,
+    loteIdOrigen: fila.lote_id_origen,
+    loteIdDestino: fila.lote_id_destino,
+    creadoEn: fila.creado_en,
+  }
+}
+
+export function mapearDesvaseLote(fila: FilaDesvaseLote): DesvaseLoteRegistro {
+  return {
+    id: fila.id,
+    litros: fila.litros,
+    loteIdOrigen: fila.lote_id_origen,
+    creadoEn: fila.creado_en,
+  }
+}
+
+export function mapearAjusteVolumen(fila: FilaAjusteVolumen): AjusteVolumenRegistro {
+  return {
+    id: fila.id,
+    loteId: fila.lote_id,
+    numeroTanque: fila.numero_tanque,
+    lote: fila.lote,
+    saborNombre: saborSinFamiliaOculta(fila.sabor_nombre),
+    litros: fila.litros,
+    detalle: fila.detalle,
+    usuarioNombre: fila.usuario_nombre,
+    creadoEn: fila.creado_en,
   }
 }

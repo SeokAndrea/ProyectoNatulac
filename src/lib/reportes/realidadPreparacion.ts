@@ -12,7 +12,7 @@
  */
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
-import type { PreparacionRegistro } from "@/lib/preparacion/tipos"
+import type { DesvaseLoteRegistro, PreparacionRegistro, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
 /** El PT de un lote no puede superar el volumen que ese lote tuvo — MARGEN_REDONDEO cubre el ruido de litros_x_caja y paletas parciales. */
@@ -58,11 +58,56 @@ export interface ConsumoYProducido {
 }
 
 /**
+ * Litros que un lote entregó a otro lado (transferencia o desvase) —
+ * NO son merma, así que se restan de su tramo antes de compararlo
+ * contra el Producto Terminado. Ver plan de "restar transferencias y
+ * desvases del consumo".
+ */
+function litrosSalientesPorLote(
+  transferencias: TransferenciaRegistro[],
+  desvases: DesvaseLoteRegistro[],
+): Map<string, number> {
+  const saliente = new Map<string, number>()
+  for (const tr of transferencias) {
+    if (tr.loteIdOrigen === null) continue
+    saliente.set(tr.loteIdOrigen, (saliente.get(tr.loteIdOrigen) ?? 0) + tr.litros)
+  }
+  for (const d of desvases) {
+    if (d.loteIdOrigen === null) continue
+    saliente.set(d.loteIdOrigen, (saliente.get(d.loteIdOrigen) ?? 0) + d.litros)
+  }
+  return saliente
+}
+
+/**
+ * Litros que un lote YA EXISTENTE absorbió de una transferencia a
+ * mitad de turno — su "inicio" quedó fijo antes de eso, así que hay
+ * que sumárselos para no subestimar lo que tuvo disponible para
+ * producir. Un lote NUEVO (creado por la misma transferencia, modo
+ * LIMPIO) NO entra acá: nace con el monto ya incluido en
+ * `volumenPreparadoL`, sumarlo de nuevo sería contarlo dos veces — se
+ * distingue comparando `creadoEn` del lote contra `creadoEn` de la
+ * transferencia (nacen en la MISMA transacción, mismo instante).
+ */
+function litrosEntrantesPorLote(transferencias: TransferenciaRegistro[], preparaciones: PreparacionRegistro[]): Map<string, number> {
+  const entrante = new Map<string, number>()
+  for (const tr of transferencias) {
+    if (tr.loteIdDestino === null) continue
+    const loteDestino = preparaciones.find((p) => p.id === tr.loteIdDestino)
+    if (!loteDestino) continue
+    if (new Date(loteDestino.creadoEn).getTime() >= new Date(tr.creadoEn).getTime()) continue
+    entrante.set(tr.loteIdDestino, (entrante.get(tr.loteIdDestino) ?? 0) + tr.litros)
+  }
+  return entrante
+}
+
+/**
  * Lotes que este turno tocó (alimentaron una corrida, o nacieron en el
- * turno), con su tramo de consumo (inicio − fin) si es confiable, y el
- * PT que produjeron. El guardrail: numerador y denominador cubren
- * SIEMPRE los mismos lotes — uno que no es confiable queda afuera de los
- * dos lados, sus litros van a `litrosSinContraste`.
+ * turno), con su tramo de consumo (inicio − fin, ajustado por lo
+ * transferido/desvasado) si es confiable, y el PT que produjeron. El
+ * guardrail: numerador y denominador cubren SIEMPRE los mismos lotes —
+ * uno que no es confiable queda afuera de los dos lados, sus litros
+ * van a `litrosSinContraste`.
  */
 export function calcularConsumoYProducido(
   turnoId: string,
@@ -71,7 +116,12 @@ export function calcularConsumoYProducido(
   productoTerminado: ProductoTerminadoRegistro[],
   contadores: ContadorRegistro[],
   presentaciones: PresentacionLive[],
+  transferencias: TransferenciaRegistro[] = [],
+  desvases: DesvaseLoteRegistro[] = [],
 ): ConsumoYProducido {
+  const litrosSalientes = litrosSalientesPorLote(transferencias, desvases)
+  const litrosEntrantes = litrosEntrantesPorLote(transferencias, preparaciones)
+
   // Lotes que este turno tocó: los que alimentaron una corrida, más los
   // que nacieron en el turno (preparados aunque todavía sin correr).
   const loteIds = new Set<string>()
@@ -110,7 +160,13 @@ export function calcularConsumoYProducido(
     const inicio = lote.volumenAlIniciarTurnoL ?? lote.volumenPreparadoL
     const fin = lote.volumenActualL ?? 0
     const vi = lote.volumenPreparadoL // volumen preparado, para el chequeo físico
-    const tramo = inicio === null ? null : inicio - fin
+    const tramoCrudo = inicio === null ? null : inicio - fin
+    // Lo transferido/desvasado no se perdió — se restó del tramo del que
+    // lo entrega; lo absorbido a mitad de turno por un lote ya existente
+    // no está en su "inicio" fijo — se le suma. Ver litrosSalientesPorLote
+    // / litrosEntrantesPorLote arriba.
+    const tramo =
+      tramoCrudo === null ? null : tramoCrudo - (litrosSalientes.get(loteId) ?? 0) + (litrosEntrantes.get(loteId) ?? 0)
     const ptExcedeVi = vi !== null && vi > 0 && ptLote > vi * MARGEN_REDONDEO
 
     let ptExcedeViCorroborado = false

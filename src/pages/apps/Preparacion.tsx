@@ -4,6 +4,7 @@ import { Beaker, Factory, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { EstadoPlantaTabs } from "@/components/EstadoPlantaTabs"
+import { NovedadesTurno } from "@/components/NovedadesTurno"
 import { Button } from "@/components/ui/button"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { listarSabores, type Sabor } from "@/lib/sabores"
@@ -68,6 +69,7 @@ export default function Preparacion() {
             </Link>
           </Button>
         </div>
+        <NovedadesTurno />
       </div>
     </AppShell>
   )

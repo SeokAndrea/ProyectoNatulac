@@ -27,27 +27,41 @@ import {
   transferirTanque as transferirTanqueAccion,
 } from "./ajustes"
 import { confirmarEstadoTanque as confirmarEstadoTanqueAccion, iniciarPreparacion as iniciarPreparacionAccion, liberarLote as liberarLoteAccion } from "./nucleo"
-import { mapearPreparacion, mapearTanque } from "./mapear"
+import { mapearAjusteVolumen, mapearDesvaseLote, mapearPreparacion, mapearTanque, mapearTransferencia } from "./mapear"
 import type {
+  AjusteVolumenRegistro,
   DatosCambiarTanque,
   DatosIniciarPreparacion,
+  DesvaseLoteRegistro,
+  FilaAjusteVolumen,
+  FilaDesvaseLote,
   FilaPreparacion,
   FilaTanque,
+  FilaTransferencia,
   ModoTransferencia,
   MotivoTransferencia,
   PreparacionRegistro,
   Resultado,
   TanqueRecepcion,
+  TransferenciaRegistro,
 } from "./tipos"
 
 interface FilaTurnoPreparacion {
   tanques: FilaTanque[]
   preparaciones: FilaPreparacion[]
+  transferencias: FilaTransferencia[]
+  desvases: FilaDesvaseLote[]
+  ajustes_volumen: FilaAjusteVolumen[]
 }
 
 export interface UsePreparacionResultado {
   tanques: TanqueRecepcion[]
   preparaciones: PreparacionRegistro[]
+  /** Solo para alimentar el cálculo de merma (restar lo transferido del tramo de un lote) — no hay UI que liste esto todavía. */
+  transferencias: TransferenciaRegistro[]
+  desvases: DesvaseLoteRegistro[]
+  /** Ajustes de volumen (sumar agua/jugo, botón "Ajustar") de este turno — alimenta el Acta de Entrega. */
+  ajustesVolumen: AjusteVolumenRegistro[]
   cargando: boolean
   recargar: () => Promise<void>
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
@@ -92,11 +106,17 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
 
   const [tanques, setTanques] = useState<TanqueRecepcion[]>([])
   const [preparaciones, setPreparaciones] = useState<PreparacionRegistro[]>([])
+  const [transferencias, setTransferencias] = useState<TransferenciaRegistro[]>([])
+  const [desvases, setDesvases] = useState<DesvaseLoteRegistro[]>([])
+  const [ajustesVolumen, setAjustesVolumen] = useState<AjusteVolumenRegistro[]>([])
   const [cargando, setCargando] = useState(true)
 
   function tomarDatos(fila: FilaTurnoPreparacion | null) {
     setTanques(fila ? fila.tanques.map(mapearTanque) : [])
     setPreparaciones(fila ? fila.preparaciones.map(mapearPreparacion) : [])
+    setTransferencias(fila ? fila.transferencias.map(mapearTransferencia) : [])
+    setDesvases(fila ? fila.desvases.map(mapearDesvaseLote) : [])
+    setAjustesVolumen(fila ? fila.ajustes_volumen.map(mapearAjusteVolumen) : [])
   }
 
   const recargar = useCallback(async () => {
@@ -131,8 +151,8 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
   }
 
   async function ajustarPreparacion(loteId: string, litros: number, detalle: string | null): Promise<Resultado> {
-    if (!usuario) return { ok: false, error: "No hay un turno en curso." }
-    const resultado = await ajustarPreparacionAccion(usuario, loteId, litros, detalle)
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await ajustarPreparacionAccion(usuario, turnoId, loteId, litros, detalle)
     if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
     return resultado
   }
@@ -195,6 +215,9 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
   return {
     tanques,
     preparaciones,
+    transferencias,
+    desvases,
+    ajustesVolumen,
     cargando,
     recargar,
     iniciarPreparacion,

@@ -69,8 +69,9 @@ const MOSTRAR_INSUMOS_PREPARACION = false
 export type ModoEstadoPlanta = "status" | "preparacion"
 
 /*
- * Tanques: el estado CONTINUO de la planta, compartido entre Status
- * (src/pages/apps/Status.tsx) y Preparación (src/pages/apps/Preparacion.tsx)
+ * Tanques: el estado CONTINUO de la planta, compartido entre la
+ * revisión de inicio (src/components/RevisionInicioTurno.tsx, dentro
+ * de Comenzar Turno) y Preparación (src/pages/apps/Preparacion.tsx)
  * — mismo dato, pero con acciones DISTINTAS según el prop "modo":
  *   - "status": el paso de revisión de INICIO (Confirmar/Editar, ver
  *     ConfirmarEstadoTanque) + "Corregir" si algo no coincide con la

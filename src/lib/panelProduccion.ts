@@ -95,55 +95,65 @@ export async function cargoDeUsuario(usuario: string): Promise<string | null> {
 export interface LecturaServiciosIndustriales {
   temperaturaQuantum: number | null
   aguaOsmotizada: number | null
+  gasoil: number | null
   actualizadoEn: string
   actualizadoPorNombre: string | null
+}
+
+interface FilaLecturaServiciosIndustriales {
+  temperatura_quantum: number | string | null
+  agua_osmotizada: number | string | null
+  gasoil: number | string | null
+  actualizado_en: string
+  actualizado_por_nombre: string | null
+}
+
+function mapearLecturaServiciosIndustriales(r: FilaLecturaServiciosIndustriales): LecturaServiciosIndustriales {
+  return {
+    temperaturaQuantum: r.temperatura_quantum === null ? null : Number(r.temperatura_quantum),
+    aguaOsmotizada: r.agua_osmotizada === null ? null : Number(r.agua_osmotizada),
+    gasoil: r.gasoil === null ? null : Number(r.gasoil),
+    actualizadoEn: r.actualizado_en,
+    actualizadoPorNombre: r.actualizado_por_nombre,
+  }
 }
 
 export async function obtenerLecturaServiciosIndustriales(): Promise<LecturaServiciosIndustriales | null> {
   const { data, error } = await supabase.rpc("lectura_servicios_industriales_actual")
   if (error || !data) return null
-  const r = data as {
-    temperatura_quantum: number | string | null
-    agua_osmotizada: number | string | null
-    actualizado_en: string
-    actualizado_por_nombre: string | null
-  }
-  return {
-    temperaturaQuantum: r.temperatura_quantum === null ? null : Number(r.temperatura_quantum),
-    aguaOsmotizada: r.agua_osmotizada === null ? null : Number(r.agua_osmotizada),
-    actualizadoEn: r.actualizado_en,
-    actualizadoPorNombre: r.actualizado_por_nombre,
-  }
+  return mapearLecturaServiciosIndustriales(data as FilaLecturaServiciosIndustriales)
+}
+
+/** Historial completo de lecturas ("Registros del Área") — más reciente primero. */
+export async function listarLecturasServiciosIndustriales(limite = 100): Promise<LecturaServiciosIndustriales[]> {
+  const { data, error } = await supabase.rpc("listar_lecturas_servicios_industriales", { p_limite: limite })
+  if (error || !data) return []
+  return (data as FilaLecturaServiciosIndustriales[]).map(mapearLecturaServiciosIndustriales)
+}
+
+/** Lecturas de ESE turno puntual, en orden cronológico — para el Acta de Entrega (ver actaPdf.ts). */
+export async function listarLecturasServiciosIndustrialesDeTurno(turnoId: string): Promise<LecturaServiciosIndustriales[]> {
+  const { data, error } = await supabase.rpc("listar_lecturas_servicios_industriales_de_turno", { p_turno_id: turnoId })
+  if (error || !data) return []
+  return (data as FilaLecturaServiciosIndustriales[]).map(mapearLecturaServiciosIndustriales)
 }
 
 export async function registrarLecturaServiciosIndustriales(
   usuario: string,
   temperaturaQuantum: number | null,
   aguaOsmotizada: number | null,
+  gasoil: number | null,
 ): Promise<{ ok: true; lectura: LecturaServiciosIndustriales } | { ok: false; error: string }> {
   const { data, error } = await supabase.rpc("registrar_lectura_servicios_industriales", {
     p_usuario: usuario,
     p_temperatura_quantum: temperaturaQuantum,
     p_agua_osmotizada: aguaOsmotizada,
+    p_gasoil: gasoil,
   })
   if (error || !data) {
     return { ok: false, error: error?.message ?? "No se pudo guardar. Intenta de nuevo." }
   }
-  const r = data as {
-    temperatura_quantum: number | string | null
-    agua_osmotizada: number | string | null
-    actualizado_en: string
-    actualizado_por_nombre: string | null
-  }
-  return {
-    ok: true,
-    lectura: {
-      temperaturaQuantum: r.temperatura_quantum === null ? null : Number(r.temperatura_quantum),
-      aguaOsmotizada: r.agua_osmotizada === null ? null : Number(r.agua_osmotizada),
-      actualizadoEn: r.actualizado_en,
-      actualizadoPorNombre: r.actualizado_por_nombre,
-    },
-  }
+  return { ok: true, lectura: mapearLecturaServiciosIndustriales(data as FilaLecturaServiciosIndustriales) }
 }
 
 export async function obtenerTurnoDeFechaTipo(fecha: string, turnoTipo: string, areaCodigo: string | null): Promise<TurnoActivo | null> {

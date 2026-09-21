@@ -12,6 +12,7 @@ import {
   Clock,
   Container,
   Droplets,
+  Fuel,
   Gauge,
   Grid3x3,
   Loader2,
@@ -73,14 +74,14 @@ import {
   mermaSemielaboradoTurno,
 } from "@/lib/reportes"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
-import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
+import type { DesvaseLoteRegistro, PreparacionRegistro, TanqueRecepcion, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { fechaPlanta, horaCortaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
-import type { Parada } from "@/lib/paradas"
+import { duracionMin, eficienciaOEE, minutosPorLinea, type Parada } from "@/lib/paradas"
 import { TopFallasPanel } from "@/components/TopFallasPanel"
 import { cn } from "@/lib/utils"
 
@@ -144,14 +145,14 @@ interface FilaLineaCompacta extends LineaConEstado {
   litros: number
   eficienciaPct: number | null
   mermaPct: number | null
-  /** Minutos desde que se marcó Parada (pausadaEn) — null si no está parada. */
+  /** Suma de los minutos de TODAS las paradas registradas de esta línea en el turno (Módulo Paradas) — null si no tiene ninguna. */
   minutosParada: number | null
   /**
    * TP = Tiempo de Producción: minutos desde que se activó la corrida
    * (activadaEn) — null si no hay corrida activa ahora mismo. Por
-   * ahora es solo el tiempo corrido desde que arrancó; cuando se
-   * agreguen paradas reales (no el mock de "Tiempo detenida"), esto
-   * debería restarles el tiempo pausado en vez de contar todo seguido.
+   * ahora es solo el tiempo corrido desde que arrancó; una mejora
+   * pendiente es restarle el tiempo de las paradas de `minutosParada`
+   * en vez de contar todo seguido.
    */
   minutosProduccion: number | null
 }
@@ -332,6 +333,14 @@ export default function PanelProduccion() {
    * arranca mostrando lo que ya dejó el turno anterior.
    */
   const [produccionDia, setProduccionDia] = useState<ProduccionDiaItem[]>([])
+  /**
+   * Paradas del turno mostrado (Módulo Paradas, FASE A′ — fixture, gateado
+   * a Área de Pruebas igual que el resto del módulo, ver plan-paradas.md
+   * §2). Alimenta "Tiempo de parada" / "Parada con mayor duración" y la
+   * eficiencia tipo OEE de cada línea; fuera de Pruebas queda vacío y esas
+   * columnas se comportan como antes (sin descuento de disponibilidad).
+   */
+  const [paradasTurno, setParadasTurno] = useState<Parada[]>([])
   /*
    * Solo el Super Administrador tiene session.area === null ("ve
    * todas las áreas") — sin este filtro, "en vivo" mostraba el turno
@@ -436,6 +445,21 @@ export default function PanelProduccion() {
     }
   }, [areaEfectiva, enVivo, turno?.id, fechaJornadaPanel, tickRefresco])
 
+  useEffect(() => {
+    let vivo = true
+    if (areaEfectiva !== "PRUEBAS") {
+      setParadasTurno([])
+      return
+    }
+    import("@/lib/paradasDemoFixture").then(({ paradasDemo }) => {
+      if (!vivo) return
+      setParadasTurno(paradasDemo().filter((p) => p.inicio.slice(0, 10) === fecha && p.turnoTipo === turnoTipo))
+    })
+    return () => {
+      vivo = false
+    }
+  }, [areaEfectiva, fecha, turnoTipo])
+
   async function cargarTurnoAnterior(turnoActualId: string | null) {
     if (!areaEfectiva) {
       setTurnoAnterior(null)
@@ -512,7 +536,16 @@ export default function PanelProduccion() {
   const usarDiario = enVivo && produccionDia.length > 0
   const mermaEnvases = turno ? mermaEnvasesTurno(prod.contadores, pt.registros, presentaciones) : null
   const mermaSemielaborado = turno
-    ? mermaSemielaboradoTurno(turno.id, prep.preparaciones, prod.corridas, pt.registros, prod.contadores, presentaciones)
+    ? mermaSemielaboradoTurno(
+        turno.id,
+        prep.preparaciones,
+        prod.corridas,
+        pt.registros,
+        prod.contadores,
+        presentaciones,
+        prep.transferencias,
+        prep.desvases,
+      )
     : null
   // "Turno pasado": mismas funciones, mismo `presentaciones` ya cargado
   // que el turno actual. Al correr en el render se recalculan solas
@@ -526,6 +559,8 @@ export default function PanelProduccion() {
         ptAnterior.registros,
         prodAnterior.contadores,
         presentaciones,
+        prepAnterior.transferencias,
+        prepAnterior.desvases,
       )
     : null
   /*
@@ -591,6 +626,8 @@ export default function PanelProduccion() {
    */
   const cajasDisplay = import.meta.env.DEV && cajasProducidasTotal === 0 ? 1840 : cajasProducidasTotal
   const litrosDisplay = import.meta.env.DEV && litrosProducidos === 0 ? 24680 : litrosProducidos
+  /** Minutos de parada acumulados en el turno, por línea (Módulo Paradas) — 0 fuera de Área de Pruebas, ver `paradasTurno`. */
+  const minutosParadaPorLinea = new Map(minutosPorLinea(paradasTurno, ahora).map((r) => [r.linea, r.minutos]))
   /** Una fila por línea: estado + producción + merma juntos (antes vivían en 3 lugares separados de la pantalla). */
   const filasLineas: FilaLineaCompacta[] = lineasEstado.map((le) => {
     // Ojo con el nombre: acá adentro "prodLinea" es la producción de ESTA
@@ -602,9 +639,7 @@ export default function PanelProduccion() {
     // todavía) no le hace perder de vista la merma que sí lleva
     // acumulada la línea en este turno.
     const merma = turno ? mermaLineaTurno(prod.corridas, le.codigo, prod.contadores, pt.registros, presentaciones) : null
-    const minutosParada = le.corrida?.pausadaEn
-      ? Math.max(0, Math.round((ahora.getTime() - new Date(le.corrida.pausadaEn).getTime()) / 60000))
-      : null
+    const minutosParadaAcumulado = minutosParadaPorLinea.get(le.codigo) ?? 0
     const minutosProduccion =
       le.estado === "activa" && le.corrida
         ? Math.max(0, Math.round((ahora.getTime() - new Date(le.corrida.activadaEn).getTime()) / 60000))
@@ -613,9 +648,9 @@ export default function PanelProduccion() {
       ...le,
       cajas: prodLinea?.cajas ?? 0,
       litros: prodLinea?.litros ?? 0,
-      eficienciaPct: prodLinea?.eficienciaPct ?? null,
+      eficienciaPct: eficienciaOEE(prodLinea?.eficienciaPct ?? null, minutosParadaAcumulado, horasTurnoActual * 60),
       mermaPct: merma?.pct ?? null,
-      minutosParada,
+      minutosParada: minutosParadaAcumulado > 0 ? minutosParadaAcumulado : null,
       minutosProduccion,
     }
   })
@@ -626,9 +661,9 @@ export default function PanelProduccion() {
     const objetivo = filasLineas.find((f) => f.estado !== "activa") ?? filasLineas[0]
     if (objetivo) objetivo.observacion = MOCK_OBSERVACION_LINEA
   }
-  const lineaParadaHaceMas = [...filasLineas]
-    .filter((f) => f.minutosParada !== null)
-    .sort((a, b) => (b.minutosParada ?? 0) - (a.minutosParada ?? 0))[0] ?? null
+  /** La parada individual más larga del turno (Módulo Paradas) — null fuera de Área de Pruebas o si el turno no tuvo ninguna. */
+  const paradaMasLarga =
+    [...paradasTurno].sort((a, b) => duracionMin(b, ahora) - duracionMin(a, ahora))[0] ?? null
   const [hh, mm, ss] = horaPlanta(ahora).split(":")
 
   const tanquesListos = prep.tanques.filter((t) => t.condicion === "LISTO").length
@@ -880,27 +915,28 @@ export default function PanelProduccion() {
                   </div>
                 </PanelCard>
 
-                <PanelCard icon={PauseCircle} titulo="Parada con mayor duración" meta={lineaParadaHaceMas ? undefined : "Mock"}>
-                  {lineaParadaHaceMas ? (
+                <PanelCard
+                  icon={PauseCircle}
+                  titulo="Parada con mayor duración"
+                  meta={paradasTurno.length > 0 ? `${paradasTurno.length} paradas` : undefined}
+                >
+                  {paradaMasLarga ? (
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground">{lineaParadaHaceMas.nombre}</p>
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {lineas.find((l) => l.codigo === paradaMasLarga.lineaCodigo)?.nombre ?? paradaMasLarga.lineaCodigo}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {lineaParadaHaceMas.corrida?.saborNombre ?? "Sin sabor"}
+                          {paradaMasLarga.tipoNombre}
+                          {paradaMasLarga.saborNombre ? ` · ${paradaMasLarga.saborNombre}` : ""}
                         </p>
                       </div>
                       <span className="num shrink-0 text-lg font-bold text-warning">
-                        {formatDuracion(lineaParadaHaceMas.minutosParada ?? 0)}
+                        {formatDuracion(duracionMin(paradaMasLarga, ahora))}
                       </span>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between gap-2 opacity-60">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground">Línea 2</p>
-                        <p className="truncate text-xs text-muted-foreground">Manzana (Jucosa) — vista previa, sin parada real ahora</p>
-                      </div>
-                      <span className="num shrink-0 text-lg font-bold text-warning">{formatDuracion(14)}</span>
-                    </div>
+                    <p className="text-sm text-muted-foreground">Sin paradas registradas para este turno.</p>
                   )}
                 </PanelCard>
               </div>
@@ -1008,7 +1044,7 @@ export default function PanelProduccion() {
                   titulo="Top Fallas — paradas por línea"
                   descripcion="Downtime del turno por clase (programada / no programada / ociosa) y por línea. Módulo Paradas — todavía en Área de Pruebas."
                 >
-                  <ParadasDelTurno lineas={lineas} turnoTipo={turnoTipo} fecha={fecha} />
+                  <TopFallasPanel paradas={paradasTurno} lineas={lineas} />
                 </SeccionColapsable>
               )}
 
@@ -1026,6 +1062,8 @@ export default function PanelProduccion() {
                     corridas={prod.corridas}
                     productoTerminado={pt.registros}
                     contadores={prod.contadores}
+                    transferencias={prep.transferencias}
+                    desvases={prep.desvases}
                   />
                 </SeccionColapsable>
               )}
@@ -1083,7 +1121,7 @@ function ProgramacionCarrusel({ items }: { items: ProgramacionItem[] }) {
     return (
       <div>
         <p className="text-lg font-bold uppercase tracking-[0.14em] text-muted-foreground">Por programar</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">Módulo en preparación</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">Sin programación cargada para hoy</p>
       </div>
     )
   }
@@ -1260,6 +1298,13 @@ function ServiciosIndustrialesFranja({ lectura, ahora }: { lectura: LecturaServi
             {lectura?.aguaOsmotizada !== null && lectura?.aguaOsmotizada !== undefined ? `${lectura.aguaOsmotizada.toLocaleString("es-CO")} L` : "—"}
           </span>
         </span>
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Fuel className="size-4 text-danger" />
+          Gasoil:{" "}
+          <span className="num font-bold text-foreground">
+            {lectura?.gasoil !== null && lectura?.gasoil !== undefined ? `${lectura.gasoil.toLocaleString("es-CO")} L` : "—"}
+          </span>
+        </span>
         {lectura && (
           <span className="text-[11px] text-muted-foreground/70">
             {tiempoRelativo(lectura.actualizadoEn, ahora)}
@@ -1271,13 +1316,6 @@ function ServiciosIndustrialesFranja({ lectura, ahora }: { lectura: LecturaServi
   )
 }
 
-/** Mock estable (mismo código = mismo número) para previsualizar "Tiempo detenida" mientras no hay ninguna línea realmente parada. */
-function mockMinutosDetenida(codigo: string): number {
-  let hash = 0
-  for (let i = 0; i < codigo.length; i++) hash = (hash * 31 + codigo.charCodeAt(i)) % 97
-  return hash % 40
-}
-
 /** Fila compacta de "Líneas activas": estado + producción + merma en una sola línea — reemplaza a la fila alta de antes + la tablita aparte del banner. */
 function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
   const info = ESTADO_LINEA_INFO[fila.estado]
@@ -1285,7 +1323,6 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
     fila.eficienciaPct === null ? null : fila.eficienciaPct >= 90 ? "ok" : fila.eficienciaPct >= 60 ? "warn" : "danger"
   const nivelMermaFila = fila.mermaPct === null ? null : nivelMerma(fila.mermaPct)
   const colorPor = colorTextoPorNivel
-  const minutosDetenidaMock = fila.minutosParada ?? mockMinutosDetenida(fila.codigo)
 
   return (
     <div className="linea-fila-grid border-b border-border/60 px-2 py-2.5 text-sm transition-colors last:border-b-0 hover:bg-muted/40">
@@ -1318,7 +1355,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
         {fila.eficienciaPct !== null ? `${fila.eficienciaPct}%` : "—"}
       </p>
       <p className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning" : "italic text-muted-foreground/60")}>
-        {formatDuracion(minutosDetenidaMock)}
+        {fila.minutosParada !== null ? formatDuracion(fila.minutosParada) : "—"}
       </p>
       <p className={cn("num text-right font-semibold", colorPor(nivelMermaFila))}>
         {fila.mermaPct !== null ? `${fila.mermaPct.toFixed(2)}%` : "—"}
@@ -1465,10 +1502,10 @@ function MermaComparativaCard({
         <MermaBloque titulo="Turno actual" pct={actual} dangerDesde={dangerDesde} warnDesde={warnDesde} invertido={invertido} />
       </div>
 
-      {nivelActual === "danger" && (
+      {nivelActual === "danger" && !invertido && (
         <p className="flex items-center gap-1 border-t border-border/70 px-3 py-2 text-[11px] font-medium text-danger">
           <AlertTriangle className="size-3" />
-          {invertido ? "El turno actual está por debajo del rendimiento esperado." : "El turno actual está fuera de tolerancia."}
+          El turno actual está fuera de tolerancia.
         </p>
       )}
     </Card>
@@ -1501,38 +1538,6 @@ function MermaBloque({
   )
 }
 
-/*
- * Top Fallas del Panel: downtime del turno por clase + por línea.
- * FASE A′ lee el fixture (paradasDemo) filtrado por turno + fecha del
- * panel; FASE B′ pasará a paradas_de_turno(). El render vive en
- * <TopFallasPanel> (compartido con el preview /paradas-demo). Solo se
- * monta en Área de Pruebas (ver el render del Panel).
- */
-function ParadasDelTurno({
-  lineas,
-  turnoTipo,
-  fecha,
-}: {
-  lineas: LineaLive[]
-  turnoTipo: string
-  fecha: string
-}) {
-  const [paradas, setParadas] = useState<Parada[]>([])
-  useEffect(() => {
-    let vivo = true
-    import("@/lib/paradasDemoFixture").then(({ paradasDemo }) => {
-      if (!vivo) return
-      setParadas(paradasDemo().filter((p) => p.inicio.slice(0, 10) === fecha && p.turnoTipo === turnoTipo))
-    })
-    return () => {
-      vivo = false
-    }
-  }, [turnoTipo, fecha])
-
-  return <TopFallasPanel paradas={paradas} lineas={lineas} />
-}
-
-
 /* ===================== DESGLOSE DE CÁLCULO (ÁREA DE PRUEBAS) ===================== */
 
 /**
@@ -1551,6 +1556,8 @@ function DesgloseCalculosPanel({
   corridas,
   productoTerminado,
   contadores,
+  transferencias,
+  desvases,
 }: {
   turnoId: string
   horaInicio: string
@@ -1560,9 +1567,23 @@ function DesgloseCalculosPanel({
   corridas: Corrida[]
   productoTerminado: ProductoTerminadoRegistro[]
   contadores: ContadorRegistro[]
+  transferencias: TransferenciaRegistro[]
+  desvases: DesvaseLoteRegistro[]
 }) {
   const { lineas, presentaciones, cargando } = useCatalogosLive()
-  const d = desglosarCalculos(turnoId, horaInicio, estado, horaFin, preparaciones, corridas, productoTerminado, contadores, presentaciones)
+  const d = desglosarCalculos(
+    turnoId,
+    horaInicio,
+    estado,
+    horaFin,
+    preparaciones,
+    corridas,
+    productoTerminado,
+    contadores,
+    presentaciones,
+    transferencias,
+    desvases,
+  )
   const [ajustes, setAjustes] = useState<AjusteSemielaborado[]>([])
 
   useEffect(() => {

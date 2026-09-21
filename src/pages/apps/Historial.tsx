@@ -45,7 +45,7 @@ import {
  */
 export default function Historial() {
   const { session } = useAuth()
-  const { lineas, presentaciones } = useCatalogosLive()
+  const { lineas, presentaciones, velocidades } = useCatalogosLive()
   const esSuperadmin = session?.rol === "SUPERADMINISTRADOR"
 
   const [turnosActivos, setTurnosActivos] = useState<TurnoActivoArea[]>([])
@@ -152,20 +152,24 @@ export default function Historial() {
     setGenerandoActa(true)
     setErrorActa(null)
     try {
-      const blob = generarActaPdf({
+      const blob = await generarActaPdf({
         codigo: detalle.codigo,
         fecha: detalle.fecha,
         turnoTipo: detalle.turnoTipo,
         grupo: detalle.grupo,
         tanquesEncontrados: detalle.tanquesEncontrados,
         tanques: detalle.tanques,
+        preparaciones: detalle.preparaciones,
         corridas: detalle.corridas,
         contadores: detalle.contadores,
         productoTerminado: detalle.productoTerminado,
+        novedades: detalle.novedades,
+        ajustesVolumen: detalle.ajustesVolumen,
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,
         lineas,
         presentaciones,
+        velocidades,
       })
       const resultado = await subirYRegistrarActa(session.username, detalle.id, seleccionado.area, detalle.codigo, blob)
       if (!resultado.ok) {

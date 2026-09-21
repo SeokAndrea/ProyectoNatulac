@@ -29,10 +29,25 @@ export interface TanqueEncontrado {
   lote: string | null
 }
 
+/**
+ * Turno CERRADO del usuario, todavía dentro de los 15 min de gracia
+ * (turno_pt_gracia_de — ver migración 20261044090000). Solo lo usa
+ * ProductoTerminado.tsx cuando `turnoId` da null (el turno ya cerró):
+ * evita que un supervisor ansioso que finalizó el turno le tape a otro
+ * la carga de su Producto Terminado. NINGUNA otra pantalla debe usar
+ * esto para reabrir edición — Preparación/Producción siguen exigiendo
+ * `estado === "ABIERTO"` como siempre.
+ */
+export interface TurnoGraciaPT {
+  turnoId: string
+  codigo: string
+}
+
 export interface SesionTurno {
   turnoId: string | null
   codigo: string | null
   estado: "ABIERTO" | "CERRADO" | null
+  turnoGraciaPT: TurnoGraciaPT | null
   /** Cabecera del turno — no es dato de dominio (eso lo tienen los 3 módulos), pero tampoco es solo identidad: es lo que describe AL turno como tal. null si no hay turno. */
   fecha: string | null
   horaInicio: string | null
@@ -90,6 +105,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
   const [supervisorUsuario, setSupervisorUsuario] = useState<string | null>(null)
   const [supervisorNombre, setSupervisorNombre] = useState<string | null>(null)
   const [tanquesEncontrados, setTanquesEncontrados] = useState<TanqueEncontrado[] | null>(null)
+  const [turnoGraciaPT, setTurnoGraciaPT] = useState<TurnoGraciaPT | null>(null)
   const [cargando, setCargando] = useState(true)
 
   function tomarIdentidad(fila: FilaTurnoIdentidad | null) {
@@ -117,10 +133,27 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  /** Ver TurnoGraciaPT: solo se consulta cuando el usuario NO tiene turno ABIERTO. */
+  async function cargarGraciaPT(u: string) {
+    const { data, error } = await supabase.rpc("turno_pt_gracia_de", { p_usuario: u })
+    if (error || !data) {
+      setTurnoGraciaPT(null)
+      return
+    }
+    const fila = data as FilaTurnoIdentidad
+    setTurnoGraciaPT({ turnoId: fila.id, codigo: fila.codigo })
+  }
+
   async function recargar(u: string) {
     setCargando(true)
     const { data, error } = await supabase.rpc("turno_activo_de", { p_usuario: u })
-    tomarIdentidad(!error && data ? (data as FilaTurnoIdentidad) : null)
+    const activo = !error && data ? (data as FilaTurnoIdentidad) : null
+    tomarIdentidad(activo)
+    if (activo) {
+      setTurnoGraciaPT(null)
+    } else {
+      await cargarGraciaPT(u)
+    }
     setCargando(false)
   }
 
@@ -168,6 +201,10 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     }
 
     tomarIdentidad(null)
+    // El turno recién cerrado entra directo en su ventana de gracia
+    // (ver TurnoGraciaPT) — sin esto, quien sigue en la pantalla de
+    // Producto Terminado tendría que refrescar para que aparezca.
+    if (usuario) await cargarGraciaPT(usuario)
     return { ok: true as const }
   }
 
@@ -186,6 +223,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
         supervisorUsuario,
         supervisorNombre,
         tanquesEncontrados,
+        turnoGraciaPT,
         usuario,
         cargando,
         iniciarTurno,

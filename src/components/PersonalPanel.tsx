@@ -73,9 +73,23 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.username])
 
+  /*
+   * listar_personal() le trae al SUPERADMINISTRADOR el personal de
+   * TODAS las áreas de una — incluida PRUEBAS (el usuario fijo
+   * "pruebas", sandbox), que no tiene nada que ver con la planta real
+   * y quedaba mezclado en la misma lista (ordenada solo por fecha de
+   * alta). Mismo criterio que ya usan estado_planta_actual /
+   * estadisticas_produccion / listar_turnos_historial: PRUEBAS queda
+   * afuera salvo que se la pida a propósito con el filtro de área.
+   */
+  const personalVisible = useMemo(() => {
+    if (!esSuperAdmin || filtroArea === "PRUEBAS") return personal
+    return personal.filter((p) => p.area !== "PRUEBAS")
+  }, [personal, esSuperAdmin, filtroArea])
+
   const personalFiltrado = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
-    return personal.filter((p) => {
+    return personalVisible.filter((p) => {
       if (filtroArea !== "TODAS" && p.area !== filtroArea) return false
       if (filtroRol !== "TODOS" && p.rol !== filtroRol) return false
       if (filtroCargo === "SIN_CARGO" && p.cargo !== null) return false
@@ -85,7 +99,7 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
       if (q && !`${p.nombre} ${p.usuario} ${p.cedula ?? ""}`.toLowerCase().includes(q)) return false
       return true
     })
-  }, [personal, busqueda, filtroArea, filtroRol, filtroCargo, filtroEstado])
+  }, [personalVisible, busqueda, filtroArea, filtroRol, filtroCargo, filtroEstado])
 
   const hayFiltrosActivos =
     busqueda.trim() !== "" ||
@@ -110,12 +124,12 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
         <CardTitle>Personal</CardTitle>
         <CardDescription>
           {hayFiltrosActivos
-            ? `${personalFiltrado.length} de ${personal.length} persona${personal.length === 1 ? "" : "s"}`
-            : `${personal.length} persona${personal.length === 1 ? "" : "s"} registrada${personal.length === 1 ? "" : "s"}`}
+            ? `${personalFiltrado.length} de ${personalVisible.length} persona${personalVisible.length === 1 ? "" : "s"}`
+            : `${personalVisible.length} persona${personalVisible.length === 1 ? "" : "s"} registrada${personalVisible.length === 1 ? "" : "s"}`}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {personal.length > 0 && (
+        {personalVisible.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[180px] flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -196,7 +210,7 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
           </div>
         )}
 
-        {personal.length > 0 &&
+        {personalVisible.length > 0 &&
           (personalFiltrado.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

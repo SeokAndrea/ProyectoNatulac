@@ -3,9 +3,12 @@ import { paradasDemo } from "@/lib/paradasDemoFixture"
 import {
   agruparPorDia,
   CATALOGO_PROGRAMADA,
+  CATALOGO_TIPOS,
+  codigoPlanilla,
   desvioMin,
   disponibilidadAprox,
   duracionMin,
+  eficienciaOEE,
   fmtDesvio,
   fmtDuracion,
   minutosPorLinea,
@@ -32,6 +35,7 @@ const P = (over: Partial<Parada> = {}): Parada => ({
   tipoNombre: "Cambio de Sabor",
   tiempoGuiaMin: 25,
   nota: null,
+  justificacionDesvio: null,
   inicio: "2026-09-09T10:00:00",
   fin: "2026-09-09T10:45:00",
   supervisorNombre: "RICARDO",
@@ -172,6 +176,25 @@ describe("disponibilidadAprox", () => {
   })
 })
 
+describe("eficienciaOEE", () => {
+  it("sin parada, da exactamente el rendimiento (no penaliza)", () => {
+    expect(eficienciaOEE(90, 0, 240)).toBe(90)
+  })
+  it("descuenta la disponibilidad contra el tiempo transcurrido", () => {
+    // 240 min transcurridos, 60 de parada -> disponibilidad 75% x rendimiento 90% = 67.5 -> 68
+    expect(eficienciaOEE(90, 60, 240)).toBe(68)
+  })
+  it("null si no hay rendimiento (línea sin corrida activa)", () => {
+    expect(eficienciaOEE(null, 30, 240)).toBeNull()
+  })
+  it("sin tiempo transcurrido, devuelve el rendimiento tal cual", () => {
+    expect(eficienciaOEE(80, 0, 0)).toBe(80)
+  })
+  it("nunca baja de 0 aunque la parada supere lo transcurrido", () => {
+    expect(eficienciaOEE(90, 300, 240)).toBe(0)
+  })
+})
+
 describe("porSabor / porFamilia / porPresentacion", () => {
   const set = [
     P({ id: "a", saborNombre: "Manzana", familiaNombre: "Clásicos", presentacionMl: 1000, inicio: "2026-09-09T10:00:00", fin: "2026-09-09T10:30:00" }),
@@ -228,11 +251,30 @@ describe("fmtDuracion", () => {
 })
 
 describe("catálogo PROGRAMADA", () => {
-  it("tiene los 11 tipos del dueño, con código de planilla", () => {
+  it("tiene los 11 tipos del dueño, con código de planilla en Línea 1", () => {
     expect(CATALOGO_PROGRAMADA).toHaveLength(11)
-    expect(CATALOGO_PROGRAMADA.every((t) => t.clase === "PROGRAMADA" && t.codigoPlanilla.length > 0)).toBe(true)
-    expect(CATALOGO_PROGRAMADA.find((t) => t.codigo === "TRANSFERENCIA_ENERGIA")?.codigoPlanilla).toBe("PPEL1")
+    expect(CATALOGO_PROGRAMADA.every((t) => t.clase === "PROGRAMADA")).toBe(true)
+    expect(codigoPlanilla(CATALOGO_PROGRAMADA.find((t) => t.codigo === "TRANSFERENCIA_ENERGIA")!, "LINEA_1")).toBe("PPEL1")
     expect(CATALOGO_PROGRAMADA.find((t) => t.codigo === "ARRANQUE_PRODUCCION")?.tiempoGuiaMin).toBe(180)
+  })
+})
+
+describe("catálogo completo (CATALOGO_TIPOS)", () => {
+  it("tiene las 8 familias, solo NO_PROGRAMADA cargada a mano fuera de Programada", () => {
+    expect(CATALOGO_TIPOS.length).toBe(46)
+    const noProgramada = CATALOGO_TIPOS.filter((t) => t.clase !== "PROGRAMADA")
+    expect(noProgramada).toHaveLength(35)
+    expect(noProgramada.every((t) => t.clase === "NO_PROGRAMADA")).toBe(true)
+  })
+
+  it("el código de planilla cambia solo el número de línea, no el nombre/guía", () => {
+    const faltaVapor = CATALOGO_TIPOS.find((t) => t.codigo === "FALTA_VAPOR")!
+    expect(codigoPlanilla(faltaVapor, "LINEA_1")).toBe("SCL1-1")
+    expect(codigoPlanilla(faltaVapor, "LINEA_2")).toBe("SCL2-1")
+    expect(codigoPlanilla(faltaVapor, "LINEA_3")).toBe("SCL3-1")
+
+    const feriado = CATALOGO_TIPOS.find((t) => t.codigo === "FERIADO")!
+    expect(codigoPlanilla(feriado, "LINEA_2")).toBe("LNPEL2-5")
   })
 })
 

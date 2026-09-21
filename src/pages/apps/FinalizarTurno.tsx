@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Download, Loader2, Square } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Eye, Loader2, Square } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
 import { EmptyState } from "@/components/EmptyState"
 import { LineaVisual, type EstadoVisualLinea } from "@/components/LineaVisual"
-import { ResumenTurno } from "@/components/ResumenTurno"
-import { ListaContadores } from "@/components/ListaContadores"
+import { NovedadesTurno } from "@/components/NovedadesTurno"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { Button } from "@/components/ui/button"
-import { nombrePorCodigo } from "@/lib/catalogos"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
 import { generarActaPdf } from "@/lib/actaPdf"
@@ -20,6 +20,8 @@ import { useSesionTurno } from "@/lib/sesionTurno"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
+import { useNovedadesTurno } from "@/lib/novedades"
+import { listarLecturasServiciosIndustrialesDeTurno, type LecturaServiciosIndustriales } from "@/lib/panelProduccion"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { listarParadas, paradasAbiertasDeLineas, type Parada } from "@/lib/paradas"
 
@@ -44,17 +46,19 @@ export default function FinalizarTurno() {
   const prep = usePreparacion()
   const prod = useProduccion()
   const pt = useProductoTerminado()
+  const novedades = useNovedadesTurno()
   const { session } = useAuth()
-  const { lineas, presentaciones } = useCatalogosLive()
+  const { lineas, presentaciones, velocidades } = useCatalogosLive()
   const navigate = useNavigate()
   const [finalizando, setFinalizando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [errorFinalizar, setErrorFinalizar] = useState<string | null>(null)
   const [sabores, setSabores] = useState<Sabor[]>([])
   const [paradas, setParadas] = useState<Parada[]>([])
+  const [serviciosIndustriales, setServiciosIndustriales] = useState<LecturaServiciosIndustriales[]>([])
   const [cerrado, setCerrado] = useState<{ codigoTurno: string; actaUrl: string | null; errorActa: string | null } | null>(null)
 
-  const cargando = sesion.cargando || prep.cargando || prod.cargando || pt.cargando
+  const cargando = sesion.cargando || prep.cargando || prod.cargando || pt.cargando || novedades.cargando
 
   useEffect(() => {
     listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
@@ -62,6 +66,12 @@ export default function FinalizarTurno() {
     // atado a este turno_id. Vista previa de "— Continúa" en Finalizar Turno / Acta.
     listarParadas({ desde: restarDias(fechaPlanta(), 30), hasta: fechaPlanta() }).then(setParadas)
   }, [])
+
+  useEffect(() => {
+    // Lecturas de Servicios Industriales con turno_id = este turno (ver
+    // migración 20261057) — para la sección 2.4 del Acta.
+    if (sesion.turnoId) listarLecturasServiciosIndustrialesDeTurno(sesion.turnoId).then(setServiciosIndustriales)
+  }, [sesion.turnoId])
 
   if (cargando) {
     return (
@@ -117,7 +127,9 @@ export default function FinalizarTurno() {
    * el PT del tramo de este turno y elegir Terminar o Entregar línea. Si
    * no, la producción de esa línea en este turno se pierde.
    */
-  const lineasSinResolver = prod.corridas.filter((c) => c.activa && c.entregadaEn === null)
+  /** Área de Pruebas: sin ceremonia — finalizar_turno() ya no exige resolver nada ahí, así que el botón tampoco. */
+  const esPruebas = session?.area === "PRUEBAS"
+  const lineasSinResolver = esPruebas ? [] : prod.corridas.filter((c) => c.activa && c.entregadaEn === null)
 
   // Paradas que siguen abiertas ("— Continúa") en las líneas de este turno — vista
   // previa de FASE A′, ver nota del useEffect de arriba.
@@ -125,6 +137,13 @@ export default function FinalizarTurno() {
     paradas,
     lineas.filter((l) => l.activo).map((l) => l.codigo),
   )
+
+  /** Resumen del turno: cajas por línea (paletas × cajas/paleta + sueltas) y litros totales — mismo cálculo que tenía "Producto Terminado por línea". */
+  const produccionPorLinea = pt.registros.map((p) => {
+    const cajasXPaleta = presentaciones.find((pr) => pr.codigo === p.presentacion)?.cajasXPaleta ?? 0
+    return { linea: p.linea, saborNombre: p.saborNombre, cajas: p.paletas * cajasXPaleta + p.cajasSueltas }
+  })
+  const litrosTotales = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
 
   async function handleFinalizar() {
     if (lineasSinResolver.length > 0) return
@@ -137,8 +156,8 @@ export default function FinalizarTurno() {
     setErrorFinalizar(null)
 
     // Se guarda todo ANTES de cerrar — sesion.finalizarTurno() limpia la
-    // identidad del turno, y con turnoId en null los 4 hooks (sesion,
-    // prep, prod, pt) también se vacían solos.
+    // identidad del turno, y con turnoId en null los 5 hooks (sesion,
+    // prep, prod, pt, novedades) también se vacían solos.
     const turnoId = sesion.turnoId
     const codigo = sesion.codigo
     const datosParaActa = {
@@ -148,10 +167,14 @@ export default function FinalizarTurno() {
       grupo: sesion.grupo,
       tanquesEncontrados: sesion.tanquesEncontrados,
       tanques: prep.tanques,
+      preparaciones: prep.preparaciones,
       corridas: prod.corridas,
       contadores: prod.contadores,
       productoTerminado: pt.registros,
+      novedades: novedades.novedades,
+      ajustesVolumen: prep.ajustesVolumen,
       paradasAbiertas,
+      serviciosIndustriales,
     }
     const resultadoCierre = await sesion.finalizarTurno()
     if (!resultadoCierre.ok) {
@@ -165,12 +188,13 @@ export default function FinalizarTurno() {
     let actaUrl: string | null = null
     let errorActa: string | null = null
     try {
-      const blob = generarActaPdf({
+      const blob = await generarActaPdf({
         ...datosParaActa,
         supervisorNombre: session.nombre || session.username,
         area: session.area,
         lineas,
         presentaciones,
+        velocidades,
       })
       const resultado = await subirYRegistrarActa(session.username, turnoId, session.area ?? "SIN_AREA", codigo, blob)
       if (resultado.ok) {
@@ -197,12 +221,15 @@ export default function FinalizarTurno() {
           </div>
 
           {cerrado.actaUrl ? (
-            <Button asChild>
-              <a href={cerrado.actaUrl} target="_blank" rel="noreferrer">
-                <Download className="size-4" />
-                Descargar Acta (PDF)
-              </a>
-            </Button>
+            <div className="flex flex-col items-center gap-1.5">
+              <Button asChild>
+                <a href={cerrado.actaUrl} target="_blank" rel="noreferrer">
+                  <Eye className="size-4" />
+                  Ver mi acta
+                </a>
+              </Button>
+              <p className="text-xs text-muted-foreground">Se abre en una pestaña nueva — desde ahí podés imprimirla.</p>
+            </div>
           ) : (
             <p className="text-sm text-destructive" role="alert">
               {cerrado.errorActa}
@@ -220,17 +247,102 @@ export default function FinalizarTurno() {
   return (
     <AppShell title="Finalizar Turno" description={`Turno ${sesion.codigo}`}>
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
+        {/* Arriba de todo, sin esperar al clic en "Finalizar" — para saber qué falta antes de ponerse a bajar. */}
+        {lineasSinResolver.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+            <p className="flex items-center gap-1.5 font-medium">
+              <AlertTriangle className="size-4 shrink-0" />
+              {lineasSinResolver.length === 1 ? "Esta línea sigue activa" : "Estas líneas siguen activas"}:{" "}
+              {lineasSinResolver.map((c) => nombrePorCodigo(lineas, c.linea)).join(", ")}
+            </p>
+            <p>
+              Carga su Producto Terminado de este turno (0 paletas / 0 cajas si no produjo nada) y elige{" "}
+              <span className="font-medium">Terminar</span> o <span className="font-medium">Entregar línea</span> antes de
+              finalizar.
+            </p>
+            <Button asChild size="sm" variant="outline" className="self-start">
+              <Link to="/producto-terminado">Ir a Producto Terminado</Link>
+            </Button>
+          </div>
+        )}
+
+        {itemsFaltantes.length > 0 && lineasSinResolver.length === 0 && (
+          <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/30 px-3 py-2.5 text-sm text-foreground">
+            <p className="flex items-center gap-1.5 font-medium">
+              <AlertTriangle className="size-4 shrink-0 text-warning" />
+              Falta cargar {itemsFaltantes.length} cosa{itemsFaltantes.length === 1 ? "" : "s"}:
+            </p>
+            <ul className="list-inside list-disc pl-1">
+              {itemsFaltantes.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              Podés finalizar igual (queda un segundo clic de confirmación), o revisar las secciones de abajo primero.
+            </p>
+          </div>
+        )}
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Resumen del turno</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-muted-foreground">Nombre</dt>
+                <dd className="font-medium text-foreground">{session?.nombre || session?.username}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Código del turno</dt>
+                <dd className="font-medium text-foreground">{sesion.codigo}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Fecha</dt>
+                <dd className="font-medium text-foreground">{sesion.fecha ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Turno</dt>
+                <dd className="font-medium text-foreground">{nombrePorCodigo(TURNO_TIPOS, sesion.turnoTipo ?? "TURNO_1")}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Grupo</dt>
+                <dd className="font-medium text-foreground">{nombrePorCodigo(GRUPOS, sesion.grupo ?? "GRUPO_1")}</dd>
+              </div>
+            </dl>
+
+            <div>
+              <p className="mb-2 text-sm text-muted-foreground">Cajas producidas por línea</p>
+              {produccionPorLinea.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Todavía no se cargó Producto Terminado en este turno.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {produccionPorLinea.map((p) => (
+                    <div
+                      key={p.linea}
+                      className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium text-foreground">
+                        {nombrePorCodigo(lineas, p.linea)}
+                        {p.saborNombre ? ` · ${p.saborNombre}` : ""}
+                      </span>
+                      <span className="num font-medium text-foreground">{p.cajas.toLocaleString("es-CO")} cajas</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <span className="text-sm text-muted-foreground">Litros producidos</span>
+              <span className="num text-lg font-bold text-foreground">{litrosTotales.toLocaleString("es-CO")} L</span>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <SeccionColapsable titulo="Datos del turno">
-            <ResumenTurno
-              fecha={sesion.fecha ?? "—"}
-              horaInicio={sesion.horaInicio ?? "—"}
-              turnoTipo={sesion.turnoTipo ?? "TURNO_1"}
-              grupo={sesion.grupo ?? "GRUPO_1"}
-              corridas={prod.corridas}
-              tanques={prep.tanques}
-            />
-          </SeccionColapsable>
+          {/* Opcional — nadie tiene que llenarla para poder finalizar. Alimenta "2.3 Novedades del turno" del Acta. */}
+          <NovedadesTurno />
 
           <SeccionColapsable
             titulo="Estado final de tanques"
@@ -324,83 +436,7 @@ export default function FinalizarTurno() {
               )}
             </SeccionColapsable>
           )}
-
-          <SeccionColapsable
-            titulo="Contadores por línea"
-            descripcion="Envases de la llenadora registrados durante este turno."
-          >
-            {prod.contadores.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Todavía no se cargó ningún contador en este turno.</p>
-            ) : (
-              <ListaContadores contadores={prod.contadores} productoTerminado={pt.registros} mostrarTotales />
-            )}
-          </SeccionColapsable>
-
-          <SeccionColapsable
-            titulo="Producto Terminado por línea"
-            descripcion="Paletas y cajas sueltas (resto) registradas en Producto Terminado."
-          >
-            {pt.registros.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Todavía no se cargó Producto Terminado en este turno.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {pt.registros.map((p) => {
-                  const cajasXPaleta = presentaciones.find((pr) => pr.codigo === p.presentacion)?.cajasXPaleta ?? 0
-                  const cajasTotales = p.paletas * cajasXPaleta + p.cajasSueltas
-                  return (
-                    <div
-                      key={p.linea}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium text-foreground">{nombrePorCodigo(lineas, p.linea)}</p>
-                        <p className="text-muted-foreground">
-                          {p.saborNombre ?? "Sin sabor"} · {p.paletas} paletas · {p.cajasSueltas} cajas sueltas
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium text-foreground">{cajasTotales.toLocaleString("es-CO")} cajas</p>
-                        <p className="text-xs text-muted-foreground">{p.litrosProducidos.toLocaleString("es-CO")} L</p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </SeccionColapsable>
         </div>
-
-        {lineasSinResolver.length > 0 && (
-          <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-            <p className="flex items-center gap-1.5 font-medium">
-              <AlertTriangle className="size-4 shrink-0" />
-              {lineasSinResolver.length === 1 ? "Esta línea sigue activa" : "Estas líneas siguen activas"}:{" "}
-              {lineasSinResolver.map((c) => nombrePorCodigo(lineas, c.linea)).join(", ")}
-            </p>
-            <p>
-              Carga su Producto Terminado de este turno (0 paletas / 0 cajas si no produjo nada) y elige{" "}
-              <span className="font-medium">Terminar</span> o <span className="font-medium">Entregar línea</span> antes de
-              finalizar.
-            </p>
-            <Button asChild size="sm" variant="outline" className="self-start">
-              <Link to="/producto-terminado">Ir a Producto Terminado</Link>
-            </Button>
-          </div>
-        )}
-
-        {confirmando && itemsFaltantes.length > 0 && lineasSinResolver.length === 0 && (
-          <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-            <p className="flex items-center gap-1.5 font-medium">
-              <AlertTriangle className="size-4 shrink-0" />
-              Falta cargar {itemsFaltantes.length} cosa{itemsFaltantes.length === 1 ? "" : "s"}:
-            </p>
-            <ul className="list-inside list-disc pl-1">
-              {itemsFaltantes.map((item, i) => (
-                <li key={i}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         {errorFinalizar && (
           <div

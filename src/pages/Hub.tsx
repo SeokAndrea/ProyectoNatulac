@@ -1,23 +1,25 @@
 import { Link } from "react-router-dom"
 import { Lock } from "lucide-react"
+import { AppCard } from "@/components/AppCard"
 import { AppHeader } from "@/components/AppHeader"
 import { Logo } from "@/components/Logo"
 import { useAuth } from "@/lib/auth"
 import { useSesionTurno } from "@/lib/sesionTurno"
-import { usePreparacion } from "@/lib/preparacion/usePreparacion"
-import { useProduccion } from "@/lib/produccion/useProduccion"
+import { useGenerarActasPendientes } from "@/lib/actasPendientes"
 import { apps, type AppDef } from "@/lib/apps"
 import { cn } from "@/lib/utils"
+
+/** Emoji del saludo, distinto para algún usuario puntual — por username, en minúscula. */
+const EMOJI_SALUDO_POR_USUARIO: Record<string, string> = {
+  jguerrero: "🐱",
+}
+const EMOJI_SALUDO_DEFAULT = "👋"
 
 export default function Hub() {
   const { session } = useAuth()
   const sesion = useSesionTurno()
-  const { tanques } = usePreparacion()
-  const { corridas } = useProduccion()
+  useGenerarActasPendientes()
   const turnoActivo = sesion.turnoId !== null
-  /** Revisión de inicio completa: los 3 tanques y toda corrida activa quedaron confirmados (mismo criterio que Status.tsx). */
-  const revisionInicioHecha =
-    turnoActivo && tanques.every((t) => t.confirmadoInicioEn !== null) && corridas.filter((c) => c.activa).every((c) => c.confirmadoInicioEn !== null)
   // Área de Pruebas: ve TODAS las tarjetas sin importar el rol — mismo
   // criterio que ProtectedRoute.tsx (la cuenta de prueba ejercita
   // cualquier pantalla nueva sin pedir un login por rol para cada una).
@@ -26,6 +28,8 @@ export default function Hub() {
     if (esPruebas) return true
     if (app.rolesPermitidos && !(session && app.rolesPermitidos.includes(session.rol))) return false
     if (app.areasPermitidas && !(session?.area && app.areasPermitidas.includes(session.area))) return false
+    if (app.areasExcluidas && session?.area && app.areasExcluidas.includes(session.area)) return false
+    if (app.veErroresSolo && !session?.veErrores) return false
     return true
   })
   const atajos = appsVisibles.filter((app) => app.atajo)
@@ -39,7 +43,8 @@ export default function Hub() {
         <div className="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Hola{session ? `, ${session.nombre}` : ""} 👋
+              Hola{session ? `, ${session.nombre}` : ""}{" "}
+              {session ? (EMOJI_SALUDO_POR_USUARIO[session.username.toLowerCase()] ?? EMOJI_SALUDO_DEFAULT) : EMOJI_SALUDO_DEFAULT}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
               {turnoActivo
@@ -59,110 +64,11 @@ export default function Hub() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {principales.map((app) => (
-            <TarjetaApp key={app.slug} app={app} turnoActivo={turnoActivo} revisionInicioHecha={revisionInicioHecha} />
+            <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} />
           ))}
         </div>
       </main>
     </div>
-  )
-}
-
-const COLOR_ICONO: Record<NonNullable<AppDef["color"]>, string> = {
-  success: "bg-success/15 text-success group-hover:bg-success group-hover:text-primary-foreground",
-  blue: "bg-blue-500/15 text-blue-600 group-hover:bg-blue-600 group-hover:text-white dark:text-blue-400",
-}
-const COLOR_BORDE_HOVER: Record<NonNullable<AppDef["color"]>, string> = {
-  success: "hover:border-success/50",
-  blue: "hover:border-blue-500/50",
-}
-
-function TarjetaApp({
-  app,
-  turnoActivo,
-  revisionInicioHecha,
-}: {
-  app: AppDef
-  turnoActivo: boolean
-  revisionInicioHecha: boolean
-}) {
-  const Icon = app.icon
-  const bloqueadaPorRevision = !!app.bloqueaConRevisionInicio && revisionInicioHecha
-  const bloqueada =
-    !app.href || (app.requiereTurno && !turnoActivo) || (app.bloqueaConTurno && turnoActivo) || bloqueadaPorRevision
-  const resaltada = app.resaltarConTurno && turnoActivo && !bloqueada
-
-  const iconoWrap = (
-    <div
-      className={cn(
-        "flex size-11 items-center justify-center rounded-xl transition-colors",
-        bloqueada
-          ? "bg-muted text-muted-foreground"
-          : resaltada
-            ? "bg-destructive/15 text-destructive"
-            : app.color
-              ? COLOR_ICONO[app.color]
-              : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground",
-      )}
-    >
-      {bloqueada && !app.href ? <Icon className="size-5.5" /> : bloqueada ? <Lock className="size-5" /> : <Icon className="size-5.5" />}
-    </div>
-  )
-
-  const textos = (
-    <div>
-      <h2 className={cn("font-medium", bloqueada ? "text-muted-foreground" : resaltada ? "text-destructive" : "text-foreground")}>
-        {app.title}
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {!app.href
-          ? "Próximamente."
-          : app.bloqueaConTurno && turnoActivo
-            ? "Ya tienes un turno en curso."
-            : bloqueadaPorRevision
-              ? "Ya revisaste el inicio del turno."
-              : app.requiereTurno && !turnoActivo
-                ? "Se habilita al iniciar un turno."
-                : app.description}
-      </p>
-    </div>
-  )
-
-  if (bloqueada) {
-    return (
-      <div
-        aria-disabled="true"
-        title={
-          !app.href
-            ? "Todavía no está construido"
-            : app.bloqueaConTurno && turnoActivo
-              ? "Ya tienes un turno en curso"
-              : bloqueadaPorRevision
-                ? "Status es de una sola vez, al arrancar el turno"
-                : "Inicia un turno para habilitar esta sección"
-        }
-        className="flex cursor-not-allowed flex-col justify-between gap-6 rounded-2xl border border-border/50 bg-card/60 p-5 opacity-70"
-      >
-        {iconoWrap}
-        {textos}
-      </div>
-    )
-  }
-
-  return (
-    <Link
-      to={app.href!}
-      className={cn(
-        "group flex flex-col justify-between gap-6 rounded-2xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        resaltada
-          ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
-          : app.color
-            ? cn("border-border/70 bg-card", COLOR_BORDE_HOVER[app.color])
-            : "border-border/70 bg-card hover:border-primary/40",
-      )}
-    >
-      {iconoWrap}
-      {textos}
-    </Link>
   )
 }
 
