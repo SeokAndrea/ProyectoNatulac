@@ -264,12 +264,13 @@ export interface Parada {
   /** ISO local 'YYYY-MM-DDTHH:MM:SS'. */
   inicio: string
   /**
-   * null = parada abierta. SOLO ocurre en Mecánicas (`origen: "SHEET"`) —
-   * quedan abiertas hasta que Mantenimiento las marca finalizada en el
-   * Sheet y el sync trae el `fin` (FASE C′); la app nunca las cierra.
-   * Las paradas manuales (Programada / No Programada manual / Ocioso) se
-   * cargan con duración, no con hora de inicio/fin — quedan siempre
-   * cerradas desde que se guardan, `fin` nunca es null para `origen: "MANUAL"`.
+   * null = parada abierta ("en curso"). SOLO ocurre en `origen:
+   * "MANTENIMIENTO"` — Mantenimiento la registra con hora real de inicio y
+   * la cierra después (`cerrar_parada_mantenimiento`), puede durar más de
+   * un turno (migración 20261070). Las paradas manuales (Programada / No
+   * Programada manual / Ocioso) se cargan con duración, no con hora de
+   * inicio/fin — quedan siempre cerradas desde que se guardan, `fin` nunca
+   * es null para `origen: "MANUAL"`.
    */
   fin: string | null
   supervisorNombre: string | null

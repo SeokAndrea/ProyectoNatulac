@@ -26,8 +26,12 @@ import {
  * del dueño): "Agregar parada" primero pide EN CUÁL LÍNEA es — la parada
  * es siempre de la línea, nunca del lote — pero cada línea se muestra con
  * el lote/sabor que tiene corriendo AHORA (mismo dato que Producción al
- * activar), solo como contexto para reconocerla de un vistazo. Elegida la
- * línea, dos caminos:
+ * activar), solo como contexto para reconocerla de un vistazo. Luego pide
+ * la PRESENTACIÓN (2026-09-22, pedido del dueño: el incidente de una
+ * "Presentación No Planificada" cargada para TB 1000 con la línea
+ * corriendo TB 500 — no hay que confiar a ciegas en la presentación de la
+ * corrida activa, el supervisor la confirma a mano). Elegidas línea y
+ * presentación, dos caminos:
  *  - "Agregar tiempo ocioso": texto libre + duración en minutos.
  *  - "Agregar parada del catálogo": tipo de falla con autocompletado
  *    contra el catálogo completo (Programada + No Programada manual —
@@ -40,9 +44,10 @@ import {
  * momento de guardar (dueño, 2026-09-15). Por eso no hay paradas "en
  * curso" que revisar acá: cada una queda cerrada apenas se carga.
  * Debajo, para revisar lo ya cargado: elegir línea y ver lo ya cargado.
- * Las paradas MECÁNICAS (equipo/subsistema) siguen sin catálogo — llegan
- * del Sheet de Mantenimiento y se muestran aparte, solo lectura (FASE C′,
- * todavía sin datos reales).
+ * Las paradas MECÁNICAS (equipo/subsistema) las registra Mantenimiento en
+ * su propia pantalla (`ParadasMantenimiento.tsx`, origen "MANTENIMIENTO"),
+ * con el mismo catálogo — acá se muestran aparte, solo lectura, incluidas
+ * las que quedaron "en curso" (fin null) todavía sin cerrar.
  *
  * Con `onRegistrar` (página real) "Guardar" llama a registrar_parada y las
  * paradas vienen del servidor (`paradas`); sin él (preview /paradas-demo)
@@ -57,8 +62,10 @@ export interface LineaDelDia {
   loteTexto: string | null
   saborNombre: string | null
   activa: boolean
-  /** Presentación (ml) de la corrida activa de la línea. null = sin corrida activa: no se filtra por presentación. */
+  /** Presentación (ml) de la corrida activa de la línea — solo como sugerencia, ver `presentacionesDisponibles`. */
   presentacionMl?: number | null
+  /** Presentaciones que de verdad corren en esta línea (catálogo de velocidades) — el supervisor elige una acá. */
+  presentacionesDisponibles?: { ml: number; nombre: string }[]
 }
 
 let contador = 0
@@ -106,9 +113,11 @@ export function RegistroParadas({
   const [guardando, setGuardando] = useState(false)
   const [lineaVista, setLineaVista] = useState<string>(lineasDia[0].lineaCodigo)
 
-  // Flujo de "Agregar parada": cerrado → elegir línea → elegir Ocioso/Operacional → formulario.
+  // Flujo de "Agregar parada": cerrado → elegir línea → elegir presentación → elegir Ocioso/Operacional → formulario.
   const [agregando, setAgregando] = useState(false)
   const [lineaAgregar, setLineaAgregar] = useState<string | null>(null)
+  // null = todavía no la eligió (hay que preguntar); "SIN" = eligió "no sé / cualquiera" a propósito.
+  const [presentacionAgregar, setPresentacionAgregar] = useState<number | "SIN" | null>(null)
   const [modoAgregar, setModoAgregar] = useState<"OCIOSO" | "OPERACIONAL" | null>(null)
   const equipos = useEquiposParadas()
 
@@ -147,6 +156,13 @@ export function RegistroParadas({
     setErrorGuardar(null)
     setAgregando(false)
     setLineaAgregar(null)
+    setPresentacionAgregar(null)
+    setModoAgregar(null)
+  }
+
+  function cambiarLinea() {
+    setLineaAgregar(null)
+    setPresentacionAgregar(null)
     setModoAgregar(null)
   }
 
@@ -202,6 +218,50 @@ export function RegistroParadas({
               ))}
             </div>
           </div>
+        ) : presentacionAgregar === null ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">
+                {lineaElegida.lineaNombre} · ¿Qué presentación?
+              </p>
+              <Button type="button" size="sm" variant="ghost" onClick={cambiarLinea}>
+                Cambiar línea
+              </Button>
+            </div>
+            {lineaElegida.presentacionesDisponibles && lineaElegida.presentacionesDisponibles.length > 0 ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {lineaElegida.presentacionesDisponibles.map((p) => (
+                    <button
+                      key={p.ml}
+                      type="button"
+                      onClick={() => setPresentacionAgregar(p.ml)}
+                      className="rounded-lg border border-border px-3 py-2 text-left transition-colors hover:border-primary hover:bg-primary/5"
+                    >
+                      <p className="text-sm font-semibold text-foreground">{p.nombre}</p>
+                      {lineaElegida.presentacionMl === p.ml && (
+                        <p className="text-xs text-muted-foreground">Corriendo ahora</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPresentacionAgregar("SIN")}
+                  className="self-start text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
+                >
+                  No sé / mostrar todas las presentaciones
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col items-start gap-1.5">
+                <p className="text-xs text-muted-foreground">Esta línea no tiene presentaciones con velocidad cargada.</p>
+                <Button type="button" size="sm" variant="outline" onClick={() => setPresentacionAgregar("SIN")}>
+                  Continuar sin presentación
+                </Button>
+              </div>
+            )}
+          </div>
         ) : !modoAgregar ? (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -213,10 +273,18 @@ export function RegistroParadas({
                     {lineaElegida.loteTexto ? ` · Lote ${lineaElegida.loteTexto}` : ""}
                   </span>
                 )}
+                <span className="ml-1.5 font-normal text-muted-foreground">
+                  · {presentacionAgregar === "SIN" ? "todas las presentaciones" : `${presentacionAgregar} ml`}
+                </span>
               </p>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setLineaAgregar(null)}>
-                Cambiar línea
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button type="button" size="sm" variant="ghost" onClick={() => setPresentacionAgregar(null)}>
+                  Cambiar presentación
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={cambiarLinea}>
+                  Cambiar línea
+                </Button>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={() => setModoAgregar("OCIOSO")}>
@@ -232,7 +300,7 @@ export function RegistroParadas({
             lineaCodigo={lineaElegida.lineaCodigo}
             area={area}
             equipos={equipos}
-            presentacionMl={lineaElegida.presentacionMl ?? null}
+            presentacionMl={presentacionAgregar === "SIN" ? null : presentacionAgregar}
             onCancelar={() => setModoAgregar(null)}
             onGuardar={async (tipo, minutos, nota, justificacionDesvio) => {
               const { inicio, fin } = ventanaDesdeAhora(minutos)
@@ -301,21 +369,18 @@ export function RegistroParadas({
 
       <ListaCerradas
         titulo="Registradas en esta línea"
-        paradas={deLinea.filter((p) => !paradaAbierta(p) && p.origen !== "SHEET")}
+        paradas={deLinea.filter((p) => !paradaAbierta(p) && p.origen === "MANUAL")}
         ahora={ahora}
       />
 
       <section className="flex flex-col gap-2">
         <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           <Lock className="mt-0.5 size-4 shrink-0" />
-          <span>
-            Mecánicas (falla de equipo/subsistema) es solo lectura — se carga en el Sheet de Mantenimiento y se
-            sincroniza acá.
-          </span>
+          <span>Mecánicas (falla de equipo/subsistema) es solo lectura — la registra Mantenimiento en su propia pantalla.</span>
         </div>
         <ListaCerradas
           titulo={`Mecánicas de ${nombreLineaParada(lineaVista)}`}
-          paradas={deLinea.filter((p) => p.origen === "SHEET")}
+          paradas={deLinea.filter((p) => p.origen === "MANTENIMIENTO")}
           ahora={ahora}
           vacio="Sin paradas mecánicas registradas para esta línea."
         />

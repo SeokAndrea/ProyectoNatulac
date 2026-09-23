@@ -23,13 +23,15 @@ export const AREAS = [
 
 export type AreaCodigo = (typeof AREAS)[number]["codigo"]
 
+// Rework 2026-09-23 (dueño): solo 2 roles en la práctica — se borran
+// ADMINISTRADOR_AREA y MANTENIMIENTO (nunca hubo gente real con esos
+// roles; el área MANTENIMIENTO sigue existiendo en AREAS, sin relación
+// con esto). Super Administrador ahora hace todo lo que hace Supervisor
+// (Preparación, Líneas, Producto Terminado, Registrar Paradas) más lo
+// exclusivo suyo (Personal, Auditoría, Validar, etc.), sin acotar por área.
 export const ROLES = [
   { codigo: "SUPERVISOR", nombre: "Supervisor" },
-  { codigo: "ADMINISTRADOR_AREA", nombre: "Administrador de Área" },
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
-  // Solo lectura: Panel de Producción + página Paradas. Las paradas las
-  // carga Mantenimiento en un Sheet externo, no en la app.
-  { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
 ] as const
 
 export type RolCodigo = (typeof ROLES)[number]["codigo"]

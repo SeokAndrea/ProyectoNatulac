@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { calcularEficiencia, duracionBaseTurnoMin, eficienciaDelTurno, velocidadDeLinea } from "@/lib/eficiencia"
+import { calcularEficiencia, duracionBaseTurnoMin, eficienciaDelTurno, velocidadDeLinea, velocidadMaximaDeLinea } from "@/lib/eficiencia"
 import type { Parada } from "@/lib/paradas"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
-import type { PresentacionLive } from "@/lib/catalogosLive"
+import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 
-// Ejemplo del plan: línea 2, 250 ml, 24 envases/caja, 9.000 envases/h, turno de 8 h.
+// Ejemplo del plan: línea 2, 250 ml, 24 envases/caja, 9.000 envases/h (elegida = máxima acá), turno de 8 h.
 // Programadas 1,5 h, ocioso 0,5 h, no programadas 1 h → disponible 6 h, operativo 5 h.
 const BASE = {
   turnoMin: 480,
@@ -12,7 +12,8 @@ const BASE = {
   minutosProgramada: 90,
   minutosOcioso: 30,
   minutosNoProgramada: 60,
-  velocidadEnvasesHora: 9000,
+  velocidadElegidaEnvasesHora: 9000,
+  velocidadMaximaEnvasesHora: 9000,
   realEnvases: 43200, // 1.800 cajas
   envasesPorCaja: 24,
 }
@@ -57,6 +58,36 @@ describe("calcularEficiencia — ejemplo del plan", () => {
   })
 })
 
+describe("calcularEficiencia — OEE: la Meta usa la elegida, la Eficiencia usa la MÁXIMA", () => {
+  // Elegida 6.000 env/h (75 % de la máxima de 8.000) — el supervisor la cumple al 100 % (avance),
+  // pero la Eficiencia (OEE real) tiene que reflejar que la máquina da más de lo que se pidió.
+  const entrada = {
+    turnoMin: 480,
+    transcurridoMin: 480,
+    minutosProgramada: 0,
+    minutosOcioso: 0,
+    minutosNoProgramada: 0,
+    velocidadElegidaEnvasesHora: 6000,
+    velocidadMaximaEnvasesHora: 8000,
+    realEnvases: 48000, // exactamente la meta a 6.000 env/h × 8 h
+    envasesPorCaja: 24,
+  }
+  const r = calcularEficiencia(entrada)
+  it("el avance (contra la elegida) da 100 %", () => {
+    expect(r.metaEnvases).toBe(48000)
+    expect(r.avancePct).toBe(100)
+  })
+  it("la eficiencia (OEE, contra la máxima) da 75 %, no 100 %", () => {
+    expect(r.eficienciaPct).toBe(75)
+    expect(r.rendimientoPct).toBe(75)
+  })
+  it("sin velocidad máxima no inventa la eficiencia, aunque haya elegida (para la meta)", () => {
+    const sinMaxima = calcularEficiencia({ ...entrada, velocidadMaximaEnvasesHora: null })
+    expect(sinMaxima.eficienciaPct).toBeNull()
+    expect(sinMaxima.avancePct).toBe(100)
+  })
+})
+
 describe("calcularEficiencia — en vivo (ritmo)", () => {
   it("a las 3 h sin paradas y a ritmo perfecto: ritmo 100 %, avance 38 %", () => {
     const r = calcularEficiencia({
@@ -65,7 +96,8 @@ describe("calcularEficiencia — en vivo (ritmo)", () => {
       minutosProgramada: 0,
       minutosOcioso: 0,
       minutosNoProgramada: 0,
-      velocidadEnvasesHora: 9000,
+      velocidadElegidaEnvasesHora: 9000,
+      velocidadMaximaEnvasesHora: 9000,
       realEnvases: 27000,
       envasesPorCaja: 24,
     })
@@ -80,7 +112,8 @@ describe("calcularEficiencia — en vivo (ritmo)", () => {
       minutosProgramada: 60,
       minutosOcioso: 0,
       minutosNoProgramada: 0,
-      velocidadEnvasesHora: 9000,
+      velocidadElegidaEnvasesHora: 9000,
+      velocidadMaximaEnvasesHora: 9000,
       realEnvases: 27000,
       envasesPorCaja: 24,
     })
@@ -89,7 +122,7 @@ describe("calcularEficiencia — en vivo (ritmo)", () => {
     expect(r.metaEnvases).toBe(63000)
   })
   it("sin velocidad o sin tiempo disponible no inventa porcentajes", () => {
-    expect(calcularEficiencia({ ...BASE, velocidadEnvasesHora: null }).eficienciaPct).toBeNull()
+    expect(calcularEficiencia({ ...BASE, velocidadMaximaEnvasesHora: null }).eficienciaPct).toBeNull()
     expect(calcularEficiencia({ ...BASE, minutosProgramada: 480, minutosOcioso: 0 }).eficienciaPct).toBeNull()
   })
   it("avisa si las paradas suman más que el tiempo transcurrido", () => {
@@ -118,6 +151,11 @@ const parada = (lineaCodigo: string, clase: Parada["clase"], minutos: number): P
   supervisorNombre: null,
 })
 const PRES = [{ codigo: "250", envasesXCaja: 24 }] as unknown as PresentacionLive[]
+const velocidad = (linea: string, presentacion: string, envasesHora: number, activo = true): VelocidadLive =>
+  ({ id: `${linea}-${presentacion}-${envasesHora}`, linea, presentacion, maquina: "x", envasesHora, litrosHora: 0, activo }) as unknown as VelocidadLive
+// Catálogo usado por los tests de eficienciaDelTurno: máxima = elegida (9.000) para que los números
+// de antes de que existiera la máxima sigan valiendo — salvo donde se prueba explícitamente lo contrario.
+const VELOCIDADES = ["LINEA_1", "LINEA_2", "LINEA_3", "LINEA_T1"].map((l) => velocidad(l, "250", 9000))
 
 describe("velocidadDeLinea", () => {
   it("promedio ponderado por los envases contados", () => {
@@ -130,12 +168,25 @@ describe("velocidadDeLinea", () => {
   })
 })
 
+describe("velocidadMaximaDeLinea", () => {
+  it("usa el techo del catálogo, no la elegida de la corrida", () => {
+    const cs = [corrida("a", "LINEA_1", 6000)]
+    const velocidades = [velocidad("LINEA_1", "250", 6000), velocidad("LINEA_1", "250", 8000)]
+    expect(velocidadMaximaDeLinea(cs, [contador("a", 10000)], velocidades)).toBe(8000)
+  })
+  it("sin opciones en el catálogo, el piso es la propia elegida", () => {
+    const cs = [corrida("a", "LINEA_1", 6000)]
+    expect(velocidadMaximaDeLinea(cs, [contador("a", 10000)], [])).toBe(6000)
+  })
+})
+
 describe("eficienciaDelTurno", () => {
   const base = {
     turnoTipo: "TURNO_1",
     estado: "CERRADO" as const,
     horasTranscurridas: 8,
     presentaciones: PRES,
+    velocidades: VELOCIDADES,
     lineas: ["LINEA_1", "LINEA_2", "LINEA_3"],
     ahora: new Date("2026-09-21T15:00:00"),
   }
@@ -191,5 +242,17 @@ describe("eficienciaDelTurno", () => {
     })
     expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
     expect(r.porLinea.get("LINEA_1")?.avancePct).toBe(38)
+  })
+
+  it("elegida 6.000 con máxima 8.000 en el catálogo: avance al 100 % pero eficiencia (OEE) al 75 %", () => {
+    const r = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("a", "LINEA_1", 6000)],
+      contadores: [contador("a", 48000)], // exactamente la meta a 6.000 env/h × 8 h
+      velocidades: [velocidad("LINEA_1", "250", 6000), velocidad("LINEA_1", "250", 8000)],
+      paradas: [],
+    })
+    expect(r.porLinea.get("LINEA_1")?.avancePct).toBe(100)
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(75)
   })
 })

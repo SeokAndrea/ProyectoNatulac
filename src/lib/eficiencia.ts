@@ -1,5 +1,5 @@
 import { duracionMin, type ClaseParada, type Parada } from "@/lib/paradas"
-import type { PresentacionLive } from "@/lib/catalogosLive"
+import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 
 /*
@@ -7,18 +7,25 @@ import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
  * Es el ÚNICO lugar donde se calculan: el Panel de Producción y el Acta usan
  * estas funciones, así los números coinciden entre pantallas.
  *
- * Idea (dueño): la base es siempre la duración completa del turno. Las paradas
- * PROGRAMADAS y el TIEMPO OCIOSO reducen el tiempo disponible (no castigan);
- * las NO PROGRAMADAS son lo que hace perder eficiencia. La velocidad es la
- * ELEGIDA (nunca la máxima del catálogo). Se calcula por línea y turno, en
- * general (no por corrida): las paradas no se ligan a una corrida.
+ * Idea (dueña, 2026-09-22 — corrige la de 2026-09-21): la base es siempre la
+ * duración completa del turno. Las paradas PROGRAMADAS y el TIEMPO OCIOSO
+ * reducen el tiempo disponible (no castigan); las NO PROGRAMADAS son lo que
+ * hace perder eficiencia. La Meta usa la velocidad ELEGIDA (el compromiso del
+ * supervisor al activar la línea); la Eficiencia (Ritmo) es el OEE de
+ * verdad — Disponibilidad × Rendimiento, los dos contra la velocidad MÁXIMA
+ * del catálogo para esa línea y presentación, nunca la elegida. Calidad = 1
+ * siempre: el rechazo de envase acá es tan raro que no se mide aparte. Se
+ * calcula por línea y turno, en general (no por corrida): las paradas no se
+ * ligan a una corrida.
  *
- *   Disponible = Turno − Programadas − Ocioso
- *   Meta       = velocidad × Disponible
- *   Ritmo      = Real ÷ (velocidad × Disponible hasta ahora)     (eficiencia en vivo)
- *   Avance     = Real ÷ Meta del turno
+ *   Disponible      = Turno − Programadas − Ocioso
+ *   Meta            = velocidad ELEGIDA × Disponible
+ *   Disponibilidad  = Operativo ÷ Disponible, hasta ahora
+ *   Rendimiento     = Real ÷ (velocidad MÁXIMA × Operativo hasta ahora)
+ *   Eficiencia(OEE) = Real ÷ (velocidad MÁXIMA × Disponible hasta ahora) = Disponibilidad × Rendimiento
+ *   Avance          = Real ÷ Meta del turno
  *
- * Al cierre del turno, «hasta ahora» es el turno completo y Ritmo = Real ÷ Meta.
+ * Al cierre del turno, «hasta ahora» es el turno completo.
  */
 
 /** Duración base de cada turno, en minutos (dueño, 2026-09-21). El 12x12 queda fuera hasta su rework. */
@@ -39,8 +46,10 @@ export interface EntradaEficiencia {
   minutosProgramada: number
   minutosOcioso: number
   minutosNoProgramada: number
-  /** Velocidad elegida (envases/h) de la línea. null = sin dato. */
-  velocidadEnvasesHora: number | null
+  /** Velocidad ELEGIDA (envases/h) — la base de la Meta, el compromiso del supervisor. null = sin dato. */
+  velocidadElegidaEnvasesHora: number | null
+  /** Velocidad MÁXIMA del catálogo (envases/h) — la base del OEE (Rendimiento y Eficiencia), nunca la elegida. null = sin dato. */
+  velocidadMaximaEnvasesHora: number | null
   /** Envases contados por la llenadora en el turno. */
   realEnvases: number
   /** Envases por caja de la presentación (para mostrar cajas). null = sin dato. */
@@ -57,17 +66,17 @@ export interface ResultadoEficiencia {
   operativoAhoraMin: number
   metaEnvases: number
   metaCajas: number | null
-  /** Lo que debía llevar hasta ahora: velocidad × disponible hasta ahora. */
+  /** Lo que debía llevar hasta ahora contra el techo del catálogo: velocidad MÁXIMA × disponible hasta ahora. */
   esperadoAhoraEnvases: number
   realEnvases: number
   realCajas: number | null
-  /** Real ÷ Meta del turno (0–100+). null si no hay meta. */
+  /** Real ÷ Meta del turno (velocidad ELEGIDA), 0–100+. null si no hay meta. */
   avancePct: number | null
-  /** Ritmo: Real ÷ (velocidad × disponible hasta ahora). Es la eficiencia en vivo. null si no se puede calcular. */
+  /** OEE en vivo: Real ÷ (velocidad MÁXIMA × disponible hasta ahora) = Disponibilidad × Rendimiento (Calidad = 1). null si no se puede calcular. */
   eficienciaPct: number | null
-  /** Operativo ÷ Disponible, hasta ahora. */
+  /** Disponibilidad (OEE): Operativo ÷ Disponible, hasta ahora. */
   disponibilidadPct: number | null
-  /** Real ÷ (velocidad × operativo hasta ahora). */
+  /** Rendimiento (OEE): Real ÷ (velocidad MÁXIMA × operativo hasta ahora). */
   rendimientoPct: number | null
   /** Las paradas registradas suman más que el tiempo transcurrido: hay algo mal cargado. */
   paradasExcedenTiempo: boolean
@@ -76,7 +85,8 @@ export interface ResultadoEficiencia {
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : null)
 
 export function calcularEficiencia(e: EntradaEficiencia): ResultadoEficiencia {
-  const v = e.velocidadEnvasesHora && e.velocidadEnvasesHora > 0 ? e.velocidadEnvasesHora : null
+  const vElegida = e.velocidadElegidaEnvasesHora && e.velocidadElegidaEnvasesHora > 0 ? e.velocidadElegidaEnvasesHora : null
+  const vMaxima = e.velocidadMaximaEnvasesHora && e.velocidadMaximaEnvasesHora > 0 ? e.velocidadMaximaEnvasesHora : null
   const transcurrido = Math.max(0, Math.min(e.turnoMin, e.transcurridoMin))
   const programadaYocioso = e.minutosProgramada + e.minutosOcioso
 
@@ -85,9 +95,9 @@ export function calcularEficiencia(e: EntradaEficiencia): ResultadoEficiencia {
   const disponibleAhoraMin = Math.max(0, transcurrido - programadaYocioso)
   const operativoAhoraMin = Math.max(0, disponibleAhoraMin - e.minutosNoProgramada)
 
-  const metaEnvases = v ? Math.round((v * disponibleMin) / 60) : 0
-  const esperadoAhora = v ? (v * disponibleAhoraMin) / 60 : 0
-  const rendimientoBase = v ? (v * operativoAhoraMin) / 60 : 0
+  const metaEnvases = vElegida ? Math.round((vElegida * disponibleMin) / 60) : 0
+  const esperadoAhora = vMaxima ? (vMaxima * disponibleAhoraMin) / 60 : 0
+  const rendimientoBase = vMaxima ? (vMaxima * operativoAhoraMin) / 60 : 0
 
   return {
     disponibleMin,
@@ -107,16 +117,33 @@ export function calcularEficiencia(e: EntradaEficiencia): ResultadoEficiencia {
   }
 }
 
-/** Velocidad de la línea: promedio de las velocidades de sus corridas ponderado por los envases contados (la de la corrida activa, o la última, si aún no hay contador). */
-export function velocidadDeLinea(corridasLinea: Corrida[], contadores: ContadorRegistro[]): number | null {
+/** Promedio de una velocidad por corrida, ponderado por los envases contados de cada una (la corrida activa, o la última, si aún no hay contador). */
+function velocidadPonderada(corridasLinea: Corrida[], contadores: ContadorRegistro[], velocidadDe: (c: Corrida) => number): number | null {
   if (corridasLinea.length === 0) return null
   const envasesDe = (c: Corrida) =>
     contadores.filter((k) => k.corridaId === c.id).reduce((a, k) => a + k.envasesLlenadora, 0)
   const pesos = corridasLinea.map((c) => ({ c, envases: envasesDe(c) }))
   const total = pesos.reduce((a, p) => a + p.envases, 0)
-  if (total > 0) return pesos.reduce((a, p) => a + p.c.envasesHora * p.envases, 0) / total
+  if (total > 0) return pesos.reduce((a, p) => a + velocidadDe(p.c) * p.envases, 0) / total
   const referencia = corridasLinea.find((c) => c.activa) ?? corridasLinea[corridasLinea.length - 1]
-  return referencia.envasesHora
+  return velocidadDe(referencia)
+}
+
+/** Velocidad ELEGIDA de la línea (la de cada corrida) — la base de la Meta. */
+export function velocidadDeLinea(corridasLinea: Corrida[], contadores: ContadorRegistro[]): number | null {
+  return velocidadPonderada(corridasLinea, contadores, (c) => c.envasesHora)
+}
+
+/**
+ * Velocidad MÁXIMA del catálogo para la línea y presentación de cada corrida — la base del
+ * OEE (Disponibilidad × Rendimiento), nunca la elegida. Si el catálogo no trae opciones para
+ * esa línea/presentación (cambió después de activar), el piso es la propia velocidad elegida.
+ */
+export function velocidadMaximaDeLinea(corridasLinea: Corrida[], contadores: ContadorRegistro[], velocidades: VelocidadLive[]): number | null {
+  return velocidadPonderada(corridasLinea, contadores, (c) => {
+    const opciones = velocidades.filter((v) => v.activo && v.linea === c.linea && v.presentacion === c.presentacion).map((v) => v.envasesHora)
+    return opciones.length > 0 ? Math.max(...opciones, c.envasesHora) : c.envasesHora
+  })
 }
 
 export interface EntradaTurno {
@@ -127,6 +154,8 @@ export interface EntradaTurno {
   corridas: Corrida[]
   contadores: ContadorRegistro[]
   presentaciones: PresentacionLive[]
+  /** Catálogo de velocidades — de acá sale la velocidad MÁXIMA del OEE (por línea y presentación). */
+  velocidades: VelocidadLive[]
   /** Paradas del turno: manuales y de Mantenimiento ya recortadas a su ventana. */
   paradas: Parada[]
   /** Códigos de línea (los del catálogo, LINEA_1… o LINEA_T1…). */
@@ -185,7 +214,8 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
       minutosProgramada: minutos.PROGRAMADA,
       minutosOcioso: minutos.OCIOSO,
       minutosNoProgramada: minutos.NO_PROGRAMADA,
-      velocidadEnvasesHora: velocidadDeLinea(corridasLinea, t.contadores),
+      velocidadElegidaEnvasesHora: velocidadDeLinea(corridasLinea, t.contadores),
+      velocidadMaximaEnvasesHora: velocidadMaximaDeLinea(corridasLinea, t.contadores, t.velocidades),
       realEnvases,
       envasesPorCaja,
     })

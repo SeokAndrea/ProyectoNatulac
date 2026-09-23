@@ -45,7 +45,7 @@ export function CatalogoEquipos({ usuario }: { usuario: string }) {
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState("")
   const [lineaFiltro, setLineaFiltro] = useState("")
-  const [verInactivos, setVerInactivos] = useState(true)
+  const [verInactivos, setVerInactivos] = useState(false)
   const [edicion, setEdicion] = useState<{ equipo: EquipoParada; original?: string } | null>(null)
 
   const filas = useMemo(() => {

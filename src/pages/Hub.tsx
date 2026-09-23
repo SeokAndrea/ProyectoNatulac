@@ -34,6 +34,7 @@ export default function Hub() {
   })
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
+  const secciones = agruparPorSeccion(principales)
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
@@ -62,14 +63,55 @@ export default function Hub() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-          {principales.map((app) => (
-            <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} />
+        <div className="space-y-8">
+          {secciones.map(({ titulo, apps: appsSeccion }) => (
+            <section key={titulo ?? "otras"}>
+              {titulo && (
+                <h2 className="mb-3 border-b border-border/70 pb-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  {titulo}
+                </h2>
+              )}
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                {appsSeccion.map((app) => (
+                  <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </main>
     </div>
   )
+}
+
+const TITULOS_SECCION: Record<NonNullable<AppDef["seccion"]>, string> = {
+  produccion: "Producción",
+  auditoria: "Auditoría",
+  "base-datos": "Base de Datos",
+}
+
+/**
+ * Agrupa las tarjetas principales por su `seccion` (ver src/lib/apps.tsx),
+ * preservando el orden de aparición de cada grupo. Las tarjetas sin
+ * `seccion` (ej. Servicios Industriales) van todas juntas al final, sin
+ * título.
+ */
+function agruparPorSeccion(appsPrincipales: AppDef[]): { titulo: string | null; apps: AppDef[] }[] {
+  const grupos: { titulo: string | null; apps: AppDef[] }[] = []
+  const indicePorTitulo = new Map<string | null, number>()
+
+  for (const app of appsPrincipales) {
+    const titulo = app.seccion ? TITULOS_SECCION[app.seccion] : null
+    let indice = indicePorTitulo.get(titulo)
+    if (indice === undefined) {
+      indice = grupos.length
+      indicePorTitulo.set(titulo, indice)
+      grupos.push({ titulo, apps: [] })
+    }
+    grupos[indice].apps.push(app)
+  }
+
+  return grupos
 }
 
 function TarjetaAtajo({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean }) {

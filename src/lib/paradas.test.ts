@@ -285,14 +285,14 @@ describe("fixture de demo", () => {
     expect(demo.length).toBeGreaterThan(10)
     for (const p of demo) {
       expect(["PROGRAMADA", "NO_PROGRAMADA", "OCIOSO"]).toContain(p.clase)
-      expect(["MANUAL", "SHEET"]).toContain(p.origen)
+      expect(["MANUAL", "MANTENIMIENTO"]).toContain(p.origen)
       expect(p.inicio).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)
       if (p.fin) expect(p.fin >= p.inicio).toBe(true)
     }
   })
-  it("incluye paradas en curso (sin fin) y no programadas del Sheet", () => {
+  it("incluye paradas en curso (sin fin) y no programadas de Mantenimiento", () => {
     expect(demo.some(paradaAbierta)).toBe(true)
-    expect(demo.some((p) => p.clase === "NO_PROGRAMADA" && p.origen === "SHEET")).toBe(true)
+    expect(demo.some((p) => p.clase === "NO_PROGRAMADA" && p.origen === "MANTENIMIENTO")).toBe(true)
     expect(demo.some((p) => p.clase === "OCIOSO" && p.nota)).toBe(true)
   })
 })

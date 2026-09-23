@@ -27,18 +27,18 @@ const SIN_AREA_ORIGEN = "__ninguna__"
 const SIN_CARGO = "__ninguno__"
 
 /*
- * Gestión de personal, compartida entre "Edición de Datos" (Jorge,
- * SUPERADMINISTRADOR — ve y edita el personal de TODAS las áreas) y
- * "Personal" (ADMINISTRADOR_AREA — solo ve y edita el de su propia
- * área, y no puede asignar el rol SUPERADMINISTRADOR).
+ * Gestión de personal, la pestaña "Personal" de "Edición de Datos" —
+ * exclusiva de SUPERADMINISTRADOR, de TODAS las áreas (rework
+ * 2026-09-23: antes ADMINISTRADOR_AREA entraba por una página suelta
+ * "Personal" acotada a su propia área; esa página y ese rol ya no
+ * existen).
  *
- * El filtro real vive en Postgres, no acá (ver
- * supabase/migrations/20260828090000_personal_por_area.sql: cada
- * función recibe quién hace el pedido y Postgres decide qué le está
- * permitido ver/tocar). Acá solo se ajustan las OPCIONES visibles
- * (área fija, sin SUPERADMINISTRADOR) para que un administrador de
- * área no vea opciones que el servidor de todos modos le va a
- * rechazar.
+ * El permiso real vive en Postgres, no acá (ver
+ * supabase/migrations/20261076090000_rework_dos_roles.sql: cada
+ * función recibe quién hace el pedido y decide si le está permitido
+ * ver/tocar). `esSuperAdmin` siempre es true en la práctica — las
+ * ramas "else" de abajo quedan como resguardo, no porque haya hoy otro
+ * rol que entre a este componente.
  */
 export function PersonalPanel({ pagina }: { pagina: string }) {
   const { session } = useAuth()
@@ -57,10 +57,12 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
    * tener que desplazarse por una lista larga.
    */
   const [busqueda, setBusqueda] = useState("")
-  const [filtroArea, setFiltroArea] = useState<AreaCodigo | "TODAS">("TODAS")
+  // Por defecto Aséptico — el resto de las áreas quedan a un clic con el filtro de Área.
+  const [filtroArea, setFiltroArea] = useState<AreaCodigo | "TODAS">("ASEPTICO")
   const [filtroRol, setFiltroRol] = useState<RolCodigo | "TODOS">("TODOS")
   const [filtroCargo, setFiltroCargo] = useState<CargoCodigo | "TODOS" | "SIN_CARGO">("TODOS")
-  const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "ACTIVOS" | "INACTIVOS">("TODOS")
+  // Por defecto solo activos — el personal inactivo no desaparece, queda a un clic con el filtro de Estado.
+  const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "ACTIVOS" | "INACTIVOS">("ACTIVOS")
 
   async function recargar(usuario: string) {
     const lista = await listarPersonal(usuario)
@@ -103,10 +105,10 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
 
   const hayFiltrosActivos =
     busqueda.trim() !== "" ||
-    filtroArea !== "TODAS" ||
+    filtroArea !== "ASEPTICO" ||
     filtroRol !== "TODOS" ||
     filtroCargo !== "TODOS" ||
-    filtroEstado !== "TODOS"
+    filtroEstado !== "ACTIVOS"
 
   if (!session || cargando) {
     return (
@@ -198,10 +200,10 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
                 size="sm"
                 onClick={() => {
                   setBusqueda("")
-                  setFiltroArea("TODAS")
+                  setFiltroArea("ASEPTICO")
                   setFiltroRol("TODOS")
                   setFiltroCargo("TODOS")
-                  setFiltroEstado("TODOS")
+                  setFiltroEstado("ACTIVOS")
                 }}
               >
                 Limpiar filtros

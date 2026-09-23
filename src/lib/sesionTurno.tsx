@@ -168,13 +168,16 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
   }, [usuario])
 
   async function iniciarTurno(turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) {
-    if (!usuario || !session?.area) {
+    if (!usuario) {
       return { ok: false as const, error: "No se pudo identificar el área del usuario." }
     }
+    // SUPERADMINISTRADOR no tiene área fija (session.area null) — hoy
+    // todos los Super Admin son de Aséptico.
+    const areaCodigo = session?.area ?? "ASEPTICO"
 
     const { data, error } = await supabase.rpc("iniciar_turno", {
       p_usuario: usuario,
-      p_area_codigo: session.area,
+      p_area_codigo: areaCodigo,
       p_turno_tipo_codigo: turnoTipo,
       p_grupo_codigo: grupo,
     })

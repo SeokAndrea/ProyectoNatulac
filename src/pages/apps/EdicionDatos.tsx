@@ -34,11 +34,9 @@ import { desactivarLinea, editarLinea, reactivarLinea } from "@/lib/lineas"
  * Catálogos generales de la planta, editables desde acá sin tocar
  * código ni SQL (solo SUPERADMINISTRADOR — ver rolesPermitidos en
  * src/lib/apps.tsx y src/App.tsx). "Personal" acá muestra TODAS las
- * áreas (Jorge es la jerarquía más alta); los ADMINISTRADOR_AREA
- * gestionan el suyo desde la página aparte "Personal"
- * (src/pages/apps/Personal.tsx), que reutiliza el mismo
- * <PersonalPanel /> — el filtro por área lo hace Postgres según quién
- * llama, no esta página.
+ * áreas (rework 2026-09-23 — antes había un ADMINISTRADOR_AREA acotado
+ * a su propia área, ya no existe; la página suelta "Personal" tampoco
+ * existe más, era redundante con esta pestaña).
  *
  * Presentaciones, Velocidades y Líneas usan el mismo
  * CatalogosProvider (src/lib/catalogosLive.tsx) que ya consume el

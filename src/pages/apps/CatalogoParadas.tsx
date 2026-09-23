@@ -79,7 +79,7 @@ export default function CatalogoParadas() {
   const [claseFiltro, setClaseFiltro] = useState<ClaseParada | "">("")
   const [familiaFiltro, setFamiliaFiltro] = useState<FamiliaParada | "">("")
   const [equipoFiltro, setEquipoFiltro] = useState("")
-  const [verInactivos, setVerInactivos] = useState(true)
+  const [verInactivos, setVerInactivos] = useState(false)
   const [edicion, setEdicion] = useState<{ tipo: TipoParadaEditable; original?: string } | null>(null)
   const [pestana, setPestana] = useState<"TIPOS" | "EQUIPOS">("TIPOS")
   const [cerrados, setCerrados] = useState<Set<string>>(new Set())

@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { fechaLocal } from "@/lib/turno"
 import { useProduccion } from "@/lib/produccion/useProduccion"
-import { useCatalogosLive } from "@/lib/catalogosLive"
+import { presentacionesPorLineaLive, useCatalogosLive } from "@/lib/catalogosLive"
 
 /*
  * Registro de Paradas — el supervisor elige la LÍNEA (la parada nunca es
@@ -31,7 +31,7 @@ export default function Paradas() {
   const { session } = useAuth()
   const { turnoId } = useSesionTurno()
   const prod = useProduccion()
-  const { lineas: lineasReales } = useCatalogosLive()
+  const { lineas: lineasReales, presentaciones, velocidades } = useCatalogosLive()
 
   const recargar = useCallback(async () => {
     if (!turnoId) return setParadas([])
@@ -55,6 +55,7 @@ export default function Paradas() {
   const lineasHoy: LineaDelDia[] = LINEAS_PARADAS.map((l, i) => {
     const lineaReal = lineasReales[i]
     const corrida = lineaReal ? prod.corridas.find((c) => c.linea === lineaReal.codigo && c.activa) : undefined
+    const mlDisponibles = lineaReal ? presentacionesPorLineaLive(velocidades, lineaReal.codigo) : []
     return {
       lineaCodigo: l.codigo,
       lineaNombre: lineaReal?.nombre ?? l.nombre,
@@ -62,6 +63,13 @@ export default function Paradas() {
       saborNombre: corrida?.saborNombre ?? null,
       activa: corrida != null,
       presentacionMl: corrida ? Number(corrida.presentacion) || null : null,
+      // Las presentaciones que de verdad corren en esta línea (catálogo de velocidades) — el
+      // supervisor elige entre ellas, no se confía a ciegas en la presentación de la corrida activa.
+      presentacionesDisponibles: mlDisponibles
+        .map((codigo) => presentaciones.find((p) => p.codigo === codigo))
+        .filter((p): p is NonNullable<typeof p> => p != null && p.activo)
+        .map((p) => ({ ml: p.volumenMl, nombre: p.nombre }))
+        .sort((a, b) => a.ml - b.ml),
     }
   })
 

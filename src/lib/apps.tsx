@@ -3,7 +3,6 @@ import {
   PlayCircle,
   PackageCheck,
   ClipboardCheck,
-  Users,
   DatabaseZap,
   History,
   ListChecks,
@@ -64,6 +63,13 @@ export interface AppDef {
   color?: "success" | "blue" | "purple" | "warning" | "danger"
   /** Si es true, la tarjeta solo aparece para usuarios con usuarios.ve_errores = true (flag aparte del rol, ver session.veErrores y migración 20261047090000) — hoy solo el dueño. Tiene que coincidir con el requiereVeErrores de la misma ruta en src/App.tsx. */
   veErroresSolo?: boolean
+  /**
+   * Grupo bajo el que aparece la tarjeta en la grilla principal del hub,
+   * con un separador y título arriba (ver Hub.tsx). Sin esta propiedad,
+   * la tarjeta va suelta, sin sección (ej. Servicios Industriales, que
+   * ya tiene su propia vista acotada por área).
+   */
+  seccion?: "produccion" | "auditoria" | "base-datos"
 }
 
 /*
@@ -87,11 +93,12 @@ export const apps: AppDef[] = [
     href: "/turno",
     icon: PlayCircle,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERVISOR"],
+    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
     // Servicios Industriales usa el rol SUPERVISOR pero no arranca turnos de producción.
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     bloqueaConTurno: true,
     color: "success",
+    seccion: "produccion",
   },
   {
     slug: "preparacion",
@@ -100,9 +107,10 @@ export const apps: AppDef[] = [
     href: "/preparacion",
     icon: Beaker,
     requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR"],
+    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     color: "blue",
+    seccion: "produccion",
   },
   {
     slug: "lineas",
@@ -111,9 +119,10 @@ export const apps: AppDef[] = [
     href: "/lineas",
     icon: Factory,
     requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR"],
+    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     color: "blue",
+    seccion: "produccion",
   },
   {
     slug: "producto-terminado",
@@ -122,8 +131,9 @@ export const apps: AppDef[] = [
     href: "/producto-terminado",
     icon: PackageCheck,
     requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR"],
+    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    seccion: "produccion",
   },
   {
     slug: "finalizar-turno",
@@ -132,9 +142,10 @@ export const apps: AppDef[] = [
     href: "/finalizar-turno",
     icon: ClipboardCheck,
     requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR"],
+    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     resaltarConTurno: true,
+    seccion: "produccion",
   },
   {
     slug: "mis-actas",
@@ -143,8 +154,9 @@ export const apps: AppDef[] = [
     href: "/mis-actas",
     icon: FileText,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERVISOR"],
+    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    seccion: "auditoria",
   },
   {
     slug: "panel-produccion",
@@ -162,10 +174,10 @@ export const apps: AppDef[] = [
     href: "/paradas",
     icon: Wrench,
     requiereTurno: false,
-    // Solo supervisores registran paradas; tiene que coincidir con la ruta /paradas de src/App.tsx.
-    rolesPermitidos: ["SUPERVISOR"],
+    // Supervisores y Super Administrador registran paradas; tiene que coincidir con la ruta /paradas de src/App.tsx.
+    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
-    atajo: true,
+    seccion: "produccion",
   },
   {
     slug: "catalogo-paradas",
@@ -176,6 +188,7 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     // Solo SUPERADMINISTRADOR (el Área de Pruebas también entra). Tiene que coincidir con la ruta en src/App.tsx.
     rolesPermitidos: ["SUPERADMINISTRADOR"],
+    seccion: "base-datos",
   },
   {
     slug: "paradas-mantenimiento",
@@ -237,23 +250,15 @@ export const apps: AppDef[] = [
     areasPermitidas: ["SERVICIOS_INDUSTRIALES"],
   },
   {
-    slug: "personal",
-    title: "Personal",
-    description: "Alta, edición y baja de personal de tu área.",
-    href: "/personal",
-    icon: Users,
-    requiereTurno: false,
-    rolesPermitidos: ["ADMINISTRADOR_AREA"],
-  },
-  {
     slug: "auditoria",
     title: "Auditoría",
     description: "Qué hizo cada supervisor, turno por turno: resumen, línea de tiempo, actas y registro de cambios.",
     href: "/auditoria",
     icon: History,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR", "ADMINISTRADOR_AREA"],
+    rolesPermitidos: ["SUPERADMINISTRADOR"],
     color: "blue",
+    seccion: "auditoria",
   },
   {
     slug: "validar",
@@ -264,6 +269,7 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     rolesPermitidos: ["SUPERADMINISTRADOR"],
     color: "warning",
+    seccion: "auditoria",
   },
   {
     slug: "calculadoras",
@@ -273,6 +279,7 @@ export const apps: AppDef[] = [
     icon: Calculator,
     requiereTurno: false,
     rolesPermitidos: ["SUPERADMINISTRADOR"],
+    atajo: true,
   },
   {
     slug: "edicion-datos",
@@ -282,6 +289,7 @@ export const apps: AppDef[] = [
     icon: DatabaseZap,
     requiereTurno: false,
     rolesPermitidos: ["SUPERADMINISTRADOR"],
+    seccion: "base-datos",
   },
   {
     slug: "errores",
@@ -292,6 +300,7 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     veErroresSolo: true,
     color: "danger",
+    seccion: "base-datos",
   },
 ]
 

@@ -16,16 +16,17 @@ export interface PersonalRegistrado {
 }
 
 /*
- * Personal registrado, editable desde "Edición de Datos" (Jorge, ve
- * todas las áreas) o desde "Personal" (ADMINISTRADOR_AREA, solo ve y
- * gestiona el de su propia área). Vive en la tabla "usuarios" de
+ * Personal registrado, de todas las áreas, editable desde "Edición de
+ * Datos" o desde "Personal" — ambas exclusivas de SUPERADMINISTRADOR
+ * (rework 2026-09-23; antes ADMINISTRADOR_AREA veía y gestionaba solo
+ * su propia área, ese rol ya no existe). Vive en la tabla "usuarios" de
  * Supabase (NO Supabase Auth — ver
  * supabase/migrations/20260822090000_usuarios_tabla_propia.sql).
  *
- * El filtro por área NO es solo de interfaz: cada función de acá
- * manda quién hace el pedido (creadorUsuario) y Postgres decide qué
- * le está permitido ver/tocar — ver
- * supabase/migrations/20260828090000_personal_por_area.sql. Estas
+ * El permiso NO es solo de interfaz: cada función de acá manda quién
+ * hace el pedido (creadorUsuario) y Postgres decide si le está
+ * permitido ver/tocar — ver
+ * supabase/migrations/20261076090000_rework_dos_roles.sql. Estas
  * funciones solo llaman a RPC que hashean la contraseña y nunca la
  * devuelven; el frontend nunca ve password_hash.
  *

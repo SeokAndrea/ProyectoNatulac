@@ -6,10 +6,10 @@ import { tipoPorCodigo, type ClaseParada, type OrigenParada, type Parada } from 
  * Paradas mientras no hay base (FASE A′). Fixture chico del modelo nuevo:
  * unas cuantas PROGRAMADA, OCIOSO y NO_PROGRAMADA manual (todas cerradas —
  * se cargan con duración, no quedan "en curso") + NO_PROGRAMADA Mecánica
- * (`origen: "SHEET"`, como si vinieran del sync de Mantenimiento, esas sí
- * pueden seguir abiertas hasta que se marcan finalizada en el Sheet). Se
- * anclan a HOY vía `offsetDias` para que los presets de fecha tengan
- * datos. Se puede borrar cuando FASE B′/C′ estén.
+ * (`origen: "MANTENIMIENTO"`, como si las hubiera cargado Mantenimiento en
+ * su propia pantalla — esas sí pueden seguir abiertas hasta que las cierran
+ * a mano). Se anclan a HOY vía `offsetDias` para que los presets de fecha
+ * tengan datos. Se puede borrar cuando FASE B′/C′ estén.
  */
 
 interface RawParada {
@@ -28,7 +28,7 @@ interface RawParada {
   supervisorNombre?: string | null
   offsetDias: number
   hora: string // 'HH:MM'
-  /** minutos; null = parada todavía abierta ("Continúa" — solo válido para origen SHEET). */
+  /** minutos; null = parada todavía abierta ("Continúa" — solo válido para origen MANTENIMIENTO). */
   duracionMin: number | null
   /** Qué corría en la línea en ese momento — null cuando no aplica (CIP, orden y limpieza, liberación de vapor). Ver nota en Parada (paradas.ts). */
   saborNombre?: string | null
@@ -60,11 +60,11 @@ const RAW: RawParada[] = [
   { id: "np-op-2", clase: "NO_PROGRAMADA", origen: "MANUAL", lineaCodigo: "LINEA_2", turnoTipo: "TURNO_1", tipoCodigo: "FALTA_VAPOR", supervisorNombre: "EUSTORGIO", offsetDias: 1, hora: "11:10", duracionMin: 40, saborNombre: "Pera", familiaNombre: "Selecto", presentacionMl: 250 },
   { id: "np-op-3", clase: "NO_PROGRAMADA", origen: "MANUAL", lineaCodigo: "LINEA_3", turnoTipo: "TURNO_1", tipoCodigo: "PRESENTACION_NO_PLANIFICADA", supervisorNombre: "EUSTORGIO", offsetDias: 0, hora: "14:00", duracionMin: 25, saborNombre: null, familiaNombre: null, presentacionMl: null },
 
-  // ---- No programadas — Mecánica (equipo/subsistema), llegan del Sheet de Mantenimiento ----
-  { id: "np-1", clase: "NO_PROGRAMADA", origen: "SHEET", lineaCodigo: "LINEA_3", turnoTipo: "TURNO_3", tipoCodigo: null, tipoNombre: "Falla mecánica — A3CFLEX · Sistema de tracción", tiempoGuiaMin: null, nota: "Corrección de diseño en la correa servo", supervisorNombre: "PEDRO", offsetDias: 0, hora: "01:08", duracionMin: 95, saborNombre: "Naranja", familiaNombre: "Jucosa", presentacionMl: 200 },
-  { id: "np-2", clase: "NO_PROGRAMADA", origen: "SHEET", lineaCodigo: "LINEA_1", turnoTipo: "TURNO_2", tipoCodigo: null, tipoNombre: "Falla eléctrica — Selladora Angelus", tiempoGuiaMin: null, nota: "Caída de suministro eléctrico; CIP forzado antes de rearrancar", supervisorNombre: "JAVIER", offsetDias: 2, hora: "17:25", duracionMin: 205, saborNombre: "Manzana", familiaNombre: "Clásicos", presentacionMl: 1000 },
-  { id: "np-3", clase: "NO_PROGRAMADA", origen: "SHEET", lineaCodigo: "LINEA_2", turnoTipo: "TURNO_1", tipoCodigo: null, tipoNombre: "Falla mecánica — Llenadora Elmar · Válvulas de llenado", tiempoGuiaMin: null, nota: "Fuga en dos válvulas; espera de repuesto", supervisorNombre: "EUSTORGIO", offsetDias: 4, hora: "09:50", duracionMin: 70, saborNombre: "Pera", familiaNombre: "Selecto", presentacionMl: 250 },
-  { id: "np-open-1", clase: "NO_PROGRAMADA", origen: "SHEET", lineaCodigo: "LINEA_2", turnoTipo: "TURNO_1", tipoCodigo: null, tipoNombre: "Falla mecánica — Tavil · Robot de paletizado", tiempoGuiaMin: null, nota: "Pérdida de comunicación con el robot", supervisorNombre: "EUSTORGIO", offsetDias: 0, hora: "12:30", duracionMin: null, saborNombre: "Pera", familiaNombre: "Selecto", presentacionMl: 250 },
+  // ---- No programadas — Mecánica (equipo/subsistema), las carga Mantenimiento en su propia pantalla ----
+  { id: "np-1", clase: "NO_PROGRAMADA", origen: "MANTENIMIENTO", lineaCodigo: "LINEA_3", turnoTipo: "TURNO_3", tipoCodigo: null, tipoNombre: "Falla mecánica — A3CFLEX · Sistema de tracción", tiempoGuiaMin: null, nota: "Corrección de diseño en la correa servo", supervisorNombre: "PEDRO", offsetDias: 0, hora: "01:08", duracionMin: 95, saborNombre: "Naranja", familiaNombre: "Jucosa", presentacionMl: 200 },
+  { id: "np-2", clase: "NO_PROGRAMADA", origen: "MANTENIMIENTO", lineaCodigo: "LINEA_1", turnoTipo: "TURNO_2", tipoCodigo: null, tipoNombre: "Falla eléctrica — Selladora Angelus", tiempoGuiaMin: null, nota: "Caída de suministro eléctrico; CIP forzado antes de rearrancar", supervisorNombre: "JAVIER", offsetDias: 2, hora: "17:25", duracionMin: 205, saborNombre: "Manzana", familiaNombre: "Clásicos", presentacionMl: 1000 },
+  { id: "np-3", clase: "NO_PROGRAMADA", origen: "MANTENIMIENTO", lineaCodigo: "LINEA_2", turnoTipo: "TURNO_1", tipoCodigo: null, tipoNombre: "Falla mecánica — Llenadora Elmar · Válvulas de llenado", tiempoGuiaMin: null, nota: "Fuga en dos válvulas; espera de repuesto", supervisorNombre: "EUSTORGIO", offsetDias: 4, hora: "09:50", duracionMin: 70, saborNombre: "Pera", familiaNombre: "Selecto", presentacionMl: 250 },
+  { id: "np-open-1", clase: "NO_PROGRAMADA", origen: "MANTENIMIENTO", lineaCodigo: "LINEA_2", turnoTipo: "TURNO_1", tipoCodigo: null, tipoNombre: "Falla mecánica — Tavil · Robot de paletizado", tiempoGuiaMin: null, nota: "Pérdida de comunicación con el robot", supervisorNombre: "EUSTORGIO", offsetDias: 0, hora: "12:30", duracionMin: null, saborNombre: "Pera", familiaNombre: "Selecto", presentacionMl: 250 },
 ]
 
 /** Materializa las fechas relativas a HOY (hora de planta). */
@@ -73,7 +73,7 @@ export function paradasDemo(): Parada[] {
   return RAW.map((r, i) => {
     let start: Date
     if (r.duracionMin == null) {
-      // parada abierta: solo válido para origen SHEET (Mecánicas) — arrancó
+      // parada abierta: solo válido para origen MANTENIMIENTO (Mecánicas) — arrancó
       // hace 25–130 min, para que "en curso" sea realista
       start = new Date(now.getTime() - (25 + ((i * 41) % 105)) * 60000)
     } else {

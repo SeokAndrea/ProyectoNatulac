@@ -38,7 +38,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth } from "@/lib/auth"
 import { AREAS, CARGOS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
-import { useCatalogosLive, velocidadesParaLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
+import { useCatalogosLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
 import {
   badgeVariantPorNivel,
   colorTextoPorNivel,
@@ -82,7 +82,7 @@ import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaI
 import { fechaPlanta, horaCortaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { duracionMin, listarParadas, minutosPorLinea, type Parada } from "@/lib/paradas"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
-import { codigoDeParadaLive, useCatalogoParadas } from "@/lib/paradasCatalogo"
+import { codigoDeParadaLive, useCatalogoParadas } from "@/lib/paradasCatalogo"
 import { TopFallasPanel } from "@/components/TopFallasPanel"
 import { cn } from "@/lib/utils"
 
@@ -248,16 +248,17 @@ interface ProduccionLinea {
   linea: string
   cajas: number
   litros: number
-  eficienciaPct: number | null
 }
 
-/** Cajas, litros y eficiencia de CADA línea del catálogo, para la tabla combinada del banner. */
+/**
+ * Cajas y litros de CADA línea del catálogo, para la tabla combinada del banner. La eficiencia
+ * (OEE) de cada línea NO sale de acá — sale de `eficienciaDelTurno()` (src/lib/eficiencia.ts,
+ * único lugar donde se calcula), por eso esta función no la toca.
+ */
 function produccionPorLineaDe(
   productoTerminado: ProductoTerminadoRegistro[],
-  corridas: Corrida[],
   lineasCatalogo: LineaLive[],
   presentaciones: PresentacionLive[],
-  velocidades: ReturnType<typeof useCatalogosLive>["velocidades"],
 ): ProduccionLinea[] {
   return lineasCatalogo.map((lc) => {
     const productoLinea = productoTerminado.filter((p) => p.linea === lc.codigo)
@@ -267,15 +268,7 @@ function produccionPorLineaDe(
     }, 0)
     const litros = productoLinea.reduce((a, p) => a + p.litrosProducidos, 0)
 
-    const corridaActiva = corridas.find((l) => l.linea === lc.codigo && l.activa)
-    let eficienciaPct: number | null = null
-    if (corridaActiva) {
-      const opciones = velocidadesParaLive(velocidades, corridaActiva.linea, corridaActiva.presentacion)
-      const maxima = Math.max(corridaActiva.envasesHora, ...opciones.map((o) => o.envasesHora))
-      eficienciaPct = maxima > 0 ? Math.round((corridaActiva.envasesHora / maxima) * 100) : 0
-    }
-
-    return { linea: lc.codigo, cajas, litros, eficienciaPct }
+    return { linea: lc.codigo, cajas, litros }
   })
 }
 
@@ -532,6 +525,7 @@ export default function PanelProduccion() {
         corridas: prod.corridas,
         contadores: prod.contadores,
         presentaciones,
+        velocidades,
         paradas: paradasTurno,
         lineas: lineas.map((l) => l.codigo),
         ahora,
@@ -548,7 +542,7 @@ export default function PanelProduccion() {
   const horario = HORARIOS[turnoTipo]
   const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
   const lineasEstado = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
-  const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, prod.corridas, lineas, presentaciones, velocidades) : []
+  const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, lineas, presentaciones) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   /*
    * "Producción del turno": Cajas / Litros del banner son SIEMPRE del

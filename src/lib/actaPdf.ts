@@ -129,6 +129,7 @@ export async function generarActaPdf(params: {
     area,
     lineas,
     presentaciones,
+    velocidades,
   } = params
   const logoBase64 = await cargarLogoBase64()
   const doc = new jsPDF({ unit: "mm", format: "a4" })
@@ -311,6 +312,7 @@ export async function generarActaPdf(params: {
     corridas,
     contadores,
     presentaciones,
+    velocidades,
     paradas: paradas ?? [],
     lineas: lineas.map((l) => l.codigo),
   })
