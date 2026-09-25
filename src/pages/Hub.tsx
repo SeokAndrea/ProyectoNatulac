@@ -30,6 +30,7 @@ export default function Hub() {
     if (app.areasPermitidas && !(session?.area && app.areasPermitidas.includes(session.area))) return false
     if (app.areasExcluidas && session?.area && app.areasExcluidas.includes(session.area)) return false
     if (app.veErroresSolo && !session?.veErrores) return false
+    if (app.usuarioPermitido && session?.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
     return true
   })
   const atajos = appsVisibles.filter((app) => app.atajo)

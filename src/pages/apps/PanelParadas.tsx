@@ -66,8 +66,8 @@ export default function PanelParadas() {
   // de quien está mirando el Panel — ver nota de cabecera.
   const prod = useProduccion(turno?.id ?? null)
 
-  // Aséptico, Vacío y Pruebas ven solo lo suyo; el resto (superadmin, Mantenimiento…) ve producción, nunca Pruebas.
-  const areaParadas = area === "ASEPTICO" || area === "VACIO" || area === "PRUEBAS" ? area : null
+  // Aséptico y Pruebas ven solo lo suyo; el resto (superadmin, Mantenimiento…) ve producción, nunca Pruebas.
+  const areaParadas = area === "ASEPTICO" || area === "PRUEBAS" ? area : null
   const cargar = useCallback(() => {
     // rango amplio: la vista filtra por fecha en memoria
     return listarParadas({ desde: "2000-01-01", hasta: "2999-12-31", area: areaParadas })

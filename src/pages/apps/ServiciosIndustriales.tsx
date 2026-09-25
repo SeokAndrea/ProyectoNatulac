@@ -6,7 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 import {
+  GASOIL_CONSUMO_L_POR_HORA,
+  gasoilHorasDisponibles,
+  nivelGasoil,
   obtenerLecturaServiciosIndustriales,
   registrarLecturaServiciosIndustriales,
   type LecturaServiciosIndustriales,
@@ -111,6 +115,11 @@ export default function ServiciosIndustriales() {
                     </p>
                   </div>
                 </div>
+                {lectura?.gasoil !== null && lectura?.gasoil !== undefined && (
+                  <div className="col-span-2">
+                    <BarraGasoilDisponible litros={lectura.gasoil} />
+                  </div>
+                )}
                 {lectura && (
                   <p className="col-span-2 text-xs text-muted-foreground">
                     {new Date(lectura.actualizadoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
@@ -177,5 +186,45 @@ export default function ServiciosIndustriales() {
         </Card>
       </div>
     </AppShell>
+  )
+}
+
+/**
+ * Semáforo de Gasoil: convierte los litros cargados en horas de
+ * autonomía (a GASOIL_CONSUMO_L_POR_HORA) y pinta una barra roja /
+ * amarilla / verde contra un corte de luz — ver umbrales en
+ * panelProduccion.ts. La barra llena al 100% en GASOIL_UMBRAL_VERDE_HORAS
+ * × 1.5 horas: de ahí para arriba ya está verde, no hace falta más escala.
+ */
+function BarraGasoilDisponible({ litros }: { litros: number }) {
+  const horas = gasoilHorasDisponibles(litros)
+  const nivel = nivelGasoil(horas)
+  const escalaMaxima = 24
+  const barra = Math.max(0, Math.min(100, (horas / escalaMaxima) * 100))
+
+  return (
+    <div className="rounded-lg border border-border px-3 py-2.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs text-muted-foreground">Autonomía de gasoil</span>
+        <span
+          className={cn(
+            "num text-sm font-semibold",
+            nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : "text-success",
+          )}
+        >
+          {horas.toLocaleString("es-CO", { maximumFractionDigits: 1 })} h
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width] duration-700",
+            nivel === "danger" ? "bg-danger" : nivel === "warn" ? "bg-warning" : "bg-success",
+          )}
+          style={{ width: `${barra}%` }}
+        />
+      </div>
+      <p className="mt-1.5 text-[11px] text-muted-foreground">{GASOIL_CONSUMO_L_POR_HORA} L/h</p>
+    </div>
   )
 }

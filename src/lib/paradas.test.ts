@@ -334,7 +334,7 @@ describe("codigoPlanilla con secuencia por línea (Operacional)", () => {
     expect(codigoPlanilla(insumos, "LINEA_3", "ASEPTICO")).toBe("OPL3-2")
   })
   it("otra área no toma la secuencia de Aséptico", () => {
-    expect(codigoPlanilla(insumos, "LINEA_2", "VACIO")).toBe("OPL2-2")
+    expect(codigoPlanilla(insumos, "LINEA_2", "MANTENIMIENTO")).toBe("OPL2-2")
   })
 })
 

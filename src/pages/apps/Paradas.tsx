@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
+import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
 import { RegistroParadas, type LineaDelDia } from "@/components/RegistroParadas"
 import { listarParadas, LINEAS_PARADAS, registrarParada, type DatosRegistroParada, type Parada } from "@/lib/paradas"
 import { useAuth } from "@/lib/auth"
-import { useSesionTurno } from "@/lib/sesionTurno"
 import { fechaLocal } from "@/lib/turno"
+import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { presentacionesPorLineaLive, useCatalogosLive } from "@/lib/catalogosLive"
 
@@ -29,8 +30,9 @@ import { presentacionesPorLineaLive, useCatalogosLive } from "@/lib/catalogosLiv
 export default function Paradas() {
   const [paradas, setParadas] = useState<Parada[] | null>(null)
   const { session } = useAuth()
-  const { turnoId } = useSesionTurno()
-  const prod = useProduccion()
+  const { turnoIdEfectivo: turnoId, cargando: cargandoCorreccion, enModoCorreccion, turnoCorregido, errorCorreccion, salirDeCorreccion } =
+    useTurnoEfectivo()
+  const prod = useProduccion(turnoId)
   const { lineas: lineasReales, presentaciones, velocidades } = useCatalogosLive()
 
   const recargar = useCallback(async () => {
@@ -46,7 +48,11 @@ export default function Paradas() {
   async function onRegistrar(datos: Omit<DatosRegistroParada, "turnoId">): Promise<string | null> {
     if (!turnoId) return "Inicia un turno para registrar paradas."
     if (!session) return "Tu sesión expiró. Vuelve a entrar."
-    const r = await registrarParada(session.username, { ...datos, turnoId }, "Registrar Paradas")
+    const r = await registrarParada(
+      session.username,
+      { ...datos, turnoId },
+      enModoCorreccion ? "Registrar Paradas (corrección)" : "Registrar Paradas",
+    )
     if (!r.ok) return r.error
     await recargar()
     return null
@@ -74,9 +80,22 @@ export default function Paradas() {
   })
 
   return (
-    <AppShell title="Registrar Paradas" description="Paradas programadas y tiempo ocioso, por línea">
+    <AppShell
+      title="Registrar Paradas"
+      description={enModoCorreccion ? `Turno ${turnoCorregido?.codigo} (corrección)` : "Paradas programadas y tiempo ocioso, por línea"}
+    >
       <div className="mx-auto w-full max-w-3xl">
-        {paradas === null ? (
+        {enModoCorreccion && turnoCorregido && (
+          <div className="mb-3">
+            <ModoCorreccionBanner turno={turnoCorregido} onSalir={salirDeCorreccion} />
+          </div>
+        )}
+        {errorCorreccion ? (
+          <p className="py-16 text-center text-sm text-muted-foreground">
+            Ese turno no se pudo abrir — no se encontró, o ya no es el turno inmediatamente anterior al actual de esa
+            área.
+          </p>
+        ) : paradas === null || cargandoCorreccion ? (
           <div className="flex justify-center py-16 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
           </div>

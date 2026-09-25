@@ -4,9 +4,10 @@ import { Beaker, Factory, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { EstadoPlantaTabs } from "@/components/EstadoPlantaTabs"
+import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
 import { NovedadesTurno } from "@/components/NovedadesTurno"
 import { Button } from "@/components/ui/button"
-import { useSesionTurno } from "@/lib/sesionTurno"
+import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 
 /*
@@ -23,7 +24,8 @@ import { listarSabores, type Sabor } from "@/lib/sabores"
  * ("libero el tanque, activo la línea").
  */
 export default function Preparacion() {
-  const { turnoId, codigo, cargando } = useSesionTurno()
+  const { turnoIdEfectivo, cargando, enModoCorreccion, turnoCorregido, errorCorreccion, salirDeCorreccion } =
+    useTurnoEfectivo()
   const [sabores, setSabores] = useState<Sabor[]>([])
 
   useEffect(() => {
@@ -40,7 +42,24 @@ export default function Preparacion() {
     )
   }
 
-  if (!turnoId) {
+  if (errorCorreccion) {
+    return (
+      <AppShell title="Preparación" description="Tanques de la planta" fullWidth>
+        <EmptyState
+          icon={Beaker}
+          title="Ese turno no se pudo abrir"
+          description="No se encontró, o ya no es el turno inmediatamente anterior al actual de esa área."
+        />
+        <div className="mt-4 flex justify-center">
+          <Button asChild>
+            <Link to="/auditoria">Volver a Auditoría</Link>
+          </Button>
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (!turnoIdEfectivo) {
     return (
       <AppShell title="Preparación" description="Tanques de la planta" fullWidth>
         <EmptyState
@@ -58,18 +77,25 @@ export default function Preparacion() {
   }
 
   return (
-    <AppShell title="Preparación" description={`Turno ${codigo}`} fullWidth>
+    <AppShell
+      title="Preparación"
+      description={enModoCorreccion ? `Turno ${turnoCorregido?.codigo} (corrección)` : "Tanques de la planta"}
+      fullWidth
+    >
       <div className="flex flex-col gap-4">
-        <EstadoPlantaTabs sabores={sabores} modo="preparacion" />
+        {enModoCorreccion && turnoCorregido && (
+          <ModoCorreccionBanner turno={turnoCorregido} onSalir={salirDeCorreccion} />
+        )}
+        <EstadoPlantaTabs sabores={sabores} modo="preparacion" turnoId={turnoIdEfectivo} />
         <div className="flex justify-center">
           <Button asChild variant="outline">
-            <Link to="/lineas">
+            <Link to={enModoCorreccion ? `/lineas?turnoId=${turnoIdEfectivo}` : "/lineas"}>
               <Factory className="size-3.5" />
               Ir a Líneas
             </Link>
           </Button>
         </div>
-        <NovedadesTurno />
+        {!enModoCorreccion && <NovedadesTurno />}
       </div>
     </AppShell>
   )

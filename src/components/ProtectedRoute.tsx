@@ -9,6 +9,7 @@ export function ProtectedRoute({
   areasPermitidas,
   areasExcluidas,
   requiereVeErrores,
+  usuarioPermitido,
 }: {
   children: ReactNode
   /** Si se define, la ruta solo es accesible para estos roles; si no, para cualquier sesión. */
@@ -19,6 +20,8 @@ export function ProtectedRoute({
   areasExcluidas?: AreaCodigo[]
   /** Si es true, la ruta solo es accesible para usuarios con usuarios.ve_errores = true (flag aparte del rol, ver migración 20261047090000) — hoy solo el dueño. */
   requiereVeErrores?: boolean
+  /** Si se define, la ruta solo es accesible para ese username exacto (case-insensitive) — para vistas de prueba de un solo usuario. */
+  usuarioPermitido?: string
 }) {
   const { session } = useAuth()
   if (!session) return <Navigate to="/" replace />
@@ -32,5 +35,6 @@ export function ProtectedRoute({
   if (areasPermitidas && (!session.area || !areasPermitidas.includes(session.area))) return <Navigate to="/hub" replace />
   if (areasExcluidas && session.area && areasExcluidas.includes(session.area)) return <Navigate to="/hub" replace />
   if (requiereVeErrores && !session.veErrores) return <Navigate to="/hub" replace />
+  if (usuarioPermitido && session.username.toLowerCase() !== usuarioPermitido.toLowerCase()) return <Navigate to="/hub" replace />
   return <>{children}</>
 }

@@ -13,6 +13,7 @@ describe("colorSabor", () => {
     expect(colorSabor("Durazno")).toBe("var(--flavor-yellow)")
     expect(colorSabor("Naranja")).toBe("var(--flavor-orange)")
     expect(colorSabor("Limón")).toBe("var(--flavor-lime)")
+    expect(colorSabor("Mango")).toBe("var(--flavor-amber)") // ámbar: distinto de naranja y de durazno
   })
 
   it("la familia aclara: Jucosa más que Selecto, Selecto más que Clásico", () => {
@@ -33,9 +34,8 @@ describe("colorSabor", () => {
   })
 
   it("sabor sin fruta reconocida → color estable por hash (siempre el mismo)", () => {
-    const a = colorSabor("Mango")
-    expect(a).toBe(colorSabor("Mango"))
+    const a = colorSabor("Coctel")
+    expect(a).toBe(colorSabor("Coctel"))
     expect(["var(--flavor-orange)", "var(--flavor-green)", "var(--flavor-red)", "var(--flavor-yellow)"]).toContain(a)
-    expect(colorSabor("Coctel")).toMatch(/^var\(--flavor-/)
   })
 })

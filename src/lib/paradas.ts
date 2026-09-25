@@ -582,7 +582,7 @@ export interface FiltrosParadas {
   clase?: ClaseParada
   /** Solo las paradas de este turno (ignora desde/hasta). */
   turnoId?: string
-  /** Área de la consulta por fechas: 'ASEPTICO' / 'VACIO' / 'PRUEBAS'. Sin área: las de producción, nunca las de Pruebas. */
+  /** Área de la consulta por fechas: 'ASEPTICO' / 'PRUEBAS'. Sin área: las de producción, nunca las de Pruebas. */
   area?: string | null
 }
 

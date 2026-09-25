@@ -19,3 +19,16 @@ services:
     restart: unless-stopped
     profiles:
       - preview
+
+  plc-bridge:
+    build:
+      context: ./plc-bridge
+    ports:
+      - "4036:4036"
+    environment:
+      - PLC_MODO=simulacion
+      - PLC_BRIDGE_PUERTO=4036
+      - PLC_BRIDGE_INTERVALO_MS=200
+    restart: unless-stopped
+    profiles:
+      - preview

@@ -50,10 +50,17 @@ const badgeVariantCondicionLinea: Record<CondicionLinea, "success" | "warning" |
  * acá adentro además de useProduccion(), sin usar ninguna mutación de
  * Preparación.
  */
-export function LineasEstadoPlanta({ modo }: { modo: ModoEstadoPlanta }) {
+export function LineasEstadoPlanta({
+  modo,
+  turnoId,
+}: {
+  modo: ModoEstadoPlanta
+  /** Turno a mostrar/editar — omitido usa el turno en vivo (ver usePreparacion). Superadmin en modo corrección lo pisa. */
+  turnoId?: string | null
+}) {
   const { session } = useAuth()
   const { lineas, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
-  const { tanques, cargando: cargandoPreparacion } = usePreparacion()
+  const { tanques, cargando: cargandoPreparacion } = usePreparacion(turnoId)
   const {
     corridas,
     lineasEstado,
@@ -66,7 +73,7 @@ export function LineasEstadoPlanta({ modo }: { modo: ModoEstadoPlanta }) {
     seguirMismoLote,
     cambiarCondicionLinea,
     confirmarEstadoLinea,
-  } = useProduccion()
+  } = useProduccion(turnoId)
 
   if (cargandoCatalogos || cargandoPreparacion || cargandoProduccion) {
     return (

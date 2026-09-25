@@ -54,6 +54,9 @@ import {
 import {
   ajustesSemielaboradoTurno,
   cargoDeUsuario,
+  GASOIL_CONSUMO_L_POR_HORA,
+  gasoilHorasDisponibles,
+  nivelGasoil,
   type AjusteSemielaborado,
   type LecturaServiciosIndustriales,
   obtenerEstadoPlantaActual,
@@ -99,8 +102,8 @@ const TANK_CAPACITY = 20000
  */
 const REFRESCO_EN_VIVO_MS = 30 * 60 * 1000
 
-/** El Área de Pruebas nunca debe verse desde el Panel de Producción — ni como selección explícita. */
-const AREAS_SELECCIONABLES = AREAS.filter((a) => a.codigo !== "PRUEBAS")
+/** Pruebas y Servicios Industriales nunca tienen un turno propio — no tiene sentido elegirlas en el filtro de área del Panel. */
+const AREAS_SELECCIONABLES = AREAS.filter((a) => a.codigo !== "PRUEBAS" && a.codigo !== "SERVICIOS_INDUSTRIALES")
 
 const HORARIOS: Record<string, { inicio: string; fin: string }> = {
   TURNO_1: { inicio: "07:00", fin: "15:00" },
@@ -157,13 +160,6 @@ interface FilaLineaCompacta extends LineaConEstado {
    */
   minutosProduccion: number | null
 }
-
-/** DEV: ejemplo de observación de ~140 caracteres para ver cómo cae en la fila de la línea. Nunca llega al build. */
-const MOCK_OBSERVACION_LINEA =
-  "Falla en la selladora: recalienta y corta el film cada 15 minutos. Mantenimiento revisó, falta repuesto del termostato — llega mañana.".slice(
-    0,
-    140,
-  )
 
 /** "125 min" hasta la hora, "2h 5min" de ahí para arriba. */
 function formatDuracion(minutos: number): string {
@@ -342,9 +338,16 @@ export default function PanelProduccion() {
    * más reciente de CUALQUIER área, mezclando el Área de Pruebas con
    * la producción real. El resto de los roles ya tiene su área fija
    * en la sesión, no necesita elegir.
+   *
+   * Excepción: Servicios Industriales tiene área propia en la sesión,
+   * pero esa área nunca abre un turno (no produce) — filtrar por
+   * session.area ahí dejaba el Panel siempre vacío para ese rol. Se
+   * trata igual que al Super Administrador: elige qué área mirar,
+   * arrancando siempre en ASEPTICO.
    */
-  const [areaFiltro, setAreaFiltro] = useState<AreaCodigo | "TODAS">(session?.area ?? "ASEPTICO")
-  const areaEfectiva = session?.area ?? (areaFiltro === "TODAS" ? null : areaFiltro)
+  const puedeElegirArea = !session?.area || session.area === "SERVICIOS_INDUSTRIALES"
+  const [areaFiltro, setAreaFiltro] = useState<AreaCodigo | "TODAS">(puedeElegirArea ? "ASEPTICO" : (session?.area ?? "ASEPTICO"))
+  const areaEfectiva = puedeElegirArea ? (areaFiltro === "TODAS" ? null : areaFiltro) : (session?.area ?? null)
 
   /*
    * Datos de dominio: Panel NO trae más tanques/corridas/contadores/PT
@@ -672,13 +675,6 @@ export default function PanelProduccion() {
       minutosProduccion,
     }
   })
-  // DEV: si ninguna línea trae observación real, mete el ejemplo en la
-  // primera que no esté activa (solo en `npm run dev`) para ver cómo se
-  // ve la nota larga en el dashboard.
-  if (import.meta.env.DEV && !filasLineas.some((f) => f.observacion)) {
-    const objetivo = filasLineas.find((f) => f.estado !== "activa") ?? filasLineas[0]
-    if (objetivo) objetivo.observacion = MOCK_OBSERVACION_LINEA
-  }
   /** La parada individual más larga del turno (Módulo Paradas) — null fuera de Área de Pruebas o si el turno no tuvo ninguna. */
   const paradaMasLarga =
     [...paradasTurno].sort((a, b) => duracionMin(b, ahora) - duracionMin(a, ahora))[0] ?? null
@@ -752,7 +748,7 @@ export default function PanelProduccion() {
 
             {textoUltimaActualizacion && <span className="text-[11px] text-muted-foreground">Última actualización {textoUltimaActualizacion}</span>}
 
-            {!session?.area && (
+            {puedeElegirArea && (
               <button
                 type="button"
                 onClick={() => setMostrarFiltros(true)}
@@ -832,7 +828,7 @@ export default function PanelProduccion() {
         {mostrarFiltros && (
           <Card className="border-border bg-surface shadow-sm">
             <CardContent className="flex flex-wrap items-end gap-3">
-              {!session?.area && (
+              {puedeElegirArea && (
                 <div className="flex flex-col gap-2">
                   <span className="text-xs text-muted-foreground">Área</span>
                   <Select value={areaFiltro} onValueChange={(v) => setAreaFiltro(v as AreaCodigo | "TODAS")}>
@@ -1309,6 +1305,36 @@ function tiempoRelativo(fechaIso: string, ahora: Date): string {
 }
 
 /**
+ * Semáforo de Gasoil: banner a todo el ancho de la tarjeta de Tanques
+ * (feedback 2026-09-25: la versión chica en la franja "no se entendía
+ * sola"). Rojo hasta 12 h de autonomía, amarillo 13-20 h, verde de ahí
+ * para arriba - ver umbrales en panelProduccion.ts.
+ */
+function BannerGasoil({ litros }: { litros: number }) {
+  const horas = gasoilHorasDisponibles(litros)
+  const nivel = nivelGasoil(horas)
+
+  return (
+    <div
+      className={cn(
+        "mb-3 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold",
+        nivel === "danger"
+          ? "border-danger/40 bg-danger-soft text-danger-foreground"
+          : nivel === "warn"
+            ? "border-warning/40 bg-warning-soft text-warning-foreground"
+            : "border-success/40 bg-success-soft text-success-foreground",
+      )}
+    >
+      <Fuel className="size-4 shrink-0" />
+      {horas.toLocaleString("es-CO", { maximumFractionDigits: 1 })} horas de autonomía de gasoil
+      <span className="font-normal opacity-70">
+        · <span className="font-semibold">{litros.toLocaleString("es-CO")} L</span> a {GASOIL_CONSUMO_L_POR_HORA} L/h
+      </span>
+    </div>
+  )
+}
+
+/**
  * Servicios Industriales: Temperatura del Quantum / Agua Osmotizada —
  * franja angosta arriba de la grilla de Tanques (adentro del mismo
  * PanelCard, no una tarjeta propia — ver feedback del 2026-09-04:
@@ -1319,37 +1345,33 @@ function tiempoRelativo(fechaIso: string, ahora: Date): string {
  */
 function ServiciosIndustrialesFranja({ lectura, ahora }: { lectura: LecturaServiciosIndustriales | null; ahora: Date }) {
   return (
-    <div className="mb-3 flex items-center justify-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-2.5 py-1.5 text-xs">
-      <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-0.5">
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <Thermometer className="size-4 animate-pulse text-warning" />
-          Quantum:{" "}
-          <span className="num font-bold text-foreground">
-            {lectura?.temperaturaQuantum !== null && lectura?.temperaturaQuantum !== undefined ? `${lectura.temperaturaQuantum}°C` : "—"}
+    <>
+      {lectura?.gasoil !== null && lectura?.gasoil !== undefined && <BannerGasoil litros={lectura.gasoil} />}
+      <div className="mb-3 flex items-center justify-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-2.5 py-1.5 text-xs">
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-0.5">
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Thermometer className="size-4 animate-pulse text-warning" />
+            Quantum:{" "}
+            <span className="num font-bold text-foreground">
+              {lectura?.temperaturaQuantum !== null && lectura?.temperaturaQuantum !== undefined ? `${lectura.temperaturaQuantum}°C` : "—"}
+            </span>
           </span>
-        </span>
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <Droplets className="size-4 animate-pulse text-info" />
-          Agua Osmotizada:{" "}
-          <span className="num font-bold text-foreground">
-            {lectura?.aguaOsmotizada !== null && lectura?.aguaOsmotizada !== undefined ? `${lectura.aguaOsmotizada.toLocaleString("es-CO")} L` : "—"}
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Droplets className="size-4 animate-pulse text-info" />
+            Agua Osmotizada:{" "}
+            <span className="num font-bold text-foreground">
+              {lectura?.aguaOsmotizada !== null && lectura?.aguaOsmotizada !== undefined ? `${lectura.aguaOsmotizada.toLocaleString("es-CO")} L` : "—"}
+            </span>
           </span>
-        </span>
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <Fuel className="size-4 text-danger" />
-          Gasoil:{" "}
-          <span className="num font-bold text-foreground">
-            {lectura?.gasoil !== null && lectura?.gasoil !== undefined ? `${lectura.gasoil.toLocaleString("es-CO")} L` : "—"}
-          </span>
-        </span>
-        {lectura && (
-          <span className="text-[11px] text-muted-foreground/70">
-            {tiempoRelativo(lectura.actualizadoEn, ahora)}
-            {lectura.actualizadoPorNombre ? ` · ${lectura.actualizadoPorNombre}` : ""}
-          </span>
-        )}
+          {lectura && (
+            <span className="text-[11px] text-muted-foreground/70">
+              {tiempoRelativo(lectura.actualizadoEn, ahora)}
+              {lectura.actualizadoPorNombre ? ` · ${lectura.actualizadoPorNombre}` : ""}
+            </span>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

@@ -1,4 +1,4 @@
-import { duracionMin, type ClaseParada, type Parada } from "@/lib/paradas"
+import { type ClaseParada, type Parada } from "@/lib/paradas"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 
@@ -37,6 +37,13 @@ export function duracionBaseTurnoMin(turnoTipo: string | null | undefined): numb
 }
 
 const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
+
+/** Minutos de una parada que caen desde `desdeMs` en adelante (recorta el arranque si empezó antes) — para no contar el tramo de una parada anterior a la primera activación de la línea en el turno. */
+function duracionMinDesde(p: Pick<Parada, "inicio" | "fin">, desdeMs: number, ahora: Date): number {
+  const ini = Math.max(new Date(p.inicio).getTime(), desdeMs)
+  const fin = p.fin ? new Date(p.fin).getTime() : ahora.getTime()
+  return Math.max(0, Math.round((fin - ini) / 60000))
+}
 
 export interface EntradaEficiencia {
   /** Duración base del turno. */
@@ -188,9 +195,26 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     const corridasLinea = t.corridas.filter((c) => c.linea === codigo)
     if (corridasLinea.length === 0) continue
 
+    /*
+     * La línea puede haber arrancado su primera corrida del turno bien
+     * entrada la jornada (activación tardía, cambio de presentación
+     * largo, etc.). Si nadie cargó una Parada para ese hueco previo, no
+     * debe contarse como Disponible perdido de esta línea — el Ritmo
+     * caía a ~8% en líneas recién activadas por castigar un hueco que
+     * nadie tuvo que explicar. Disponible/Operativo "hasta ahora" de
+     * esta línea arrancan en su propia primera activación, nunca antes
+     * (decisión 2026-09-25). El turno completo (Meta, Avance) sigue
+     * igual: eso mide el compromiso del turno entero, no cambia acá.
+     */
+    const activacionesMs = corridasLinea.map((c) => new Date(c.activadaEn).getTime()).filter((ms) => !Number.isNaN(ms))
+    // activadaEn inválido/ausente en las 3 corridas: no se puede saber cuándo arrancó, se sigue midiendo desde el inicio del turno (comportamiento de antes).
+    const primeraActivacionMs = activacionesMs.length > 0 ? Math.min(...activacionesMs) : -Infinity
+    const minutosDesdeActivacion = Math.max(0, Math.round((ahora.getTime() - primeraActivacionMs) / 60000))
+    const transcurridoLineaMin = Math.min(transcurridoMin, minutosDesdeActivacion)
+
     const minutos: Record<ClaseParada, number> = { PROGRAMADA: 0, NO_PROGRAMADA: 0, OCIOSO: 0 }
     for (const p of t.paradas) {
-      if (numeroLinea(p.lineaCodigo) === numeroLinea(codigo)) minutos[p.clase] += duracionMin(p, ahora)
+      if (numeroLinea(p.lineaCodigo) === numeroLinea(codigo)) minutos[p.clase] += duracionMinDesde(p, primeraActivacionMs, ahora)
     }
 
     const ids = new Set(corridasLinea.map((c) => c.id))
@@ -210,7 +234,7 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
 
     const r = calcularEficiencia({
       turnoMin,
-      transcurridoMin,
+      transcurridoMin: transcurridoLineaMin,
       minutosProgramada: minutos.PROGRAMADA,
       minutosOcioso: minutos.OCIOSO,
       minutosNoProgramada: minutos.NO_PROGRAMADA,

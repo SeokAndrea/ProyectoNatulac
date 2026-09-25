@@ -67,6 +67,7 @@
     --color-flavor-red: var(--flavor-red);
     --color-flavor-green: var(--flavor-green);
     --color-flavor-lime: var(--flavor-lime);
+    --color-flavor-amber: var(--flavor-amber);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -109,6 +110,7 @@
     --flavor-red: oklch(0.58 0.22 26);
     --flavor-green: oklch(0.68 0.16 148);
     --flavor-lime: oklch(0.8 0.17 125);
+    --flavor-amber: oklch(0.77 0.17 70);
     --foreground: oklch(0.129 0.042 264.695);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.129 0.042 264.695);
@@ -160,6 +162,7 @@
     --flavor-red: oklch(0.63 0.22 26);
     --flavor-green: oklch(0.72 0.16 148);
     --flavor-lime: oklch(0.82 0.17 125);
+    --flavor-amber: oklch(0.79 0.17 70);
     --foreground: oklch(0.98 0.003 247.858);
     --card: oklch(0.245 0.022 258);
     --card-foreground: oklch(0.984 0.003 247.858);

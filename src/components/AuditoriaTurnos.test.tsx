@@ -8,7 +8,7 @@ import type { TurnoHistorial, TurnoResumen } from "@/lib/historialTurnos"
 
 const HOY = fechaLocal(new Date())
 
-function turnoAuditoria(detalle: TurnoHistorial, area: "ASEPTICO" | "VACIO" = "ASEPTICO"): TurnoAuditoria {
+function turnoAuditoria(detalle: TurnoHistorial, area: "ASEPTICO" | "MANTENIMIENTO" = "ASEPTICO"): TurnoAuditoria {
   return {
     detalle,
     resumen: {
@@ -134,7 +134,7 @@ describe("AuditoriaTurnos", () => {
     const user = userEvent.setup()
     render7dias([
       turnoAuditoria(turnoSano({ id: "t1", supervisorUsuario: "drojas", supervisorNombre: "Deivis Rojas", codigo: "0902-A-3" })),
-      turnoAuditoria(turnoSano({ id: "t2", supervisorUsuario: "kmendez", supervisorNombre: "Karla Méndez", codigo: "0902-V-3" }), "VACIO"),
+      turnoAuditoria(turnoSano({ id: "t2", supervisorUsuario: "kmendez", supervisorNombre: "Karla Méndez", codigo: "0902-M-3" }), "MANTENIMIENTO"),
     ])
 
     await user.type(screen.getByPlaceholderText(/Buscar/), "Karla")

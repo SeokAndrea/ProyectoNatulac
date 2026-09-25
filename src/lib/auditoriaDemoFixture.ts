@@ -201,10 +201,10 @@ const detalles: TurnoHistorial[] = [
     productoTerminado: [pt({ id: "pt1", linea: "LINEA_1", creadoEn: "14:30:00", corridaId: "c1", saborNombre: "Mora", paletas: 17, cajasSueltas: 60 })],
   }),
 
-  // HOY · Turno 1 · Vacío · Lucía
+  // HOY · Turno 1 · Mantenimiento · Lucía
   turnoDemo({
     id: "t2",
-    codigo: `${mmdd(HOY)}-V-1`,
+    codigo: `${mmdd(HOY)}-M-1`,
     fecha: HOY,
     horaInicio: "07:00:00",
     turnoTipo: "TURNO_1",
@@ -285,10 +285,10 @@ const detalles: TurnoHistorial[] = [
     ],
   }),
 
-  // AYER · Turno 3 · Vacío · Karla
+  // AYER · Turno 3 · Mantenimiento · Karla
   turnoDemo({
     id: "t5",
-    codigo: `${mmdd(AYER)}-V-3`,
+    codigo: `${mmdd(AYER)}-M-3`,
     fecha: AYER,
     horaInicio: "22:30:00",
     turnoTipo: "TURNO_3",
@@ -319,10 +319,10 @@ const detalles: TurnoHistorial[] = [
     productoTerminado: [pt({ id: "pt7", linea: "LINEA_1", creadoEn: `${NOCHE_ANTEAYER}T03:10:00`, corridaId: "c7", saborNombre: "Guayaba", paletas: 12, cajasSueltas: 35 })],
   }),
 
-  // ANTEAYER · Turno 2 · Vacío · Karla
+  // ANTEAYER · Turno 2 · Mantenimiento · Karla
   turnoDemo({
     id: "t7",
-    codigo: `${mmdd(ANTEAYER)}-V-2`,
+    codigo: `${mmdd(ANTEAYER)}-M-2`,
     fecha: ANTEAYER,
     horaInicio: "15:00:00",
     turnoTipo: "TURNO_2",
@@ -373,14 +373,14 @@ function cuadrarNumeros(turno: TurnoHistorial) {
 
 detalles.forEach(cuadrarNumeros)
 
-const AREA_POR_TURNO: Record<string, "ASEPTICO" | "VACIO"> = {
+const AREA_POR_TURNO: Record<string, "ASEPTICO" | "MANTENIMIENTO"> = {
   t1: "ASEPTICO",
-  t2: "VACIO",
+  t2: "MANTENIMIENTO",
   t3: "ASEPTICO",
   t4: "ASEPTICO",
-  t5: "VACIO",
+  t5: "MANTENIMIENTO",
   t6: "ASEPTICO",
-  t7: "VACIO",
+  t7: "MANTENIMIENTO",
 }
 
 export const TURNOS_DEMO: TurnoAuditoria[] = detalles.map((detalle) => ({

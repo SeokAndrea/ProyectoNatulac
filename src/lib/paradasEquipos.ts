@@ -36,11 +36,8 @@ export interface EquipoParada {
   lineas: LineaDeEquipo[]
 }
 
-/** Áreas de producción y sus 3 líneas, para asignar equipos. */
-export const AREAS_EQUIPOS = [
-  { codigo: "ASEPTICO", nombre: "Aséptico" },
-  { codigo: "VACIO", nombre: "Vacío" },
-] as const
+/** Áreas de producción y sus 3 líneas, para asignar equipos. Vacío se sacó el 2026-09-25 (nunca se usó). */
+export const AREAS_EQUIPOS = [{ codigo: "ASEPTICO", nombre: "Aséptico" }] as const
 export const LINEAS_EQUIPOS = ["LINEA_1", "LINEA_2", "LINEA_3"] as const
 
 export const nombreLinea = (codigo: string) => `Línea ${codigo.replace(/^LINEA_T?/, "")}`
@@ -93,7 +90,7 @@ export function useErrorEquipos(): string | null {
 }
 
 /**
- * Equipos activos de una línea. `area` = área del usuario (ASEPTICO / VACIO);
+ * Equipos activos de una línea. `area` = área del usuario (ASEPTICO);
  * el Área de Pruebas (o sin área) ve todos, igual que el servidor.
  */
 export function equiposDeLinea(

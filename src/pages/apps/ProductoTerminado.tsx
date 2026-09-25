@@ -8,7 +8,6 @@ import {
   ChevronDown,
   Citrus,
   Droplets,
-  Grape,
   Leaf,
   Loader2,
   PackageCheck,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
+import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,6 +29,7 @@ import { nivelMerma } from "@/lib/estadisticas"
 import { cn } from "@/lib/utils"
 import { LIMITE_MERMA } from "@/lib/turno"
 import { useSesionTurno } from "@/lib/sesionTurno"
+import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
@@ -42,9 +43,9 @@ const LIMITE_MERMA_PCT = LIMITE_MERMA * 100
 /** Ícono + color por sabor (por nombre de fruta) — mismo criterio de color que el Panel de Producción, con un ícono cuando hay uno razonable. */
 const FRUTA_INFO: Array<{ prueba: RegExp; Icono: typeof Apple; color: string }> = [
   { prueba: /manzana/i, Icono: Apple, color: "var(--flavor-red)" },
-  { prueba: /uva/i, Icono: Grape, color: "var(--flavor-red)" },
   { prueba: /durazno/i, Icono: Cherry, color: "var(--flavor-yellow)" },
-  { prueba: /(naranja|mango)/i, Icono: Citrus, color: "var(--flavor-orange)" },
+  { prueba: /naranja/i, Icono: Citrus, color: "var(--flavor-orange)" },
+  { prueba: /mango/i, Icono: Citrus, color: "var(--flavor-amber)" },
   { prueba: /pera/i, Icono: Leaf, color: "var(--flavor-green)" },
 ]
 const COLORES_SABOR_FALLBACK = ["var(--flavor-orange)", "var(--flavor-green)", "var(--flavor-red)", "var(--flavor-yellow)"]
@@ -82,16 +83,28 @@ function normalizarLote(lote: string | null): string | null {
  */
 export default function ProductoTerminado() {
   const sesion = useSesionTurno()
+  const {
+    turnoIdEfectivo: turnoIdCorreccion,
+    cargando: cargandoCorreccion,
+    enModoCorreccion,
+    turnoCorregido,
+    errorCorreccion,
+    salirDeCorreccion,
+  } = useTurnoEfectivo()
   /*
    * Ventana de gracia (15 min, ver TurnoGraciaPT en sesionTurno.tsx):
    * si el turno propio ya cerró pero sigue dentro de la gracia, esta
    * página se usa igual — pero SOLO para Producto Terminado (soloPT
    * más abajo apaga Contador y Terminar/Entregar línea en
    * FilaProductoTerminado). Evita que un supervisor ansioso que
-   * finalizó el turno le tape a otro la carga de su PT.
+   * finalizó el turno le tape a otro la carga de su PT. Modo corrección
+   * (superadmin, ?turnoId=) tiene la misma restricción soloPT — el
+   * guard nuevo en el servidor solo cubre registrar_producto_terminado,
+   * no Contador/Entregar/Terminar (ver Fuera de alcance en el plan).
    */
-  const enGraciaPT = !sesion.turnoId && sesion.turnoGraciaPT !== null
-  const turnoIdEfectivo = sesion.turnoId ?? sesion.turnoGraciaPT?.turnoId ?? null
+  const enGraciaPT = !enModoCorreccion && !sesion.turnoId && sesion.turnoGraciaPT !== null
+  const turnoIdEfectivo = enModoCorreccion ? turnoIdCorreccion : (sesion.turnoId ?? sesion.turnoGraciaPT?.turnoId ?? null)
+  const soloPT = enGraciaPT || enModoCorreccion
   const {
     corridas,
     contadores,
@@ -109,7 +122,7 @@ export default function ProductoTerminado() {
     cargando: cargandoPreparacion,
   } = usePreparacion(turnoIdEfectivo)
   const { lineas, presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
-  const cargando = sesion.cargando || cargandoProduccion || cargandoPT || cargandoPreparacion
+  const cargando = sesion.cargando || cargandoCorreccion || cargandoProduccion || cargandoPT || cargandoPreparacion
 
   // Cargar PT baja preparaciones.volumen_l en el servidor, pero esta
   // página lee el volumen del tanque de usePreparacion() — un hook
@@ -129,6 +142,23 @@ export default function ProductoTerminado() {
       <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado" fullWidth>
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (errorCorreccion) {
+    return (
+      <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado" fullWidth>
+        <EmptyState
+          icon={PackageCheck}
+          title="Ese turno no se pudo abrir"
+          description="No se encontró, o ya no es el turno inmediatamente anterior al actual de esa área."
+        />
+        <div className="mt-4 flex justify-center">
+          <Button asChild>
+            <Link to="/auditoria">Volver a Auditoría</Link>
+          </Button>
         </div>
       </AppShell>
     )
@@ -172,15 +202,29 @@ export default function ProductoTerminado() {
   return (
     <AppShell
       title="Producto Terminado y Contador"
-      description={enGraciaPT ? `Turno ${sesion.turnoGraciaPT?.codigo} — ya cerrado` : `Turno ${sesion.codigo}`}
+      description={
+        enModoCorreccion
+          ? `Turno ${turnoCorregido?.codigo} (corrección)`
+          : enGraciaPT
+            ? `Turno ${sesion.turnoGraciaPT?.codigo} — ya cerrado`
+            : `Turno ${sesion.codigo}`
+      }
       fullWidth
     >
       <div className="flex flex-col gap-3">
+        {enModoCorreccion && turnoCorregido && <ModoCorreccionBanner turno={turnoCorregido} onSalir={salirDeCorreccion} />}
         {enGraciaPT && (
           <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
             <AlertTriangle className="size-4 shrink-0" />
             Este turno ya se cerró — quedan unos minutos para terminar de cargar el Producto Terminado (Paletas / Cajas
             sueltas). Contador y Terminar/Entregar línea ya no se pueden tocar acá.
+          </p>
+        )}
+        {enModoCorreccion && (
+          <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+            <AlertTriangle className="size-4 shrink-0" />
+            En modo corrección solo se puede cargar Producto Terminado acá — Contador y Terminar/Entregar línea no
+            están disponibles para un turno ya cerrado.
           </p>
         )}
         {pendientes.length === 0 && cerradas.length > 0 && (
@@ -201,7 +245,7 @@ export default function ProductoTerminado() {
           onEntregarCorrida={entregarCorrida}
           onTerminarSabor={terminarSaborLinea}
           onMedirTanque={medirTanque}
-          soloPT={enGraciaPT}
+          soloPT={soloPT}
         />
 
         {cerradas.length > 0 && (
@@ -218,7 +262,7 @@ export default function ProductoTerminado() {
             onEntregarCorrida={entregarCorrida}
             onTerminarSabor={terminarSaborLinea}
             onMedirTanque={medirTanque}
-            soloPT={enGraciaPT}
+            soloPT={soloPT}
           />
         )}
       </div>

@@ -6,7 +6,16 @@ import { RevisionInicioTurno } from "@/components/RevisionInicioTurno"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { GRUPOS, TURNO_TIPOS, nombrePorCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
@@ -156,12 +165,20 @@ function FormularioNuevoTurno({
                 <SelectValue placeholder="Selecciona un turno" />
               </SelectTrigger>
               <SelectContent>
-                {TURNO_TIPOS.map((t) => (
-                  <SelectItem key={t.codigo} value={t.codigo}>
-                    {t.nombre}
-                    {t.horario ? ` · ${t.horario}` : ""}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectLabel>Turno normal</SelectLabel>
+                  {TURNO_TIPOS.filter((t) => t.codigo !== "12X12").map((t) => (
+                    <SelectItem key={t.codigo} value={t.codigo}>
+                      {t.nombre}
+                      {t.horario ? ` · ${t.horario}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel>Cobertura especial</SelectLabel>
+                  <SelectItem value="12X12">12x12</SelectItem>
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>

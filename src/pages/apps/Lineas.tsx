@@ -3,8 +3,9 @@ import { Beaker, Factory, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { LineasEstadoPlanta } from "@/components/LineasEstadoPlanta"
+import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
 import { Button } from "@/components/ui/button"
-import { useSesionTurno } from "@/lib/sesionTurno"
+import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 
 /*
  * Líneas: activar/detener corridas de las 3 líneas (ver
@@ -15,7 +16,8 @@ import { useSesionTurno } from "@/lib/sesionTurno"
  * debe ser su propia página como tal".
  */
 export default function Lineas() {
-  const { turnoId, codigo, cargando } = useSesionTurno()
+  const { turnoIdEfectivo, cargando, enModoCorreccion, turnoCorregido, errorCorreccion, salirDeCorreccion } =
+    useTurnoEfectivo()
 
   if (cargando) {
     return (
@@ -27,7 +29,24 @@ export default function Lineas() {
     )
   }
 
-  if (!turnoId) {
+  if (errorCorreccion) {
+    return (
+      <AppShell title="Líneas" description="Corridas de la planta" fullWidth>
+        <EmptyState
+          icon={Factory}
+          title="Ese turno no se pudo abrir"
+          description="No se encontró, o ya no es el turno inmediatamente anterior al actual de esa área."
+        />
+        <div className="mt-4 flex justify-center">
+          <Button asChild>
+            <Link to="/auditoria">Volver a Auditoría</Link>
+          </Button>
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (!turnoIdEfectivo) {
     return (
       <AppShell title="Líneas" description="Corridas de la planta" fullWidth>
         <EmptyState
@@ -45,12 +64,19 @@ export default function Lineas() {
   }
 
   return (
-    <AppShell title="Líneas" description={`Turno ${codigo}`} fullWidth>
+    <AppShell
+      title="Líneas"
+      description={enModoCorreccion ? `Turno ${turnoCorregido?.codigo} (corrección)` : "Corridas de la planta"}
+      fullWidth
+    >
       <div className="flex flex-col gap-4">
-        <LineasEstadoPlanta modo="preparacion" />
+        {enModoCorreccion && turnoCorregido && (
+          <ModoCorreccionBanner turno={turnoCorregido} onSalir={salirDeCorreccion} />
+        )}
+        <LineasEstadoPlanta modo="preparacion" turnoId={turnoIdEfectivo} />
         <div className="flex justify-center">
           <Button asChild variant="outline">
-            <Link to="/preparacion">
+            <Link to={enModoCorreccion ? `/preparacion?turnoId=${turnoIdEfectivo}` : "/preparacion"}>
               <Beaker className="size-3.5" />
               Ir a Preparación
             </Link>

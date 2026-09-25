@@ -98,7 +98,7 @@ export function RegistroParadas({
   onRegistrar,
   area,
 }: {
-  /** Área del usuario (ASEPTICO / VACIO / PRUEBAS): decide qué equipos aparecen en la parada mecánica. */
+  /** Área del usuario (ASEPTICO / PRUEBAS): decide qué equipos aparecen en la parada mecánica. */
   area?: string | null
   paradas: Parada[]
   /** Guarda la parada en el servidor. Devuelve el mensaje de error, o null si salió bien. Sin esto, todo queda en memoria. */

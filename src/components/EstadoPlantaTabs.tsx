@@ -100,7 +100,16 @@ export type ModoEstadoPlanta = "status" | "preparacion"
  * mismo (corridaActivaEnEsteTanque, más abajo) — por eso llama a
  * useProduccion() acá adentro, sin usar ninguna de sus mutaciones.
  */
-export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: ModoEstadoPlanta }) {
+export function EstadoPlantaTabs({
+  sabores,
+  modo,
+  turnoId: turnoIdProp,
+}: {
+  sabores: Sabor[]
+  modo: ModoEstadoPlanta
+  /** Turno a mostrar/editar — omitido usa el turno en vivo (ver usePreparacion). Superadmin en modo corrección lo pisa. */
+  turnoId?: string | null
+}) {
   const { session } = useAuth()
   const {
     tanques,
@@ -116,9 +125,10 @@ export function EstadoPlantaTabs({ sabores, modo }: { sabores: Sabor[]; modo: Mo
     desvasarTanque,
     medirTanque,
     capturarRestoOrigenTransferencia,
-  } = usePreparacion()
-  const { corridas, cargando: cargandoProduccion } = useProduccion()
-  const { turnoId } = useSesionTurno()
+  } = usePreparacion(turnoIdProp)
+  const { corridas, cargando: cargandoProduccion } = useProduccion(turnoIdProp)
+  const sesion = useSesionTurno()
+  const turnoId = turnoIdProp === undefined ? sesion.turnoId : turnoIdProp
 
   if (cargando || cargandoProduccion) {
     return (
@@ -624,6 +634,12 @@ function TanqueCard({
               volumenRestante={
                 tanque.condicion === "LISTO" || tanque.condicion === "STANDBY" ? (tanque.volumenL ?? 0) : 0
               }
+              saborRestanteId={
+                tanque.condicion === "LISTO" || tanque.condicion === "STANDBY" ? tanque.saborId : null
+              }
+              saborRestanteNombre={
+                tanque.condicion === "LISTO" || tanque.condicion === "STANDBY" ? tanque.saborNombre : null
+              }
               areaCodigo={areaCodigo}
               usuarioSesion={usuarioSesion}
               onIniciar={async (datos) => {
@@ -994,6 +1010,8 @@ function FormularioIniciarPreparacion({
   numeroTanque,
   sabores,
   volumenRestante,
+  saborRestanteId,
+  saborRestanteNombre,
   areaCodigo,
   usuarioSesion,
   onIniciar,
@@ -1003,6 +1021,9 @@ function FormularioIniciarPreparacion({
   sabores: Sabor[]
   /** Litros que ya están físicamente en el tanque (resto de Standby) — se suman al nuevo lote, no desaparecen. */
   volumenRestante: number
+  /** Sabor de ese resto (null si el tanque está vacío) — para avisar si el sabor nuevo no coincide. */
+  saborRestanteId: string | null
+  saborRestanteNombre: string | null
   areaCodigo: string | null
   usuarioSesion: string
   onIniciar: (datos: DatosIniciarPreparacion) => Promise<Resultado>
@@ -1018,6 +1039,7 @@ function FormularioIniciarPreparacion({
   const [desvaseId, setDesvaseId] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [confirmandoSaborDistinto, setConfirmandoSaborDistinto] = useState(false)
 
   useEffect(() => {
     setDesvaseId("")
@@ -1028,6 +1050,10 @@ function FormularioIniciarPreparacion({
     listarDesvases(usuarioSesion, areaCodigo, saborId).then(setDesvasesGuardados)
   }, [saborId, areaCodigo, usuarioSesion])
 
+  useEffect(() => {
+    setConfirmandoSaborDistinto(false)
+  }, [saborId])
+
   const saborElegido = sabores.find((s) => s.id === saborId)
   const unidadPrep = unidadPreparacion(saborElegido ? `${saborElegido.nombre} ${saborElegido.familiaNombre}` : null)
   const desvaseElegido = desvasesGuardados.find((r) => r.id === desvaseId)
@@ -1037,10 +1063,18 @@ function FormularioIniciarPreparacion({
       : null
   const excedeCapacidad = litrosEstimados !== null && litrosEstimados > TANK_CAPACITY
 
+  /** Se está preparando encima de un resto de OTRO sabor — se va a mezclar en silencio si no se confirma. */
+  const saborDistintoDelResto =
+    volumenRestante > 0 && saborRestanteId !== null && saborId !== "" && saborId !== saborRestanteId
+
   const valido = saborId !== "" && lote.trim() !== "" && tambores !== "" && Number(tambores) >= 0 && !excedeCapacidad
 
   async function handleSubmit() {
     if (!valido) return
+    if (saborDistintoDelResto && !confirmandoSaborDistinto) {
+      setConfirmandoSaborDistinto(true)
+      return
+    }
     setEnviando(true)
     setError(null)
     const resultado = await onIniciar({
@@ -1126,6 +1160,13 @@ function FormularioIniciarPreparacion({
         </p>
       )}
 
+      {saborDistintoDelResto && (
+        <p className="text-xs font-medium text-destructive" role="alert">
+          Quedan {volumenRestante.toLocaleString("es-CO")} L de {saborRestanteNombre} en el tanque — se van a
+          mezclar en silencio con el {saborElegido?.nombre} nuevo.
+        </p>
+      )}
+
       {error && (
         <p className="text-xs text-destructive" role="alert">
           {error}
@@ -1133,11 +1174,20 @@ function FormularioIniciarPreparacion({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={!valido || enviando} onClick={handleSubmit}>
+        <Button
+          size="sm"
+          variant={confirmandoSaborDistinto ? "destructive" : "default"}
+          disabled={!valido || enviando}
+          onClick={handleSubmit}
+        >
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
-          Iniciar Preparación
+          {confirmandoSaborDistinto ? "¿Seguro? Sí, mezclar y preparar" : "Iniciar Preparación"}
         </Button>
-        <Button size="sm" variant="ghost" onClick={onCancelar}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={confirmandoSaborDistinto ? () => setConfirmandoSaborDistinto(false) : onCancelar}
+        >
           Cancelar
         </Button>
       </div>

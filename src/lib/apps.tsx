@@ -18,6 +18,7 @@ import {
   FlaskConical,
   Scale,
   BookOpen,
+  Droplets,
 } from "lucide-react"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 
@@ -46,7 +47,7 @@ export interface AppDef {
   /**
    * Si se define, la tarjeta NO aparece para usuarios de estas áreas,
    * aunque su rol sí califique (ej. Servicios Industriales usa el rol
-   * SUPERVISOR — igual que Aséptico/Vacío — pero no tiene que ver
+   * SUPERVISOR — igual que Aséptico — pero no tiene que ver
    * corridas de producción: Comenzar Turno, Preparación, Líneas,
    * Producto Terminado, Finalizar Turno, Mis Actas y Programación
    * quedan afuera para esa área). Tiene que coincidir con el
@@ -63,6 +64,8 @@ export interface AppDef {
   color?: "success" | "blue" | "purple" | "warning" | "danger"
   /** Si es true, la tarjeta solo aparece para usuarios con usuarios.ve_errores = true (flag aparte del rol, ver session.veErrores y migración 20261047090000) — hoy solo el dueño. Tiene que coincidir con el requiereVeErrores de la misma ruta en src/App.tsx. */
   veErroresSolo?: boolean
+  /** Si se define, la tarjeta solo aparece para ese username exacto (case-insensitive), sin importar rol o área — para vistas de prueba de un solo usuario. Tiene que coincidir con el usuarioPermitido de la misma ruta en src/App.tsx. */
+  usuarioPermitido?: string
   /**
    * Grupo bajo el que aparece la tarjeta en la grilla principal del hub,
    * con un separador y título arriba (ver Hub.tsx). Sin esta propiedad,
@@ -290,6 +293,16 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     rolesPermitidos: ["SUPERADMINISTRADOR"],
     seccion: "base-datos",
+  },
+  {
+    slug: "preparacion-plc",
+    title: "Llenado PLC (prueba)",
+    description: "Litros y válvulas en vivo del PLC de Preparación — vista de prueba, en simulación.",
+    href: "/preparacion-plc",
+    icon: Droplets,
+    requiereTurno: false,
+    usuarioPermitido: "arondon",
+    atajo: true,
   },
   {
     slug: "errores",

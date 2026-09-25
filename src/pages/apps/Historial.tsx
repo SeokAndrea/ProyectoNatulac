@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { ChevronLeft, Download, FileText, Loader2, Trash2 } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { ChevronLeft, Download, FileText, Loader2, Trash2, Wrench } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { AuditoriaTurnos, type TurnoAuditoria } from "@/components/AuditoriaTurnos"
 import { RegistroCambios } from "@/components/RegistroCambios"
@@ -46,6 +47,7 @@ import {
  */
 export default function Historial() {
   const { session } = useAuth()
+  const navigate = useNavigate()
   const { lineas, presentaciones, velocidades } = useCatalogosLive()
   const esSuperadmin = session?.rol === "SUPERADMINISTRADOR"
 
@@ -335,7 +337,15 @@ export default function Historial() {
           cargando={cargando}
           onRangoChange={handleRangoChange}
           accionesTurno={(t) => (
-            <AccionesTurno acta={actasPorTurno.get(t.resumen.id)} onAbrir={() => verDetalle(t.resumen)} />
+            <AccionesTurno
+              acta={actasPorTurno.get(t.resumen.id)}
+              onAbrir={() => verDetalle(t.resumen)}
+              onCorregir={
+                esSuperadmin && t.resumen.estado === "CERRADO"
+                  ? () => navigate(`/preparacion?turnoId=${t.resumen.id}`)
+                  : undefined
+              }
+            />
           )}
         />
 
@@ -403,8 +413,9 @@ export default function Historial() {
   )
 }
 
-/** Acciones de una fila de supervisor: link al acta vigente (si hay) y "Abrir" el detalle del turno. */
-function AccionesTurno({ acta, onAbrir }: { acta?: Acta; onAbrir: () => void }) {
+/** Acciones de una fila de supervisor: link al acta vigente (si hay), "Abrir" el detalle del turno, y para
+ *  SUPERADMINISTRADOR sobre un turno CERRADO, "Corregir este turno" (modo corrección, ver Preparación). */
+function AccionesTurno({ acta, onAbrir, onCorregir }: { acta?: Acta; onAbrir: () => void; onCorregir?: () => void }) {
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       {acta && (
@@ -413,6 +424,12 @@ function AccionesTurno({ acta, onAbrir }: { acta?: Acta; onAbrir: () => void }) 
             <FileText className="size-3.5" />
             Acta
           </a>
+        </Button>
+      )}
+      {onCorregir && (
+        <Button size="sm" variant="ghost" onClick={onCorregir}>
+          <Wrench className="size-3.5" />
+          Corregir este turno
         </Button>
       )}
       <Button size="sm" variant="outline" onClick={onAbrir}>

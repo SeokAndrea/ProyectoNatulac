@@ -28,8 +28,8 @@ describe("tiposDeLinea", () => {
   it("Línea 2 de Aséptico: con Paletas Vacías, sin Falta de operador ni Cap", () => {
     expect(nombres(tiposDeLinea(todos, equipos, "ASEPTICO", "LINEA_2"))).toEqual(["Falta de Paletas Vacías", "Feriado", "Atasco de la Cadena"])
   })
-  it("Vacío no se ve afectado por las filas de Aséptico", () => {
-    expect(nombres(tiposDeLinea([paletas, operador, feriado], equipos, "VACIO", "LINEA_2"))).toEqual(["Falta de Paletas Vacías", "Falta de operador", "Feriado"])
+  it("Mantenimiento no se ve afectado por las filas de Aséptico", () => {
+    expect(nombres(tiposDeLinea([paletas, operador, feriado], equipos, "MANTENIMIENTO", "LINEA_2"))).toEqual(["Falta de Paletas Vacías", "Falta de operador", "Feriado"])
   })
   it("el Área de Pruebas ve todo", () => {
     expect(tiposDeLinea(todos, equipos, "PRUEBAS", "LINEA_T2")).toHaveLength(5)

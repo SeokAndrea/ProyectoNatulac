@@ -92,10 +92,19 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
   const [cargando, setCargando] = useState(true)
 
   async function recargar() {
-    // area null (SUPERADMINISTRADOR o todavía sin sesión) = sin filtrar,
-    // mismo comportamiento que antes de que existiera el filtro.
+    // area null (SUPERADMINISTRADOR o todavía sin sesión) = sin filtrar.
+    // Servicios Industriales es un área de apoyo sin líneas propias, pero
+    // el Panel de Producción (la única pantalla de producción a la que
+    // entra) necesita ver las líneas de Aséptico igual que un supervisor
+    // — filtrar por su propia área devolvía [] siempre. OJO: acá no vale
+    // pasar null como con el Super Admin — listar_lineas(null) no excluye
+    // Pruebas (a diferencia de estado_planta_actual), así que Servicios
+    // Industriales vería también las líneas de Pruebas mezcladas. Aséptico
+    // es la única área productiva real que queda (Vacío se eliminó del
+    // todo el 2026-09-25), así que se filtra directo a esa.
+    const areaCatalogo = session?.area === "SERVICIOS_INDUSTRIALES" ? "ASEPTICO" : (session?.area ?? null)
     const [lineasRes, presentacionesRes, velocidadesRes] = await Promise.all([
-      supabase.rpc("listar_lineas", { p_area_codigo: session?.area ?? null }),
+      supabase.rpc("listar_lineas", { p_area_codigo: areaCatalogo }),
       supabase.rpc("listar_presentaciones"),
       supabase.rpc("listar_velocidades"),
     ])

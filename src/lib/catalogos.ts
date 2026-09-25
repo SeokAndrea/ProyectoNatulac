@@ -13,9 +13,10 @@
  * login (src/lib/auth.tsx) y en la gestión de personal
  * (src/components/PersonalPanel.tsx).
  */
+// Vacío se sacó del todo el 2026-09-25: nunca se usó y no se va a usar
+// (ver supabase/migrations/20261079090000_eliminar_area_vacio.sql).
 export const AREAS = [
   { codigo: "ASEPTICO", nombre: "Producción Aséptico" },
-  { codigo: "VACIO", nombre: "Producción Vacío" },
   { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales" },
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
   { codigo: "PRUEBAS", nombre: "Área de Pruebas" },

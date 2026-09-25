@@ -25,6 +25,7 @@ import Validar from "@/pages/apps/Validar"
 import ServiciosIndustriales from "@/pages/apps/ServiciosIndustriales"
 import RegistrosServiciosIndustriales from "@/pages/apps/RegistrosServiciosIndustriales"
 import ErroresCliente from "@/pages/apps/ErroresCliente"
+import PreparacionPLC from "@/pages/apps/PreparacionPLC"
 import AuditoriaDemo from "@/pages/apps/AuditoriaDemo"
 import ValidarDemo from "@/pages/apps/ValidarDemo"
 import ParadasDemo from "@/pages/apps/ParadasDemo"
@@ -241,6 +242,14 @@ export default function App() {
           element={
             <ProtectedRoute requiereVeErrores>
               <ErroresCliente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/preparacion-plc"
+          element={
+            <ProtectedRoute usuarioPermitido="arondon">
+              <PreparacionPLC />
             </ProtectedRoute>
           }
         />

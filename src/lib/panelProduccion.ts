@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase"
 import { mapearTurno, mermaCorrida, type FilaTurno, type TurnoActivo } from "@/lib/turno"
 import { horaPlanta } from "@/lib/tiempoPlanta"
 import type { PresentacionLive } from "@/lib/catalogosLive"
+import type { NivelMerma } from "@/lib/estadisticas"
 
 /*
  * Panel de Producción: estado actual de la planta (o histórico por
@@ -116,6 +117,25 @@ function mapearLecturaServiciosIndustriales(r: FilaLecturaServiciosIndustriales)
     actualizadoEn: r.actualizado_en,
     actualizadoPorNombre: r.actualizado_por_nombre,
   }
+}
+
+/*
+ * Semáforo de Gasoil: cuántas horas de tanque quedan al consumo de la
+ * planta durante un corte de luz. Pedido de Jorge (2026-09-25): los
+ * cortes en Vzla vienen creciendo (4h → 5h → 6h) y pueden seguir
+ * subiendo, así que los umbrales quedan como constantes sueltas acá
+ * (no en la base) para poder subirlos rápido si vuelve a pasar.
+ */
+export const GASOIL_CONSUMO_L_POR_HORA = 140
+export const GASOIL_UMBRAL_ROJO_HORAS = 12
+export const GASOIL_UMBRAL_VERDE_HORAS = 20
+
+export function gasoilHorasDisponibles(litros: number): number {
+  return litros / GASOIL_CONSUMO_L_POR_HORA
+}
+
+export function nivelGasoil(horas: number): NivelMerma {
+  return horas <= GASOIL_UMBRAL_ROJO_HORAS ? "danger" : horas <= GASOIL_UMBRAL_VERDE_HORAS ? "warn" : "ok"
 }
 
 export async function obtenerLecturaServiciosIndustriales(): Promise<LecturaServiciosIndustriales | null> {

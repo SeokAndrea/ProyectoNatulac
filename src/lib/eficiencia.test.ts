@@ -131,8 +131,10 @@ describe("calcularEficiencia — en vivo (ritmo)", () => {
   })
 })
 
-const corrida = (id: string, linea: string, envasesHora: number, activa = true, presentacion = "250"): Corrida =>
-  ({ id, linea, presentacion, envasesHora, activa }) as unknown as Corrida
+// activadaEn por defecto = inicio del turno de estos tests (TURNO_1 07:00→15:00, ver `base.ahora`),
+// para que las corridas "de siempre" sigan representando una línea activa desde el arranque del turno.
+const corrida = (id: string, linea: string, envasesHora: number, activa = true, presentacion = "250", activadaEn = "2026-09-21T07:00:00"): Corrida =>
+  ({ id, linea, presentacion, envasesHora, activa, activadaEn }) as unknown as Corrida
 const contador = (corridaId: string, envasesLlenadora: number): ContadorRegistro =>
   ({ corridaId, envasesLlenadora }) as unknown as ContadorRegistro
 const parada = (lineaCodigo: string, clase: Parada["clase"], minutos: number): Parada => ({
@@ -223,6 +225,38 @@ describe("eficienciaDelTurno", () => {
       paradas: [parada("LINEA_1", "OCIOSO", 30)],
     })
     expect(r.porLinea.get("LINEA_T1")?.disponibleMin).toBe(450)
+  })
+
+  it("línea que arranca su primera corrida tarde, sin parada cargada para el hueco previo: el Ritmo se mide desde su propia activación, no desde el inicio del turno", () => {
+    // Turno de 8 h (07:00→15:00), línea recién activada a las 13:00 (2 h antes del cierre) y
+    // corriendo perfecto desde entonces — sin ninguna Parada que explique las primeras 6 h sin
+    // corrida. Antes de este fix, Disponible tomaba las 8 h completas del turno y el Ritmo se
+    // hundía aunque la línea nunca dejó de cumplir desde que arrancó.
+    const r = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("a", "LINEA_1", 9000, true, "250", "2026-09-21T13:00:00")],
+      contadores: [contador("a", 18000)], // exactamente 2 h a 9.000 env/h
+      paradas: [],
+    })
+    expect(r.porLinea.get("LINEA_1")?.disponibleAhoraMin).toBe(120)
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
+    // La Meta (turno completo) no cambia: sigue siendo contra las 8 h del turno.
+    expect(r.porLinea.get("LINEA_1")?.metaEnvases).toBe(72000)
+  })
+
+  it("línea que arranca tarde pero SÍ tiene una parada cargada para el hueco previo: no se descuenta dos veces", () => {
+    // Misma línea de arriba (activa a las 13:00), pero acá el supervisor sí cargó una Parada
+    // Programada de 07:00 a 13:00 explicando el hueco — el recorte por activación no debe
+    // restar ESE tramo dos veces (ni contarlo tampoco: ya quedó fuera de Disponible por la propia
+    // activación tardía).
+    const r = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("a", "LINEA_1", 9000, true, "250", "2026-09-21T13:00:00")],
+      contadores: [contador("a", 18000)],
+      paradas: [{ ...parada("LINEA_1", "PROGRAMADA", 0), inicio: "2026-09-21T07:00:00", fin: "2026-09-21T13:00:00" }],
+    })
+    expect(r.porLinea.get("LINEA_1")?.disponibleAhoraMin).toBe(120)
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
   })
 
   it("el turno 12x12 no se calcula", () => {
