@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useState } from "react"
-import { Ban, Check, KeyRound, Loader2, Pencil, RotateCcw, Search, Trash2, UserPlus, X } from "lucide-react"
+import { Ban, Check, KeyRound, Loader2, Pencil, RotateCcw, Search, ShieldPlus, Trash2, UserPlus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { AREAS, CARGOS, ROLES, nombrePorCodigo, type AreaCodigo, type CargoCodigo, type RolCodigo } from "@/lib/catalogos"
 import { useAuth } from "@/lib/auth"
+import { PERMISOS, type Permiso } from "@/lib/permisos"
 import {
   agregarPersonal,
   desactivarPersonal,
   editarPersonal,
   eliminarPersonal,
+  guardarPermisosExtra,
+  listarDuenos,
+  listarPermisosExtra,
   listarPersonal,
+  permisosPorRol,
   reactivarPersonal,
   restablecerPassword,
   type PersonalRegistrado,
@@ -27,18 +33,14 @@ const SIN_AREA_ORIGEN = "__ninguna__"
 const SIN_CARGO = "__ninguno__"
 
 /*
- * Gestión de personal, la pestaña "Personal" de "Edición de Datos" —
- * exclusiva de SUPERADMINISTRADOR, de TODAS las áreas (rework
- * 2026-09-23: antes ADMINISTRADOR_AREA entraba por una página suelta
- * "Personal" acotada a su propia área; esa página y ese rol ya no
- * existen).
+ * Gestión de personal: pestaña "Personal" de "Edición de Datos" y página
+ * "Personal" (permiso PERSONAL_GESTIONAR, ej. Jefe de Producción).
  *
  * El permiso real vive en Postgres, no acá (ver
- * supabase/migrations/20261076090000_rework_dos_roles.sql: cada
- * función recibe quién hace el pedido y decide si le está permitido
- * ver/tocar). `esSuperAdmin` siempre es true en la práctica — las
- * ramas "else" de abajo quedan como resguardo, no porque haya hoy otro
- * rol que entre a este componente.
+ * supabase/migrations/20261078090000_roles_y_permisos.sql: cada
+ * función recibe quién hace el pedido y decide si le está permitido).
+ * Solo un Super Administrador da el rol Super Administrador, toca a otro
+ * Super Administrador o da permisos extra; el resto ve su propia área.
  */
 export function PersonalPanel({ pagina }: { pagina: string }) {
   const { session } = useAuth()
@@ -48,7 +50,9 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
 
   const esSuperAdmin = session?.rol === "SUPERADMINISTRADOR"
   const areasDisponibles: OpcionCatalogo[] = esSuperAdmin ? [...AREAS] : AREAS.filter((a) => a.codigo === session?.area)
-  const rolesDisponibles: OpcionCatalogo[] = esSuperAdmin ? [...ROLES] : ROLES.filter((r) => r.codigo !== "SUPERADMINISTRADOR")
+  // El rol Super Administrador solo lo da el dueño.
+  const esDueno = session?.esDueno ?? false
+  const rolesDisponibles: OpcionCatalogo[] = esDueno ? [...ROLES] : ROLES.filter((r) => r.codigo !== "SUPERADMINISTRADOR")
 
   /*
    * Filtros: solo del lado del cliente, sobre lo que ya devolvió
@@ -64,9 +68,22 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
   // Por defecto solo activos — el personal inactivo no desaparece, queda a un clic con el filtro de Estado.
   const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "ACTIVOS" | "INACTIVOS">("ACTIVOS")
 
+  // Permisos extra por persona y el paquete de cada rol (para no ofrecer como extra lo que el rol ya trae).
+  const [extras, setExtras] = useState<Map<string, Permiso[]>>(new Map())
+  const [porRol, setPorRol] = useState<Partial<Record<RolCodigo, Permiso[]>>>({})
+  const [duenos, setDuenos] = useState<Set<string>>(new Set())
+
   async function recargar(usuario: string) {
-    const lista = await listarPersonal(usuario)
+    const [lista, extrasActuales, paquetes, duenosActuales] = await Promise.all([
+      listarPersonal(usuario),
+      listarPermisosExtra(usuario),
+      permisosPorRol(),
+      listarDuenos(usuario),
+    ])
+    setDuenos(duenosActuales)
     setPersonal(lista)
+    setExtras(extrasActuales)
+    setPorRol(paquetes)
     setCargando(false)
   }
 
@@ -236,6 +253,15 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
                       pagina={pagina}
                       areasDisponibles={areasDisponibles}
                       rolesDisponibles={rolesDisponibles}
+                      extras={extras.get(p.id) ?? []}
+                      permisosRol={porRol[p.rol] ?? []}
+                      puedeDarExtras={esSuperAdmin}
+                      esDuenoFila={duenos.has(p.id)}
+                      puedeTocar={
+                        duenos.has(p.id)
+                          ? p.usuario === usuarioSesion.toLowerCase()
+                          : p.rol !== "SUPERADMINISTRADOR" || esDueno
+                      }
                       onCambio={() => recargar(usuarioSesion)}
                     />
                   ))}
@@ -276,6 +302,11 @@ function FilaPersonal({
   pagina,
   areasDisponibles,
   rolesDisponibles,
+  extras,
+  permisosRol,
+  puedeDarExtras,
+  esDuenoFila,
+  puedeTocar,
   onCambio,
 }: {
   persona: PersonalRegistrado
@@ -283,9 +314,20 @@ function FilaPersonal({
   pagina: string
   areasDisponibles: OpcionCatalogo[]
   rolesDisponibles: OpcionCatalogo[]
+  /** Permisos extra que ya tiene, además de los de su rol. */
+  extras: Permiso[]
+  /** Permisos que trae su rol por defecto. */
+  permisosRol: Permiso[]
+  /** Solo un Super Administrador da permisos extra. */
+  puedeDarExtras: boolean
+  /** Esta persona es el dueño. */
+  esDuenoFila: boolean
+  /** Al dueño solo lo toca él mismo; a un Super Administrador, solo el dueño. */
+  puedeTocar: boolean
   onCambio: () => void
 }) {
   const [editando, setEditando] = useState(false)
+  const [editandoPermisos, setEditandoPermisos] = useState(false)
   const [restableciendo, setRestableciendo] = useState(false)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
   const [nombre, setNombre] = useState(persona.nombre)
@@ -473,14 +515,26 @@ function FilaPersonal({
             <span className="mt-0.5 block text-[11px] text-primary">De {nombrePorCodigo(AREAS, persona.areaOrigen)}</span>
           )}
         </td>
-        <td className="py-1.5 pr-3 text-muted-foreground">{nombrePorCodigo(ROLES, persona.rol)}</td>
+        <td className="py-1.5 pr-3 text-muted-foreground">
+          {nombrePorCodigo(ROLES, persona.rol)}
+          {esDuenoFila && (
+            <Badge variant="outline" className="ml-1.5">
+              Dueño
+            </Badge>
+          )}
+          {extras.length > 0 && (
+            <span className="mt-0.5 block text-[11px] text-primary">
+              + {extras.map((p) => nombrePorCodigo(PERMISOS, p)).join(", ")}
+            </span>
+          )}
+        </td>
         <td className="py-1.5 pr-3 text-muted-foreground">
           {persona.cargo ? nombrePorCodigo(CARGOS, persona.cargo) : "—"}
         </td>
         <td className="py-1.5">
           <div className="flex items-center justify-end gap-1.5">
             {!persona.activo && <Badge variant="outline">Inactivo</Badge>}
-            {persona.activo ? (
+            {!puedeTocar ? null : persona.activo ? (
               <>
                 <Button variant="ghost" size="icon-sm" onClick={() => setEditando(true)} aria-label="Editar">
                   <Pencil className="size-3.5" />
@@ -493,6 +547,16 @@ function FilaPersonal({
                 >
                   <KeyRound className="size-3.5" />
                 </Button>
+                {puedeDarExtras && persona.rol !== "SUPERADMINISTRADOR" && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setEditandoPermisos((v) => !v)}
+                    aria-label="Permisos extra"
+                  >
+                    <ShieldPlus className="size-3.5" />
+                  </Button>
+                )}
                 <Button variant="ghost" size="icon-sm" onClick={toggleActivo} disabled={enviando} aria-label="Desactivar">
                   {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
                 </Button>
@@ -502,15 +566,17 @@ function FilaPersonal({
                 {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setConfirmandoEliminar((v) => !v)}
-              aria-label="Eliminar"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
+            {puedeTocar && !esDuenoFila && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setConfirmandoEliminar((v) => !v)}
+                aria-label="Eliminar"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
           </div>
         </td>
       </tr>
@@ -551,6 +617,20 @@ function FilaPersonal({
             </div>
           </td>
         </tr>
+      )}
+      {editandoPermisos && (
+        <EditorPermisosExtra
+          persona={persona}
+          usuarioSesion={usuarioSesion}
+          pagina={pagina}
+          extras={extras}
+          permisosRol={permisosRol}
+          onCerrar={() => setEditandoPermisos(false)}
+          onGuardado={() => {
+            setEditandoPermisos(false)
+            onCambio()
+          }}
+        />
       )}
       {restableciendo && (
         <tr className="border-b border-border/50 last:border-0">
@@ -726,5 +806,85 @@ function FormularioNuevoPersonal({
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
+  )
+}
+
+/** Fila desplegable para dar o quitar permisos extra a una persona (además de los de su rol). */
+function EditorPermisosExtra({
+  persona,
+  usuarioSesion,
+  pagina,
+  extras,
+  permisosRol,
+  onCerrar,
+  onGuardado,
+}: {
+  persona: PersonalRegistrado
+  usuarioSesion: string
+  pagina: string
+  extras: Permiso[]
+  permisosRol: Permiso[]
+  onCerrar: () => void
+  onGuardado: () => void
+}) {
+  const [seleccion, setSeleccion] = useState<Set<Permiso>>(() => new Set(extras))
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const disponibles = PERMISOS.filter((p) => !permisosRol.includes(p.codigo))
+
+  function alternar(p: Permiso, marcado: boolean) {
+    setSeleccion((prev) => {
+      const nuevo = new Set(prev)
+      if (marcado) nuevo.add(p)
+      else nuevo.delete(p)
+      return nuevo
+    })
+  }
+
+  async function guardar() {
+    setEnviando(true)
+    setError(null)
+    const r = await guardarPermisosExtra(usuarioSesion, persona.id, [...seleccion], pagina)
+    setEnviando(false)
+    if (!r.ok) {
+      setError(r.error)
+      return
+    }
+    onGuardado()
+  }
+
+  return (
+    <tr className="border-b border-border/50 last:border-0">
+      <td colSpan={7} className="py-2">
+        <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-2.5">
+          <span className="text-xs text-muted-foreground">
+            Permisos extra para <span className="font-medium text-foreground">{persona.nombre}</span>, además de los de su
+            rol:
+          </span>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {disponibles.map((p) => (
+              <label key={p.codigo} className="flex items-center gap-2 text-xs text-foreground">
+                <Checkbox
+                  checked={seleccion.has(p.codigo)}
+                  onCheckedChange={(v) => alternar(p.codigo, v === true)}
+                  disabled={enviando}
+                />
+                {p.nombre}
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={guardar} disabled={enviando}>
+              {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+              Guardar
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onCerrar} disabled={enviando}>
+              Cancelar
+            </Button>
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </div>
+        </div>
+      </td>
+    </tr>
   )
 }

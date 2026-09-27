@@ -37,6 +37,7 @@ import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/c
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth } from "@/lib/auth"
+import { puede } from "@/lib/permisos"
 import { AREAS, CARGOS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
 import {
@@ -290,8 +291,8 @@ function produccionPorLineaDe(
  */
 export default function PanelProduccion() {
   const { session } = useAuth()
-  /** Para el supervisor, tanques y líneas del panel llevan a Preparación (donde puede tocarlos). */
-  const esSupervisor = session?.rol === "SUPERVISOR"
+  /** Para quien carga el turno, tanques y líneas del panel llevan a Preparación (donde puede tocarlos). */
+  const esSupervisor = session?.rol !== "SUPERADMINISTRADOR" && puede(session ?? null, "TURNO_CARGAR")
   const { lineas, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   const [cargando, setCargando] = useState(true)

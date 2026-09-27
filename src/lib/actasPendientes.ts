@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth"
+import { puede } from "@/lib/permisos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { generarActaPdf } from "@/lib/actaPdf"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
@@ -24,7 +25,8 @@ export function useGenerarActasPendientes(): void {
 
   useEffect(() => {
     if (yaCorrio.current) return
-    if (!session || session.rol !== "SUPERVISOR" || session.area === "PRUEBAS") return
+    // Cualquiera que pueda asumir turnos (no solo el rol Supervisor: esta semana los abrieron también Super Administradores).
+    if (!session || !puede(session, "TURNO_ASUMIR") || session.area === "PRUEBAS") return
     if (lineas.length === 0) return // catálogos todavía no cargaron
     yaCorrio.current = true
 

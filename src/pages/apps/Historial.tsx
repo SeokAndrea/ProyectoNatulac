@@ -12,6 +12,7 @@ import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { AREAS, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
+import { puede } from "@/lib/permisos"
 import { datasetACsv, descargarCsv } from "@/lib/dataset"
 import { obtenerEstadisticas } from "@/lib/estadisticas"
 import { listarSabores, nombreSaborConFamilia } from "@/lib/sabores"
@@ -49,7 +50,9 @@ export default function Historial() {
   const { session } = useAuth()
   const navigate = useNavigate()
   const { lineas, presentaciones, velocidades } = useCatalogosLive()
-  const esSuperadmin = session?.rol === "SUPERADMINISTRADOR"
+  // La página ya exige AUDITORIA_VER (ver apps.tsx); el registro de cambios y el dataset van con ese mismo permiso.
+  const esSuperadmin = puede(session, "AUDITORIA_VER")
+  const puedeCorregir = puede(session, "TURNO_CORREGIR")
 
   const [turnosActivos, setTurnosActivos] = useState<TurnoActivoArea[]>([])
   const [rango, setRango] = useState<RangoFecha>(() => rangoDePreset("HOY", ""))
@@ -341,7 +344,7 @@ export default function Historial() {
               acta={actasPorTurno.get(t.resumen.id)}
               onAbrir={() => verDetalle(t.resumen)}
               onCorregir={
-                esSuperadmin && t.resumen.estado === "CERRADO"
+                puedeCorregir && t.resumen.estado === "CERRADO"
                   ? () => navigate(`/preparacion?turnoId=${t.resumen.id}`)
                   : undefined
               }
@@ -414,7 +417,7 @@ export default function Historial() {
 }
 
 /** Acciones de una fila de supervisor: link al acta vigente (si hay), "Abrir" el detalle del turno, y para
- *  SUPERADMINISTRADOR sobre un turno CERRADO, "Corregir este turno" (modo corrección, ver Preparación). */
+ *  quien tenga TURNO_CORREGIR sobre un turno CERRADO, "Corregir este turno" (modo corrección, ver Preparación). */
 function AccionesTurno({ acta, onAbrir, onCorregir }: { acta?: Acta; onAbrir: () => void; onCorregir?: () => void }) {
   return (
     <div className="flex shrink-0 items-center gap-1.5">

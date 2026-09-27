@@ -6,8 +6,7 @@
  * Modelo:
  *   1. HUE por fruta reconocida en el nombre (Manzana → rojo, Pera →
  *      verde, Durazno → amarillo, Naranja → naranja, Limón → lima,
- *      Mango → ámbar, un amarillo-naranja distinto de Durazno y de
- *      Naranja). Lo que no se reconoce (Coctel, …) cicla una paleta
+ *      Mango → amarillo, igual que Durazno). Lo que no se reconoce (Coctel, …) cicla una paleta
  *      fija por hash del nombre, para que sea estable.
  *   2. La FAMILIA aclara u oscurece esa fruta:
  *        Jucosa   → bastante más clara
@@ -28,7 +27,7 @@ const HUE_POR_FRUTA: Array<[RegExp, string]> = [
   [/naranja/i, "var(--flavor-orange)"],
   [/lim[oó]n/i, "var(--flavor-lime)"],
   [/pera/i, "var(--flavor-green)"],
-  [/mango/i, "var(--flavor-amber)"],
+  [/mango/i, "var(--flavor-yellow)"],
 ]
 
 /** Sabores sin fruta reconocida ciclan esta paleta según su nombre (estable). */

@@ -13,8 +13,8 @@
  * login (src/lib/auth.tsx) y en la gestión de personal
  * (src/components/PersonalPanel.tsx).
  */
-// Vacío se sacó del todo el 2026-09-25: nunca se usó y no se va a usar
-// (ver supabase/migrations/20261079090000_eliminar_area_vacio.sql).
+// Vacío se sacó de la app el 2026-09-25: nunca se usó y no se va a usar.
+// El área VACIO sigue en la base (sin migración que la borre).
 export const AREAS = [
   { codigo: "ASEPTICO", nombre: "Producción Aséptico" },
   { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales" },
@@ -24,14 +24,15 @@ export const AREAS = [
 
 export type AreaCodigo = (typeof AREAS)[number]["codigo"]
 
-// Rework 2026-09-23 (dueño): solo 2 roles en la práctica — se borran
-// ADMINISTRADOR_AREA y MANTENIMIENTO (nunca hubo gente real con esos
-// roles; el área MANTENIMIENTO sigue existiendo en AREAS, sin relación
-// con esto). Super Administrador ahora hace todo lo que hace Supervisor
-// (Preparación, Líneas, Producto Terminado, Registrar Paradas) más lo
-// exclusivo suyo (Personal, Auditoría, Validar, etc.), sin acotar por área.
+// Rework 2026-09-27: el rol es un paquete de permisos por defecto (ver
+// src/lib/permisos.ts y la migración 20261078090000_roles_y_permisos.sql).
+// Permisos extra por persona (ej. SubJefe = Supervisor + permisos de jefe)
+// se dan desde Personal. Super Administrador (técnicos) tiene todo.
 export const ROLES = [
   { codigo: "SUPERVISOR", nombre: "Supervisor" },
+  { codigo: "ANALISTA", nombre: "Analista de Producción" },
+  { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción" },
+  { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
 ] as const
 
@@ -50,6 +51,7 @@ export const CARGOS = [
   { codigo: "SUBJEFE", nombre: "Subjefe" },
   { codigo: "ANALISTA_PRODUCCION", nombre: "Analista de Producción" },
   { codigo: "SUPERVISOR", nombre: "Supervisor" },
+  { codigo: "PASANTE", nombre: "Pasante / Aprendiz" },
 ] as const
 
 export type CargoCodigo = (typeof CARGOS)[number]["codigo"]

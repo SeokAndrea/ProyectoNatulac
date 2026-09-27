@@ -16,6 +16,7 @@ import CatalogoParadas from "@/pages/apps/CatalogoParadas"
 import ParadasMantenimiento from "@/pages/apps/ParadasMantenimiento"
 import Programacion from "@/pages/apps/Programacion"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
+import Personal from "@/pages/apps/Personal"
 import CalculadoraBobina from "@/pages/apps/CalculadoraBobina"
 import CalculadoraFormula from "@/pages/apps/CalculadoraFormula"
 import CalculadoraConteoPeso from "@/pages/apps/CalculadoraConteoPeso"
@@ -36,11 +37,10 @@ import { VersionChecker } from "@/components/VersionChecker"
  * Todas las rutas de la aplicación se declaran aquí. Las páginas
  * envueltas en <ProtectedRoute> solo son accesibles con sesión
  * iniciada (ver src/components/ProtectedRoute.tsx); si no hay sesión,
- * redirige al login. El prop rolesPermitidos restringe además por
- * rol (ej. el flujo de turno es solo para Supervisor) — mismo
- * criterio que rolesPermitidos en src/lib/apps.tsx, hay que
- * mantenerlos coherentes entre sí. Para agregar una app nueva al
- * hub, sumarla aquí y en src/lib/apps.tsx.
+ * redirige al login. Con app="slug" la ruta toma los mismos criterios
+ * (permiso, áreas) que la tarjeta de src/lib/apps.tsx: una sola fuente.
+ * Para agregar una app nueva al hub, sumarla en src/lib/apps.tsx y
+ * registrar aquí su ruta con app="slug".
  */
 export default function App() {
   const { session } = useAuth()
@@ -68,7 +68,7 @@ export default function App() {
         <Route
           path="/turno"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERVISOR", "SUPERADMINISTRADOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="comenzar-turno">
               <ComenzarTurno />
             </ProtectedRoute>
           }
@@ -76,7 +76,7 @@ export default function App() {
         <Route
           path="/preparacion"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERVISOR", "SUPERADMINISTRADOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="preparacion">
               <Preparacion />
             </ProtectedRoute>
           }
@@ -84,7 +84,7 @@ export default function App() {
         <Route
           path="/lineas"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERVISOR", "SUPERADMINISTRADOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="lineas">
               <Lineas />
             </ProtectedRoute>
           }
@@ -92,7 +92,7 @@ export default function App() {
         <Route
           path="/producto-terminado"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERVISOR", "SUPERADMINISTRADOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="producto-terminado">
               <ProductoTerminado />
             </ProtectedRoute>
           }
@@ -100,7 +100,7 @@ export default function App() {
         <Route
           path="/finalizar-turno"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERVISOR", "SUPERADMINISTRADOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="finalizar-turno">
               <FinalizarTurno />
             </ProtectedRoute>
           }
@@ -108,7 +108,7 @@ export default function App() {
         <Route
           path="/mis-actas"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERVISOR", "SUPERADMINISTRADOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="mis-actas">
               <MisActas />
             </ProtectedRoute>
           }
@@ -116,7 +116,7 @@ export default function App() {
         <Route
           path="/panel-produccion"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute app="panel-produccion">
               <PanelProduccion />
             </ProtectedRoute>
           }
@@ -124,8 +124,7 @@ export default function App() {
         <Route
           path="/paradas"
           element={
-            // Supervisores y Super Administrador registran paradas (coincide con src/lib/apps.tsx).
-            <ProtectedRoute rolesPermitidos={["SUPERVISOR", "SUPERADMINISTRADOR"]} areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="paradas">
               <Paradas />
             </ProtectedRoute>
           }
@@ -133,8 +132,7 @@ export default function App() {
         <Route
           path="/catalogo-paradas"
           element={
-            // Solo SUPERADMINISTRADOR (el Área de Pruebas también entra). Coincide con src/lib/apps.tsx.
-            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <ProtectedRoute app="catalogo-paradas">
               <CatalogoParadas />
             </ProtectedRoute>
           }
@@ -142,8 +140,7 @@ export default function App() {
         <Route
           path="/paradas-mantenimiento"
           element={
-            // Solo el área de Mantenimiento registra estas paradas (el Área de Pruebas también entra). Coincide con src/lib/apps.tsx.
-            <ProtectedRoute areasPermitidas={["MANTENIMIENTO"]}>
+            <ProtectedRoute app="paradas-mantenimiento">
               <ParadasMantenimiento />
             </ProtectedRoute>
           }
@@ -151,8 +148,7 @@ export default function App() {
         <Route
           path="/panel-paradas"
           element={
-            // Dashboard de solo lectura: cualquier sesión, igual que el Panel de Producción.
-            <ProtectedRoute>
+            <ProtectedRoute app="panel-paradas">
               <PanelParadas />
             </ProtectedRoute>
           }
@@ -160,15 +156,23 @@ export default function App() {
         <Route
           path="/programacion"
           element={
-            <ProtectedRoute areasExcluidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="programacion">
               <Programacion />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/personal"
+          element={
+            <ProtectedRoute app="personal">
+              <Personal />
             </ProtectedRoute>
           }
         />
         <Route
           path="/edicion-datos"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <ProtectedRoute app="edicion-datos">
               <EdicionDatos />
             </ProtectedRoute>
           }
@@ -176,7 +180,7 @@ export default function App() {
         <Route
           path="/calculadoras"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <ProtectedRoute app="calculadoras">
               <Calculadoras />
             </ProtectedRoute>
           }
@@ -184,7 +188,7 @@ export default function App() {
         <Route
           path="/calculadora-bobina"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <ProtectedRoute app="calculadora-bobina">
               <CalculadoraBobina />
             </ProtectedRoute>
           }
@@ -192,7 +196,7 @@ export default function App() {
         <Route
           path="/calculadora-formula"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <ProtectedRoute app="calculadora-formula">
               <CalculadoraFormula />
             </ProtectedRoute>
           }
@@ -200,7 +204,7 @@ export default function App() {
         <Route
           path="/calculadora-conteo-peso"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <ProtectedRoute app="calculadora-conteo-peso">
               <CalculadoraConteoPeso />
             </ProtectedRoute>
           }
@@ -208,7 +212,7 @@ export default function App() {
         <Route
           path="/auditoria"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <ProtectedRoute app="auditoria">
               <Historial />
             </ProtectedRoute>
           }
@@ -216,7 +220,7 @@ export default function App() {
         <Route
           path="/validar"
           element={
-            <ProtectedRoute rolesPermitidos={["SUPERADMINISTRADOR"]}>
+            <ProtectedRoute app="validar">
               <Validar />
             </ProtectedRoute>
           }
@@ -224,7 +228,7 @@ export default function App() {
         <Route
           path="/servicios-industriales"
           element={
-            <ProtectedRoute areasPermitidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="servicios-industriales">
               <ServiciosIndustriales />
             </ProtectedRoute>
           }
@@ -232,7 +236,7 @@ export default function App() {
         <Route
           path="/registros-servicios-industriales"
           element={
-            <ProtectedRoute areasPermitidas={["SERVICIOS_INDUSTRIALES"]}>
+            <ProtectedRoute app="registros-servicios-industriales">
               <RegistrosServiciosIndustriales />
             </ProtectedRoute>
           }
@@ -240,7 +244,7 @@ export default function App() {
         <Route
           path="/errores"
           element={
-            <ProtectedRoute requiereVeErrores>
+            <ProtectedRoute app="errores">
               <ErroresCliente />
             </ProtectedRoute>
           }
@@ -248,7 +252,7 @@ export default function App() {
         <Route
           path="/preparacion-plc"
           element={
-            <ProtectedRoute usuarioPermitido="arondon">
+            <ProtectedRoute app="preparacion-plc">
               <PreparacionPLC />
             </ProtectedRoute>
           }

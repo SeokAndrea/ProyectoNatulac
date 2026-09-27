@@ -19,8 +19,11 @@ import {
   Scale,
   BookOpen,
   Droplets,
+  Users,
 } from "lucide-react"
-import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
+import type { Session } from "@/lib/auth"
+import type { AreaCodigo } from "@/lib/catalogos"
+import { puede, type Permiso } from "@/lib/permisos"
 
 export interface AppDef {
   slug: string
@@ -36,13 +39,12 @@ export interface AppDef {
    */
   requiereTurno: boolean
   /**
-   * Si se define, la tarjeta solo aparece para usuarios con alguno de
-   * estos roles (ver session.rol en src/lib/auth.tsx). Sin esta
-   * propiedad, la tarjeta es visible para cualquier rol. Tiene que
-   * coincidir con el rolesPermitidos de la misma ruta en src/App.tsx.
+   * Si se define, la tarjeta (y su ruta, ver ProtectedRoute) solo es
+   * para quien tenga este permiso (ver src/lib/permisos.ts). Sin esta
+   * propiedad, la ve cualquier sesión.
    */
-  rolesPermitidos?: RolCodigo[]
-  /** Si se define, la tarjeta solo aparece para usuarios de estas áreas (ej. Servicios Industriales, que no tiene un rol propio). Tiene que coincidir con el areasPermitidas de la misma ruta en src/App.tsx. */
+  permiso?: Permiso
+  /** Si se define, la tarjeta solo aparece para usuarios de estas áreas (ej. Servicios Industriales, que no tiene un rol propio). */
   areasPermitidas?: AreaCodigo[]
   /**
    * Si se define, la tarjeta NO aparece para usuarios de estas áreas,
@@ -50,8 +52,7 @@ export interface AppDef {
    * SUPERVISOR — igual que Aséptico — pero no tiene que ver
    * corridas de producción: Comenzar Turno, Preparación, Líneas,
    * Producto Terminado, Finalizar Turno, Mis Actas y Programación
-   * quedan afuera para esa área). Tiene que coincidir con el
-   * areasExcluidas de la misma ruta en src/App.tsx.
+   * quedan afuera para esa área).
    */
   areasExcluidas?: AreaCodigo[]
   /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
@@ -62,9 +63,9 @@ export interface AppDef {
   resaltarConTurno?: boolean
   /** Color fijo del ícono/tarjeta (por defecto: primary) — para distinguir a simple vista pasos como Comenzar/Preparación/Finalizar. */
   color?: "success" | "blue" | "purple" | "warning" | "danger"
-  /** Si es true, la tarjeta solo aparece para usuarios con usuarios.ve_errores = true (flag aparte del rol, ver session.veErrores y migración 20261047090000) — hoy solo el dueño. Tiene que coincidir con el requiereVeErrores de la misma ruta en src/App.tsx. */
-  veErroresSolo?: boolean
-  /** Si se define, la tarjeta solo aparece para ese username exacto (case-insensitive), sin importar rol o área — para vistas de prueba de un solo usuario. Tiene que coincidir con el usuarioPermitido de la misma ruta en src/App.tsx. */
+  /** Si es true, la tarjeta solo aparece para el dueño (ver session.esDueno). */
+  soloDueno?: boolean
+  /** Si se define, la tarjeta solo aparece para ese username exacto (case-insensitive), sin importar rol o área — para vistas de prueba de un solo usuario. */
   usuarioPermitido?: string
   /**
    * Grupo bajo el que aparece la tarjeta en la grilla principal del hub,
@@ -80,13 +81,13 @@ export interface AppDef {
  * Para agregar una app nueva:
  *   1. Sumar un objeto aquí con su slug, título, descripción, ruta (href)
  *      e ícono (ver la lista completa en https://lucide.dev/icons), si
- *      requiere o no un turno iniciado, y a qué roles se les muestra
- *      (rolesPermitidos, opcional).
+ *      requiere o no un turno iniciado, y qué permiso pide (permiso,
+ *      opcional).
  *   2. Crear la página en src/pages/apps/ y registrar esa misma ruta
- *      (href) en src/App.tsx dentro de <Routes>, con el mismo
- *      rolesPermitidos.
+ *      (href) en src/App.tsx dentro de <Routes>, protegida con
+ *      <ProtectedRoute app="slug">: toma los mismos criterios de acá.
  * No hace falta tocar Hub.tsx: la grilla se genera automáticamente a
- * partir de este arreglo, filtrada por rol.
+ * partir de este arreglo, filtrada por puedeVerApp().
  */
 export const apps: AppDef[] = [
   {
@@ -96,7 +97,7 @@ export const apps: AppDef[] = [
     href: "/turno",
     icon: PlayCircle,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
+    permiso: "TURNO_ASUMIR",
     // Servicios Industriales usa el rol SUPERVISOR pero no arranca turnos de producción.
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     bloqueaConTurno: true,
@@ -110,7 +111,7 @@ export const apps: AppDef[] = [
     href: "/preparacion",
     icon: Beaker,
     requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
+    permiso: "TURNO_CARGAR",
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     color: "blue",
     seccion: "produccion",
@@ -122,7 +123,7 @@ export const apps: AppDef[] = [
     href: "/lineas",
     icon: Factory,
     requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
+    permiso: "TURNO_CARGAR",
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     color: "blue",
     seccion: "produccion",
@@ -134,7 +135,7 @@ export const apps: AppDef[] = [
     href: "/producto-terminado",
     icon: PackageCheck,
     requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
+    permiso: "TURNO_CARGAR",
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     seccion: "produccion",
   },
@@ -145,7 +146,7 @@ export const apps: AppDef[] = [
     href: "/finalizar-turno",
     icon: ClipboardCheck,
     requiereTurno: true,
-    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
+    permiso: "TURNO_ASUMIR",
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     resaltarConTurno: true,
     seccion: "produccion",
@@ -157,7 +158,7 @@ export const apps: AppDef[] = [
     href: "/mis-actas",
     icon: FileText,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
+    permiso: "TURNO_CARGAR",
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     seccion: "auditoria",
   },
@@ -177,8 +178,7 @@ export const apps: AppDef[] = [
     href: "/paradas",
     icon: Wrench,
     requiereTurno: false,
-    // Supervisores y Super Administrador registran paradas; tiene que coincidir con la ruta /paradas de src/App.tsx.
-    rolesPermitidos: ["SUPERVISOR", "SUPERADMINISTRADOR"],
+    permiso: "PARADAS_REGISTRAR",
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     seccion: "produccion",
   },
@@ -189,8 +189,7 @@ export const apps: AppDef[] = [
     href: "/catalogo-paradas",
     icon: Wrench,
     requiereTurno: false,
-    // Solo SUPERADMINISTRADOR (el Área de Pruebas también entra). Tiene que coincidir con la ruta en src/App.tsx.
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    permiso: "CATALOGO_PARADAS",
     seccion: "base-datos",
   },
   {
@@ -199,9 +198,8 @@ export const apps: AppDef[] = [
     description: "Registrar las paradas de Aséptico con el catálogo de siempre, con hora de inicio y fin.",
     href: "/paradas-mantenimiento",
     icon: Wrench,
+    permiso: "PARADAS_MANTENIMIENTO",
     requiereTurno: false,
-    // Solo el área de Mantenimiento (el Área de Pruebas también entra). Coincide con la ruta en src/App.tsx.
-    areasPermitidas: ["MANTENIMIENTO"],
     atajo: true,
   },
   {
@@ -259,7 +257,7 @@ export const apps: AppDef[] = [
     href: "/auditoria",
     icon: History,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    permiso: "AUDITORIA_VER",
     color: "blue",
     seccion: "auditoria",
   },
@@ -270,7 +268,7 @@ export const apps: AppDef[] = [
     href: "/validar",
     icon: ListChecks,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    permiso: "VALIDAR",
     color: "warning",
     seccion: "auditoria",
   },
@@ -281,8 +279,18 @@ export const apps: AppDef[] = [
     href: "/calculadoras",
     icon: Calculator,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    permiso: "CALCULADORAS",
     atajo: true,
+  },
+  {
+    slug: "personal",
+    title: "Personal",
+    description: "Altas, roles y permisos del personal.",
+    href: "/personal",
+    icon: Users,
+    permiso: "PERSONAL_GESTIONAR",
+    requiereTurno: false,
+    seccion: "base-datos",
   },
   {
     slug: "edicion-datos",
@@ -291,7 +299,7 @@ export const apps: AppDef[] = [
     href: "/edicion-datos",
     icon: DatabaseZap,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    permiso: "EDICION_DATOS",
     seccion: "base-datos",
   },
   {
@@ -311,7 +319,7 @@ export const apps: AppDef[] = [
     href: "/errores",
     icon: ShieldAlert,
     requiereTurno: false,
-    veErroresSolo: true,
+    soloDueno: true,
     color: "danger",
     seccion: "base-datos",
   },
@@ -330,7 +338,7 @@ export const appsCalculadoras: AppDef[] = [
     href: "/calculadora-bobina",
     icon: Calculator,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    permiso: "CALCULADORAS",
     color: "success",
   },
   {
@@ -340,7 +348,7 @@ export const appsCalculadoras: AppDef[] = [
     href: "/calculadora-formula",
     icon: FlaskConical,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    permiso: "CALCULADORAS",
     color: "purple",
   },
   {
@@ -350,7 +358,28 @@ export const appsCalculadoras: AppDef[] = [
     href: "/calculadora-conteo-peso",
     icon: Scale,
     requiereTurno: false,
-    rolesPermitidos: ["SUPERADMINISTRADOR"],
+    permiso: "CALCULADORAS",
     color: "blue",
   },
 ]
+
+/** Una app por slug (tarjetas del hub y calculadoras). */
+export function appPorSlug(slug: string): AppDef | undefined {
+  return apps.find((a) => a.slug === slug) ?? appsCalculadoras.find((a) => a.slug === slug)
+}
+
+/**
+ * ¿Esta sesión puede ver/entrar a la app? Único criterio para el hub y
+ * para las rutas (ProtectedRoute). El Área de Pruebas entra a todo: es
+ * la cuenta de prueba y tiene que poder ejercitar cualquier pantalla.
+ */
+export function puedeVerApp(session: Session | null, app: AppDef): boolean {
+  if (!session) return false
+  if (session.area === "PRUEBAS") return true
+  if (app.permiso && !puede(session, app.permiso)) return false
+  if (app.areasPermitidas && !(session.area && app.areasPermitidas.includes(session.area))) return false
+  if (app.areasExcluidas && session.area && app.areasExcluidas.includes(session.area)) return false
+  if (app.soloDueno && !session.esDueno) return false
+  if (app.usuarioPermitido && session.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
+  return true
+}

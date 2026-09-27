@@ -13,7 +13,7 @@ describe("colorSabor", () => {
     expect(colorSabor("Durazno")).toBe("var(--flavor-yellow)")
     expect(colorSabor("Naranja")).toBe("var(--flavor-orange)")
     expect(colorSabor("Limón")).toBe("var(--flavor-lime)")
-    expect(colorSabor("Mango")).toBe("var(--flavor-amber)") // ámbar: distinto de naranja y de durazno
+    expect(colorSabor("Mango")).toBe("var(--flavor-yellow)") // mismo amarillo que Durazno (dueño, 2026-09-27)
   })
 
   it("la familia aclara: Jucosa más que Selecto, Selecto más que Clásico", () => {

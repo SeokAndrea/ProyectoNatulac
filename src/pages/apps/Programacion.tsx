@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
+import { puede } from "@/lib/permisos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { AREAS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import {
@@ -21,7 +22,7 @@ import { cn } from "@/lib/utils"
 /*
  * Programación (versión mínima): sabor + presentación + cajas para la
  * jornada de hoy. El sabor se escribe con autocompletado (datalist). La
- * edita solo el SUPERADMINISTRADOR; el resto la ve de solo lectura.
+ * edita quien tenga PROGRAMACION_EDITAR; el resto la ve de solo lectura.
  * Ver src/lib/programacion.ts y las migraciones 20260970..20260973.
  */
 type Fila = { key: string; saborTexto: string; presentacionId: string; cajas: string }
@@ -31,7 +32,7 @@ const SABORES_LIST_ID = "programacion-sabores"
 export default function Programacion() {
   const { session } = useAuth()
   const { presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
-  const editable = session?.rol === "SUPERADMINISTRADOR"
+  const editable = puede(session ?? null, "PROGRAMACION_EDITAR")
   const fecha = fechaJornada()
 
   const [area, setArea] = useState<AreaCodigo>(session?.area ?? "ASEPTICO")

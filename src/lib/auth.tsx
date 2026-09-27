@@ -1,7 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
+import type { Permiso } from "@/lib/permisos"
 import { supabase } from "@/lib/supabase"
+
+async function cargarPermisos(usuario: string): Promise<Permiso[]> {
+  const { data, error } = await supabase.rpc("permisos_de", { p_usuario: usuario })
+  if (error || !Array.isArray(data)) return []
+  return data as Permiso[]
+}
 
 export interface Session {
   username: string
@@ -10,8 +17,10 @@ export interface Session {
   /** null = todas las áreas (solo aplica a SuperAdministrador). */
   area: AreaCodigo | null
   rol: RolCodigo
-  /** Flag aparte del rol — quién puede ver el log de errores del cliente (Errores). Ver migración 20261047090000. */
-  veErrores: boolean
+  /** Dueño: por encima de Super Administrador (intocable, gestiona Super Admins, ve Errores y ajustes). Flag aparte del rol, columna usuarios.ve_errores — ver migración 20261079090000_dueno.sql. */
+  esDueno: boolean
+  /** Permisos efectivos (rol + extras). Se refrescan al abrir la app. Ver src/lib/permisos.ts. */
+  permisos: Permiso[]
   /**
    * true = la persona todavía no pasó el primer ingreso: tiene que
    * confirmar Nombre y Apellido + Cédula y definir una clave propia de
@@ -43,7 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     try {
-      return JSON.parse(raw) as Session
+      // Sesiones guardadas antes del rework traían veErrores en vez de esDueno.
+      const guardada = JSON.parse(raw) as Session & { veErrores?: boolean }
+      return { ...guardada, esDueno: guardada.esDueno ?? guardada.veErrores ?? false, permisos: guardada.permisos ?? [] }
     } catch {
       return null
     }
@@ -63,6 +74,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(STORAGE_KEY)
     }
   }, [session])
+
+  // La sesión guardada puede tener permisos viejos (o no tenerlos): se piden de nuevo al abrir la app.
+  const usuarioSesion = session?.username
+  useEffect(() => {
+    if (!usuarioSesion) return
+    cargarPermisos(usuarioSesion).then((permisos) =>
+      setSession((s) => (s && s.username === usuarioSesion ? { ...s, permisos } : s)),
+    )
+  }, [usuarioSesion])
 
   /*
    * Login contra la tabla "usuarios" de Supabase (NO Supabase Auth,
@@ -93,14 +113,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false as const, error: "Usuario o contraseña incorrectos." }
     }
 
+    const permisos = await cargarPermisos(perfil.usuario)
     setPasswordLogin(password)
     setSession({
+      permisos,
       username: perfil.usuario,
       nombre: perfil.nombre ?? perfil.usuario,
       cedula: perfil.cedula ?? null,
       area: perfil.area_codigo as AreaCodigo | null,
       rol: perfil.rol_codigo as RolCodigo,
-      veErrores: Boolean(perfil.ve_errores),
+      esDueno: Boolean(perfil.ve_errores),
       // Fuerza el primer ingreso si la base lo marca, o si la clave
       // escrita no cumple la política — esto último el hash no lo
       // puede saber, solo se ve aquí con el texto plano.

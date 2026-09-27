@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo"
 import { useAuth } from "@/lib/auth"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useGenerarActasPendientes } from "@/lib/actasPendientes"
-import { apps, type AppDef } from "@/lib/apps"
+import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
 import { cn } from "@/lib/utils"
 
 /** Emoji del saludo, distinto para algún usuario puntual — por username, en minúscula. */
@@ -20,19 +20,8 @@ export default function Hub() {
   const sesion = useSesionTurno()
   useGenerarActasPendientes()
   const turnoActivo = sesion.turnoId !== null
-  // Área de Pruebas: ve TODAS las tarjetas sin importar el rol — mismo
-  // criterio que ProtectedRoute.tsx (la cuenta de prueba ejercita
-  // cualquier pantalla nueva sin pedir un login por rol para cada una).
-  const esPruebas = session?.area === "PRUEBAS"
-  const appsVisibles = apps.filter((app) => {
-    if (esPruebas) return true
-    if (app.rolesPermitidos && !(session && app.rolesPermitidos.includes(session.rol))) return false
-    if (app.areasPermitidas && !(session?.area && app.areasPermitidas.includes(session.area))) return false
-    if (app.areasExcluidas && session?.area && app.areasExcluidas.includes(session.area)) return false
-    if (app.veErroresSolo && !session?.veErrores) return false
-    if (app.usuarioPermitido && session?.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
-    return true
-  })
+  // Mismo criterio que las rutas (ProtectedRoute): puedeVerApp en src/lib/apps.tsx.
+  const appsVisibles = apps.filter((app) => puedeVerApp(session, app))
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
   const secciones = agruparPorSeccion(principales)

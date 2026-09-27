@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import type { AreaCodigo, CargoCodigo, RolCodigo } from "@/lib/catalogos"
+import type { Permiso } from "@/lib/permisos"
 
 export interface PersonalRegistrado {
   id: string
@@ -205,4 +206,51 @@ export async function agregarPersonal(
       activo: true,
     },
   }
+}
+
+/*
+ * Permisos extra por persona (además de los de su rol). Ver
+ * supabase/migrations/20261078090000_roles_y_permisos.sql.
+ */
+
+/** Permisos que trae cada rol por defecto (para no ofrecer como "extra" lo que ya tiene). */
+export async function permisosPorRol(): Promise<Partial<Record<RolCodigo, Permiso[]>>> {
+  const { data, error } = await supabase.rpc("listar_permisos_catalogo")
+  if (error || !data) return {}
+  return (data as { por_rol: Partial<Record<RolCodigo, Permiso[]>> }).por_rol ?? {}
+}
+
+/** Permisos extra de todo el personal, por id de usuario. */
+export async function listarPermisosExtra(usuarioSesion: string): Promise<Map<string, Permiso[]>> {
+  const { data, error } = await supabase.rpc("listar_permisos_extra", { p_usuario: usuarioSesion })
+  const mapa = new Map<string, Permiso[]>()
+  if (error || !data) return mapa
+  for (const fila of data as { usuario_id: string; permiso_codigo: Permiso }[]) {
+    mapa.set(fila.usuario_id, [...(mapa.get(fila.usuario_id) ?? []), fila.permiso_codigo])
+  }
+  return mapa
+}
+
+/** Ids de los dueños (intocables salvo por ellos mismos). */
+export async function listarDuenos(usuarioSesion: string): Promise<Set<string>> {
+  const { data, error } = await supabase.rpc("listar_duenos", { p_usuario: usuarioSesion })
+  if (error || !Array.isArray(data)) return new Set()
+  return new Set(data as string[])
+}
+
+/** Reemplaza los permisos extra de una persona (solo Super Administrador). */
+export async function guardarPermisosExtra(
+  usuarioSesion: string,
+  usuarioId: string,
+  permisos: Permiso[],
+  pagina: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc("guardar_permisos_extra", {
+    p_usuario: usuarioSesion,
+    p_usuario_id: usuarioId,
+    p_permisos: permisos,
+    p_pagina: pagina,
+  })
+  if (error) return { ok: false, error: error.message || "No se pudieron guardar los permisos." }
+  return { ok: true }
 }

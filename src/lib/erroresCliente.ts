@@ -4,7 +4,7 @@
  * supabase.rpc() en src/lib/supabase.ts se encarga de mandarlo, ningún
  * componente lo hace a mano). Este módulo es solo lectura — listar lo
  * ya guardado. Solo responde para usuarios con usuarios.ve_errores =
- * true (ver session.veErrores en src/lib/auth.tsx); listar_errores_cliente()
+ * true (ver session.esDueno en src/lib/auth.tsx); listar_errores_cliente()
  * rechaza a cualquier otro.
  */
 import { supabase } from "@/lib/supabase"
