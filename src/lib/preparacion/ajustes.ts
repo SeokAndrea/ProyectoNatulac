@@ -3,7 +3,7 @@
  * lo planeado — nunca reimplementan lo que hace nucleo.ts, lo asumen ya
  * hecho y corrigen sobre eso. Ver plan-rework-3-modulos-y-merma.md, Fase 1.
  *
- * Extraídas de src/lib/turno.tsx, mismo comportamiento. cambiarCondicionTanque,
+ * Extraídas de src/lib/turno.ts, mismo comportamiento. cambiarCondicionTanque,
  * reactivarLote y descartarRestoTanque están al final, en su propia sección
  * marcada — ver el comentario ahí: la Fase 2 (base de datos) todavía no
  * corrió, así que siguen siendo capacidades reales en uso hoy. No se

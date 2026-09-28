@@ -7,7 +7,7 @@ import type { NivelMerma } from "@/lib/estadisticas"
 /*
  * Panel de Producción: estado actual de la planta (o histórico por
  * fecha/tipo, ver supabase/migrations/20260906090000_panel_produccion.sql).
- * Reutiliza mapearTurno() de turno.tsx — es el mismo objeto
+ * Reutiliza mapearTurno() de turno.ts — es el mismo objeto
  * TurnoActivo que usa Comenzar/Finalizar Turno, solo que acá puede
  * ser de CUALQUIER supervisor, no del usuario logueado.
  */
@@ -253,7 +253,7 @@ export interface MermaEnvasesTurno {
 /**
  * Merma de ENVASES sumando SOLO las corridas que ya tienen los dos
  * lados cargados (contador Y Producto Terminado), reusando
- * mermaCorrida() de turno.tsx. Una corrida con contador pero sin PT
+ * mermaCorrida() de turno.ts. Una corrida con contador pero sin PT
  * todavía NO cuenta como "100% de merma": queda afuera hasta que se
  * cargue el PT. Si ninguna corrida es comparable todavía → null ("—").
  *
@@ -289,7 +289,7 @@ function mermaEnvasesDeCorridas(
  * contadores. Ya no existe una "merma teórica" aparte (dependía de
  * envases_desechados, columna que se sacó de Contadores) — queda una
  * sola merma, la misma que se calcula por corrida en mermaCorrida()
- * de turno.tsx.
+ * de turno.ts.
  */
 export function mermaEnvasesTurno(turno: TurnoActivo, presentaciones: PresentacionLive[]): MermaEnvasesTurno {
   const corridaIds = turno.contadores.map((c) => c.turnoLineaId).filter((id): id is string => id !== null)

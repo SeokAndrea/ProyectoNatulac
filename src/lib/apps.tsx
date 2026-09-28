@@ -35,7 +35,7 @@ export interface AppDef {
   /**
    * Si es true, la tarjeta aparece bloqueada en el hub (gris, con
    * candado, sin link) mientras no haya un turno en curso. Ver la
-   * lógica en Hub.tsx y el estado en src/lib/turno.tsx.
+   * lógica en Hub.tsx y el estado en src/lib/turno.ts.
    */
   requiereTurno: boolean
   /**

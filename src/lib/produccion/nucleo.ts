@@ -6,7 +6,7 @@
  * entregar al turno que sigue, corregir una justificación) va en
  * ajustes.ts — ver plan-rework-3-modulos-y-merma.md, Fase 1.
  *
- * Extraídas de src/lib/turno.tsx, mismo comportamiento, ninguna RPC nueva.
+ * Extraídas de src/lib/turno.ts, mismo comportamiento, ninguna RPC nueva.
  *
  * Costura 1 (Producción lee Preparación al activar) y costura 2 (cerrar
  * una corrida no debería poder cerrar el tanque) siguen resueltas hoy

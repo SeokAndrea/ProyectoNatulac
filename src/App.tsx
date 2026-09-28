@@ -27,9 +27,6 @@ import ServiciosIndustriales from "@/pages/apps/ServiciosIndustriales"
 import RegistrosServiciosIndustriales from "@/pages/apps/RegistrosServiciosIndustriales"
 import ErroresCliente from "@/pages/apps/ErroresCliente"
 import PreparacionPLC from "@/pages/apps/PreparacionPLC"
-import AuditoriaDemo from "@/pages/apps/AuditoriaDemo"
-import ValidarDemo from "@/pages/apps/ValidarDemo"
-import ParadasDemo from "@/pages/apps/ParadasDemo"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { VersionChecker } from "@/components/VersionChecker"
 
@@ -257,10 +254,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        {/* Previews de diseño sin login ni DB — se pueden borrar. */}
-        <Route path="/auditoria-demo" element={<AuditoriaDemo />} />
-        <Route path="/validar-demo" element={<ValidarDemo />} />
-        <Route path="/paradas-demo" element={<ParadasDemo />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

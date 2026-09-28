@@ -1,57 +1,54 @@
-import { useMemo, useState, type ReactNode } from "react"
-import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Clock, Gauge } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CintaLinea, type EstadoLineaVista } from "@/components/CintaLinea"
 import { cn } from "@/lib/utils"
+import type { OeePeriodo } from "@/lib/eficiencia"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { type TurnoTipoCodigo } from "@/lib/catalogos"
 import {
   agruparPorDia,
-  disponibilidadAprox,
+  duracionMin,
   fmtDuracion,
   LINEAS_PARADAS,
   NOMBRE_CLASE,
   nombreLineaParada,
   paradaAbierta,
-  porFamilia,
-  porPresentacion,
-  porSabor,
   porTipo,
   porTipoYLinea,
   porTipoYLineaPorFrecuencia,
-  resumenPorClase,
+  primeraDeCadaLinea,
   type ClaseParada,
-  type GrupoAtributo,
   type GrupoTipo,
   type Parada,
   type PuntoDiaParada,
 } from "@/lib/paradas"
 
 /*
- * Panel de Paradas — dashboard solo lectura, mismo estilo y misma lógica
- * de filtro que el Panel de Producción: se mira UN turno puntual de UN
- * día (o los 3 turnos de ese día con "Todos"), no un rango — Select de
- * Turno + date picker de Fecha, igual que allá. Todo el contenido
- * (ranking + 3 líneas con su cinta animada + KPIs + Sabor/Familia/
- * Presentación) responde al diseño acordado con el dueño (UI diseño
- * paradas.pdf) y queda siempre visible, sin secciones colapsables — el
- * objetivo es que entre entero en una sola pantalla, sin scroll.
- * Compartido entre la página real y el preview /paradas-demo.
+ * Panel de Paradas — dashboard solo lectura, mismo estilo que el Panel de
+ * Producción. Filtro de Turno (uno o "Todos") + Período (Ayer / Últimos
+ * 7 días / Este mes). Todo el contenido (Top por frecuencia y por tiempo
+ * — la primera de cada línea — + las 3 líneas con su cinta animada, su
+ * OEE (Disponibilidad × Rendimiento, mismo cálculo que el Panel de
+ * Producción — ver OeeLinea), sus minutos no programados, sus paradas registradas y su
+ * top 3 de no programadas) queda siempre
+ * visible, sin secciones colapsables — el objetivo es que entre entero en
+ * una sola pantalla, sin scroll. Rework 2026-09-28 (dueño): la info es
+ * POR LÍNEA, ya no hay KPIs globales, ni minutos programados / ociosos,
+ * ni paradas por Sabor / Familia / Presentación.
  *
  * `estadoLineas` es el estado EN VIVO de las 3 líneas — a propósito NO
  * depende del filtro de Fecha/Turno de acá abajo (ese filtro es para
  * historial; la cinta solo tiene sentido mostrando el turno activo
- * real). Si no se pasa (ej. el preview sin login), se muestra un
- * placeholder en vez de inventar un estado.
+ * real). undefined = todavía cargando.
  */
 
-type PeriodoCodigo = "3D" | "7D" | "RANGO"
+type PeriodoCodigo = "AYER" | "7D" | "MES"
 const PERIODO_FILTRO: { codigo: PeriodoCodigo; etiqueta: string }[] = [
-  { codigo: "3D", etiqueta: "Últimos 3 días" },
+  { codigo: "AYER", etiqueta: "Ayer" },
   { codigo: "7D", etiqueta: "Últimos 7 días" },
-  { codigo: "RANGO", etiqueta: "Escoger período" },
+  { codigo: "MES", etiqueta: "Este mes" },
 ]
 
 const TURNO_FILTRO: { codigo: TurnoTipoCodigo | "TODOS"; etiqueta: string }[] = [
@@ -77,17 +74,20 @@ export interface EstadoLineaEnVivo {
   presentacion?: string | null
 }
 
+/** Carga el OEE por línea (clave LINEA_1/2/3) del período y turno elegidos — ver cargarOeePeriodo (src/lib/eficienciaPeriodo.ts). */
+export type CargarOee = (filtro: { desde: string; hasta: string; turnoTipo: string }) => Promise<Map<string, OeePeriodo>>
+
 export function PanelParadasVista({
   paradas,
   estadoLineas,
+  cargarOee,
 }: {
   paradas: Parada[]
   /** Estado en vivo de las 3 líneas (no filtrado). Ver nota de cabecera. */
   estadoLineas?: EstadoLineaEnVivo[]
+  cargarOee: CargarOee
 }) {
-  const [periodo, setPeriodo] = useState<PeriodoCodigo>("3D")
-  const [rangoDesde, setRangoDesde] = useState(() => fechaPlanta())
-  const [rangoHasta, setRangoHasta] = useState(() => fechaPlanta())
+  const [periodo, setPeriodo] = useState<PeriodoCodigo>("7D")
   const [clase, setClase] = useState<ClaseParada | "TODAS">("TODAS")
   const [linea, setLinea] = useState("TODAS")
   const [turno, setTurno] = useState<TurnoTipoCodigo | "TODOS">("TODOS")
@@ -95,14 +95,17 @@ export function PanelParadasVista({
 
   const ahora = useMemo(() => new Date(), [])
 
-  // "Escoger período" usa las 2 fechas elegidas; los otros dos se calculan
-  // desde HOY (fecha de planta) para atrás. hasta siempre >= desde.
+  // Todo se calcula desde HOY (fecha de planta): Ayer = solo el día de
+  // ayer; 7 días = hoy y los 6 anteriores; Este mes = del 1 hasta hoy.
   const { desde, hasta } = useMemo(() => {
     const hoy = fechaPlanta()
-    if (periodo === "3D") return { desde: restarDias(hoy, 2), hasta: hoy }
+    if (periodo === "AYER") {
+      const ayer = restarDias(hoy, 1)
+      return { desde: ayer, hasta: ayer }
+    }
     if (periodo === "7D") return { desde: restarDias(hoy, 6), hasta: hoy }
-    return rangoDesde <= rangoHasta ? { desde: rangoDesde, hasta: rangoHasta } : { desde: rangoHasta, hasta: rangoDesde }
-  }, [periodo, rangoDesde, rangoHasta])
+    return { desde: `${hoy.slice(0, 8)}01`, hasta: hoy }
+  }, [periodo])
 
   const filtradas = useMemo(() => {
     return paradas
@@ -118,34 +121,31 @@ export function PanelParadasVista({
   }, [paradas, desde, hasta, clase, linea, turno])
 
   const abiertas = filtradas.filter(paradaAbierta).length
-  const porClase = useMemo(() => resumenPorClase(filtradas, ahora), [filtradas, ahora])
-  // Por tipo + línea (no solo tipo): el mismo tipo puede repetirse una vez
-  // por línea, cada fila dice de cuál es — ver RankList (mostrarLinea).
-  const tiposPorLinea = useMemo(() => porTipoYLinea(filtradas, ahora), [filtradas, ahora])
-  const topFrecuencia = useMemo(() => porTipoYLineaPorFrecuencia(filtradas, ahora).slice(0, 5), [filtradas, ahora])
-  const topTiempo = useMemo(() => tiposPorLinea.slice(0, 5), [tiposPorLinea])
+  // Por tipo + línea, y de ahí SOLO la primera de cada línea (máximo 3
+  // filas): cada fila dice de qué línea es — ver RankList.
+  const topFrecuencia = useMemo(() => primeraDeCadaLinea(porTipoYLineaPorFrecuencia(filtradas, ahora)), [filtradas, ahora])
+  const topTiempo = useMemo(() => primeraDeCadaLinea(porTipoYLinea(filtradas, ahora)), [filtradas, ahora])
 
-  // Toda la planta (no por línea) — qué sabor/familia/presentación se
-  // llevó más paradas. Las que no tienen dato asociado (CIP, orden y
-  // limpieza, liberación de vapor) quedan afuera, ver nota en Parada.
-  const porSaborRes = useMemo(() => porSabor(filtradas, ahora), [filtradas, ahora])
-  const porFamiliaRes = useMemo(() => porFamilia(filtradas, ahora), [filtradas, ahora])
-  const porPresentacionRes = useMemo(() => porPresentacion(filtradas, ahora), [filtradas, ahora])
-  // Uno por columna de línea (ver el hero, abajo) — no filtrados por esa
-  // línea, son de toda la planta.
-  const ATRIBUTOS_PLANTA = [
-    { titulo: "Paradas por Sabor", items: porSaborRes },
-    { titulo: "Paradas por Familia", items: porFamiliaRes },
-    { titulo: "Paradas por Presentación", items: porPresentacionRes },
-  ]
+  // OEE por línea del período — sale de Producción (contadores y velocidades),
+  // no de las paradas, así que se pide aparte. Se guarda con la clave del
+  // filtro que lo pidió: si no coincide con el filtro actual, está cargando.
+  const claveOee = `${desde}|${hasta}|${turno}`
+  const [oeeCargado, setOeeCargado] = useState<{ clave: string; datos: Map<string, OeePeriodo> } | null>(null)
+  useEffect(() => {
+    let vivo = true
+    const clave = `${desde}|${hasta}|${turno}`
+    cargarOee({ desde, hasta, turnoTipo: turno }).then(
+      (datos) => vivo && setOeeCargado({ clave, datos }),
+      () => vivo && setOeeCargado({ clave, datos: new Map() }),
+    )
+    return () => {
+      vivo = false
+    }
+  }, [cargarOee, desde, hasta, turno])
+  const oee = oeeCargado?.clave === claveOee ? oeeCargado.datos : undefined
 
-  // Por día del rango: "Todos" son los 3 turnos de ese día, un turno puntual es 1.
-  const diasEnRango = Math.max(1, Math.round((new Date(hasta).getTime() - new Date(desde).getTime()) / 86_400_000) + 1)
-  const turnosEnRango = (turno === "TODOS" ? 3 : 1) * diasEnRango
   // Tendencia de la tarjeta "Vista" — un punto por día del rango elegido.
   const porDia = useMemo(() => agruparPorDia(filtradas, ahora), [filtradas, ahora])
-  const disponibilidadPlanta = disponibilidadAprox(filtradas, turnosEnRango, 3, ahora)
-  const classMinutes = (c: ClaseParada) => porClase.find((x) => x.clase === c)?.minutos ?? 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -185,13 +185,6 @@ export function PanelParadasVista({
                   {p.etiqueta}
                 </Button>
               ))}
-              {periodo === "RANGO" && (
-                <>
-                  <Input type="date" className="h-8 w-36" value={rangoDesde} onChange={(e) => setRangoDesde(e.target.value)} />
-                  <span className="text-xs text-muted-foreground">a</span>
-                  <Input type="date" className="h-8 w-36" value={rangoHasta} onChange={(e) => setRangoHasta(e.target.value)} />
-                </>
-              )}
             </div>
           </div>
           <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setMostrarFiltros((v) => !v)}>
@@ -232,12 +225,10 @@ export function PanelParadasVista({
         )}
       </div>
 
-      {/* ---- Hero: ranking + líneas en vivo + KPIs ----
-           Los laterales son fijos y anchos (320px) porque cargan
-           listas/números; el centro se recorta a un máximo (260px por
-           línea) para que las 3 tarjetas no queden infladas de espacio
-           vacío en pantallas grandes. */}
-      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-[300px_repeat(3,320px)_240px] lg:justify-center">
+      {/* ---- Hero: ranking + líneas (en vivo + sus números) ----
+           Ya no hay columna de KPIs globales: OEE, minutos no
+           programados y paradas registradas van DENTRO de cada línea. */}
+      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-[300px_repeat(3,340px)] lg:justify-center">
         <div className="flex flex-col gap-3">
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <div className="mb-1 flex items-center justify-between">
@@ -254,16 +245,12 @@ export function PanelParadasVista({
           <RankCard titulo="Top Paradas por Tiempo" tono="danger" items={topTiempo} metrica="minutos" />
         </div>
 
-        {/* ---- Cada columna: la tarjeta de línea + su atributo de planta
-             (Sabor/Familia/Presentación) separado, debajo — no forman
-             una sola tarjeta, son dos con su propio marco cada una. Los
-             3 atributos son de TODA la planta, no filtrados por esa
-             línea — van ahí solo para aprovechar el alto de la columna. ---- */}
+        {/* ---- Una columna por línea: cinta en vivo + sus números. ---- */}
         {LINEAS_PARADAS.map((l, i) => {
           const propias = filtradas.filter((p) => p.lineaCodigo === l.codigo)
-          const eficiencia = disponibilidadAprox(propias, turnosEnRango, 1, ahora)
+          const noProgramadas = propias.filter((p) => p.clase === "NO_PROGRAMADA")
+          const minutosNoProgramados = noProgramadas.reduce((a, p) => a + duracionMin(p, ahora), 0)
           const enVivo = estadoLineas?.find((e) => e.lineaCodigo === l.codigo)
-          const atributo = ATRIBUTOS_PLANTA[i]
           return (
             <div key={l.codigo} className="flex min-w-0 flex-col gap-3">
               <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
@@ -291,44 +278,25 @@ export function PanelParadasVista({
                     presentacion={enVivo.presentacion}
                   />
                 ) : (
-                  <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground">
-                    Sin estado en vivo
-                    <br />
-                    (vista previa)
+                  <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />
                   </div>
                 )}
-                <div className={cn("mt-2 flex items-center justify-between gap-2 rounded-lg px-3 py-2", nivelSoft(eficiencia))}>
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Eficiencia</span>
-                  <span className={cn("num text-3xl font-extrabold leading-none", nivelColor(eficiencia))}>{eficiencia}%</span>
+                <OeeLinea oee={oee === undefined ? "cargando" : (oee.get(l.codigo) ?? null)} />
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <DatoLinea etiqueta="Min. no programados" valor={minutosNoProgramados} tono="text-danger" />
+                  <DatoLinea etiqueta="Paradas registradas" valor={propias.length} tono="text-primary" />
                 </div>
-                <div className="mt-2">
-                  <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top paradas por línea</h3>
-                  <RankList items={porTipo(propias, ahora).slice(0, 3)} metrica="minutos" compacto />
+                <div className="mt-3">
+                  <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top 3 no programadas · tiempo</h3>
+                  <div className="text-danger">
+                    <RankList items={porTipo(noProgramadas, ahora).slice(0, 3)} metrica="minutos" compacto />
+                  </div>
                 </div>
               </div>
-              {atributo && <BarrasAtributo titulo={atributo.titulo} items={atributo.items} />}
             </div>
           )
         })}
-
-        <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1">
-            <Kpi etiqueta="Min. programadas" valor={classMinutes("PROGRAMADA")} icono={<Clock className="size-4" />} tono="text-info" />
-            <Kpi etiqueta="Min. no programadas" valor={classMinutes("NO_PROGRAMADA")} icono={<AlertTriangle className="size-4" />} tono="text-danger" />
-            <Kpi etiqueta="Min. tiempo ocioso" valor={classMinutes("OCIOSO")} tono="text-warning" />
-            <Kpi etiqueta="Paradas registradas" valor={filtradas.length} tono="text-primary" />
-          </div>
-          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Disponibilidad de Planta</h2>
-              <Gauge className={cn("size-5", nivelColor(disponibilidadPlanta))} aria-hidden="true" />
-            </div>
-            <div className="flex items-center justify-center">
-              <AnilloPct pct={disponibilidadPlanta} tamano={96} />
-            </div>
-            <p className="mt-3 text-center text-[11px] text-muted-foreground">Aproximada — objetivo ≥ 90%</p>
-          </div>
-        </div>
       </div>
 
       {abiertas > 0 && (
@@ -351,25 +319,71 @@ function fmtRangoCorto(desde: string, hasta: string) {
   return `${d} – ${h}`
 }
 
-function nivelColor(pct: number) {
-  return pct >= 90 ? "text-success" : pct >= 75 ? "text-warning" : "text-danger"
+/** Mismos cortes que la Eficiencia del Panel de Producción (LineaFilaCompacta): ≥ 90 verde, ≥ 60 amarillo, menos rojo. */
+function colorNivel(pct: number | null) {
+  return pct === null ? "var(--muted-foreground)" : pct >= 90 ? "var(--success)" : pct >= 60 ? "var(--warning)" : "var(--danger)"
 }
-function nivelSoft(pct: number) {
-  return pct >= 90 ? "bg-success/10" : pct >= 75 ? "bg-warning/10" : "bg-danger/10"
+
+/**
+ * OEE de la línea en el período: el "reloj" (anillo) con el OEE, y al lado
+ * sus dos factores en barritas — Disponibilidad × Rendimiento (Calidad = 1,
+ * ver src/lib/eficiencia.ts) — para ver cuál de los dos lo baja.
+ */
+function OeeLinea({ oee }: { oee: OeePeriodo | null | "cargando" }) {
+  if (oee === "cargando") {
+    return (
+      <div className="mt-2 flex h-[104px] items-center justify-center gap-2 rounded-lg bg-muted/40 text-xs text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> Calculando OEE…
+      </div>
+    )
+  }
+  if (oee === null || oee.oeePct === null) {
+    return (
+      <div className="mt-2 flex h-[104px] flex-col items-center justify-center rounded-lg bg-muted/40 text-center text-xs text-muted-foreground">
+        <span className="text-[10px] font-bold uppercase tracking-wide">OEE</span>
+        Sin producción en el período
+      </div>
+    )
+  }
+  return (
+    <div className="mt-2 flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2">
+      <AnilloPct pct={oee.oeePct} tamano={88} />
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          OEE · {oee.turnos} {oee.turnos === 1 ? "turno" : "turnos"}
+        </p>
+        <FactorOee etiqueta="Disponibilidad" pct={oee.disponibilidadPct} />
+        <FactorOee etiqueta="Rendimiento" pct={oee.rendimientoPct} />
+      </div>
+    </div>
+  )
+}
+
+function FactorOee({ etiqueta, pct }: { etiqueta: string; pct: number | null }) {
+  return (
+    <div>
+      <div className="mb-0.5 flex items-center justify-between text-[11px]">
+        <span className="text-muted-foreground">{etiqueta}</span>
+        <span className="num font-semibold text-foreground">{pct === null ? "—" : `${pct}%`}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct ?? 0)}%`, backgroundColor: colorNivel(pct) }} />
+      </div>
+    </div>
+  )
 }
 
 /** Anillo de porcentaje (conic-gradient) — mismo patrón que MetaAnillo en PanelProduccion.tsx, para que los dos dashboards se lean igual. */
 function AnilloPct({ pct, tamano }: { pct: number; tamano: number }) {
-  const clamped = Math.max(0, Math.min(100, pct))
-  const color = clamped >= 90 ? "var(--success)" : clamped >= 75 ? "var(--warning)" : "var(--danger)"
+  const color = colorNivel(pct)
   return (
     <div
       className="relative grid shrink-0 place-items-center rounded-full transition-all duration-700"
-      style={{ width: tamano, height: tamano, background: `conic-gradient(${color} ${clamped * 3.6}deg, color-mix(in oklab, var(--muted) 90%, transparent) 0deg)` }}
+      style={{ width: tamano, height: tamano, background: `conic-gradient(${color} ${Math.max(0, Math.min(100, pct)) * 3.6}deg, color-mix(in oklab, var(--muted) 90%, transparent) 0deg)` }}
     >
       <div className="grid place-items-center rounded-full bg-background" style={{ width: tamano * 0.72, height: tamano * 0.72 }}>
         <span className="num font-bold" style={{ color, fontSize: tamano * 0.24 }}>
-          {clamped}%
+          {pct}%
         </span>
       </div>
     </div>
@@ -417,35 +431,6 @@ function RankCard({ titulo, tono, items, metrica }: { titulo: string; tono: "inf
   )
 }
 
-/** Gráfico de barras (top 5) por sabor/familia/presentación — mismo estilo visual que RankList, toda la planta junta. */
-function BarrasAtributo({ titulo, items }: { titulo: string; items: GrupoAtributo[] }) {
-  const top = items.slice(0, 5)
-  const max = Math.max(1, ...top.map((i) => i.minutos))
-  return (
-    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <h2 className="mb-4 text-sm font-semibold text-foreground">{titulo}</h2>
-      {top.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Sin datos asociados en el rango.</p>
-      ) : (
-        <ol className="flex flex-col gap-3">
-          {top.map((item) => (
-            <li key={item.clave}>
-              <div className="mb-1 flex items-center gap-2 text-xs">
-                <span className="min-w-0 flex-1 truncate font-medium text-foreground">{item.clave}</span>
-                <span className="num font-semibold text-foreground">{fmtDuracion(item.minutos)}</span>
-                <span className="text-muted-foreground">({item.veces}×)</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(8, (item.minutos / max) * 100)}%` }} />
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  )
-}
-
 const SPARK_W = 280
 const SPARK_H = 36
 
@@ -483,13 +468,13 @@ function Sparkline({ datos }: { datos: PuntoDiaParada[] }) {
   )
 }
 
-function Kpi({ etiqueta, valor, icono, tono }: { etiqueta: string; valor: number; icono?: ReactNode; tono: string }) {
+/** Número chico de una línea (Min. no programados / Paradas registradas), debajo de su Eficiencia. */
+function DatoLinea({ etiqueta, valor, tono }: { etiqueta: string; valor: number; tono: string }) {
   return (
-    <article className="flex flex-col items-center rounded-xl border border-border bg-card p-4 text-center shadow-sm">
-      {icono && <div className={cn("mb-2 flex size-9 items-center justify-center rounded-md bg-current/10", tono)}>{icono}</div>}
-      <p className={cn("num text-4xl font-extrabold", icono ? "text-foreground" : tono)}>{valor}</p>
-      <p className="mt-1.5 text-sm font-medium leading-snug text-muted-foreground">{etiqueta}</p>
-    </article>
+    <div className="flex flex-col items-center rounded-lg border border-border bg-background/60 px-2 py-2 text-center">
+      <p className={cn("num text-2xl font-extrabold leading-none", tono)}>{valor.toLocaleString("es-CO")}</p>
+      <p className="mt-1 text-[11px] font-medium leading-snug text-muted-foreground">{etiqueta}</p>
+    </div>
   )
 }
 

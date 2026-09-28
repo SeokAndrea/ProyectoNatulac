@@ -4,14 +4,11 @@ import { supabase } from "@/lib/supabase"
  * Módulo Paradas — downtime de las líneas. Rumbo 2026-09-10 (ver
  * plan-paradas.md): el eje pasa a PROGRAMADA / NO_PROGRAMADA / OCIOSO.
  *
- *  - PROGRAMADA y OCIOSO: las carga el supervisor a mano en la página de
- *    Registro (elige línea, tipo del catálogo, hora de inicio; luego
- *    vuelve y cierra con hora de fin).
- *  - NO_PROGRAMADA: solo lectura en la app; idealmente se sincroniza del
- *    Sheet de Mantenimiento (FASE C′ — todavía sin base).
+ *  - El supervisor registra las suyas en Registrar Paradas.
+ *  - Mantenimiento registra las mecánicas en su pantalla, con hora real de
+ *    inicio y fin (migración 20261070); ya no se sincroniza el Sheet.
  *
- * Persistencia: migración 20261061 (paradas_tipos, paradas y sus RPC). El
- * fixture src/lib/paradasDemoFixture.ts solo alimenta el preview /paradas-demo.
+ * Persistencia: migración 20261061 (paradas_tipos, paradas y sus RPC).
  *
  * Regla de negocio (dueño, 2026-09-09): la duración la calcula el
  * programa (fin − inicio). Cada tipo trae un "tiempo guía" (duración
@@ -44,10 +41,8 @@ export const COLOR_CLASE: Record<ClaseParada, string> = {
 /**
  * Familia del tipo — agrupa el catálogo para reportes/filtros y explica el
  * prefijo del código de planilla. PROGRAMADA es la única familia de clase
- * PROGRAMADA; el resto son NO_PROGRAMADA, cargadas a mano por el supervisor
- * (rumbo confirmado por el dueño, 2026-09-15). Las paradas MECÁNICAS (falla
- * de equipo/subsistema) no tienen familia en este catálogo: siguen viniendo
- * del Sheet de Mantenimiento como texto libre (`tipoCodigo: null`), FASE C′.
+ * PROGRAMADA; el resto son NO_PROGRAMADA. Las fallas de equipo (EQUIPO,
+ * EQUIPO_PROCESO) las registra Mantenimiento — ver FAMILIAS_SUPERVISOR.
  */
 export type FamiliaParada =
   | "PROGRAMADA"
@@ -95,7 +90,7 @@ export interface LineaDeTipo {
 export const FAMILIAS_SUPERVISOR: FamiliaParada[] = ["PROGRAMADA", "EXTERNA", "OPERACIONAL"]
 export const registraSupervisor = (t: { familia: FamiliaParada }) => FAMILIAS_SUPERVISOR.includes(t.familia)
 
-/** Un tipo del catálogo de paradas. En FASE B′ pasa a la tabla `paradas_tipos` (editable en Edición de Datos). */
+/** Un tipo del catálogo de paradas. El vigente vive en la tabla `paradas_tipos` (ver paradasCatalogo.ts); CATALOGO_TIPOS es la semilla. */
 export interface TipoParada {
   codigo: string
   nombre: string
@@ -138,11 +133,8 @@ export function codigoPlanilla(tipo: TipoParada, lineaCodigo: string, area?: str
  * Seed del catálogo completo (planilla del dueño, 2026-09-15). Los códigos
  * de esta lista son los de LÍNEA 1 tal cual los pasó el dueño; para otras
  * líneas se reconstruyen con `codigoPlanilla()` (mismo prefijo/secuencia,
- * cambia el número). PROGRAMADA y OCIOSO se cargan a mano en Registro de
- * Paradas; el resto (EXTERNA/OPERACIONAL/SUMINISTRO_VAPOR/SUMINISTRO/
- * ESTERILIZACION/PREPARACION/CODIFICACION) también, por decisión del dueño — no se
- * esperaba al sync del Sheet. Las MECÁNICAS (equipo/subsistema) quedan
- * fuera de este catálogo: siguen viniendo del Sheet (FASE C′).
+ * cambia el número). Es la semilla: si `paradas_tipos` no responde, se usa
+ * esta lista (ver paradasCatalogo.ts).
  */
 export const CATALOGO_TIPOS: TipoParada[] = [
   // ---- Programada (PPL# / PPEL#) ----
@@ -274,32 +266,9 @@ export interface Parada {
    */
   fin: string | null
   supervisorNombre: string | null
-  /**
-   * Sabor/familia/presentación que corría en esa línea al momento de la
-   * parada — opcionales: null/undefined cuando no aplica (CIP, orden y
-   * limpieza, liberación de vapor: la línea no tenía nada corriendo) o
-   * cuando quien registra la parada no lo sabe (RegistroParadas no pide
-   * este dato — no es algo que el supervisor tipee). Hoy solo lo trae el
-   * fixture de demo (FASE A′); en la base real se resuelve por
-   * línea+instante contra Producción (`turno_lineas`), Paradas no lo
-   * guarda por su cuenta.
-   */
-  saborNombre?: string | null
-  familiaNombre?: string | null
-  presentacionMl?: number | null
 }
 
 export const paradaAbierta = (p: Parada) => p.fin === null
-
-/**
- * Paradas abiertas ("— Continúa") de estas líneas — usado por Finalizar
- * Turno / el Acta (FASE A′, plan-paradas.md §3): vista previa contra el
- * fixture, todavía no está atada al `turno_id` real (eso es FASE B′).
- */
-export function paradasAbiertasDeLineas(paradas: Parada[], lineasCodigos: Iterable<string>): Parada[] {
-  const set = new Set(lineasCodigos)
-  return paradas.filter((p) => paradaAbierta(p) && set.has(p.lineaCodigo))
-}
 
 // ------------------------------------------------------------
 // Duración y desvío
@@ -480,78 +449,21 @@ export function porTipoYLineaPorFrecuencia(paradas: Parada[], ahora?: Date): Gru
   return porTipoYLinea(paradas, ahora).sort((a, b) => b.veces - a.veces || b.minutos - a.minutos)
 }
 
-// ------------------------------------------------------------
-// Por sabor / familia / presentación — qué se estaba corriendo cuando
-// pasó la parada (ver nota de `Parada`, más abajo del todo). Las que no
-// tienen dato (CIP, orden y limpieza, liberación de vapor) quedan afuera.
-// ------------------------------------------------------------
-
-export interface GrupoAtributo {
-  clave: string
-  veces: number
-  minutos: number
-}
-
-function agruparPorAtributo(paradas: Parada[], obtenerClave: (p: Parada) => string | null | undefined, ahora?: Date): GrupoAtributo[] {
-  const m = new Map<string, GrupoAtributo>()
-  for (const p of paradas) {
-    const clave = obtenerClave(p)
-    if (clave == null) continue
-    const g = m.get(clave) ?? { clave, veces: 0, minutos: 0 }
-    g.veces += 1
-    g.minutos += duracionMin(p, ahora)
-    m.set(clave, g)
-  }
-  return [...m.values()].sort((a, b) => b.minutos - a.minutos || b.veces - a.veces)
-}
-
-export function porSabor(paradas: Parada[], ahora?: Date): GrupoAtributo[] {
-  return agruparPorAtributo(paradas, (p) => p.saborNombre, ahora)
-}
-
-export function porFamilia(paradas: Parada[], ahora?: Date): GrupoAtributo[] {
-  return agruparPorAtributo(paradas, (p) => p.familiaNombre, ahora)
-}
-
-export function porPresentacion(paradas: Parada[], ahora?: Date): GrupoAtributo[] {
-  return agruparPorAtributo(paradas, (p) => (p.presentacionMl != null ? `${p.presentacionMl} ml` : null), ahora)
-}
-
-const MINUTOS_POR_TURNO_APROX = 8 * 60
-
 /**
- * Disponibilidad aproximada de un conjunto de paradas: 1 − (minutos
- * perdidos ÷ minutos planificados). `MINUTOS_POR_TURNO_APROX` asume 8h
- * parejas por turno — aproximación de FASE A′ para el Panel de Paradas;
- * se afina en FASE B′ contra la duración real de cada `turno_tipo`
- * (`horasTranscurridasTurno` en src/lib/reportes/index.ts ya hace eso
- * para un turno puntual, no para un rango).
+ * De un ranking de porTipoYLinea() / porTipoYLineaPorFrecuencia() (ya
+ * ordenado), se queda solo con la PRIMERA fila de cada línea — "Top
+ * Paradas" del Panel de Paradas: una por línea (máximo 3), no las 5
+ * primeras de la planta, que podían ser todas de la misma línea. Mantiene
+ * el orden del ranking que recibe.
  */
-export function disponibilidadAprox(paradas: Parada[], cantidadTurnos: number, cantidadLineas: number, ahora?: Date): number {
-  const planificados = cantidadTurnos * MINUTOS_POR_TURNO_APROX * cantidadLineas
-  if (planificados <= 0) return 100
-  const perdidos = paradas.reduce((a, p) => a + duracionMin(p, ahora), 0)
-  return Math.max(0, Math.min(100, Math.round((1 - perdidos / planificados) * 100)))
-}
-
-/**
- * Eficiencia tipo OEE para UNA línea en lo que va del turno: disponibilidad
- * (tiempo transcurrido − minutos de parada de esa línea, sobre el tiempo
- * transcurrido) × rendimiento (velocidad real vs. la máxima disponible, ya
- * calculado aparte — ver `produccionPorLineaDe` en PanelProduccion.tsx).
- * null si no hay rendimiento que combinar (la línea no tiene corrida activa
- * ahora mismo, no hay con qué medir velocidad). Con 0 minutos de parada
- * (todavía no hay paradas cargadas para esa línea) da exactamente el
- * rendimiento, sin penalizar.
- */
-export function eficienciaOEE(rendimientoPct: number | null, minutosParadaLinea: number, minutosTranscurridosTurno: number): number | null {
-  if (rendimientoPct === null) return null
-  if (minutosTranscurridosTurno <= 0) return rendimientoPct
-  const disponibilidadPct = Math.max(
-    0,
-    Math.min(100, Math.round(((minutosTranscurridosTurno - minutosParadaLinea) / minutosTranscurridosTurno) * 100)),
-  )
-  return Math.round((disponibilidadPct * rendimientoPct) / 100)
+export function primeraDeCadaLinea(ranking: GrupoTipo[]): GrupoTipo[] {
+  const vistas = new Set<string>()
+  return ranking.filter((g) => {
+    const linea = g.lineaCodigo ?? ""
+    if (vistas.has(linea)) return false
+    vistas.add(linea)
+    return true
+  })
 }
 
 export interface PuntoDiaParada {

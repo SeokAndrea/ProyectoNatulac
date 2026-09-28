@@ -4,7 +4,14 @@ Creado 2026-09-21, actualizado el mismo día con las respuestas del dueño. Obje
 **disponibilidad**, el **rendimiento** y la **eficiencia** de cada línea salgan de las paradas registradas
 (Programada / No programada / Ocioso) y den lo mismo en Panel, Validar, Acta y KPIs.
 
-Estado: **solo planificación**. No hay código todavía. Los puntos con `[ ]` son decisiones abiertas.
+Estado: **implementado en el navegador** (`src/lib/eficiencia.ts`). Los puntos con `[ ]` siguen abiertos.
+
+**Vigente al 2026-09-28 (manda sobre lo de abajo):**
+- Rendimiento y OEE se miden contra la velocidad **máxima de la llenadora** (L1 8.000, L2 y L3 9.000), no contra
+  la elegida. La elegida solo se usa para la Meta. Reconfirmado por el usuario.
+- OEE = Disponibilidad × Rendimiento; Calidad = 1.
+- Turno 12x12: base de **12 h**.
+- El Panel de Paradas muestra el OEE por línea del período, turno por turno (`src/lib/eficienciaPeriodo.ts`).
 
 **EN PAUSA (dueño, 2026-09-21): paradas «en curso» y el enlace con «Detener línea».** No se implementa hasta
 nueva orden. Sigue vigente todo lo demás del plan (fórmulas, base por turno, ritmo).

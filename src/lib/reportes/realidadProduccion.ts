@@ -4,7 +4,7 @@
  * envases. Ver plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Extraído de mermaCorrida()/mermaEnvasesDeCorridas() (antes en
- * src/lib/turno.tsx y src/lib/panelProduccion.ts), mismo comportamiento
+ * src/lib/turno.ts y src/lib/panelProduccion.ts), mismo comportamiento
  * exacto — leyendo de los tipos de Producción/Producto Terminado en vez
  * de un TurnoActivo combinado.
  */

@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LineaVisual, type EstadoVisualLinea } from "@/components/LineaVisual"
+import { CintaEstadoLinea, type EstadoCinta } from "@/components/CintaEstadoLinea"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import { useAuth } from "@/lib/auth"
 import { nombrePorCodigo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
@@ -593,6 +594,19 @@ function LineaCard({
       : pausada
         ? "parada"
         : "corriendo"
+  // Corriendo, en pausa, CIP y detenida: la cinta animada (misma que el Panel
+  // de Producción). El resto de los estados sigue con su ícono.
+  const estadoCinta: EstadoCinta | null = activa
+    ? loteTerminado
+      ? null
+      : pausada
+        ? "parada"
+        : "corriendo"
+    : condicionLinea === "CIP"
+      ? "cip"
+      : condicionLinea === "DETENIDA"
+        ? "detenida"
+        : null
 
   return (
     <Card className="overflow-hidden border-border shadow-sm">
@@ -628,14 +642,24 @@ function LineaCard({
           </Badge>
         </div>
 
-        <LineaVisual
-          numeroLinea={numeroLinea}
-          estado={estadoVisual}
-          color={colorSabor(lineaTurno?.saborNombre ?? null)}
-          square
-          saborNombre={lineaTurno?.saborNombre ?? null}
-          presentacion={lineaTurno?.presentacion ?? null}
-        />
+        {estadoCinta ? (
+          <CintaEstadoLinea
+            estado={estadoCinta}
+            saborNombre={lineaTurno?.saborNombre}
+            presentacion={lineaTurno?.presentacion}
+            escala={1.8}
+            className="w-full"
+          />
+        ) : (
+          <LineaVisual
+            numeroLinea={numeroLinea}
+            estado={estadoVisual}
+            color={colorSabor(lineaTurno?.saborNombre ?? null)}
+            square
+            saborNombre={lineaTurno?.saborNombre ?? null}
+            presentacion={lineaTurno?.presentacion ?? null}
+          />
+        )}
 
         {activa && lineaTurno && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm [&>div]:min-w-0">
@@ -657,8 +681,31 @@ function LineaCard({
           </div>
         )}
 
-        {modo === "preparacion" &&
-          (editando ? (
+        {/* Status (revisión de inicio): una línea heredada corriendo que
+            todavía no se revisó solo ofrece Confirmar / Corregir — la base
+            no deja cargar contador ni PT de una línea sin confirmar, así que
+            detenerla antes de confirmar la dejaría trabada esperando PT.
+            Confirmada, tiene las MISMAS opciones que en Preparación. */}
+        {modo === "status" && lineaTurno && !lineaTurno.confirmadoInicioEn && !editando ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
+            <p className="text-sm text-foreground">{nombreLinea}: así quedó del turno anterior — confirma o corrige.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={enviandoAccion} onClick={() => accion(onConfirmarEstadoLinea)}>
+                {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                Confirmar
+              </Button>
+              <Button size="sm" variant="outline" onClick={empezarEdicion}>
+                Corregir
+              </Button>
+            </div>
+            {errorAccion && (
+              <p className="text-xs text-destructive" role="alert">
+                {errorAccion}
+              </p>
+            )}
+          </div>
+        ) : (
+          editando ? (
             renderFormularioEdicion()
           ) : mostrarParada ? (
             renderParadaOperacional()
@@ -783,18 +830,25 @@ function LineaCard({
             </div>
           ) : activa && lineaTurno ? (
             <div className="flex flex-col gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="self-start"
-                onClick={() => {
-                  setObservacionBorrador("")
-                  setMostrarParada(true)
-                }}
-              >
-                <PauseCircle className="size-3.5" />
-                Parada Operacional
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {modo === "status" && (
+                  <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={empezarEdicion}>
+                    <PenLine className="size-3.5" />
+                    Corregir
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setObservacionBorrador("")
+                    setMostrarParada(true)
+                  }}
+                >
+                  <PauseCircle className="size-3.5" />
+                  Parada Operacional
+                </Button>
+              </div>
               {errorAccion && (
                 <p className="text-xs text-destructive" role="alert">
                   {errorAccion}
@@ -821,97 +875,8 @@ function LineaCard({
               </Button>
               {renderCondicionBotones()}
             </div>
-          ))}
-
-        {modo === "status" &&
-          lineaTurno &&
-          (editando ? (
-            renderFormularioEdicion()
-          ) : mostrarParada ? (
-            renderParadaOperacional()
-          ) : confirmarDetener ? (
-            renderDetenerLinea()
-          ) : !lineaTurno.confirmadoInicioEn ? (
-            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
-              <p className="text-sm text-foreground">{nombreLinea}: así quedó del turno anterior — confirma o corrige.</p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" disabled={enviandoAccion} onClick={() => accion(onConfirmarEstadoLinea)}>
-                  {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-                  Confirmar
-                </Button>
-                <Button size="sm" variant="outline" onClick={empezarEdicion}>
-                  Corregir
-                </Button>
-              </div>
-              {errorAccion && (
-                <p className="text-xs text-destructive" role="alert">
-                  {errorAccion}
-                </p>
-              )}
-            </div>
-          ) : pausada ? (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion}>
-                {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
-                Continuar
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                onClick={() => {
-                  setObservacionBorrador("")
-                  setConfirmarDetener(true)
-                }}
-              >
-                <Square className="size-3.5" />
-                Detener línea
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={empezarEdicion}>
-                  <PenLine className="size-3.5" />
-                  Corregir
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setObservacionBorrador("")
-                    setMostrarParada(true)
-                  }}
-                >
-                  <PauseCircle className="size-3.5" />
-                  Parada Operacional
-                </Button>
-              </div>
-              {renderCondicionBotones({ bloqueadoPorCorrida: true })}
-            </div>
-          ))}
-
-        {modo === "status" &&
-          !activa &&
-          (editando ? (
-            renderFormularioEdicion()
-          ) : corridaEsperandoPt ? (
-            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
-              <p className="text-xs text-foreground">
-                {nombreLinea} tiene una corrida detenida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} —
-                falta cargar su Producto Terminado (en la página Producto Terminado) para cerrarla. Hasta entonces la línea
-                no cambia de estado (Sin programación / Cambio de Presentación / CIP).
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <Button variant="outline" size="sm" className="self-start" onClick={empezarEdicion}>
-                <PlayCircle className="size-3.5" />
-                Arrancar línea
-              </Button>
-              {renderCondicionBotones()}
-            </div>
-          ))}
+          )
+        )}
       </CardContent>
     </Card>
   )

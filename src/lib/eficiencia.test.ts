@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { calcularEficiencia, duracionBaseTurnoMin, eficienciaDelTurno, velocidadDeLinea, velocidadMaximaDeLinea } from "@/lib/eficiencia"
+import { calcularEficiencia, duracionBaseTurnoMin, eficienciaDelTurno, oeeDePeriodo, velocidadDeLinea, velocidadMaximaDeLinea } from "@/lib/eficiencia"
 import type { Parada } from "@/lib/paradas"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
@@ -19,11 +19,12 @@ const BASE = {
 }
 
 describe("duracionBaseTurnoMin", () => {
-  it("T1 8 h, T2 7,5 h, T3 8,5 h; el 12x12 no tiene base", () => {
+  it("T1 8 h, T2 7,5 h, T3 8,5 h, 12x12 12 h; tipo desconocido sin base", () => {
     expect(duracionBaseTurnoMin("TURNO_1")).toBe(480)
     expect(duracionBaseTurnoMin("TURNO_2")).toBe(450)
     expect(duracionBaseTurnoMin("TURNO_3")).toBe(510)
-    expect(duracionBaseTurnoMin("12X12")).toBeNull()
+    expect(duracionBaseTurnoMin("12X12")).toBe(720)
+    expect(duracionBaseTurnoMin("OTRO")).toBeNull()
   })
 })
 
@@ -259,8 +260,13 @@ describe("eficienciaDelTurno", () => {
     expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
   })
 
-  it("el turno 12x12 no se calcula", () => {
+  it("el turno 12x12 se calcula con base 12 h", () => {
     const r = eficienciaDelTurno({ ...base, turnoTipo: "12X12", corridas: [corrida("a", "LINEA_1", 9000)], contadores: [], paradas: [] })
+    expect(r.porLinea.get("LINEA_1")?.disponibleMin).toBe(720)
+  })
+
+  it("tipo de turno desconocido no se calcula", () => {
+    const r = eficienciaDelTurno({ ...base, turnoTipo: "OTRO", corridas: [corrida("a", "LINEA_1", 9000)], contadores: [], paradas: [] })
     expect(r.porLinea.size).toBe(0)
     expect(r.total).toBeNull()
   })
@@ -288,5 +294,38 @@ describe("eficienciaDelTurno", () => {
     })
     expect(r.porLinea.get("LINEA_1")?.avancePct).toBe(100)
     expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(75)
+  })
+})
+
+describe("oeeDePeriodo", () => {
+  // 1 h de turno a 6.000 envases/h de máxima, sin paradas → esperado 6.000
+  const turno = (realEnvases: number, minutosNoProgramada = 0, turnoMin = 60) =>
+    calcularEficiencia({
+      turnoMin,
+      transcurridoMin: turnoMin,
+      minutosProgramada: 0,
+      minutosOcioso: 0,
+      minutosNoProgramada,
+      velocidadElegidaEnvasesHora: 6000,
+      velocidadMaximaEnvasesHora: 6000,
+      realEnvases,
+      envasesPorCaja: 24,
+    })
+
+  it("OEE = Disponibilidad × Rendimiento", () => {
+    // 60 min disponibles, 15 parada → 45 operativos (75%); en 45 min a 6.000/h caben 4.500, salieron 3.600 (80%)
+    const r = oeeDePeriodo([turno(3600, 15)])
+    expect(r).toEqual({ oeePct: 60, disponibilidadPct: 75, rendimientoPct: 80, turnos: 1 })
+  })
+
+  it("suma los turnos, no promedia porcentajes: el turno largo pesa más", () => {
+    // Turno corto: 60 min, 100%. Turno largo: 180 min, 50%. Promedio simple = 75%, ponderado = 62,5% → 63
+    const r = oeeDePeriodo([turno(6000), turno(9000, 0, 180)])
+    expect(r.oeePct).toBe(63)
+    expect(r.turnos).toBe(2)
+  })
+
+  it("sin turnos: todo null", () => {
+    expect(oeeDePeriodo([])).toEqual({ oeePct: null, disponibilidadPct: null, rendimientoPct: null, turnos: 0 })
   })
 })

@@ -3,7 +3,7 @@
  * lo planeado — nunca reimplementan lo que hace nucleo.ts. Ver
  * plan-rework-3-modulos-y-merma.md, Fase 1.
  *
- * Extraídas de src/lib/turno.tsx, mismo comportamiento, ninguna RPC nueva.
+ * Extraídas de src/lib/turno.ts, mismo comportamiento, ninguna RPC nueva.
  */
 import { supabase } from "@/lib/supabase"
 import type { Resultado } from "./tipos"

@@ -5,7 +5,7 @@
  *
  * Renombre aplicado (Revisión de nombres del plan): `LineaEnTurno`/
  * `turnoLineaId` → `Corrida`/`corridaId` — el propio comentario del código
- * viejo (src/lib/turno.tsx) decía que ya no es "una línea", es una corrida.
+ * viejo (src/lib/turno.ts) decía que ya no es "una línea", es una corrida.
  */
 import type { LineaCodigo, PresentacionCodigo } from "@/lib/catalogos"
 

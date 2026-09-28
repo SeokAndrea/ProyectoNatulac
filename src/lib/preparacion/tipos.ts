@@ -2,7 +2,7 @@
  * Tipos del módulo Preparación — dueño de los tanques y los lotes
  * (`recepcion_tanques`, `preparaciones`, `preparaciones_ajuste*`).
  *
- * Ver plan-rework-3-modulos-y-merma.md, Fase 1. Extraído de src/lib/turno.tsx
+ * Ver plan-rework-3-modulos-y-merma.md, Fase 1. Extraído de src/lib/turno.ts
  * como primer paso de la separación en 3 módulos de dominio — mismo
  * comportamiento que hoy, con los renombres de "Revisión de nombres" ya
  * aplicados a PreparacionRegistro (antes volumenL/volumenInicialL/volumenLInicio).
@@ -155,7 +155,7 @@ export interface DatosCambiarTanque {
 
 // ------------------------------------------------------------
 // Formas crudas que devuelve turno_json() — mismo shape que
-// src/lib/turno.tsx (FilaTanque / FilaPreparacion), no exportadas de ahí,
+// src/lib/turno.ts (FilaTanque / FilaPreparacion), no exportadas de ahí,
 // así que se redeclaran acá para este módulo.
 // ------------------------------------------------------------
 

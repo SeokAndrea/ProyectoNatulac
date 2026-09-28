@@ -1,6 +1,6 @@
 /**
  * Mapeo de las filas crudas que devuelve turno_json() a los tipos del
- * módulo Producción. Extraído de mapearTurno() en src/lib/turno.tsx —
+ * módulo Producción. Extraído de mapearTurno() en src/lib/turno.ts —
  * mismo comportamiento, con el renombre Corrida/corridaId aplicado.
  */
 import type { LineaCodigo, PresentacionCodigo } from "@/lib/catalogos"

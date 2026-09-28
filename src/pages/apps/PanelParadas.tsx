@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
-import { PanelParadasVista, type EstadoLineaEnVivo } from "@/components/PanelParadasVista"
+import { PanelParadasVista, type CargarOee, type EstadoLineaEnVivo } from "@/components/PanelParadasVista"
 import type { EstadoLineaVista } from "@/components/CintaLinea"
 import { listarParadas, LINEAS_PARADAS, type Parada } from "@/lib/paradas"
 import { useProduccion } from "@/lib/produccion/useProduccion"
@@ -9,12 +9,13 @@ import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
+import { cargarOeePeriodo } from "@/lib/eficienciaPeriodo"
 import type { TurnoActivo } from "@/lib/turno"
 
 /*
  * Panel de Paradas — dashboard solo lectura del downtime de las líneas,
  * mismo estilo que el Panel de Producción. El render vive en
- * <PanelParadasVista> (compartido con el preview /paradas-demo).
+ * <PanelParadasVista>.
  * listarParadas() lee la base (migración 20261061); el estado EN VIVO de
  * las 3 líneas (la cinta animada) sí sale de datos reales
  * (useProduccion), porque eso ya existe hoy y no depende del módulo
@@ -52,13 +53,16 @@ function estadoLineaVista(lineaCodigo: string, corridas: Corrida[], lineasEstado
   return "LIBRE"
 }
 
+/** Mientras cargan los catálogos (líneas, velocidades): el OEE se muestra "calculando", no "sin datos". */
+const OEE_PENDIENTE: CargarOee = () => new Promise(() => {})
+
 /** Cada REFRESCO_MS se vuelve a resolver el turno activo del área + se recargan sus líneas — panel de pared, tiene que verse solo sin recargar la página. */
 const REFRESCO_MS = 20 * 1000
 
 export default function PanelParadas() {
   const { session } = useAuth()
   const area = session?.area ?? null
-  const { lineas: lineasReales } = useCatalogosLive()
+  const { lineas: lineasReales, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
   const [paradas, setParadas] = useState<Parada[] | null>(null)
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   // `turno?.id ?? null` (nunca undefined): si todavía no hay turno resuelto
@@ -72,6 +76,22 @@ export default function PanelParadas() {
     // rango amplio: la vista filtra por fecha en memoria
     return listarParadas({ desde: "2000-01-01", hasta: "2999-12-31", area: areaParadas })
   }, [areaParadas])
+
+  // OEE por línea del período elegido en la vista — mismo cálculo que el
+  // Panel de Producción, turno por turno (src/lib/eficienciaPeriodo.ts).
+  const cargarOee = useCallback<CargarOee>(
+    ({ desde, hasta, turnoTipo }) =>
+      cargarOeePeriodo({
+        desde,
+        hasta,
+        turnoTipo,
+        area: areaParadas,
+        lineas: lineasReales.map((l) => l.codigo),
+        presentaciones,
+        velocidades,
+      }),
+    [areaParadas, lineasReales, presentaciones, velocidades],
+  )
 
   useEffect(() => {
     let vivo = true
@@ -120,14 +140,14 @@ export default function PanelParadas() {
       })
 
   return (
-    <AppShell title="Panel de Paradas" description="Downtime de las líneas — tiempo perdido, ocioso y desvío por tipo" fullWidth ocultarEstadoBanner>
+    <AppShell title="Panel de Paradas" description="Downtime por línea — OEE, paradas no programadas y top por tipo" fullWidth ocultarEstadoBanner>
       <div className="w-full">
         {paradas === null ? (
           <div className="flex justify-center py-16 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
           </div>
         ) : (
-          <PanelParadasVista paradas={paradas} estadoLineas={estadoLineas} />
+          <PanelParadasVista paradas={paradas} estadoLineas={estadoLineas} cargarOee={cargandoCatalogos ? OEE_PENDIENTE : cargarOee} />
         )}
       </div>
     </AppShell>

@@ -13,12 +13,11 @@ import { presentacionesPorLineaLive, useCatalogosLive } from "@/lib/catalogosLiv
 /*
  * Registro de Paradas — el supervisor elige la LÍNEA (la parada nunca es
  * del lote) y carga las paradas PROGRAMADA (catálogo) y el TIEMPO OCIOSO
- * (texto libre); NO PROGRAMADA es solo lectura, llega del Sheet de
- * Mantenimiento. Cada línea se muestra con el lote/sabor que tiene
+ * (texto libre); las fallas de equipo las registra Mantenimiento en su
+ * pantalla. Cada línea se muestra con el lote/sabor que tiene
  * corriendo ahora (mismo dato que Producción al activar) — solo contexto
  * para reconocerla, no cambia que la parada se guarda por línea. La vista
- * vive en <RegistroParadas> (compartida con el preview /paradas-demo, que
- * arma sus propias líneas genéricas sin login).
+ * vive en <RegistroParadas>.
  * Las paradas se guardan en el turno propio de la sesión (registrar_parada)
  * y la lista es la de ese turno; sin turno en curso no se puede registrar.
  * Guardar una parada NO detiene la línea en Líneas: son registros

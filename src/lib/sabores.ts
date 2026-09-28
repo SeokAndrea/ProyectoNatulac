@@ -17,7 +17,7 @@ export interface Sabor {
 /**
  * Nombre de sabor para mostrar (mismo criterio que sabor_display() en
  * las migraciones 20260969 / 20261002 y saborSinFamiliaOculta() en
- * turno.tsx):
+ * turno.ts):
  *  - Clásicos / Especiales: sin sufijo — "Manzana".
  *  - Selecto: "Manzana 35%" (la familia ES el 35%; más corto que
  *    "(Selecto)" y desambigua igual). Si el nombre ya trae "35%", se deja.

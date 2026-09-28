@@ -1,26 +1,20 @@
 import { describe, expect, it } from "vitest"
-import { paradasDemo } from "@/lib/paradasDemoFixture"
 import {
   agruparPorDia,
   CATALOGO_PROGRAMADA,
   CATALOGO_TIPOS,
   codigoPlanilla,
   desvioMin,
-  disponibilidadAprox,
   duracionMin,
-  eficienciaOEE,
   fmtDesvio,
   fmtDuracion,
   minutosPorLinea,
   paradaAbierta,
-  paradasAbiertasDeLineas,
-  porFamilia,
-  porPresentacion,
-  porSabor,
   porTipo,
   porTipoPorFrecuencia,
   porTipoYLinea,
   porTipoYLineaPorFrecuencia,
+  primeraDeCadaLinea,
   registraSupervisor,
   resumenPorClase,
   type Parada,
@@ -40,9 +34,6 @@ const P = (over: Partial<Parada> = {}): Parada => ({
   inicio: "2026-09-09T10:00:00",
   fin: "2026-09-09T10:45:00",
   supervisorNombre: "RICARDO",
-  saborNombre: null,
-  familiaNombre: null,
-  presentacionMl: null,
   ...over,
 })
 
@@ -161,74 +152,24 @@ describe("porTipoYLinea", () => {
   })
 })
 
-describe("disponibilidadAprox", () => {
-  it("100% sin paradas", () => {
-    expect(disponibilidadAprox([], 1, 3)).toBe(100)
-  })
-  it("descuenta los minutos perdidos contra lo planificado", () => {
-    const set = [P({ inicio: "2026-09-09T10:00:00", fin: "2026-09-09T11:12:00" })] // 72 min perdidos
-    // 1 turno x 8h x 1 línea = 480 min planificados -> 1 - 72/480 = 85%
-    expect(disponibilidadAprox(set, 1, 1)).toBe(85)
-  })
-  it("nunca baja de 0 ni sube de 100", () => {
-    const muchas = Array.from({ length: 20 }, (_, i) => P({ id: `x${i}`, inicio: "2026-09-09T00:00:00", fin: "2026-09-09T23:00:00" }))
-    expect(disponibilidadAprox(muchas, 1, 1)).toBe(0)
-    expect(disponibilidadAprox([], 0, 0)).toBe(100)
-  })
-})
-
-describe("eficienciaOEE", () => {
-  it("sin parada, da exactamente el rendimiento (no penaliza)", () => {
-    expect(eficienciaOEE(90, 0, 240)).toBe(90)
-  })
-  it("descuenta la disponibilidad contra el tiempo transcurrido", () => {
-    // 240 min transcurridos, 60 de parada -> disponibilidad 75% x rendimiento 90% = 67.5 -> 68
-    expect(eficienciaOEE(90, 60, 240)).toBe(68)
-  })
-  it("null si no hay rendimiento (línea sin corrida activa)", () => {
-    expect(eficienciaOEE(null, 30, 240)).toBeNull()
-  })
-  it("sin tiempo transcurrido, devuelve el rendimiento tal cual", () => {
-    expect(eficienciaOEE(80, 0, 0)).toBe(80)
-  })
-  it("nunca baja de 0 aunque la parada supere lo transcurrido", () => {
-    expect(eficienciaOEE(90, 300, 240)).toBe(0)
-  })
-})
-
-describe("porSabor / porFamilia / porPresentacion", () => {
-  const set = [
-    P({ id: "a", saborNombre: "Manzana", familiaNombre: "Clásicos", presentacionMl: 1000, inicio: "2026-09-09T10:00:00", fin: "2026-09-09T10:30:00" }),
-    P({ id: "b", saborNombre: "Manzana", familiaNombre: "Clásicos", presentacionMl: 1000, inicio: "2026-09-09T11:00:00", fin: "2026-09-09T11:10:00" }),
-    P({ id: "c", saborNombre: "Pera", familiaNombre: "Selecto", presentacionMl: 250, inicio: "2026-09-09T12:00:00", fin: "2026-09-09T12:20:00" }),
-    P({ id: "d", saborNombre: null, familiaNombre: null, presentacionMl: null, inicio: "2026-09-09T13:00:00", fin: "2026-09-09T13:05:00" }),
-  ]
-  it("agrupa y ordena por minutos, descartando null", () => {
-    expect(porSabor(set)).toEqual([
-      { clave: "Manzana", veces: 2, minutos: 40 },
-      { clave: "Pera", veces: 1, minutos: 20 },
-    ])
-    expect(porFamilia(set)).toEqual([
-      { clave: "Clásicos", veces: 2, minutos: 40 },
-      { clave: "Selecto", veces: 1, minutos: 20 },
-    ])
-    expect(porPresentacion(set)).toEqual([
-      { clave: "1000 ml", veces: 2, minutos: 40 },
-      { clave: "250 ml", veces: 1, minutos: 20 },
-    ])
-  })
-})
-
-describe("paradasAbiertasDeLineas", () => {
-  it("solo las abiertas de las líneas pedidas", () => {
+describe("primeraDeCadaLinea", () => {
+  it("una fila por línea (la primera del ranking), en el orden del ranking", () => {
     const set = [
-      P({ id: "a", lineaCodigo: "LINEA_1", fin: null }),
-      P({ id: "b", lineaCodigo: "LINEA_1", fin: "2026-09-09T10:45:00" }),
-      P({ id: "c", lineaCodigo: "LINEA_2", fin: null }),
-      P({ id: "d", lineaCodigo: "LINEA_3", fin: null }),
+      P({ id: "a", tipoCodigo: "A", tipoNombre: "A", lineaCodigo: "LINEA_1", inicio: "2026-09-09T10:00:00", fin: "2026-09-09T11:00:00" }), // L1 60
+      P({ id: "b", tipoCodigo: "B", tipoNombre: "B", lineaCodigo: "LINEA_1", inicio: "2026-09-09T12:00:00", fin: "2026-09-09T12:40:00" }), // L1 40
+      P({ id: "c", tipoCodigo: "C", tipoNombre: "C", lineaCodigo: "LINEA_3", inicio: "2026-09-09T13:00:00", fin: "2026-09-09T13:50:00" }), // L3 50
+      P({ id: "d", tipoCodigo: "D", tipoNombre: "D", lineaCodigo: "LINEA_2", inicio: "2026-09-09T14:00:00", fin: "2026-09-09T14:10:00" }), // L2 10
     ]
-    expect(paradasAbiertasDeLineas(set, ["LINEA_1", "LINEA_2"]).map((p) => p.id)).toEqual(["a", "c"])
-    expect(paradasAbiertasDeLineas(set, [])).toEqual([])
+    const g = primeraDeCadaLinea(porTipoYLinea(set))
+    expect(g.map((x) => [x.lineaCodigo, x.nombre])).toEqual([
+      ["LINEA_1", "A"],
+      ["LINEA_3", "C"],
+      ["LINEA_2", "D"],
+    ])
+  })
+  it("línea sin paradas no aparece", () => {
+    const g = primeraDeCadaLinea(porTipoYLinea([P({ lineaCodigo: "LINEA_2" })]))
+    expect(g.map((x) => x.lineaCodigo)).toEqual(["LINEA_2"])
   })
 })
 
@@ -276,24 +217,6 @@ describe("catálogo completo (CATALOGO_TIPOS)", () => {
 
     const feriado = CATALOGO_TIPOS.find((t) => t.codigo === "FERIADO")!
     expect(codigoPlanilla(feriado, "LINEA_2")).toBe("LNPEL2-5")
-  })
-})
-
-describe("fixture de demo", () => {
-  const demo = paradasDemo()
-  it("tiene datos y forma consistente", () => {
-    expect(demo.length).toBeGreaterThan(10)
-    for (const p of demo) {
-      expect(["PROGRAMADA", "NO_PROGRAMADA", "OCIOSO"]).toContain(p.clase)
-      expect(["MANUAL", "MANTENIMIENTO"]).toContain(p.origen)
-      expect(p.inicio).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)
-      if (p.fin) expect(p.fin >= p.inicio).toBe(true)
-    }
-  })
-  it("incluye paradas en curso (sin fin) y no programadas de Mantenimiento", () => {
-    expect(demo.some(paradaAbierta)).toBe(true)
-    expect(demo.some((p) => p.clase === "NO_PROGRAMADA" && p.origen === "MANTENIMIENTO")).toBe(true)
-    expect(demo.some((p) => p.clase === "OCIOSO" && p.nota)).toBe(true)
   })
 })
 

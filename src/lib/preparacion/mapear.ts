@@ -1,6 +1,6 @@
 /**
  * Mapeo de las filas crudas que devuelve turno_json() a los tipos del
- * módulo Preparación. Extraído de mapearTurno() en src/lib/turno.tsx —
+ * módulo Preparación. Extraído de mapearTurno() en src/lib/turno.ts —
  * mismo comportamiento, con los renombres de PreparacionRegistro
  * aplicados acá (ver tipos.ts).
  */

@@ -18,7 +18,7 @@ import {
 } from "@/lib/validacion"
 
 /*
- * Lista de VALIDAR — la reusa la página real y el preview /validar-demo.
+ * Lista de VALIDAR.
  * Una fila por corrida (turno + línea + lote). Muestra los números del
  * supervisor y, si se editó, los corregidos al lado. Botones Sí /
  * Editar por fila (form inline). Arriba de las corridas de cada

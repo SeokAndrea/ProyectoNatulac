@@ -28,10 +28,10 @@ import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
  * Al cierre del turno, «hasta ahora» es el turno completo.
  */
 
-/** Duración base de cada turno, en minutos (dueño, 2026-09-21). El 12x12 queda fuera hasta su rework. */
-const DURACION_TURNO_MIN: Record<string, number> = { TURNO_1: 8 * 60, TURNO_2: 7.5 * 60, TURNO_3: 8.5 * 60 }
+/** Duración base de cada turno, en minutos (dueño, 2026-09-21; el 12x12 = 12 h, dueño 2026-09-28). */
+const DURACION_TURNO_MIN: Record<string, number> = { TURNO_1: 8 * 60, TURNO_2: 7.5 * 60, TURNO_3: 8.5 * 60, "12X12": 12 * 60 }
 
-/** Minutos base del turno, o null si el tipo no tiene base (12x12 o desconocido). */
+/** Minutos base del turno, o null si el tipo es desconocido. */
 export function duracionBaseTurnoMin(turnoTipo: string | null | undefined): number | null {
   return turnoTipo ? (DURACION_TURNO_MIN[turnoTipo] ?? null) : null
 }
@@ -172,14 +172,14 @@ export interface EntradaTurno {
 
 export interface EficienciaTurno {
   porLinea: Map<string, ResultadoEficiencia>
-  /** Suma de todas las líneas que cuentan. null si el turno no tiene base (12x12) o ninguna línea cuenta. */
+  /** Suma de todas las líneas que cuentan. null si el turno no tiene base (tipo desconocido) o ninguna línea cuenta. */
   total: ResultadoEficiencia | null
 }
 
 /**
  * Meta y eficiencia de cada línea del turno. Solo cuentan las líneas con al menos
  * una corrida en el turno («sin programación no cuenta nada»). Sin base de turno
- * (12x12) devuelve todo vacío.
+ * (tipo desconocido) devuelve todo vacío.
  */
 export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
   const vacio: EficienciaTurno = { porLinea: new Map(), total: null }
@@ -276,4 +276,45 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     paradasExcedenTiempo: acumulado.excede,
   }
   return { porLinea, total }
+}
+
+/** OEE de una línea en un PERÍODO (varios turnos) — Panel de Paradas. */
+export interface OeePeriodo {
+  /** Disponibilidad × Rendimiento (Calidad = 1). null si no hubo producción que medir. */
+  oeePct: number | null
+  disponibilidadPct: number | null
+  rendimientoPct: number | null
+  /** Cuántos turnos con esa línea en producción entraron en el cálculo. */
+  turnos: number
+}
+
+/**
+ * Junta el resultado de eficienciaDelTurno() de UNA línea en varios turnos.
+ * No promedia porcentajes (un turno corto pesaría igual que uno largo):
+ * suma envases reales, envases esperados y minutos, y recién ahí divide —
+ * igual que el `total` de eficienciaDelTurno() suma las líneas.
+ *   OEE            = Σ Real ÷ Σ (velocidad MÁXIMA × Disponible)
+ *   Disponibilidad = Σ Operativo ÷ Σ Disponible
+ *   Rendimiento    = Σ Real ÷ Σ (velocidad MÁXIMA × Operativo)
+ */
+export function oeeDePeriodo(resultados: ResultadoEficiencia[]): OeePeriodo {
+  let real = 0
+  let esperado = 0
+  let baseRendimiento = 0
+  let disponible = 0
+  let operativo = 0
+  for (const r of resultados) {
+    real += r.realEnvases
+    esperado += r.esperadoAhoraEnvases
+    disponible += r.disponibleAhoraMin
+    operativo += r.operativoAhoraMin
+    // velocidad MÁXIMA × Operativo = esperado × (Operativo ÷ Disponible) — el esperado ya trae la velocidad de ese turno
+    if (r.disponibleAhoraMin > 0) baseRendimiento += (r.esperadoAhoraEnvases * r.operativoAhoraMin) / r.disponibleAhoraMin
+  }
+  return {
+    oeePct: pct(real, esperado),
+    disponibilidadPct: pct(operativo, disponible),
+    rendimientoPct: pct(real, baseRendimiento),
+    turnos: resultados.length,
+  }
 }

@@ -30,8 +30,7 @@ import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { TanqueVisual } from "@/components/TanqueVisual"
-import { CintaPixel } from "@/components/pixel/CintaPixel"
-import { interpretarSabor } from "@/components/pixel/armarJugo"
+import { CintaEstadoLinea, type EstadoCinta } from "@/components/CintaEstadoLinea"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -319,11 +318,9 @@ export default function PanelProduccion() {
    */
   const [produccionDia, setProduccionDia] = useState<ProduccionDiaItem[]>([])
   /**
-   * Paradas del turno mostrado (Módulo Paradas, FASE A′ — fixture, gateado
-   * a Área de Pruebas igual que el resto del módulo, ver plan-paradas.md
-   * §2). Alimenta "Tiempo de parada" / "Parada con mayor duración" y la
-   * eficiencia tipo OEE de cada línea; fuera de Pruebas queda vacío y esas
-   * columnas se comportan como antes (sin descuento de disponibilidad).
+   * Paradas del turno mostrado (listarParadas con el turno). Alimenta
+   * "Tiempo de parada", "Parada con mayor duración" y la eficiencia (OEE)
+   * de cada línea — ver src/lib/eficiencia.ts.
    */
   const [paradasTurno, setParadasTurno] = useState<Parada[]>([])
   useCatalogoParadas() // carga el catálogo: hace falta para mostrar el código de cada parada
@@ -621,26 +618,8 @@ export default function PanelProduccion() {
         return { sabor, presentacionMl: ml ? Number(ml) : null, hecho: cajas, plan: null }
       })
 
-    const items = [...delPlan, ...extra]
-
-    // DEV: ejemplo SOLO en `npm run dev` para ver el carrusel girar
-    // cuando no hay plan ni producción cargados. Nunca llega al build.
-    if (import.meta.env.DEV && items.length < 2) {
-      return [
-        { sabor: "Manzana", presentacionMl: 1000, hecho: 300, plan: 4000 },
-        { sabor: "Pera", presentacionMl: 250, hecho: 0, plan: 2000 },
-      ]
-    }
-
-    return items
+    return [...delPlan, ...extra]
   }, [pt.registros, presentaciones, planDia, produccionDia, usarDiario])
-  /*
-   * DEV: números de ejemplo para Cajas / Litros del banner cuando el
-   * turno en vivo todavía no produjo nada. `import.meta.env.DEV` es
-   * false en el build, así que nunca sale del `npm run dev`.
-   */
-  const cajasDisplay = import.meta.env.DEV && cajasProducidasTotal === 0 ? 1840 : cajasProducidasTotal
-  const litrosDisplay = import.meta.env.DEV && litrosProducidos === 0 ? 24680 : litrosProducidos
   /** Minutos de parada acumulados en el turno, por línea (Módulo Paradas). Las paradas vienen con la línea normalizada LINEA_1/2/3 (Pruebas usa LINEA_T#), por eso se busca por número. */
   const minutosParadaPorLinea = new Map(minutosPorLinea(paradasTurno, ahora).map((r) => [r.linea, r.minutos]))
   /** Una fila por línea: estado + producción + merma juntos (antes vivían en 3 lugares separados de la pantalla). */
@@ -792,13 +771,13 @@ export default function PanelProduccion() {
                   <div className="flex items-stretch divide-x divide-border/70">
                     <div className="flex flex-1 flex-col items-center px-3">
                       <p className="num text-3xl font-bold leading-none tracking-tight text-foreground">
-                        {cajasDisplay.toLocaleString("es-CO")}
+                        {cajasProducidasTotal.toLocaleString("es-CO")}
                       </p>
                       <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Cajas</p>
                     </div>
                     <div className="flex flex-1 flex-col items-center px-3">
                       <p className="num text-3xl font-bold leading-none tracking-tight text-info">
-                        {litrosDisplay.toLocaleString("es-CO")}
+                        {litrosProducidos.toLocaleString("es-CO")}
                         <span className="ml-0.5 text-sm font-semibold text-info/60">L</span>
                       </p>
                       <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Litros</p>
@@ -939,7 +918,6 @@ export default function PanelProduccion() {
                         <p className="truncate text-xs text-muted-foreground">
                           {codigoDeParadaLive(paradaMasLarga) ? codigoDeParadaLive(paradaMasLarga) + " · " : ""}
                           {paradaMasLarga.tipoNombre}
-                          {paradaMasLarga.saborNombre ? ` · ${paradaMasLarga.saborNombre}` : ""}
                         </p>
                       </div>
                       <span className="num shrink-0 text-lg font-bold text-warning">
@@ -1420,44 +1398,29 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
 }
 
 /**
- * Cinta pixel art chiquita a la derecha del nombre de la línea (misma
- * CintaPixel que el Panel de Paradas): envases avanzando si está activa —
- * con el tacho de merma y la baliza si la merma pasó el límite —, lavándose
- * en CIP, y quieta con un técnico si está en pausa o detenida (en pausa,
- * con los envases de la corrida arriba). En los demás estados no se dibuja
- * nada (queda solo el texto).
- *
- * RECORTADA: la cinta entera (200 px de pixel art) se dibuja a
- * ANCHO_MINI_CINTA y la ventana de w-36 muestra solo un tramo (~3 envases),
- * así se ve grande. `inicio` es desde qué pixel de la cinta arranca la
- * ventana: en producción/CIP desde el tacho de merma y la baliza
- * (TACHO.x = 124, baliza en 190), en reparación desde la caja de
- * herramientas y el técnico (x 70–100) — ver escenasCinta.ts.
+ * Cinta pixel art chiquita a la derecha del nombre de la línea (misma que
+ * Líneas — ver CintaEstadoLinea). En los estados sin escena (libre, sin
+ * programación, cambio de presentación, esperando cierre) no se dibuja
+ * nada: queda solo el texto.
  */
-const ANCHO_MINI_CINTA = 280 // px en pantalla → escala 1,4
-const ESCALA_MINI_CINTA = ANCHO_MINI_CINTA / 200
+const CINTA_POR_ESTADO: Partial<Record<EstadoLinea, EstadoCinta>> = {
+  activa: "corriendo",
+  parada: "parada",
+  detenida: "detenida",
+  cip: "cip",
+}
 
 function MiniCinta({ fila, alertaMerma }: { fila: FilaLineaCompacta; alertaMerma: boolean }) {
-  const { estado, corrida } = fila
-  if (estado !== "activa" && estado !== "parada" && estado !== "cip" && estado !== "detenida") return null
-  const jugo = interpretarSabor(corrida?.saborNombre)
-  const modo = estado === "cip" ? "cip" : estado === "parada" || estado === "detenida" ? "reparacion" : "produccion"
-  const inicio = modo === "reparacion" ? 60 : 97
+  const estado = CINTA_POR_ESTADO[fila.estado]
+  if (!estado) return null
   return (
-    <div className="w-36 shrink-0 overflow-hidden rounded-md">
-      <div style={{ width: ANCHO_MINI_CINTA, marginLeft: -inicio * ESCALA_MINI_CINTA }}>
-        <CintaPixel
-          presentacion={corrida?.presentacion ?? "1000"}
-          familia={jugo?.familia ?? "clasico"}
-          sabor={jugo?.sabor ?? "manzana"}
-          conEnvases={jugo != null}
-          modo={modo}
-          alertaMerma={estado === "activa" && alertaMerma}
-          conPatas={false}
-          separacion={18}
-        />
-      </div>
-    </div>
+    <CintaEstadoLinea
+      estado={estado}
+      saborNombre={fila.corrida?.saborNombre}
+      presentacion={fila.corrida?.presentacion}
+      alertaMerma={alertaMerma}
+      className="w-36 shrink-0"
+    />
   )
 }
 

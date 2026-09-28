@@ -42,9 +42,7 @@ import type { TurnoHistorial, TurnoResumen } from "@/lib/historialTurnos"
  * filas quedan contraídas hasta que se hace clic.
  *
  * El rango de fechas lo maneja este componente pero los turnos los
- * trae el padre (onRangoChange → vuelve a consultar). En el preview
- * /auditoria-demo el padre le pasa un fixture completo y onRangoChange
- * queda sin efecto.
+ * trae el padre (onRangoChange → vuelve a consultar).
  */
 export interface TurnoAuditoria {
   resumen: TurnoResumen

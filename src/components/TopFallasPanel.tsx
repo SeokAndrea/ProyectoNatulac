@@ -12,8 +12,7 @@ import {
  * "Top Fallas" del Panel de Producción: el downtime del turno repartido
  * por clase (Programada / No programada / Ocioso) y por línea, con los
  * tipos que más pesaron en cada una. Componente puro — recibe las
- * paradas ya filtradas al turno. FASE A′: el Panel le pasa el fixture;
- * FASE B′: paradas_de_turno().
+ * paradas ya filtradas al turno (listarParadas con el turno).
  */
 
 export function TopFallasPanel({

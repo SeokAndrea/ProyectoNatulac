@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Info, Lock, Plus, X } from "lucide-react"
+import { Lock, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { fechaLocal, horaLocal } from "@/lib/turno"
@@ -49,9 +49,8 @@ import {
  * con el mismo catálogo — acá se muestran aparte, solo lectura, incluidas
  * las que quedaron "en curso" (fin null) todavía sin cerrar.
  *
- * Con `onRegistrar` (página real) "Guardar" llama a registrar_parada y las
- * paradas vienen del servidor (`paradas`); sin él (preview /paradas-demo)
- * el estado vive en memoria.
+ * "Guardar" llama a registrar_parada (`onRegistrar`) y las paradas vienen
+ * del servidor (`paradas`).
  */
 
 export interface LineaDelDia {
@@ -68,9 +67,6 @@ export interface LineaDelDia {
   presentacionesDisponibles?: { ml: number; nombre: string }[]
 }
 
-let contador = 0
-const nuevoId = () => `local-${Date.now()}-${contador++}`
-
 /** Ventana inicio/fin anclada a AHORA, a partir de solo la duración en minutos (el supervisor no tipea horas). */
 function ventanaDesdeAhora(minutos: number): { inicio: string; fin: string } {
   const inicioDate = new Date()
@@ -83,7 +79,7 @@ function ventanaDesdeAhora(minutos: number): { inicio: string; fin: string } {
 
 const horaCorta = (iso: string) => iso.slice(11, 16)
 
-/** Sin `lineasHoy` (ej. preview sin login /paradas-demo): 3 líneas genéricas, sin lote/sabor. */
+/** Mientras no llegan las líneas del área (`lineasHoy` vacío): 3 líneas genéricas, sin lote/sabor. */
 const LINEAS_GENERICAS: LineaDelDia[] = LINEAS_PARADAS.map((l) => ({
   lineaCodigo: l.codigo,
   lineaNombre: l.nombre,
@@ -101,14 +97,13 @@ export function RegistroParadas({
   /** Área del usuario (ASEPTICO / PRUEBAS): decide qué equipos aparecen en la parada mecánica. */
   area?: string | null
   paradas: Parada[]
-  /** Guarda la parada en el servidor. Devuelve el mensaje de error, o null si salió bien. Sin esto, todo queda en memoria. */
-  onRegistrar?: (datos: Omit<DatosRegistroParada, "turnoId">) => Promise<string | null>
+  /** Guarda la parada en el servidor. Devuelve el mensaje de error, o null si salió bien. */
+  onRegistrar: (datos: Omit<DatosRegistroParada, "turnoId">) => Promise<string | null>
   /** Las 3 líneas de HOY, con el lote/sabor que tienen corriendo ahora (mismo dato que al activar en Producción) — solo contexto, la parada es de la línea, no del lote. */
   lineasHoy?: LineaDelDia[]
 }) {
   const lineasDia = lineasHoy && lineasHoy.length > 0 ? lineasHoy : LINEAS_GENERICAS
-  const [filasLocales, setFilasLocales] = useState<Parada[]>(iniciales)
-  const filas = onRegistrar ? iniciales : filasLocales
+  const filas = iniciales
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [lineaVista, setLineaVista] = useState<string>(lineasDia[0].lineaCodigo)
@@ -134,10 +129,6 @@ export function RegistroParadas({
     p: Omit<Parada, "id" | "lineaCodigo" | "turnoTipo" | "origen">,
     lineaCodigo: string,
   ): Promise<boolean> {
-    if (!onRegistrar) {
-      setFilasLocales((prev) => [...prev, { ...p, id: nuevoId(), lineaCodigo, turnoTipo: "TURNO_1", origen: "MANUAL" }])
-      return true
-    }
     setGuardando(true)
     setErrorGuardar(null)
     const error = await onRegistrar({
@@ -175,13 +166,6 @@ export function RegistroParadas({
 
   return (
     <div className="flex flex-col gap-4">
-      {!onRegistrar && (
-        <div className="flex items-start gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm text-info">
-          <Info className="mt-0.5 size-4 shrink-0" />
-          <span>Vista de diseño — no guarda en el sistema.</span>
-        </div>
-      )}
-
       {/* ---- Agregar parada ---- */}
       <div className="rounded-xl border border-border bg-card p-3">
         {!agregando ? (

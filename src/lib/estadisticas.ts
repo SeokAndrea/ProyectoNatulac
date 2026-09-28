@@ -7,7 +7,7 @@ import { horaPlanta } from "@/lib/tiempoPlanta"
  * cerrados, contadores, producto_terminado), sin el catálogo de
  * paradas descrito en resumen-diseno-dashboard-natulac.md (todavía
  * sin construir). Cada fila es una CORRIDA (turno_lineas, ver
- * src/lib/turno.tsx) — antes era un (turno, línea), pero una línea
+ * src/lib/turno.ts) — antes era un (turno, línea), pero una línea
  * puede tener varias corridas (una por lote) en el mismo turno; los
  * cálculos de merma y horas se hacen acá, no en SQL, para poder
  * recortarlos por cualquier dimensión sin duplicar la función de
