@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
+import { puede } from "@/lib/permisos"
 import { generarActaPdf } from "@/lib/actaPdf"
 import { subirYRegistrarActa, urlPublicaActa } from "@/lib/historialTurnos"
 import { colorSabor } from "@/lib/coloresSabor"
@@ -138,6 +139,10 @@ export default function FinalizarTurno() {
    */
   /** Área de Pruebas: sin ceremonia — finalizar_turno() ya no exige resolver nada ahí, así que el botón tampoco. */
   const esPruebas = session?.area === "PRUEBAS"
+  /** Mismo criterio que exigir_puede_finalizar() en el servidor (migración 20261083). */
+  const soyResponsable = !sesion.sinResponsable && sesion.supervisorUsuario === session?.username.toLowerCase()
+  const puedeFinalizar =
+    esPruebas || (!sesion.sinResponsable && (soyResponsable || puede(session, "TURNO_CORREGIR") || !!session?.esDueno))
   const lineasSinResolver = esPruebas ? [] : prod.corridas.filter((c) => c.activa && c.entregadaEn === null)
 
 
@@ -466,11 +471,19 @@ export default function FinalizarTurno() {
           </div>
         )}
 
+        {!puedeFinalizar && (
+          <p className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+            {sesion.sinResponsable
+              ? "Este turno no tiene responsable. Asúmelo desde Comenzar Turno antes de finalizarlo."
+              : `Solo ${sesion.supervisorNombre} (responsable del turno) o un jefe pueden finalizarlo. Si vas a quedar a cargo, toma el relevo desde Comenzar Turno.`}
+          </p>
+        )}
+
         <Button
           variant="outline"
           className="border-destructive/40 text-destructive hover:bg-destructive/10"
           onClick={handleFinalizar}
-          disabled={finalizando || lineasSinResolver.length > 0}
+          disabled={finalizando || lineasSinResolver.length > 0 || !puedeFinalizar}
         >
           {finalizando ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
           {confirmando && itemsFaltantes.length > 0 && lineasSinResolver.length === 0

@@ -22,7 +22,7 @@ import {
   Users,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
-import type { AreaCodigo } from "@/lib/catalogos"
+import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 import { puede, type Permiso } from "@/lib/permisos"
 
 export interface AppDef {
@@ -44,6 +44,8 @@ export interface AppDef {
    * propiedad, la ve cualquier sesión.
    */
   permiso?: Permiso
+  /** Roles que NO ven la tarjeta aunque no pida permiso (ej. Mantenimiento solo ve los paneles y sus paradas). */
+  rolesExcluidos?: RolCodigo[]
   /** Si se define, la tarjeta solo aparece para usuarios de estas áreas (ej. Servicios Industriales, que no tiene un rol propio). */
   areasPermitidas?: AreaCodigo[]
   /**
@@ -219,8 +221,9 @@ export const apps: AppDef[] = [
     href: "/programacion",
     icon: CalendarRange,
     requiereTurno: false,
-    // Programación es de producción — Servicios Industriales no la necesita.
+    // Programación es de producción — Servicios Industriales y Mantenimiento no la necesitan.
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    rolesExcluidos: ["MANTENIMIENTO"],
     atajo: true,
   },
   {
@@ -229,6 +232,7 @@ export const apps: AppDef[] = [
     title: "Manual",
     description: "Manual de usuario de la aplicación.",
     icon: BookOpen,
+    rolesExcluidos: ["MANTENIMIENTO"],
     requiereTurno: false,
     atajo: true,
   },
@@ -377,6 +381,7 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (!session) return false
   if (session.area === "PRUEBAS") return true
   if (app.permiso && !puede(session, app.permiso)) return false
+  if (app.rolesExcluidos?.includes(session.rol)) return false
   if (app.areasPermitidas && !(session.area && app.areasPermitidas.includes(session.area))) return false
   if (app.areasExcluidas && session.area && app.areasExcluidas.includes(session.area)) return false
   if (app.soloDueno && !session.esDueno) return false

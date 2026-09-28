@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useGenerarActasPendientes } from "@/lib/actasPendientes"
 import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
+import { puede } from "@/lib/permisos"
 import { cn } from "@/lib/utils"
 
 /** Emoji del saludo, distinto para algún usuario puntual — por username, en minúscula. */
@@ -38,7 +39,7 @@ export default function Hub() {
               {session ? (EMOJI_SALUDO_POR_USUARIO[session.username.toLowerCase()] ?? EMOJI_SALUDO_DEFAULT) : EMOJI_SALUDO_DEFAULT}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-              {turnoActivo
+              {turnoActivo || !puede(session, "TURNO_ASUMIR")
                 ? "Elige una aplicación para continuar."
                 : "Inicia un turno para habilitar el resto de las aplicaciones."}
             </p>

@@ -23,6 +23,11 @@ export interface TurnoCorregido {
   fechaFin: string | null
   horaFin: string | null
   supervisorNombre: string | null
+  /** Hay una corrección abierta (con motivo, dura 2 h) de este usuario sobre el turno. Sin ella solo se ve. */
+  correccionActiva: boolean
+  motivo: string | null
+  /** Abre la corrección con su motivo (migración 20261082: iniciar_correccion). */
+  iniciar: (motivo: string) => Promise<{ ok: true } | { ok: false; error: string }>
 }
 
 interface FilaTurnoCorregido {
@@ -33,6 +38,8 @@ interface FilaTurnoCorregido {
   fecha_fin: string | null
   hora_fin: string | null
   supervisor_nombre: string | null
+  correccion_activa: boolean
+  motivo: string | null
 }
 
 export interface TurnoEfectivo {
@@ -72,15 +79,7 @@ export function useTurnoEfectivo(): TurnoEfectivo {
           setTurnoCorregido(null)
           setErrorCorreccion(true)
         } else {
-          setTurnoCorregido({
-            id: fila.id,
-            codigo: fila.codigo,
-            fecha: fila.fecha,
-            horaInicio: fila.hora_inicio,
-            fechaFin: fila.fecha_fin,
-            horaFin: fila.hora_fin,
-            supervisorNombre: fila.supervisor_nombre,
-          })
+          setFila(fila)
         }
         setCargandoCorreccion(false)
       })
@@ -88,6 +87,31 @@ export function useTurnoEfectivo(): TurnoEfectivo {
       cancelado = true
     }
   }, [turnoIdParam, session])
+
+  function setFila(fila: FilaTurnoCorregido) {
+    setTurnoCorregido({
+      id: fila.id,
+      codigo: fila.codigo,
+      fecha: fila.fecha,
+      horaInicio: fila.hora_inicio,
+      fechaFin: fila.fecha_fin,
+      horaFin: fila.hora_fin,
+      supervisorNombre: fila.supervisor_nombre,
+      correccionActiva: fila.correccion_activa,
+      motivo: fila.motivo,
+      iniciar: async (motivo: string) => {
+        if (!session) return { ok: false, error: "Tu sesión expiró. Vuelve a entrar." }
+        const { data, error } = await supabase.rpc("iniciar_correccion", {
+          p_usuario: session.username,
+          p_turno_id: fila.id,
+          p_motivo: motivo,
+        })
+        if (error || !data) return { ok: false, error: error?.message || "No se pudo abrir la corrección." }
+        setFila(data as FilaTurnoCorregido)
+        return { ok: true }
+      },
+    })
+  }
 
   const salirDeCorreccion = useCallback(() => {
     setParams((p) => {

@@ -175,6 +175,7 @@ export default function Historial() {
         paradas,
         responsables: detalle.responsables,
         esquema: detalle.esquema,
+        correcciones: detalle.correcciones,
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,
         lineas,
@@ -252,6 +253,24 @@ export default function Historial() {
                   <Button size="sm" className="self-start" disabled={generandoActa} onClick={generarActaFaltante}>
                     {generandoActa ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
                     Generar Acta
+                  </Button>
+                  {errorActa && (
+                    <p className="text-xs text-destructive" role="alert">
+                      {errorActa}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {detalle.correcciones.length > 0 && tieneActa === true && !actaGeneradaUrl && (
+                <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
+                  <p className="text-sm text-foreground">
+                    Este turno se corrigió después del cierre ({detalle.correcciones.length}{" "}
+                    {detalle.correcciones.length === 1 ? "vez" : "veces"}). El acta vigente puede no incluirlo.
+                  </p>
+                  <Button size="sm" className="self-start" disabled={generandoActa} onClick={generarActaFaltante}>
+                    {generandoActa ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
+                    Regenerar acta con las correcciones
                   </Button>
                   {errorActa && (
                     <p className="text-xs text-destructive" role="alert">
@@ -347,7 +366,7 @@ export default function Historial() {
               onAbrir={() => verDetalle(t.resumen)}
               onCorregir={
                 puedeCorregir && t.resumen.estado === "CERRADO"
-                  ? () => navigate(`/preparacion?turnoId=${t.resumen.id}`)
+                  ? () => navigate(`/producto-terminado?turnoId=${t.resumen.id}`)
                   : undefined
               }
             />

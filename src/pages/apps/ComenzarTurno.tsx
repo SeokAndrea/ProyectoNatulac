@@ -22,7 +22,7 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useSesionTurno, type ResponsableTurno } from "@/lib/sesionTurno"
-import { horaCortaPlanta, horaDelDiaPlanta, turnoTipoActual } from "@/lib/tiempoPlanta"
+import { horaCortaPlanta, horaDelDiaPlanta, turnoParaIniciar } from "@/lib/tiempoPlanta"
 
 const fechaHoy = new Date().toLocaleDateString("es-CO", {
   weekday: "long",
@@ -177,6 +177,8 @@ function AsumirTurno() {
   const [grupo, setGrupo] = useState<GrupoCodigo | "">("")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Tomar el relevo le quita el turno a otra persona: pide un segundo clic.
+  const [confirmandoRelevo, setConfirmandoRelevo] = useState(false)
 
   const puedeAsumir = puede(session, "TURNO_ASUMIR")
   const esRelevo = !sesion.sinResponsable
@@ -185,6 +187,10 @@ function AsumirTurno() {
 
   async function asumir() {
     if (!valido) return
+    if (esRelevo && !confirmandoRelevo) {
+      setConfirmandoRelevo(true)
+      return
+    }
     setEnviando(true)
     setError(null)
     const r = await sesion.asumirTurno(grupo === "" ? null : grupo)
@@ -249,7 +255,11 @@ function AsumirTurno() {
             ) : (
               <UserCheck className="size-4" />
             )}
-            {esRelevo ? "Tomar el relevo" : "Asumir turno"}
+            {esRelevo
+              ? confirmandoRelevo
+                ? `Sí, quedo a cargo en lugar de ${sesion.supervisorNombre}`
+                : "Tomar el relevo"
+              : "Asumir turno"}
           </Button>
         ) : (
           <p className="text-sm text-muted-foreground">No tienes permiso para asumir turnos.</p>
@@ -264,8 +274,8 @@ function FormularioNuevoTurno({
 }: {
   onIniciar: (turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
 }) {
-  // El turno de la hora actual viene elegido; se puede cambiar (ej. llegar antes).
-  const [turnoTipo, setTurnoTipo] = useState<TurnoTipoCodigo | "">(() => turnoTipoActual())
+  // Viene elegido el turno de ahora, o el siguiente si falta 1 h o menos (el que llega antes). Se puede cambiar.
+  const [turnoTipo, setTurnoTipo] = useState<TurnoTipoCodigo | "">(() => turnoParaIniciar())
   const [grupo, setGrupo] = useState<GrupoCodigo | "">("")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)

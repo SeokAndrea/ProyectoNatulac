@@ -92,7 +92,7 @@ export default function ProductoTerminado() {
     salirDeCorreccion,
   } = useTurnoEfectivo()
   /*
-   * Ventana de gracia (15 min, ver TurnoGraciaPT en sesionTurno.tsx):
+   * Ventana de gracia (30 min, ver TurnoGraciaPT en sesionTurno.tsx):
    * si el turno propio ya cerró pero sigue dentro de la gracia, esta
    * página se usa igual — pero SOLO para Producto Terminado (soloPT
    * más abajo apaga Contador y Terminar/Entregar línea en
@@ -102,8 +102,16 @@ export default function ProductoTerminado() {
    * guard nuevo en el servidor solo cubre registrar_producto_terminado,
    * no Contador/Entregar/Terminar (ver Fuera de alcance en el plan).
    */
-  const enGraciaPT = !enModoCorreccion && !sesion.turnoId && sesion.turnoGraciaPT !== null
-  const turnoIdEfectivo = enModoCorreccion ? turnoIdCorreccion : (sesion.turnoId ?? sesion.turnoGraciaPT?.turnoId ?? null)
+  // Con otro turno ya abierto, el anterior en gracia se elige a mano (botón de abajo).
+  const [verTurnoAnterior, setVerTurnoAnterior] = useState(false)
+  const graciaDisponible =
+    !enModoCorreccion && sesion.turnoGraciaPT !== null && sesion.turnoGraciaPT.turnoId !== sesion.turnoId
+  const enGraciaPT = graciaDisponible && (!sesion.turnoId || verTurnoAnterior)
+  const turnoIdEfectivo = enModoCorreccion
+    ? turnoIdCorreccion
+    : enGraciaPT
+      ? sesion.turnoGraciaPT!.turnoId
+      : sesion.turnoId
   const soloPT = enGraciaPT || enModoCorreccion
   const {
     corridas,
@@ -183,9 +191,25 @@ export default function ProductoTerminado() {
 
   const corridasUsadas = [...corridas].sort((a, b) => b.activadaEn.localeCompare(a.activadaEn))
 
+  /** Cambiar entre el turno en curso y el anterior en gracia (solo si hay turno en curso). */
+  const selectorGracia =
+    graciaDisponible && sesion.turnoId ? (
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+        <span className="flex-1 text-muted-foreground">
+          {verTurnoAnterior
+            ? `Estás cargando el turno anterior (${sesion.turnoGraciaPT!.codigo}).`
+            : `El turno anterior (${sesion.turnoGraciaPT!.codigo}) cerró hace menos de 30 min y todavía acepta su Producto Terminado.`}
+        </span>
+        <Button size="sm" variant="outline" onClick={() => setVerTurnoAnterior((v) => !v)}>
+          {verTurnoAnterior ? "Volver al turno en curso" : "Cargar PT del turno anterior"}
+        </Button>
+      </div>
+    ) : null
+
   if (corridasUsadas.length === 0) {
     return (
       <AppShell title="Producto Terminado y Contador" description="Carga de lotes de producto terminado" fullWidth>
+        {selectorGracia}
         <EmptyState
           icon={PackageCheck}
           title="Ninguna línea usada todavía"
@@ -213,6 +237,7 @@ export default function ProductoTerminado() {
     >
       <div className="flex flex-col gap-3">
         {enModoCorreccion && turnoCorregido && <ModoCorreccionBanner turno={turnoCorregido} onSalir={salirDeCorreccion} />}
+        {selectorGracia}
         {enGraciaPT && (
           <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
             <AlertTriangle className="size-4 shrink-0" />

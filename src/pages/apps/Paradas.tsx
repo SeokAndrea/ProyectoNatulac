@@ -37,9 +37,12 @@ export default function Paradas() {
 
   const recargar = useCallback(async () => {
     if (!turnoId) return setParadas([])
+    // En corrección, las fechas del turno corregido (el turno 3 cruza medianoche).
     const hoy = fechaLocal(new Date())
-    setParadas(await listarParadas({ desde: hoy, hasta: hoy, turnoId }))
-  }, [turnoId])
+    const desde = turnoCorregido?.fecha ?? hoy
+    const hasta = turnoCorregido?.fechaFin ?? hoy
+    setParadas(await listarParadas({ desde, hasta, turnoId }))
+  }, [turnoId, turnoCorregido?.fecha, turnoCorregido?.fechaFin])
 
   useEffect(() => {
     void recargar()

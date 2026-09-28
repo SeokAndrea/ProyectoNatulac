@@ -57,6 +57,8 @@ export interface TurnoHistorial {
   /** Quién estuvo a cargo y cuándo (relevos). Vacío en turnos anteriores a la migración 20261080. */
   responsables: ResponsableTurno[]
   esquema: EsquemaTurnos
+  /** Correcciones abiertas después del cierre (quién, motivo, cuándo). Ver migración 20261082. */
+  correcciones: CorreccionTurno[]
   tanquesEncontrados: TanqueEncontrado[] | null
   tanques: TanqueRecepcion[]
   preparaciones: PreparacionRegistro[]
@@ -95,6 +97,7 @@ interface FilaTurnoHistorial {
   supervisor_nombre: string
   responsables?: ResponsableTurno[]
   esquema?: EsquemaTurnos
+  correcciones?: { nombre: string; motivo: string; creada_en: string }[]
   lineas: FilaCorrida[]
   lineas_estado: FilaLineaEstado[]
   tanques: FilaTanque[]
@@ -123,6 +126,7 @@ export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
     supervisorNombre: fila.supervisor_nombre,
     responsables: fila.responsables ?? [],
     esquema: fila.esquema ?? "3x8",
+    correcciones: (fila.correcciones ?? []).map((c) => ({ nombre: c.nombre, motivo: c.motivo, creadaEn: c.creada_en })),
     tanquesEncontrados:
       fila.tanques_encontrados?.map((t) => ({
         numeroTanque: t.numero_tanque,
@@ -142,6 +146,12 @@ export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
     novedades: fila.novedades.map(mapearNovedadTurno),
     ajustesVolumen: fila.ajustes_volumen.map(mapearAjusteVolumen),
   }
+}
+
+export interface CorreccionTurno {
+  nombre: string
+  motivo: string
+  creadaEn: string
 }
 
 export interface TurnoResumen {

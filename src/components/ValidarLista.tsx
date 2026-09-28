@@ -595,11 +595,11 @@ function efectivoLote(fila: FilaValidacion): string {
   return fila.estado === "EDITADO" && fila.overrides?.lote ? fila.overrides.lote : (fila.lote ?? "")
 }
 
-/** "P20260902_T1G1" → "Turno 1" (o "Turno 1 · Grupo 2" si hay más de un grupo). */
+/** "P20260902_T1G1" → "Turno 1" (o "Turno 1 · Grupo 2"). Acepta el turno automático sin grupo ("_T2") y el sufijo "_2". */
 function etiquetaTurno(codigo: string): string {
-  const m = codigo.match(/_T(\d+)G(\d+)$/i)
+  const m = codigo.match(/_T(\d+)(?:G(\d+))?(?:_\d+)?$/i)
   if (!m) return codigo
-  return `Turno ${m[1]}${m[2] !== "1" ? ` · Grupo ${m[2]}` : ""}`
+  return `Turno ${m[1]}${m[2] && m[2] !== "1" ? ` · Grupo ${m[2]}` : ""}`
 }
 
 function formatearFecha(fecha: string): string {

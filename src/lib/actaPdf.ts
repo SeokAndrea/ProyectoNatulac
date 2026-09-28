@@ -108,6 +108,8 @@ export async function generarActaPdf(params: {
   /** Quién estuvo a cargo y cuándo. Con más de uno (relevo, ej. 12x12) sale la sección de responsables. */
   responsables?: ResponsableTurno[]
   esquema?: EsquemaTurnos
+  /** Correcciones abiertas después del cierre. Con alguna, sale la sección al final del acta. */
+  correcciones?: { nombre: string; motivo: string; creadaEn: string }[]
   area: AreaCodigo | null
   lineas: LineaLive[]
   presentaciones: PresentacionLive[]
@@ -131,6 +133,7 @@ export async function generarActaPdf(params: {
     supervisorNombre,
     responsables = [],
     esquema,
+    correcciones = [],
     area,
     lineas,
     presentaciones,
@@ -452,6 +455,22 @@ export async function generarActaPdf(params: {
   }
 
   // ---------------- 2.3 NOVEDADES DEL TURNO ----------------
+  if (correcciones.length > 0) {
+    titulo("CORRECCIONES POSTERIORES AL CIERRE")
+    autoTable(doc, {
+      startY: y + 1.5,
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 1 },
+      head: [["Quién", "Cuándo", "Motivo"]],
+      body: correcciones.map((c) => [
+        c.nombre,
+        new Date(c.creadaEn).toLocaleString("es-CO", { timeZone: "America/Caracas", dateStyle: "short", timeStyle: "short" }),
+        c.motivo,
+      ]),
+    })
+    finTabla()
+  }
+
   titulo("2.3 NOVEDADES DEL TURNO")
   autoTable(doc, {
     startY: y + 1.5,

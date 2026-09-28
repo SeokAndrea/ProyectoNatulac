@@ -986,7 +986,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
 
   async function finalizarTurno() {
     if (!turnoActivo) return
-    await supabase.rpc("finalizar_turno", { p_turno_id: turnoActivo.id })
+    await supabase.rpc("finalizar_turno", { p_usuario: usuario, p_turno_id: turnoActivo.id })
     setTurnoActivo(null)
   }
 

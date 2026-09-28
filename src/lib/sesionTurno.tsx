@@ -30,7 +30,7 @@ export interface TanqueEncontrado {
 }
 
 /**
- * Turno CERRADO del usuario, todavía dentro de los 15 min de gracia
+ * Último turno CERRADO del área, todavía dentro de los 30 min de gracia
  * (turno_pt_gracia_de — ver migración 20261044090000). Solo lo usa
  * ProductoTerminado.tsx cuando `turnoId` da null (el turno ya cerró):
  * evita que un supervisor ansioso que finalizó el turno le tape a otro
@@ -164,7 +164,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  /** Ver TurnoGraciaPT: solo se consulta cuando el usuario NO tiene turno ABIERTO. */
+  /** Ver TurnoGraciaPT. */
   async function cargarGraciaPT(u: string) {
     const { data, error } = await supabase.rpc("turno_pt_gracia_de", { p_usuario: u })
     if (error || !data) {
@@ -180,11 +180,9 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.rpc("turno_activo_de", { p_usuario: u })
     const activo = !error && data ? (data as FilaTurnoIdentidad) : null
     tomarIdentidad(activo)
-    if (activo) {
-      setTurnoGraciaPT(null)
-    } else {
-      await cargarGraciaPT(u)
-    }
+    // Siempre, aunque haya turno abierto: el turno es por área, así que el
+    // siguiente puede haber abierto el suyo mientras el anterior sigue en gracia.
+    await cargarGraciaPT(u)
     setCargando(false)
   }
 
@@ -244,7 +242,8 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     // El chequeo de "no cerrar con una corrida en ESPERANDO_PT" vive en la
     // RPC finalizar_turno (migración 20261018090000, costura 2). Acá solo
     // se propaga el mensaje.
-    const { error } = await supabase.rpc("finalizar_turno", { p_turno_id: turnoId })
+    // Quién finaliza lo valida el servidor (migración 20261083): el responsable, un jefe o el dueño.
+    const { error } = await supabase.rpc("finalizar_turno", { p_usuario: usuario, p_turno_id: turnoId })
 
     if (error) {
       return { ok: false as const, error: error.message || "No se pudo finalizar el turno. Intenta de nuevo." }

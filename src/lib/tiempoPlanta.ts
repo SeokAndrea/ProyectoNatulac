@@ -51,6 +51,11 @@ export function turnoTipoActual(d: Date = new Date()): "TURNO_1" | "TURNO_2" | "
   return "TURNO_3"
 }
 
+/** Turno a iniciar a esta hora: el de ahora, o el siguiente si falta 1 h o menos para que empiece (el supervisor que llega antes). */
+export function turnoParaIniciar(d: Date = new Date()): "TURNO_1" | "TURNO_2" | "TURNO_3" {
+  return turnoTipoActual(new Date(d.getTime() + 60 * 60 * 1000))
+}
+
 /** Hora del día (0–23) del instante, en hora de planta. */
 export function horaDelDiaPlanta(d: Date = new Date()): number {
   return Number(FMT_HORA_CORTA.format(d).slice(0, 2))
