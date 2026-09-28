@@ -6,9 +6,9 @@ import { RevisionInicioTurno } from "@/components/RevisionInicioTurno"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import {
   guardarEsquemaTurnos,
@@ -41,7 +41,7 @@ const TURNOS_NORMALES = TURNO_TIPOS.filter((t) => t.codigo !== "12X12")
  *     elige el grupo y se queda como responsable.
  *   - Si el turno abierto tiene otro responsable, se puede tomar el RELEVO
  *     (ej. 12x12: a las 19:00 el supervisor de la noche releva al del día).
- *   - Abajo, los ajustes del área: esquema 3x8 / 12x12 y respaldo automático.
+ *   - Arriba, en una línea, los interruptores del área: 12x12 y respaldo automático.
  * Cualquiera con permiso puede cargar datos en el turno abierto aunque no lo
  * haya asumido; todo queda firmado por usuario.
  */
@@ -74,8 +74,8 @@ export default function ComenzarTurno() {
     return (
       <AppShell title="Comenzar Turno" description="Registro de inicio de turno">
         <div className="mx-auto flex max-w-lg flex-col gap-4">
-          <FormularioNuevoTurno onIniciar={sesion.iniciarTurno} />
           <AjustesDeTurnos area={area} />
+          <FormularioNuevoTurno onIniciar={sesion.iniciarTurno} />
         </div>
       </AppShell>
     )
@@ -86,8 +86,8 @@ export default function ComenzarTurno() {
     return (
       <AppShell title="Comenzar Turno" description={`Turno ${sesion.codigo}`}>
         <div className="mx-auto flex max-w-lg flex-col gap-4">
-          <AsumirTurno />
           <AjustesDeTurnos area={area} />
+          <AsumirTurno />
         </div>
       </AppShell>
     )
@@ -108,8 +108,8 @@ export default function ComenzarTurno() {
   return (
     <AppShell title="Comenzar Turno" description="Ya hay un turno en curso">
       <div className="mx-auto flex max-w-lg flex-col gap-4">
-        <TurnoYaEnCurso />
         <AjustesDeTurnos area={area} />
+        <TurnoYaEnCurso />
       </div>
     </AppShell>
   )
@@ -365,12 +365,15 @@ function FormularioNuevoTurno({
 }
 
 /*
- * Ajustes del área, visibles solo para quien puede cambiarlos:
- *   - Esquema 12x12 (ESQUEMA_TURNOS): aplica desde el próximo turno.
+ * Interruptores del área, en una sola línea y solo para quien puede usarlos:
+ *   - 12x12 (ESQUEMA_TURNOS): encendido = dos supervisores (7–19 y 19–7), con
+ *     relevo a las 19:00 dentro del turno 2. Se aplica al turno abierto y a
+ *     los siguientes (migración 20261085).
  *   - Respaldo automático (solo el dueño).
  */
 function AjustesDeTurnos({ area }: { area: AreaCodigo }) {
   const { session } = useAuth()
+  const sesion = useSesionTurno()
   const [ajustes, setAjustes] = useState<AjustesTurnos | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -385,57 +388,50 @@ function AjustesDeTurnos({ area }: { area: AreaCodigo }) {
 
   if ((!puedeEsquema && !esDueno) || !ajustes || !session) return null
 
+  const es12x12 = ajustes.esquema === "12x12"
+
   async function cambiar(accion: () => Promise<{ ok: true } | { ok: false; error: string }>) {
     setGuardando(true)
     setError(null)
     const r = await accion()
     if (!r.ok) setError(r.error)
     setAjustes(await obtenerAjustesTurnos(area))
+    // El 12x12 también cambia el turno abierto: se refresca sin pantalla de carga.
+    await sesion.refrescar()
     setGuardando(false)
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Ajustes de turnos</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 text-sm">
-        {puedeEsquema && (
-          <label className="flex items-start gap-2">
-            <Checkbox
-              checked={ajustes.esquema === "12x12"}
-              disabled={guardando}
-              onCheckedChange={(v) =>
-                cambiar(() => guardarEsquemaTurnos(session.username, area, v === true ? "12x12" : "3x8"))
-              }
-            />
-            <span>
-              <span className="font-medium text-foreground">Esquema 12x12</span>
-              <span className="block text-xs text-muted-foreground">
-                Dos supervisores: 7:00–19:00 y 19:00–7:00. Se guarda como turnos 1, 2 y 3 con relevo a las 19:00.
-                Aplica desde el próximo turno.
-              </span>
-            </span>
-          </label>
-        )}
-        {esDueno && (
-          <label className="flex items-start gap-2">
-            <Checkbox
-              checked={ajustes.turnosAutomaticos}
-              disabled={guardando}
-              onCheckedChange={(v) => cambiar(() => guardarTurnosAutomaticos(session.username, area, v === true))}
-            />
-            <span>
-              <span className="font-medium text-foreground">Respaldo automático</span>
-              <span className="block text-xs text-muted-foreground">
-                Si 30 min después de la hora de inicio nadie hizo el relevo, el sistema abre el turno sin responsable
-                para que alguien lo asuma. Las líneas que siguen corriendo se entregan solas.
-              </span>
-            </span>
-          </label>
-        )}
-        {error && <p className="text-xs text-destructive">{error}</p>}
-      </CardContent>
-    </Card>
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+      {puedeEsquema && (
+        <label
+          className="flex cursor-pointer items-center gap-2"
+          title="Dos supervisores: 7:00 a 19:00 y 19:00 a 7:00. Se guarda como turnos 1, 2 y 3, con relevo a las 19:00."
+        >
+          <Switch
+            checked={es12x12}
+            disabled={guardando}
+            onCheckedChange={(v) => cambiar(() => guardarEsquemaTurnos(session.username, area, v ? "12x12" : "3x8"))}
+          />
+          <span className="font-medium text-foreground">12x12</span>
+          <span className="text-xs text-muted-foreground">{es12x12 ? "Encendido · relevo a las 19:00" : "Apagado"}</span>
+        </label>
+      )}
+      {esDueno && (
+        <label
+          className="flex cursor-pointer items-center gap-2"
+          title="Si 30 min después de la hora de inicio nadie inició el turno, el sistema lo abre sin responsable para que alguien lo asuma."
+        >
+          <Switch
+            checked={ajustes.turnosAutomaticos}
+            disabled={guardando}
+            onCheckedChange={(v) => cambiar(() => guardarTurnosAutomaticos(session.username, area, v))}
+          />
+          <span className="font-medium text-foreground">Respaldo automático</span>
+          <span className="text-xs text-muted-foreground">{ajustes.turnosAutomaticos ? "Encendido" : "Apagado"}</span>
+        </label>
+      )}
+      {error && <p className="w-full text-xs text-destructive">{error}</p>}
+    </div>
   )
 }

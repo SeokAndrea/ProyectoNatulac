@@ -81,6 +81,8 @@ export interface SesionTurno {
   finalizarTurno: () => Promise<{ ok: true } | { ok: false; error: string }>
   /** Asumir el turno abierto (sin responsable) o tomar el relevo de otro. El grupo solo se pide si está pendiente. */
   asumirTurno: (grupo: GrupoCodigo | null) => Promise<{ ok: true } | { ok: false; error: string }>
+  /** Vuelve a leer el turno abierto sin mostrar la pantalla de carga (ej. después de prender el 12x12). */
+  refrescar: () => Promise<void>
 }
 
 interface FilaTanqueEncontrado {
@@ -219,6 +221,12 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true as const }
   }
 
+  async function refrescar() {
+    if (!usuario) return
+    const { data, error } = await supabase.rpc("turno_activo_de", { p_usuario: usuario })
+    if (!error) tomarIdentidad(data ? (data as FilaTurnoIdentidad) : null)
+  }
+
   async function asumirTurno(grupoElegido: GrupoCodigo | null) {
     if (!usuario || !turnoId) {
       return { ok: false as const, error: "No hay un turno abierto para asumir." }
@@ -286,6 +294,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
         iniciarTurno,
         finalizarTurno,
         asumirTurno,
+        refrescar,
       }}
     >
       {children}
