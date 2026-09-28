@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
-import { PanelParadasVista, type CargarOee, type EstadoLineaEnVivo } from "@/components/PanelParadasVista"
+import { PanelParadasVista, type CargarOee, type CargarParadas, type EstadoLineaEnVivo } from "@/components/PanelParadasVista"
 import type { EstadoLineaVista } from "@/components/CintaLinea"
-import { listarParadas, LINEAS_PARADAS, type Parada } from "@/lib/paradas"
+import { listarParadas, LINEAS_PARADAS } from "@/lib/paradas"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { useAuth } from "@/lib/auth"
@@ -63,7 +62,6 @@ export default function PanelParadas() {
   const { session } = useAuth()
   const area = session?.area ?? null
   const { lineas: lineasReales, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
-  const [paradas, setParadas] = useState<Parada[] | null>(null)
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   // `turno?.id ?? null` (nunca undefined): si todavía no hay turno resuelto
   // del área, useProduccion tiene que ver vacío, NUNCA caer al turno propio
@@ -72,10 +70,11 @@ export default function PanelParadas() {
 
   // Aséptico y Pruebas ven solo lo suyo; el resto (superadmin, Mantenimiento…) ve producción, nunca Pruebas.
   const areaParadas = area === "ASEPTICO" || area === "PRUEBAS" ? area : null
-  const cargar = useCallback(() => {
-    // rango amplio: la vista filtra por fecha en memoria
-    return listarParadas({ desde: "2000-01-01", hasta: "2999-12-31", area: areaParadas })
-  }, [areaParadas])
+  // Solo las paradas del período elegido en la vista (antes se traía todo el historial).
+  const cargarParadas = useCallback<CargarParadas>(
+    ({ desde, hasta }) => listarParadas({ desde, hasta, area: areaParadas }),
+    [areaParadas],
+  )
 
   // OEE por línea del período elegido en la vista — mismo cálculo que el
   // Panel de Producción, turno por turno (src/lib/eficienciaPeriodo.ts).
@@ -92,16 +91,6 @@ export default function PanelParadas() {
       }),
     [areaParadas, lineasReales, presentaciones, velocidades],
   )
-
-  useEffect(() => {
-    let vivo = true
-    cargar().then((filas) => {
-      if (vivo) setParadas(filas)
-    })
-    return () => {
-      vivo = false
-    }
-  }, [cargar])
 
   useEffect(() => {
     let vivo = true
@@ -142,13 +131,11 @@ export default function PanelParadas() {
   return (
     <AppShell title="Panel de Paradas" description="Downtime por línea — OEE, paradas no programadas y top por tipo" fullWidth ocultarEstadoBanner>
       <div className="w-full">
-        {paradas === null ? (
-          <div className="flex justify-center py-16 text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" />
-          </div>
-        ) : (
-          <PanelParadasVista paradas={paradas} estadoLineas={estadoLineas} cargarOee={cargandoCatalogos ? OEE_PENDIENTE : cargarOee} />
-        )}
+        <PanelParadasVista
+          cargarParadas={cargarParadas}
+          estadoLineas={estadoLineas}
+          cargarOee={cargandoCatalogos ? OEE_PENDIENTE : cargarOee}
+        />
       </div>
     </AppShell>
   )

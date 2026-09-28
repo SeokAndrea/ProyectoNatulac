@@ -9,9 +9,9 @@ import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { type TurnoTipoCodigo } from "@/lib/catalogos"
 import {
   agruparPorDia,
-  duracionMin,
   fmtDuracion,
   LINEAS_PARADAS,
+  minutosPorClaseSinSolape,
   NOMBRE_CLASE,
   nombreLineaParada,
   paradaAbierta,
@@ -77,12 +77,19 @@ export interface EstadoLineaEnVivo {
 /** Carga el OEE por línea (clave LINEA_1/2/3) del período y turno elegidos — ver cargarOeePeriodo (src/lib/eficienciaPeriodo.ts). */
 export type CargarOee = (filtro: { desde: string; hasta: string; turnoTipo: string }) => Promise<Map<string, OeePeriodo>>
 
+/** Carga las paradas del período — solo ese rango, no todo el historial. */
+export type CargarParadas = (filtro: { desde: string; hasta: string }) => Promise<Parada[]>
+
+/** Panel de pared: las paradas se vuelven a leer cada minuto; el OEE (más pesado, un pedido por turno) cada 5. */
+const REFRESCO_PARADAS_MS = 60 * 1000
+const REFRESCO_OEE_MS = 5 * 60 * 1000
+
 export function PanelParadasVista({
-  paradas,
+  cargarParadas,
   estadoLineas,
   cargarOee,
 }: {
-  paradas: Parada[]
+  cargarParadas: CargarParadas
   /** Estado en vivo de las 3 líneas (no filtrado). Ver nota de cabecera. */
   estadoLineas?: EstadoLineaEnVivo[]
   cargarOee: CargarOee
@@ -93,22 +100,41 @@ export function PanelParadasVista({
   const [turno, setTurno] = useState<TurnoTipoCodigo | "TODOS">("TODOS")
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
 
-  const ahora = useMemo(() => new Date(), [])
+  // Reloj del panel: avanza cada minuto y dispara la relectura de paradas.
+  const [ahora, setAhora] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setAhora(new Date()), REFRESCO_PARADAS_MS)
+    return () => clearInterval(id)
+  }, [])
 
   // Todo se calcula desde HOY (fecha de planta): Ayer = solo el día de
   // ayer; 7 días = hoy y los 6 anteriores; Este mes = del 1 hasta hoy.
+  const hoy = fechaPlanta(ahora)
   const { desde, hasta } = useMemo(() => {
-    const hoy = fechaPlanta()
     if (periodo === "AYER") {
       const ayer = restarDias(hoy, 1)
       return { desde: ayer, hasta: ayer }
     }
     if (periodo === "7D") return { desde: restarDias(hoy, 6), hasta: hoy }
     return { desde: `${hoy.slice(0, 8)}01`, hasta: hoy }
-  }, [periodo])
+  }, [periodo, hoy])
+
+  // Paradas del período. Se guardan con la clave del rango: al refrescar se
+  // sigue viendo lo anterior; al cambiar de período, cargando.
+  const claveParadas = `${desde}|${hasta}`
+  const [paradasCargadas, setParadasCargadas] = useState<{ clave: string; filas: Parada[] } | null>(null)
+  useEffect(() => {
+    let vivo = true
+    const clave = `${desde}|${hasta}`
+    cargarParadas({ desde, hasta }).then((filas) => vivo && setParadasCargadas({ clave, filas }))
+    return () => {
+      vivo = false
+    }
+  }, [cargarParadas, desde, hasta, ahora])
+  const paradas = paradasCargadas?.clave === claveParadas ? paradasCargadas.filas : null
 
   const filtradas = useMemo(() => {
-    return paradas
+    return (paradas ?? [])
       .filter((p) => {
         const dia = p.inicio.slice(0, 10)
         if (dia < desde || dia > hasta) return false
@@ -130,6 +156,8 @@ export function PanelParadasVista({
   // no de las paradas, así que se pide aparte. Se guarda con la clave del
   // filtro que lo pidió: si no coincide con el filtro actual, está cargando.
   const claveOee = `${desde}|${hasta}|${turno}`
+  // Cambia cada REFRESCO_OEE_MS: vuelve a pedir el OEE sin mostrar "calculando" otra vez.
+  const vueltaOee = Math.floor(ahora.getTime() / REFRESCO_OEE_MS)
   const [oeeCargado, setOeeCargado] = useState<{ clave: string; datos: Map<string, OeePeriodo> } | null>(null)
   useEffect(() => {
     let vivo = true
@@ -141,7 +169,7 @@ export function PanelParadasVista({
     return () => {
       vivo = false
     }
-  }, [cargarOee, desde, hasta, turno])
+  }, [cargarOee, desde, hasta, turno, vueltaOee])
   const oee = oeeCargado?.clave === claveOee ? oeeCargado.datos : undefined
 
   // Tendencia de la tarjeta "Vista" — un punto por día del rango elegido.
@@ -225,79 +253,88 @@ export function PanelParadasVista({
         )}
       </div>
 
-      {/* ---- Hero: ranking + líneas (en vivo + sus números) ----
-           Ya no hay columna de KPIs globales: OEE, minutos no
-           programados y paradas registradas van DENTRO de cada línea. */}
-      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-[300px_repeat(3,340px)] lg:justify-center">
-        <div className="flex flex-col gap-3">
-          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Vista</h2>
-              <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
-            </div>
-            <p className="text-lg font-bold text-foreground">{PERIODO_FILTRO.find((p) => p.codigo === periodo)?.etiqueta}</p>
-            <p className="text-xs text-muted-foreground">
-              {fmtRangoCorto(desde, hasta)} · {TURNO_FILTRO.find((t) => t.codigo === turno)?.etiqueta}
-            </p>
-            <Sparkline datos={porDia} />
-          </div>
-          <RankCard titulo="Top Paradas por Frecuencia" tono="info" items={topFrecuencia} metrica="veces" />
-          <RankCard titulo="Top Paradas por Tiempo" tono="danger" items={topTiempo} metrica="minutos" />
+      {paradas === null ? (
+        <div className="flex justify-center py-16 text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" />
         </div>
+      ) : (
+        <>
+        {/* ---- Hero: ranking + líneas (en vivo + sus números) ----
+             Ya no hay columna de KPIs globales: OEE, minutos no
+             programados y paradas registradas van DENTRO de cada línea. */}
+        <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-[300px_repeat(3,340px)] lg:justify-center">
+          <div className="flex flex-col gap-3">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <div className="mb-1 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-foreground">Vista</h2>
+                <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
+              </div>
+              <p className="text-lg font-bold text-foreground">{PERIODO_FILTRO.find((p) => p.codigo === periodo)?.etiqueta}</p>
+              <p className="text-xs text-muted-foreground">
+                {fmtRangoCorto(desde, hasta)} · {TURNO_FILTRO.find((t) => t.codigo === turno)?.etiqueta}
+              </p>
+              <Sparkline datos={porDia} />
+            </div>
+            <RankCard titulo="Top Paradas por Frecuencia" tono="info" items={topFrecuencia} metrica="veces" />
+            <RankCard titulo="Top Paradas por Tiempo" tono="danger" items={topTiempo} metrica="minutos" />
+          </div>
 
-        {/* ---- Una columna por línea: cinta en vivo + sus números. ---- */}
-        {LINEAS_PARADAS.map((l, i) => {
-          const propias = filtradas.filter((p) => p.lineaCodigo === l.codigo)
-          const noProgramadas = propias.filter((p) => p.clase === "NO_PROGRAMADA")
-          const minutosNoProgramados = noProgramadas.reduce((a, p) => a + duracionMin(p, ahora), 0)
-          const enVivo = estadoLineas?.find((e) => e.lineaCodigo === l.codigo)
-          return (
-            <div key={l.codigo} className="flex min-w-0 flex-col gap-3">
-              <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase text-muted-foreground">Producción</p>
-                    <h2 className="text-lg font-bold text-foreground">{l.nombre}</h2>
+          {/* ---- Una columna por línea: cinta en vivo + sus números. ---- */}
+          {LINEAS_PARADAS.map((l, i) => {
+            const propias = filtradas.filter((p) => p.lineaCodigo === l.codigo)
+            const noProgramadas = propias.filter((p) => p.clase === "NO_PROGRAMADA")
+            // Sin solape con las demás paradas de la línea (supervisor y Mantenimiento cargando la misma falla).
+            const minutosNoProgramados = minutosPorClaseSinSolape(propias, ahora).NO_PROGRAMADA
+            const enVivo = estadoLineas?.find((e) => e.lineaCodigo === l.codigo)
+            return (
+              <div key={l.codigo} className="flex min-w-0 flex-col gap-3">
+                <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase text-muted-foreground">Producción</p>
+                      <h2 className="text-lg font-bold text-foreground">{l.nombre}</h2>
+                    </div>
+                    {enVivo && (
+                      <span
+                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-success/10 px-2 py-1 text-[10px] font-bold uppercase text-success"
+                        title="La cinta muestra el turno activo real, no el filtro de arriba"
+                      >
+                        <span className="alert-pulse size-1.5 rounded-full bg-current" />
+                        En vivo
+                      </span>
+                    )}
                   </div>
-                  {enVivo && (
-                    <span
-                      className="flex shrink-0 items-center gap-1.5 rounded-full bg-success/10 px-2 py-1 text-[10px] font-bold uppercase text-success"
-                      title="La cinta muestra el turno activo real, no el filtro de arriba"
-                    >
-                      <span className="alert-pulse size-1.5 rounded-full bg-current" />
-                      En vivo
-                    </span>
+                  {enVivo ? (
+                    <CintaLinea
+                      numeroLinea={i + 1}
+                      estado={enVivo.estado}
+                      saborNombre={enVivo.saborNombre}
+                      lote={enVivo.lote}
+                      presentacion={enVivo.presentacion}
+                    />
+                  ) : (
+                    <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" />
+                    </div>
                   )}
-                </div>
-                {enVivo ? (
-                  <CintaLinea
-                    numeroLinea={i + 1}
-                    estado={enVivo.estado}
-                    saborNombre={enVivo.saborNombre}
-                    lote={enVivo.lote}
-                    presentacion={enVivo.presentacion}
-                  />
-                ) : (
-                  <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
-                    <Loader2 className="size-4 animate-spin" />
+                  <OeeLinea oee={oee === undefined ? "cargando" : (oee.get(l.codigo) ?? null)} />
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <DatoLinea etiqueta="Min. no programados" valor={minutosNoProgramados} tono="text-danger" />
+                    <DatoLinea etiqueta="Paradas registradas" valor={propias.length} tono="text-primary" />
                   </div>
-                )}
-                <OeeLinea oee={oee === undefined ? "cargando" : (oee.get(l.codigo) ?? null)} />
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <DatoLinea etiqueta="Min. no programados" valor={minutosNoProgramados} tono="text-danger" />
-                  <DatoLinea etiqueta="Paradas registradas" valor={propias.length} tono="text-primary" />
-                </div>
-                <div className="mt-3">
-                  <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top 3 no programadas · tiempo</h3>
-                  <div className="text-danger">
-                    <RankList items={porTipo(noProgramadas, ahora).slice(0, 3)} metrica="minutos" compacto />
+                  <div className="mt-3">
+                    <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top 3 no programadas · tiempo</h3>
+                    <div className="text-danger">
+                      <RankList items={porTipo(noProgramadas, ahora).slice(0, 3)} metrica="minutos" compacto />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+        </>
+      )}
 
       {abiertas > 0 && (
         <div className="flex items-center gap-1.5 rounded-lg border border-warning/40 bg-warning-soft/40 px-3 py-2 text-sm text-warning">

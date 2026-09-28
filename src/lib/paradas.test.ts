@@ -8,6 +8,7 @@ import {
   duracionMin,
   fmtDesvio,
   fmtDuracion,
+  minutosPorClaseSinSolape,
   minutosPorLinea,
   paradaAbierta,
   porTipo,
@@ -115,6 +116,36 @@ describe("minutosPorLinea", () => {
     expect(r[0].porClase).toEqual({ PROGRAMADA: 30, NO_PROGRAMADA: 0, OCIOSO: 15 })
     expect(r[1]).toMatchObject({ veces: 0, minutos: 0 })
     expect(r[2].porClase.NO_PROGRAMADA).toBe(60)
+  })
+})
+
+describe("minutosPorClaseSinSolape", () => {
+  const np = (inicio: string, fin: string | null, over: Partial<Parada> = {}) =>
+    P({ clase: "NO_PROGRAMADA", inicio: `2026-09-09T${inicio}:00`, fin: fin ? `2026-09-09T${fin}:00` : null, ...over })
+
+  it("la misma falla cargada dos veces (supervisor y Mantenimiento) cuenta una vez", () => {
+    const r = minutosPorClaseSinSolape([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO" })])
+    expect(r.NO_PROGRAMADA).toBe(90)
+  })
+  it("una parada dentro de otra no suma nada", () => {
+    expect(minutosPorClaseSinSolape([np("10:00", "12:00"), np("10:30", "11:00")]).NO_PROGRAMADA).toBe(120)
+  })
+  it("sin solape, suma todo", () => {
+    expect(minutosPorClaseSinSolape([np("10:00", "10:30"), np("11:00", "11:15")]).NO_PROGRAMADA).toBe(45)
+  })
+  it("el tramo compartido se lo queda la que empezó primero", () => {
+    const r = minutosPorClaseSinSolape([np("10:00", "11:00", { clase: "PROGRAMADA" }), np("10:30", "11:30")])
+    expect(r).toEqual({ PROGRAMADA: 60, NO_PROGRAMADA: 30, OCIOSO: 0 })
+  })
+  it("abierta cuenta hasta ahora; desdeMs recorta el comienzo", () => {
+    const ahora = new Date("2026-09-09T12:00:00")
+    expect(minutosPorClaseSinSolape([np("11:00", null)], ahora).NO_PROGRAMADA).toBe(60)
+    const desde = new Date("2026-09-09T11:30:00").getTime()
+    expect(minutosPorClaseSinSolape([np("11:00", null)], ahora, desde).NO_PROGRAMADA).toBe(30)
+  })
+  it("minutosPorLinea tampoco cuenta dos veces el solape", () => {
+    const r = minutosPorLinea([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO" })])
+    expect(r[0]).toMatchObject({ linea: "LINEA_1", veces: 2, minutos: 90 })
   })
 })
 

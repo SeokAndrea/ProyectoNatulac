@@ -138,7 +138,10 @@ const corrida = (id: string, linea: string, envasesHora: number, activa = true, 
   ({ id, linea, presentacion, envasesHora, activa, activadaEn }) as unknown as Corrida
 const contador = (corridaId: string, envasesLlenadora: number): ContadorRegistro =>
   ({ corridaId, envasesLlenadora }) as unknown as ContadorRegistro
-const parada = (lineaCodigo: string, clase: Parada["clase"], minutos: number): Parada => ({
+const horaDesdeLas8 = (min: number) =>
+  `2026-09-21T${String(8 + Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}:00`
+/** Parada que arranca `inicioMin` minutos después de las 8:00 (por defecto a las 8:00). */
+const parada = (lineaCodigo: string, clase: Parada["clase"], minutos: number, inicioMin = 0): Parada => ({
   id: `${lineaCodigo}-${clase}-${minutos}`,
   clase,
   origen: "MANUAL",
@@ -149,8 +152,8 @@ const parada = (lineaCodigo: string, clase: Parada["clase"], minutos: number): P
   tiempoGuiaMin: null,
   nota: null,
   justificacionDesvio: null,
-  inicio: "2026-09-21T08:00:00",
-  fin: `2026-09-21T${String(8 + Math.floor(minutos / 60)).padStart(2, "0")}:${String(minutos % 60).padStart(2, "0")}:00`,
+  inicio: horaDesdeLas8(inicioMin),
+  fin: horaDesdeLas8(inicioMin + minutos),
   supervisorNombre: null,
 })
 const PRES = [{ codigo: "250", envasesXCaja: 24 }] as unknown as PresentacionLive[]
@@ -199,12 +202,28 @@ describe("eficienciaDelTurno", () => {
       ...base,
       corridas: [corrida("a", "LINEA_2", 9000)],
       contadores: [contador("a", 43200)],
-      paradas: [parada("LINEA_2", "PROGRAMADA", 90), parada("LINEA_2", "OCIOSO", 30), parada("LINEA_2", "NO_PROGRAMADA", 60)],
+      paradas: [parada("LINEA_2", "PROGRAMADA", 90), parada("LINEA_2", "OCIOSO", 30, 90), parada("LINEA_2", "NO_PROGRAMADA", 60, 120)],
     })
     expect([...r.porLinea.keys()]).toEqual(["LINEA_2"])
     expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(80)
     expect(r.total?.metaCajas).toBe(2250)
     expect(r.total?.realCajas).toBe(1800)
+  })
+
+  it("la misma falla cargada por supervisor y Mantenimiento resta una sola vez", () => {
+    const una = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("a", "LINEA_2", 9000)],
+      contadores: [contador("a", 43200)],
+      paradas: [parada("LINEA_2", "NO_PROGRAMADA", 60)],
+    })
+    const duplicada = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("a", "LINEA_2", 9000)],
+      contadores: [contador("a", 43200)],
+      paradas: [parada("LINEA_2", "NO_PROGRAMADA", 60), { ...parada("LINEA_2", "NO_PROGRAMADA", 60), id: "mtto", origen: "MANTENIMIENTO" }],
+    })
+    expect(duplicada.porLinea.get("LINEA_2")?.operativoMin).toBe(una.porLinea.get("LINEA_2")?.operativoMin)
   })
 
   it("una parada de otra línea no afecta", () => {

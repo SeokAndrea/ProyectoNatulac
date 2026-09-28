@@ -1,4 +1,4 @@
-import { type ClaseParada, type Parada } from "@/lib/paradas"
+import { minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 
@@ -37,13 +37,6 @@ export function duracionBaseTurnoMin(turnoTipo: string | null | undefined): numb
 }
 
 const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
-
-/** Minutos de una parada que caen desde `desdeMs` en adelante (recorta el arranque si empezó antes) — para no contar el tramo de una parada anterior a la primera activación de la línea en el turno. */
-function duracionMinDesde(p: Pick<Parada, "inicio" | "fin">, desdeMs: number, ahora: Date): number {
-  const ini = Math.max(new Date(p.inicio).getTime(), desdeMs)
-  const fin = p.fin ? new Date(p.fin).getTime() : ahora.getTime()
-  return Math.max(0, Math.round((fin - ini) / 60000))
-}
 
 export interface EntradaEficiencia {
   /** Duración base del turno. */
@@ -212,10 +205,12 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     const minutosDesdeActivacion = Math.max(0, Math.round((ahora.getTime() - primeraActivacionMs) / 60000))
     const transcurridoLineaMin = Math.min(transcurridoMin, minutosDesdeActivacion)
 
-    const minutos: Record<ClaseParada, number> = { PROGRAMADA: 0, NO_PROGRAMADA: 0, OCIOSO: 0 }
-    for (const p of t.paradas) {
-      if (numeroLinea(p.lineaCodigo) === numeroLinea(codigo)) minutos[p.clase] += duracionMinDesde(p, primeraActivacionMs, ahora)
-    }
+    // Sin solape: si supervisor y Mantenimiento registran la misma falla, cuenta una vez.
+    const minutos = minutosPorClaseSinSolape(
+      t.paradas.filter((p) => numeroLinea(p.lineaCodigo) === numeroLinea(codigo)),
+      ahora,
+      primeraActivacionMs,
+    )
 
     const ids = new Set(corridasLinea.map((c) => c.id))
     const conteo = t.contadores.filter((k) => k.corridaId !== null && ids.has(k.corridaId))
