@@ -73,7 +73,10 @@ export default function Lineas() {
         {enModoCorreccion && turnoCorregido && (
           <ModoCorreccionBanner turno={turnoCorregido} onSalir={salirDeCorreccion} />
         )}
-        <LineasEstadoPlanta modo="preparacion" turnoId={turnoIdEfectivo} />
+        {/* En corrección, solo lectura: un turno cerrado no cambia líneas (el servidor también lo rechaza). */}
+        <fieldset disabled={enModoCorreccion} className="m-0 min-w-0 border-0 p-0">
+          <LineasEstadoPlanta modo="preparacion" turnoId={turnoIdEfectivo} />
+        </fieldset>
         <div className="flex justify-center">
           <Button asChild variant="outline">
             <Link to={enModoCorreccion ? `/preparacion?turnoId=${turnoIdEfectivo}` : "/preparacion"}>

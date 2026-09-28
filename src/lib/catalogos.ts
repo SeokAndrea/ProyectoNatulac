@@ -73,6 +73,20 @@ export const GRUPOS = [
 
 export type GrupoCodigo = (typeof GRUPOS)[number]["codigo"]
 
+/**
+ * Grupo de un turno que abrió el respaldo automático y nadie asumió: el
+ * servidor devuelve este código en vez del grupo provisorio (ver
+ * supabase/migrations/20261084090000_turnos_sin_grupo.sql).
+ */
+export const SIN_GRUPO = "SIN_GRUPO"
+
+/** Nombre para mostrar de un grupo, incluido "Sin grupo". */
+export function nombreGrupo(codigo: string | null | undefined): string {
+  if (!codigo) return "—"
+  if (codigo === SIN_GRUPO) return "Sin grupo"
+  return GRUPOS.find((g) => g.codigo === codigo)?.nombre ?? codigo
+}
+
 /*
  * LineaCodigo es un tipo CERRADO a propósito (las líneas físicas de
  * la planta) — ver la nota en

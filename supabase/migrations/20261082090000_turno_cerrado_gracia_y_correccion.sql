@@ -2201,7 +2201,7 @@ begin
   select * into v_rol, v_area from rol_y_area_de(p_usuario);
   select id into v_usuario_id from usuarios where usuario = lower(p_usuario);
 
-  -- Supervisores y Super Administrador registran paradas (el Área de Pruebas también, para probar).
+  -- Quien tenga PARADAS_REGISTRAR (el Área de Pruebas también, para probar).
   if not tiene_permiso(p_usuario, 'PARADAS_REGISTRAR') and v_area is distinct from 'PRUEBAS' then
     raise exception 'No tienes permiso para registrar paradas.';
   end if;
@@ -2211,8 +2211,6 @@ begin
     raise exception 'No se encontró el turno.';
   end if;
   perform exigir_turno_escribible(p_usuario, p_turno_id, true);
-  -- El Super Administrador puede registrar en cualquier turno abierto, no solo el propio.
-
 
   select l.id into v_linea_id
   from lineas l

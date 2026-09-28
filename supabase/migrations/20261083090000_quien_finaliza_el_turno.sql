@@ -10,6 +10,9 @@
 -- Un turno "Sin responsable" hay que asumirlo antes de finalizarlo (así el
 -- acta queda a nombre de alguien).
 --
+-- La versión vieja finalizar_turno(uuid) queda, pero solo pide recargar la
+-- página: así una pestaña con la app vieja no ve un error técnico.
+--
 -- También: cerrar_turno_forzado() estaba abierto al público (grant a anon) y
 -- cierra cualquier turno sin validar nada. Solo lo usan el cron y abrir_turno.
 -- ============================================================
@@ -130,7 +133,17 @@ $$;
 
 grant execute on function finalizar_turno(text, uuid) to anon, authenticated;
 
--- La versión vieja, sin usuario, se borra: si quedara, seguiría cerrando turnos sin validar.
-drop function if exists finalizar_turno(uuid);
+-- La versión vieja, sin usuario, ya no cierra nada: solo le avisa a la app vieja
+-- (la que quede abierta en alguna pestaña hasta que se recargue) que se actualice.
+create or replace function finalizar_turno(p_turno_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  raise exception 'La app se actualizó: recarga la página (Ctrl+F5) para finalizar el turno.';
+end;
+$$;
 
 revoke execute on function cerrar_turno_forzado(uuid, timestamp) from public, anon, authenticated;

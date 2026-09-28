@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { AREAS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import { turnosActivosPorArea, type TurnoActivoArea } from "@/lib/historialTurnos"
 
 /*
@@ -69,7 +69,7 @@ export function EstadoBanner() {
             <span className="text-muted-foreground">Turno:</span>
             <span className="font-medium text-foreground">
               {sesion.turnoTipo ? nombrePorCodigo(TURNO_TIPOS, sesion.turnoTipo) : "—"} ·{" "}
-              {sesion.grupo ? nombrePorCodigo(GRUPOS, sesion.grupo) : "—"} ·{" "}
+              {sesion.grupo ? nombreGrupo(sesion.grupo) : "—"} ·{" "}
               {(() => {
                 const activas = corridas.filter((l) => l.activa)
                 return activas.length === 0 ? "sin líneas (parada)" : activas.map((l) => nombrePorCodigo(lineas, l.linea)).join(", ")

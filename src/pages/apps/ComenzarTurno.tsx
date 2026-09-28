@@ -16,7 +16,7 @@ import {
   obtenerAjustesTurnos,
   type AjustesTurnos,
 } from "@/lib/ajustesTurnos"
-import { GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
+import { GRUPOS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
 import { puede } from "@/lib/permisos"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
@@ -148,7 +148,7 @@ function TurnoYaEnCurso() {
         <CardTitle>Ya tienes un turno en curso</CardTitle>
         <CardDescription>
           Código {sesion.codigo} · {nombrePorCodigo(TURNO_TIPOS, sesion.turnoTipo!)} ·{" "}
-          {nombrePorCodigo(GRUPOS, sesion.grupo!)}
+          {nombreGrupo(sesion.grupo!)}
           {sesion.esquema === "12x12" ? " · 12x12" : ""}. Para iniciar uno nuevo, primero cierra el actual desde
           Finalizar Turno.
         </CardDescription>

@@ -1,4 +1,4 @@
-import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import { mermaCorrida } from "@/lib/reportes"
 import { diaMesPlanta, horaCortaPlanta, instantePlanta, mismaFechaPlanta } from "@/lib/tiempoPlanta"
@@ -64,7 +64,7 @@ export function construirHistorial(
     eventos.push({ momento, hora: formatearHora(valor, turno.fecha), seccion, detalle })
   }
 
-  agregar(turno.horaInicio, "Comenzar Turno", `${nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)} · ${nombrePorCodigo(GRUPOS, turno.grupo)}`)
+  agregar(turno.horaInicio, "Comenzar Turno", `${nombrePorCodigo(TURNO_TIPOS, turno.turnoTipo)} · ${nombreGrupo(turno.grupo)}`)
 
   // Líneas y tanques ya no se fijan al iniciar el turno: son estado
   // continuo (ver Preparación) que se activa/cambia en cualquier

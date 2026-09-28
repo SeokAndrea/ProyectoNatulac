@@ -9,7 +9,7 @@ import { NovedadesTurno } from "@/components/NovedadesTurno"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
@@ -317,7 +317,7 @@ export default function FinalizarTurno() {
               </div>
               <div>
                 <dt className="text-muted-foreground">Grupo</dt>
-                <dd className="font-medium text-foreground">{nombrePorCodigo(GRUPOS, sesion.grupo ?? "GRUPO_1")}</dd>
+                <dd className="font-medium text-foreground">{nombreGrupo(sesion.grupo ?? "GRUPO_1")}</dd>
               </div>
             </dl>
 

@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/EmptyState"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth"
-import { GRUPOS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import { misActas, urlPublicaActa, type MiActa } from "@/lib/historialTurnos"
 
 /*
@@ -43,7 +43,7 @@ export default function MisActas() {
               <CardContent className="flex items-center justify-between gap-3 py-4">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">
-                    {a.fecha} · {nombrePorCodigo(TURNO_TIPOS, a.turnoTipo)} · {nombrePorCodigo(GRUPOS, a.grupo)}
+                    {a.fecha} · {nombrePorCodigo(TURNO_TIPOS, a.turnoTipo)} · {nombreGrupo(a.grupo)}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">{a.turnoCodigo}</p>
                 </div>

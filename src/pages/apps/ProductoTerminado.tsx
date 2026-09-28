@@ -892,7 +892,9 @@ function FilaProductoTerminado({
             <div>
               <p className="text-xs text-muted-foreground">Estado</p>
               <p className="font-medium text-foreground">
-                {lineaTurno.entregadaEn ? `Entregada a las ${horaCortaPlanta(lineaTurno.entregadaEn, lineaTurno.entregadaEn)}` : "Sabor terminado"}
+                {lineaTurno.entregadaEn
+                  ? `${lineaTurno.entregaAutomatica ? "Entregada sola (cambio de turno)" : "Entregada"} a las ${horaCortaPlanta(lineaTurno.entregadaEn, lineaTurno.entregadaEn)}`
+                  : "Sabor terminado"}
               </p>
             </div>
             <div>
@@ -903,9 +905,10 @@ function FilaProductoTerminado({
             </div>
           </div>
 
+          {/* Sin PT todavía (ej. entregada sola en el cambio de turno): se carga; con PT, se corrige. */}
           <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setEditandoError(true)}>
             <PenLine className="size-3.5" />
-            Editar un error
+            {registroExistente ? "Editar un error" : "Cargar Producto Terminado"}
           </Button>
         </CardContent>
       </Card>

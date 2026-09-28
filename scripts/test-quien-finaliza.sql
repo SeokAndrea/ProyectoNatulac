@@ -9,7 +9,7 @@
 --   2. Otro supervisor no.
 --   3. Un jefe (TURNO_CORREGIR) sí.
 --   4. Un turno sin responsable hay que asumirlo antes.
---   5. La versión vieja sin usuario ya no existe y cerrar_turno_forzado no es público.
+--   5. La versión vieja sin usuario solo pide recargar (no cierra) y cerrar_turno_forzado no es público.
 
 begin;
 
@@ -50,7 +50,13 @@ begin
     assert sqlerrm like 'Este turno no tiene responsable%', '4 mensaje: ' || sqlerrm;
   end;
   -- 5
-  assert not exists (select 1 from pg_proc where proname = 'finalizar_turno' and pronargs = 1), '5a versión vieja borrada';
+  begin
+    perform finalizar_turno(v_turno);
+    raise exception 'FALLA 5a: la versión vieja cerró el turno';
+  exception when others then
+    assert sqlerrm like 'La app se actualizó%', '5a mensaje: ' || sqlerrm;
+  end;
+  assert (select estado from turnos where id = v_turno) = 'ABIERTO', '5a la versión vieja no cierra';
   assert not has_function_privilege('anon', 'cerrar_turno_forzado(uuid, timestamp)', 'execute'), '5b cerrar_turno_forzado no es público';
 
   raise notice 'OK: quién finaliza el turno';

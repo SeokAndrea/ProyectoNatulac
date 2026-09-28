@@ -1,4 +1,4 @@
-import { GRUPOS, TURNO_TIPOS, nombrePorCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
+import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, litrosHoraDeLive } from "@/lib/catalogosLive"
 import type { Corrida } from "@/lib/produccion/tipos"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
@@ -42,7 +42,7 @@ export function ResumenTurno({
         </div>
         <div>
           <dt className="text-muted-foreground">Grupo</dt>
-          <dd className="font-medium text-foreground">{nombrePorCodigo(GRUPOS, grupo)}</dd>
+          <dd className="font-medium text-foreground">{nombreGrupo(grupo)}</dd>
         </div>
       </dl>
 

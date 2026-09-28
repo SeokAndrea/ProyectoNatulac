@@ -57,6 +57,8 @@ export interface TurnoHistorial {
   /** Quién estuvo a cargo y cuándo (relevos). Vacío en turnos anteriores a la migración 20261080. */
   responsables: ResponsableTurno[]
   esquema: EsquemaTurnos
+  /** Lo abrió el respaldo y nadie lo asumió: su grupo sale como "Sin grupo" hasta que se asigne desde Auditoría (migración 20261084). */
+  grupoPendiente: boolean
   /** Correcciones abiertas después del cierre (quién, motivo, cuándo). Ver migración 20261082. */
   correcciones: CorreccionTurno[]
   tanquesEncontrados: TanqueEncontrado[] | null
@@ -97,6 +99,7 @@ interface FilaTurnoHistorial {
   supervisor_nombre: string
   responsables?: ResponsableTurno[]
   esquema?: EsquemaTurnos
+  grupo_pendiente?: boolean
   correcciones?: { nombre: string; motivo: string; creada_en: string }[]
   lineas: FilaCorrida[]
   lineas_estado: FilaLineaEstado[]
@@ -126,6 +129,7 @@ export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
     supervisorNombre: fila.supervisor_nombre,
     responsables: fila.responsables ?? [],
     esquema: fila.esquema ?? "3x8",
+    grupoPendiente: fila.grupo_pendiente ?? false,
     correcciones: (fila.correcciones ?? []).map((c) => ({ nombre: c.nombre, motivo: c.motivo, creadaEn: c.creada_en })),
     tanquesEncontrados:
       fila.tanques_encontrados?.map((t) => ({
@@ -212,6 +216,21 @@ export async function obtenerTurnoDetalle(usuarioSesion: string, turnoId: string
 }
 
 /** Mismo turno_json() que obtenerTurnoDetalle(), pero solo para EL PROPIO turno del supervisor (ver src/lib/actasPendientes.ts). */
+/** Pone el grupo real a un turno cerrado que quedó "Sin grupo" (TURNO_CORREGIR). Queda como corrección. */
+export async function asignarGrupoTurno(
+  usuarioSesion: string,
+  turnoId: string,
+  grupo: GrupoCodigo,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc("asignar_grupo_turno", {
+    p_usuario: usuarioSesion,
+    p_turno_id: turnoId,
+    p_grupo_codigo: grupo,
+  })
+  if (error) return { ok: false, error: error.message || "No se pudo asignar el grupo." }
+  return { ok: true }
+}
+
 export async function miTurnoDetalle(usuarioSesion: string, turnoId: string): Promise<TurnoHistorial | null> {
   const { data, error } = await supabase.rpc("mi_turno_detalle", { p_usuario: usuarioSesion, p_turno_id: turnoId })
   if (error || !data) return null

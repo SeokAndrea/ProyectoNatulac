@@ -157,6 +157,7 @@ export function turnoDemo(over: Override): TurnoHistorial {
     cierreAutomatico: false,
     responsables: [],
     esquema: "3x8",
+    grupoPendiente: false,
     correcciones: [],
     corridas: [],
     lineasEstado: [],

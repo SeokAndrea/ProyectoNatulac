@@ -38,7 +38,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
-import { AREAS, CARGOS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
+import { AREAS, CARGOS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import { useCatalogosLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
 import {
   badgeVariantPorNivel,
@@ -762,7 +762,7 @@ export default function PanelProduccion() {
                   )}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Turno {turno.codigo} · {nombrePorCodigo(GRUPOS, turno.grupo)}
+                  Turno {turno.codigo} · {nombreGrupo(turno.grupo)}
                   {turno.estado === "CERRADO" && turno.horaFin ? ` · Cerrado ${turno.horaFin.slice(0, 5)}` : ""}
                 </span>
               </>
@@ -1900,7 +1900,7 @@ function EstadisticaMerma({ titulo, pct }: { titulo: string; pct: number | null 
 /** Matriz supervisor × grupo: litros producidos, con intensidad de color según el máximo de la matriz. */
 function MatrizGrupoSupervisor({ filas }: { filas: FilaEstadistica[] }) {
   const grupos = [...new Set(filas.map((f) => f.grupo))].sort((a, b) =>
-    nombrePorCodigo(GRUPOS, a).localeCompare(nombrePorCodigo(GRUPOS, b)),
+    nombreGrupo(a).localeCompare(nombreGrupo(b)),
   )
 
   const supervisores = [...new Set(filas.map((f) => f.supervisorUsuario))]
@@ -1938,7 +1938,7 @@ function MatrizGrupoSupervisor({ filas }: { filas: FilaEstadistica[] }) {
               </th>
               {grupos.map((g) => (
                 <th key={g} className="text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {nombrePorCodigo(GRUPOS, g)}
+                  {nombreGrupo(g)}
                 </th>
               ))}
               <th className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Total</th>
@@ -1958,7 +1958,7 @@ function MatrizGrupoSupervisor({ filas }: { filas: FilaEstadistica[] }) {
                         style={{
                           backgroundColor: `color-mix(in oklab, var(--primary) ${Math.round(intensidad * 0.55)}%, var(--background))`,
                         }}
-                        title={`${s.nombre} · ${nombrePorCodigo(GRUPOS, g)}: ${v.toLocaleString("es-CO")} L`}
+                        title={`${s.nombre} · ${nombreGrupo(g)}: ${v.toLocaleString("es-CO")} L`}
                       >
                         {v > 0 ? v.toLocaleString("es-CO") : "·"}
                       </div>
@@ -1986,7 +1986,7 @@ function TablaPorGrupo({ filas }: { filas: FilaEstadistica[] }) {
         horas: filasGrupo.reduce((a, f) => a + (horasTurno(f) ?? 0), 0),
       }
     })
-    .sort((a, b) => nombrePorCodigo(GRUPOS, a.grupo).localeCompare(nombrePorCodigo(GRUPOS, b.grupo)))
+    .sort((a, b) => nombreGrupo(a.grupo).localeCompare(nombreGrupo(b.grupo)))
 
   return (
     <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
@@ -2010,7 +2010,7 @@ function TablaPorGrupo({ filas }: { filas: FilaEstadistica[] }) {
           <TableBody>
             {grupos.map((g) => (
               <TableRow key={g.grupo}>
-                <TableCell className="font-medium">{nombrePorCodigo(GRUPOS, g.grupo)}</TableCell>
+                <TableCell className="font-medium">{nombreGrupo(g.grupo)}</TableCell>
                 <TableCell className="num text-right">{g.litros.toLocaleString("es-CO")}</TableCell>
                 <TableCell className="num text-right">{Math.round(g.horas)} h</TableCell>
                 <TableCell className="text-right">

@@ -1,6 +1,6 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { AREAS, GRUPOS, TURNO_TIPOS, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
+import { AREAS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { agruparPorSaborYLote } from "@/lib/agruparProduccion"
@@ -191,7 +191,7 @@ export async function generarActaPdf(params: {
     },
     body: [
       ["Fecha", fecha, "Turno", nombrePorCodigo(TURNO_TIPOS, turnoTipo)],
-      ["Grupo", nombrePorCodigo(GRUPOS, grupo), "Área", area ? nombrePorCodigo(AREAS, area) : "—"],
+      ["Grupo", nombreGrupo(grupo), "Área", area ? nombrePorCodigo(AREAS, area) : "—"],
       ["Supervisor", supervisorNombre, "Código del turno", codigo],
       ...(esquema === "12x12" ? [["Esquema", "12x12", "", ""]] : []),
     ],

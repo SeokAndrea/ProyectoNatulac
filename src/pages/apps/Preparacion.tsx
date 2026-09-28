@@ -86,7 +86,10 @@ export default function Preparacion() {
         {enModoCorreccion && turnoCorregido && (
           <ModoCorreccionBanner turno={turnoCorregido} onSalir={salirDeCorreccion} />
         )}
-        <EstadoPlantaTabs sabores={sabores} modo="preparacion" turnoId={turnoIdEfectivo} />
+        {/* En corrección, solo lectura: un turno cerrado no cambia tanques (el servidor también lo rechaza). */}
+        <fieldset disabled={enModoCorreccion} className="m-0 min-w-0 border-0 p-0">
+          <EstadoPlantaTabs sabores={sabores} modo="preparacion" turnoId={turnoIdEfectivo} />
+        </fieldset>
         <div className="flex justify-center">
           <Button asChild variant="outline">
             <Link to={enModoCorreccion ? `/lineas?turnoId=${turnoIdEfectivo}` : "/lineas"}>

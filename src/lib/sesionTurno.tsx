@@ -243,7 +243,11 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     // RPC finalizar_turno (migración 20261018090000, costura 2). Acá solo
     // se propaga el mensaje.
     // Quién finaliza lo valida el servidor (migración 20261083): el responsable, un jefe o el dueño.
-    const { error } = await supabase.rpc("finalizar_turno", { p_usuario: usuario, p_turno_id: turnoId })
+    let error = (await supabase.rpc("finalizar_turno", { p_usuario: usuario, p_turno_id: turnoId })).error
+    // Base todavía sin la 20261083 (la app se publicó antes del db push): la versión vieja, sin usuario.
+    if (error?.code === "PGRST202") {
+      error = (await supabase.rpc("finalizar_turno", { p_turno_id: turnoId })).error
+    }
 
     if (error) {
       return { ok: false as const, error: error.message || "No se pudo finalizar el turno. Intenta de nuevo." }

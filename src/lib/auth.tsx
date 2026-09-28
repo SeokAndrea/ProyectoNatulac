@@ -4,10 +4,39 @@ import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
 import { supabase } from "@/lib/supabase"
 
-async function cargarPermisos(usuario: string): Promise<Permiso[]> {
+/** Permisos efectivos (rol + extras). null = no se pudieron consultar (se conserva lo que había). */
+async function cargarPermisos(usuario: string): Promise<Permiso[] | null> {
   const { data, error } = await supabase.rpc("permisos_de", { p_usuario: usuario })
-  if (error || !Array.isArray(data)) return []
+  if (error || !Array.isArray(data)) return null
   return data as Permiso[]
+}
+
+interface PerfilActual {
+  activo: boolean
+  rol: RolCodigo
+  area: AreaCodigo | null
+  esDueno: boolean
+  permisos: Permiso[]
+}
+
+/**
+ * Rol, área, dueño y permisos ACTUALES (ver perfil_sesion, migración
+ * 20261084): la sesión se guarda en el navegador desde el login, así que un
+ * cambio de rol o una baja no se notaban hasta volver a entrar.
+ * null = la persona ya no existe; undefined = no se pudo consultar.
+ */
+async function cargarPerfil(usuario: string): Promise<PerfilActual | null | undefined> {
+  const { data, error } = await supabase.rpc("perfil_sesion", { p_usuario: usuario })
+  if (error) return undefined
+  if (!data) return null
+  const f = data as { activo: boolean; rol: string; area: string | null; es_dueno: boolean; permisos: string[] | null }
+  return {
+    activo: Boolean(f.activo),
+    rol: f.rol as RolCodigo,
+    area: f.area as AreaCodigo | null,
+    esDueno: Boolean(f.es_dueno),
+    permisos: (f.permisos ?? []) as Permiso[],
+  }
 }
 
 export interface Session {
@@ -75,13 +104,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session])
 
-  // La sesión guardada puede tener permisos viejos (o no tenerlos): se piden de nuevo al abrir la app.
+  /*
+   * Al abrir la app (y al entrar) se piden rol, área y permisos actuales:
+   * la sesión guardada puede ser vieja. Si la persona fue desactivada o
+   * eliminada, se cierra su sesión. Si no hay conexión, se conserva lo que
+   * había (no se borran los permisos por un corte).
+   */
   const usuarioSesion = session?.username
   useEffect(() => {
     if (!usuarioSesion) return
-    cargarPermisos(usuarioSesion).then((permisos) =>
-      setSession((s) => (s && s.username === usuarioSesion ? { ...s, permisos } : s)),
-    )
+    let cancelado = false
+    const actualizar = (cambios: Partial<Session>) =>
+      setSession((s) => (s && s.username === usuarioSesion ? { ...s, ...cambios } : s))
+
+    cargarPerfil(usuarioSesion).then(async (perfil) => {
+      if (cancelado) return
+      if (perfil === undefined) {
+        // Sin conexión o sin la función nueva en la base: al menos los permisos.
+        const permisos = await cargarPermisos(usuarioSesion)
+        if (!cancelado && permisos) actualizar({ permisos })
+        return
+      }
+      if (perfil === null || !perfil.activo) {
+        setPasswordLogin(null)
+        setSession(null)
+        return
+      }
+      actualizar({ rol: perfil.rol, area: perfil.area, esDueno: perfil.esDueno, permisos: perfil.permisos })
+    })
+    return () => {
+      cancelado = true
+    }
   }, [usuarioSesion])
 
   /*
@@ -113,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false as const, error: "Usuario o contraseña incorrectos." }
     }
 
-    const permisos = await cargarPermisos(perfil.usuario)
+    const permisos = (await cargarPermisos(perfil.usuario)) ?? []
     setPasswordLogin(password)
     setSession({
       permisos,
