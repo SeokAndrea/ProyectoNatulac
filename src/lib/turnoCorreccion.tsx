@@ -114,10 +114,14 @@ export function useTurnoEfectivo(): TurnoEfectivo {
   }
 
   const salirDeCorreccion = useCallback(() => {
-    setParams((p) => {
-      p.delete("turnoId")
-      return p
-    })
+    // Reemplaza el paso (no agrega uno): así la flecha de atrás no vuelve a meterte en la corrección.
+    setParams(
+      (p) => {
+        p.delete("turnoId")
+        return p
+      },
+      { replace: true },
+    )
   }, [setParams])
 
   const enModoCorreccion = turnoIdParam !== null

@@ -67,7 +67,11 @@ export default function CalculadoraBobina() {
   }
 
   return (
-    <AppShell title="Calculadora de Bobina" description="Envases restantes según la medida de la bobina">
+    <AppShell
+      title="Calculadora de Bobina"
+      description="Envases restantes según la medida de la bobina"
+      volverA="/calculadoras"
+    >
       <div className="mx-auto flex max-w-lg flex-col gap-4">
         <Card>
           <CardHeader>

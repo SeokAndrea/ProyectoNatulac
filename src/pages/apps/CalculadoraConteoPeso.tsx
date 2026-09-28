@@ -31,7 +31,11 @@ export default function CalculadoraConteoPeso() {
   const resultado = valido ? calcularUnidadesPorPeso(pesoNum, tipo) : null
 
   return (
-    <AppShell title="Calculadora de Conteo por Peso" description="Pitillos y tapas restantes según el peso de la caja">
+    <AppShell
+      title="Calculadora de Conteo por Peso"
+      description="Pitillos y tapas restantes según el peso de la caja"
+      volverA="/calculadoras"
+    >
       <div className="mx-auto flex max-w-lg flex-col gap-4">
         <Card>
           <CardHeader>

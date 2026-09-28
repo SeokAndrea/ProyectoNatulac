@@ -58,7 +58,11 @@ export default function CalculadoraFormula() {
   const resultado = valido ? calcularConsumoFormula(variante.insumos, cantidadNum) : null
 
   return (
-    <AppShell title="Calculadora de Fórmula" description="Insumos de materia prima según sabor y cantidad">
+    <AppShell
+      title="Calculadora de Fórmula"
+      description="Insumos de materia prima según sabor y cantidad"
+      volverA="/calculadoras"
+    >
       <div className="mx-auto flex max-w-lg flex-col gap-4">
         <Card>
           <CardHeader>
