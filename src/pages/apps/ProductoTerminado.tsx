@@ -28,6 +28,7 @@ import { useCatalogosLive } from "@/lib/catalogosLive"
 import { nivelMerma } from "@/lib/estadisticas"
 import { cn } from "@/lib/utils"
 import { LIMITE_MERMA } from "@/lib/turno"
+import { equivalenciaEnvases, textoEquivalencia } from "@/lib/equivalenciaEnvases"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
@@ -616,6 +617,19 @@ function FilaProductoTerminado({
   const nuevoContador = envasesLlenadora === "" ? 0 : Number(envasesLlenadora)
   const contadorTotalPreview = contadorActual + nuevoContador
   const nuevoContadorBuenos = envasesBuenos === "" ? null : Number(envasesBuenos)
+  /**
+   * Envases buenos de la corrida (lo ya cargado + lo que se está escribiendo)
+   * en paletas y cajas, para compararlo con el Producto Terminado, que también
+   * es el total de la corrida.
+   */
+  const buenosTotal = contadorBuenosActual + (nuevoContadorBuenos !== null && nuevoContadorBuenos > 0 ? nuevoContadorBuenos : 0)
+  const equivalenciaBuenos =
+    presentacion && buenosTotal > 0 ? equivalenciaEnvases(buenosTotal, presentacion.envasesXCaja, presentacion.cajasXPaleta) : null
+  const textoBuenosEquivalencia = equivalenciaBuenos
+    ? contadorBuenosActual > 0
+      ? `Con lo ya cargado, ${buenosTotal.toLocaleString("es-CO")} envases buenos: equivale a ${textoEquivalencia(equivalenciaBuenos)}.`
+      : `Equivale a ${textoEquivalencia(equivalenciaBuenos)}.`
+    : null
 
   const mermaPct =
     contadorTotalPreview > 0 && (paletas !== "" || cajasSueltas !== "")
@@ -959,6 +973,9 @@ function FilaProductoTerminado({
                   onChange={(e) => setEnvasesBuenos(e.target.value)}
                   aria-invalid={hayContadorNuevo && !buenosValido}
                 />
+                {textoBuenosEquivalencia && (
+                  <p className="text-xs text-muted-foreground">{textoBuenosEquivalencia}</p>
+                )}
                 {hayContadorNuevo && !buenosValido && (
                   <p className="text-xs text-destructive" role="alert">
                     {envasesBuenos === ""
