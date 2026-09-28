@@ -628,7 +628,14 @@ function LineaCard({
           </Badge>
         </div>
 
-        <LineaVisual numeroLinea={numeroLinea} estado={estadoVisual} color={colorSabor(lineaTurno?.saborNombre ?? null)} square />
+        <LineaVisual
+          numeroLinea={numeroLinea}
+          estado={estadoVisual}
+          color={colorSabor(lineaTurno?.saborNombre ?? null)}
+          square
+          saborNombre={lineaTurno?.saborNombre ?? null}
+          presentacion={lineaTurno?.presentacion ?? null}
+        />
 
         {activa && lineaTurno && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm [&>div]:min-w-0">

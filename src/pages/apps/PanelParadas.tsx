@@ -48,7 +48,7 @@ function estadoLineaVista(lineaCodigo: string, corridas: Corrida[], lineasEstado
   const estado = lineasEstado.find((le) => le.linea === lineaCodigo)
   if (estado?.condicion === "CIP") return "CIP"
   if (estado?.condicion === "CAMBIO_PRESENTACION") return "CAMBIO"
-  if (estado?.condicion === "DETENIDA") return "PARADA"
+  if (estado?.condicion === "DETENIDA") return "DETENIDA"
   return "LIBRE"
 }
 
@@ -115,6 +115,7 @@ export default function PanelParadas() {
           estado: lineaReal ? estadoLineaVista(lineaReal.codigo, prod.corridas, prod.lineasEstado) : "LIBRE",
           saborNombre: corrida?.saborNombre ?? null,
           lote: corrida?.lote ?? null,
+          presentacion: corrida?.presentacion ?? null,
         }
       })
 

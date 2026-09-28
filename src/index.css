@@ -333,7 +333,7 @@
 /* Fila compacta de "Líneas activas" en el Panel de Producción: línea + 4 métricas alineadas a la derecha. */
 @utility linea-fila-grid {
   display: grid;
-  grid-template-columns: minmax(160px, 1.6fr) repeat(5, minmax(90px, 1fr));
+  grid-template-columns: minmax(320px, 2.6fr) repeat(5, minmax(80px, 1fr));
   align-items: center;
   column-gap: 1rem;
 }
@@ -398,6 +398,76 @@
   }
 }
 
+/* Llenado del tanque (sensor/PLC) — ver "llenado" en src/components/TanqueVisual.tsx.
+   fill-stream: el chorro que baja. fill-splash: la salpicadura en la superficie.
+   fill-rise: rayitas que suben en lo que va entrando. */
+@utility fill-stream {
+  animation: fill-stream 0.6s linear infinite;
+}
+
+@keyframes fill-stream {
+  from {
+    background-position-y: 0;
+  }
+  to {
+    background-position-y: 10px;
+  }
+}
+
+@utility fill-splash {
+  animation: fill-splash 0.9s ease-out infinite;
+}
+
+@keyframes fill-splash {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@utility fill-rise {
+  animation: fill-rise 1.2s linear infinite;
+}
+
+@keyframes fill-rise {
+  from {
+    background-position-y: 0;
+  }
+  to {
+    background-position-y: -8px;
+  }
+}
+
+/* Transferencia entre tanques: el líquido corriendo por la tubería
+   (ver src/components/TransferenciaTanques.tsx). */
+@utility pipe-flow {
+  animation: pipe-flow 0.8s linear infinite;
+}
+
+@keyframes pipe-flow {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: 16px;
+  }
+}
+
+/* CIP del tanque: la bola de spray girando (ver src/components/TanqueVisual.tsx). */
+@utility cip-spin {
+  animation: cip-spin 1.2s linear infinite;
+}
+
+@keyframes cip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise-in,
   .liquid-bubble,
@@ -407,6 +477,11 @@
   .alert-pulse,
   .mixing-vortex,
   .carrusel-slide,
+  .fill-stream,
+  .fill-splash,
+  .fill-rise,
+  .pipe-flow,
+  .cip-spin,
   .belt-box {
     animation: none;
   }

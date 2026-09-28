@@ -30,6 +30,8 @@ import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { TanqueVisual } from "@/components/TanqueVisual"
+import { CintaPixel } from "@/components/pixel/CintaPixel"
+import { interpretarSabor } from "@/components/pixel/armarJugo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -961,7 +963,7 @@ export default function PanelProduccion() {
                     <p className="text-sm text-muted-foreground">Esta área todavía no tiene líneas cargadas.</p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <div className="min-w-[660px]">
+                      <div className="min-w-[760px]">
                         <div className="linea-fila-grid border-b border-border px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                           <span>Línea</span>
                           <span className="text-right">Cajas producidas</span>
@@ -1383,7 +1385,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
           {fila.estado === "activa" && <span className={cn("dot-ring absolute size-2.5 rounded-full", info.ring)} />}
           <span className={cn("relative size-2.5 rounded-full", info.dot)} />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-foreground">
             {fila.nombre}
             {fila.corrida ? ` - ${fila.corrida.presentacion} ml` : ""}
@@ -1400,6 +1402,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
             </p>
           )}
         </div>
+        <MiniCinta fila={fila} alertaMerma={nivelMermaFila === "danger"} />
       </div>
       <p className="num text-right font-semibold text-foreground">{fila.cajas.toLocaleString("es-CO")}</p>
       <p className="num text-right font-semibold text-foreground">{fila.litros.toLocaleString("es-CO")} L</p>
@@ -1412,6 +1415,48 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
       <p className={cn("num text-right font-semibold", colorPor(nivelMermaFila))}>
         {fila.mermaPct !== null ? `${fila.mermaPct.toFixed(2)}%` : "—"}
       </p>
+    </div>
+  )
+}
+
+/**
+ * Cinta pixel art chiquita a la derecha del nombre de la línea (misma
+ * CintaPixel que el Panel de Paradas): envases avanzando si está activa —
+ * con el tacho de merma y la baliza si la merma pasó el límite —, lavándose
+ * en CIP, y quieta con un técnico si está en pausa o detenida (en pausa,
+ * con los envases de la corrida arriba). En los demás estados no se dibuja
+ * nada (queda solo el texto).
+ *
+ * RECORTADA: la cinta entera (200 px de pixel art) se dibuja a
+ * ANCHO_MINI_CINTA y la ventana de w-36 muestra solo un tramo (~3 envases),
+ * así se ve grande. `inicio` es desde qué pixel de la cinta arranca la
+ * ventana: en producción/CIP desde el tacho de merma y la baliza
+ * (TACHO.x = 124, baliza en 190), en reparación desde la caja de
+ * herramientas y el técnico (x 70–100) — ver escenasCinta.ts.
+ */
+const ANCHO_MINI_CINTA = 280 // px en pantalla → escala 1,4
+const ESCALA_MINI_CINTA = ANCHO_MINI_CINTA / 200
+
+function MiniCinta({ fila, alertaMerma }: { fila: FilaLineaCompacta; alertaMerma: boolean }) {
+  const { estado, corrida } = fila
+  if (estado !== "activa" && estado !== "parada" && estado !== "cip" && estado !== "detenida") return null
+  const jugo = interpretarSabor(corrida?.saborNombre)
+  const modo = estado === "cip" ? "cip" : estado === "parada" || estado === "detenida" ? "reparacion" : "produccion"
+  const inicio = modo === "reparacion" ? 60 : 97
+  return (
+    <div className="w-36 shrink-0 overflow-hidden rounded-md">
+      <div style={{ width: ANCHO_MINI_CINTA, marginLeft: -inicio * ESCALA_MINI_CINTA }}>
+        <CintaPixel
+          presentacion={corrida?.presentacion ?? "1000"}
+          familia={jugo?.familia ?? "clasico"}
+          sabor={jugo?.sabor ?? "manzana"}
+          conEnvases={jugo != null}
+          modo={modo}
+          alertaMerma={estado === "activa" && alertaMerma}
+          conPatas={false}
+          separacion={18}
+        />
+      </div>
     </div>
   )
 }

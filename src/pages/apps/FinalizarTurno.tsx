@@ -392,7 +392,14 @@ export default function FinalizarTurno() {
                         : "corriendo"
                   return (
                     <div key={l.codigo} className="flex flex-col gap-1.5 rounded-xl border border-border bg-background/60 p-2.5">
-                      <LineaVisual numeroLinea={numeroLinea} estado={estadoVisual} color={colorSabor(corrida?.saborNombre ?? null)} square />
+                      <LineaVisual
+                        numeroLinea={numeroLinea}
+                        estado={estadoVisual}
+                        color={colorSabor(corrida?.saborNombre ?? null)}
+                        square
+                        saborNombre={corrida?.saborNombre ?? null}
+                        presentacion={corrida?.presentacion ?? null}
+                      />
                       <p className="text-center text-xs text-muted-foreground">
                         {corrida ? `${corrida.saborNombre ?? "Sin sabor"} · ${corrida.presentacion} ml` : l.nombre}
                       </p>

@@ -73,6 +73,8 @@ export interface EstadoLineaEnVivo {
   estado: EstadoLineaVista
   saborNombre: string | null
   lote: string | null
+  /** Código de presentación de la corrida activa ("1000", "500"...) — para dibujar el envase correcto en la cinta. */
+  presentacion?: string | null
 }
 
 export function PanelParadasVista({
@@ -281,7 +283,13 @@ export function PanelParadasVista({
                   )}
                 </div>
                 {enVivo ? (
-                  <CintaLinea numeroLinea={i + 1} estado={enVivo.estado} saborNombre={enVivo.saborNombre} lote={enVivo.lote} />
+                  <CintaLinea
+                    numeroLinea={i + 1}
+                    estado={enVivo.estado}
+                    saborNombre={enVivo.saborNombre}
+                    lote={enVivo.lote}
+                    presentacion={enVivo.presentacion}
+                  />
                 ) : (
                   <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground">
                     Sin estado en vivo

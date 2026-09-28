@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { AppShell } from "@/components/AppShell"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { TanqueVisual } from "@/components/TanqueVisual"
 import { cn } from "@/lib/utils"
 
 /*
@@ -116,7 +117,17 @@ function TarjetaTanque({ numero, estado }: { numero: number; estado: EstadoLlena
           <p className="py-6 text-center text-sm text-muted-foreground">En espera</p>
         ) : (
           <>
-            <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+            {/* Tanque con la animación de llenado — mismo componente que el Panel de Producción */}
+            <div className="overflow-hidden rounded-lg border border-border">
+              <TanqueVisual
+                numeroTanque={numero}
+                condicion="EN_PREPARACION"
+                volumenL={null}
+                color="var(--info)"
+                llenado={{ litros, setpointL: setpoint, caudalLMin: estado?.caudal_l_min ?? null }}
+              />
+            </div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-primary transition-all" style={{ width: `${porcentaje.toFixed(1)}%` }} />
             </div>
             <div className="mt-3 flex justify-between text-sm">
