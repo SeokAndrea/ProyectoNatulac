@@ -43,6 +43,17 @@ export interface TurnoGraciaPT {
   codigo: string
 }
 
+/** Quién estuvo a cargo del turno y desde/hasta cuándo (relevos, ej. 12x12 a las 19:00). Ver migración 20261080090000. */
+export interface ResponsableTurno {
+  usuario: string
+  nombre: string
+  motivo: "INICIO" | "ASUMIR" | "RELEVO"
+  desde: string
+  hasta: string | null
+}
+
+export type EsquemaTurnos = "3x8" | "12x12"
+
 export interface SesionTurno {
   turnoId: string | null
   codigo: string | null
@@ -57,11 +68,19 @@ export interface SesionTurno {
   grupo: GrupoCodigo | null
   supervisorUsuario: string | null
   supervisorNombre: string | null
+  /** El respaldo lo abrió solo y nadie lo asumió todavía (supervisor = "Sin responsable"). */
+  sinResponsable: boolean
+  /** Turno abierto por el respaldo: falta elegir el grupo al asumirlo. */
+  grupoPendiente: boolean
+  esquema: EsquemaTurnos | null
+  responsables: ResponsableTurno[]
   tanquesEncontrados: TanqueEncontrado[] | null
   usuario: string | null
   cargando: boolean
   iniciarTurno: (turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
   finalizarTurno: () => Promise<{ ok: true } | { ok: false; error: string }>
+  /** Asumir el turno abierto (sin responsable) o tomar el relevo de otro. El grupo solo se pide si está pendiente. */
+  asumirTurno: (grupo: GrupoCodigo | null) => Promise<{ ok: true } | { ok: false; error: string }>
 }
 
 interface FilaTanqueEncontrado {
@@ -84,6 +103,10 @@ interface FilaTurnoIdentidad {
   grupo_codigo: GrupoCodigo
   supervisor_usuario: string
   supervisor_nombre: string
+  sin_responsable?: boolean
+  grupo_pendiente?: boolean
+  esquema?: EsquemaTurnos
+  responsables?: ResponsableTurno[]
   tanques_encontrados: FilaTanqueEncontrado[] | null
 }
 
@@ -104,6 +127,10 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
   const [grupo, setGrupo] = useState<GrupoCodigo | null>(null)
   const [supervisorUsuario, setSupervisorUsuario] = useState<string | null>(null)
   const [supervisorNombre, setSupervisorNombre] = useState<string | null>(null)
+  const [sinResponsable, setSinResponsable] = useState(false)
+  const [grupoPendiente, setGrupoPendiente] = useState(false)
+  const [esquema, setEsquema] = useState<EsquemaTurnos | null>(null)
+  const [responsables, setResponsables] = useState<ResponsableTurno[]>([])
   const [tanquesEncontrados, setTanquesEncontrados] = useState<TanqueEncontrado[] | null>(null)
   const [turnoGraciaPT, setTurnoGraciaPT] = useState<TurnoGraciaPT | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -120,6 +147,10 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     setGrupo(fila?.grupo_codigo ?? null)
     setSupervisorUsuario(fila?.supervisor_usuario ?? null)
     setSupervisorNombre(fila?.supervisor_nombre ?? null)
+    setSinResponsable(fila?.sin_responsable ?? false)
+    setGrupoPendiente(fila?.grupo_pendiente ?? false)
+    setEsquema(fila?.esquema ?? null)
+    setResponsables(fila?.responsables ?? [])
     setTanquesEncontrados(
       fila?.tanques_encontrados
         ? fila.tanques_encontrados.map((t) => ({
@@ -183,9 +214,25 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     })
 
     if (error || !data) {
-      return { ok: false as const, error: "No se pudo iniciar el turno. Intenta de nuevo." }
+      return { ok: false as const, error: error?.message || "No se pudo iniciar el turno. Intenta de nuevo." }
     }
 
+    tomarIdentidad(data as FilaTurnoIdentidad)
+    return { ok: true as const }
+  }
+
+  async function asumirTurno(grupoElegido: GrupoCodigo | null) {
+    if (!usuario || !turnoId) {
+      return { ok: false as const, error: "No hay un turno abierto para asumir." }
+    }
+    const { data, error } = await supabase.rpc("asumir_turno", {
+      p_usuario: usuario,
+      p_turno_id: turnoId,
+      p_grupo_codigo: grupoElegido,
+    })
+    if (error || !data) {
+      return { ok: false as const, error: error?.message || "No se pudo asumir el turno. Intenta de nuevo." }
+    }
     tomarIdentidad(data as FilaTurnoIdentidad)
     return { ok: true as const }
   }
@@ -225,12 +272,17 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
         grupo,
         supervisorUsuario,
         supervisorNombre,
+        sinResponsable,
+        grupoPendiente,
+        esquema,
+        responsables,
         tanquesEncontrados,
         turnoGraciaPT,
         usuario,
         cargando,
         iniciarTurno,
         finalizarTurno,
+        asumirTurno,
       }}
     >
       {children}

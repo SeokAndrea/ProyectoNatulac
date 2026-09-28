@@ -178,6 +178,8 @@ export default function FinalizarTurno() {
       ajustesVolumen: prep.ajustesVolumen,
       paradas,
       serviciosIndustriales,
+      responsables: sesion.responsables,
+      esquema: sesion.esquema ?? undefined,
     }
     const resultadoCierre = await sesion.finalizarTurno()
     if (!resultadoCierre.ok) {
@@ -281,7 +283,7 @@ export default function FinalizarTurno() {
               ))}
             </ul>
             <p className="text-xs text-muted-foreground">
-              Podés finalizar igual (queda un segundo clic de confirmación), o revisar las secciones de abajo primero.
+              Puedes finalizar igual (queda un segundo clic de confirmación), o revisar las secciones de abajo primero.
             </p>
           </div>
         )}

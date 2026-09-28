@@ -173,6 +173,8 @@ export default function Historial() {
         novedades: detalle.novedades,
         ajustesVolumen: detalle.ajustesVolumen,
         paradas,
+        responsables: detalle.responsables,
+        esquema: detalle.esquema,
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,
         lineas,

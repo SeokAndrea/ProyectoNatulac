@@ -4,7 +4,7 @@ import type { Session } from "@/lib/auth"
  * Permisos: acciones concretas. Cada rol trae un paquete por defecto y
  * cada persona puede tener permisos extra (ver Personal). Espejo de la
  * tabla "permisos" de supabase/migrations/20261078090000_roles_y_permisos.sql.
- * El servidor valida lo mismo con tiene_permiso(); acá solo se usa para
+ * El servidor valida lo mismo con tiene_permiso(); aquí solo se usa para
  * mostrar u ocultar.
  */
 export const PERMISOS = [

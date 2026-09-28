@@ -42,6 +42,15 @@ export function horaPlanta(d: Date = new Date()): string {
   return FMT_HORA.format(d)
 }
 
+/** Turno que corresponde a esta hora de planta (T1 7–15, T2 15–22:30, T3 22:30–7). Mismo criterio que turno_de_hora() en el servidor. */
+export function turnoTipoActual(d: Date = new Date()): "TURNO_1" | "TURNO_2" | "TURNO_3" {
+  const [h, m] = horaPlanta(d).split(":").map(Number)
+  const ahora = h * 60 + m
+  if (ahora >= 7 * 60 && ahora < 15 * 60) return "TURNO_1"
+  if (ahora >= 15 * 60 && ahora < 22 * 60 + 30) return "TURNO_2"
+  return "TURNO_3"
+}
+
 /** Hora del día (0–23) del instante, en hora de planta. */
 export function horaDelDiaPlanta(d: Date = new Date()): number {
   return Number(FMT_HORA_CORTA.format(d).slice(0, 2))

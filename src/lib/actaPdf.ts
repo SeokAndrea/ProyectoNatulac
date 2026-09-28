@@ -8,7 +8,7 @@ import { textoCondicionTanque } from "@/lib/tanques"
 import { LIMITE_MERMA } from "@/lib/turno"
 import { mermaCorrida } from "@/lib/reportes"
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
-import type { TanqueEncontrado } from "@/lib/sesionTurno"
+import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/sesionTurno"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
 import type { TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
@@ -105,6 +105,9 @@ export async function generarActaPdf(params: {
   /** Lecturas de Servicios Industriales con turno_id = este turno (ver migración 20261057). */
   serviciosIndustriales?: LecturaServiciosIndustriales[]
   supervisorNombre: string
+  /** Quién estuvo a cargo y cuándo. Con más de uno (relevo, ej. 12x12) sale la sección de responsables. */
+  responsables?: ResponsableTurno[]
+  esquema?: EsquemaTurnos
   area: AreaCodigo | null
   lineas: LineaLive[]
   presentaciones: PresentacionLive[]
@@ -126,6 +129,8 @@ export async function generarActaPdf(params: {
     paradas,
     serviciosIndustriales,
     supervisorNombre,
+    responsables = [],
+    esquema,
     area,
     lineas,
     presentaciones,
@@ -185,9 +190,46 @@ export async function generarActaPdf(params: {
       ["Fecha", fecha, "Turno", nombrePorCodigo(TURNO_TIPOS, turnoTipo)],
       ["Grupo", nombrePorCodigo(GRUPOS, grupo), "Área", area ? nombrePorCodigo(AREAS, area) : "—"],
       ["Supervisor", supervisorNombre, "Código del turno", codigo],
+      ...(esquema === "12x12" ? [["Esquema", "12x12", "", ""]] : []),
     ],
   })
   finTabla()
+
+  // ---------------- RESPONSABLES (relevos) y ENTREGAS AUTOMÁTICAS ----------------
+  if (responsables.length > 1) {
+    titulo("RESPONSABLES DEL TURNO")
+    autoTable(doc, {
+      startY: y + 1.5,
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 1 },
+      head: [["Responsable", "Desde", "Hasta", "Cómo"]],
+      body: responsables.map((r) => [
+        r.nombre,
+        horaCortaPlanta(r.desde, fecha),
+        r.hasta ? horaCortaPlanta(r.hasta, fecha) : "Cierre",
+        r.motivo === "RELEVO" ? "Relevo" : r.motivo === "ASUMIR" ? "Asumió (sin responsable)" : "Inició el turno",
+      ]),
+    })
+    finTabla()
+  }
+
+  const entregasAutomaticas = corridas.filter((c) => c.entregaAutomatica)
+  if (entregasAutomaticas.length > 0) {
+    titulo("LÍNEAS ENTREGADAS AUTOMÁTICAMENTE (revisar PT del tramo)")
+    autoTable(doc, {
+      startY: y + 1.5,
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 1 },
+      head: [["Línea", "Sabor", "Lote", "Entregada"]],
+      body: entregasAutomaticas.map((c) => [
+        lineas.find((l) => l.codigo === c.linea)?.nombre ?? c.linea,
+        c.saborNombre ?? "—",
+        c.lote ?? "—",
+        c.entregadaEn ? horaCortaPlanta(c.entregadaEn, fecha) : "—",
+      ]),
+    })
+    finTabla()
+  }
 
   // ---------------- 1.6 CONDICIÓN EN LA QUE RECIBEN LOS TANQUES ----------------
   titulo("1.6 CONDICIÓN EN LA QUE RECIBEN LOS TANQUES")

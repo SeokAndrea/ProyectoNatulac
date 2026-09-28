@@ -24,6 +24,7 @@ export function mapearCorrida(fila: FilaCorrida): Corrida {
     finalizadaEn: fila.finalizada_en,
     esperandoCierre: !fila.activa && fila.finalizada_en === null,
     entregadaEn: fila.entregada_en,
+    entregaAutomatica: fila.entrega_automatica ?? false,
     confirmadoInicioEn: fila.confirmado_inicio_en,
   }
 }

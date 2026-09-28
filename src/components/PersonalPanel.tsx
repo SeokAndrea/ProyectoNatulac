@@ -36,7 +36,7 @@ const SIN_CARGO = "__ninguno__"
  * Gestión de personal: pestaña "Personal" de "Edición de Datos" y página
  * "Personal" (permiso PERSONAL_GESTIONAR, ej. Jefe de Producción).
  *
- * El permiso real vive en Postgres, no acá (ver
+ * El permiso real vive en Postgres, no aquí (ver
  * supabase/migrations/20261078090000_roles_y_permisos.sql: cada
  * función recibe quién hace el pedido y decide si le está permitido).
  * Solo un Super Administrador da el rol Super Administrador, toca a otro

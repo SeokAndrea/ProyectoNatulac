@@ -155,6 +155,8 @@ export function turnoDemo(over: Override): TurnoHistorial {
     fechaFin: over.fecha,
     horaFin: "07:00:00",
     cierreAutomatico: false,
+    responsables: [],
+    esquema: "3x8",
     corridas: [],
     lineasEstado: [],
     tanques: [],

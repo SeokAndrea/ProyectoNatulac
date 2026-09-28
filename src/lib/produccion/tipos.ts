@@ -44,6 +44,8 @@ export interface Corrida {
   esperandoCierre: boolean
   /** El supervisor ya cerró SU parte con "¿Va a continuar en el siguiente turno?" — la corrida sigue activa=true igual. */
   entregadaEn: string | null
+  /** La entregó el sistema al abrirse el turno siguiente (nadie la entregó a mano): el PT de ese tramo puede estar pendiente. Ver migración 20261080. */
+  entregaAutomatica?: boolean
   /** null = falta revisar (Confirmar o Corregir) al abrir el turno — solo aplica a una corrida activa heredada. */
   confirmadoInicioEn: string | null
 }
@@ -119,6 +121,7 @@ export interface FilaCorrida {
   pausada_en: string | null
   lote_terminado_en: string | null
   entregada_en: string | null
+  entrega_automatica?: boolean
   finalizada_en: string | null
   confirmado_inicio_en: string | null
 }

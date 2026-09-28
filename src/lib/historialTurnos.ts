@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { AreaCodigo, GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { saborSinFamiliaOculta } from "@/lib/turno"
-import type { TanqueEncontrado } from "@/lib/sesionTurno"
+import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/sesionTurno"
 import { mapearAjusteVolumen, mapearDesvaseLote, mapearPreparacion, mapearTanque, mapearTransferencia } from "@/lib/preparacion/mapear"
 import type {
   AjusteVolumenRegistro,
@@ -54,6 +54,9 @@ export interface TurnoHistorial {
   grupo: GrupoCodigo
   supervisorUsuario: string
   supervisorNombre: string
+  /** Quién estuvo a cargo y cuándo (relevos). Vacío en turnos anteriores a la migración 20261080. */
+  responsables: ResponsableTurno[]
+  esquema: EsquemaTurnos
   tanquesEncontrados: TanqueEncontrado[] | null
   tanques: TanqueRecepcion[]
   preparaciones: PreparacionRegistro[]
@@ -90,6 +93,8 @@ interface FilaTurnoHistorial {
   grupo_codigo: string
   supervisor_usuario: string
   supervisor_nombre: string
+  responsables?: ResponsableTurno[]
+  esquema?: EsquemaTurnos
   lineas: FilaCorrida[]
   lineas_estado: FilaLineaEstado[]
   tanques: FilaTanque[]
@@ -116,6 +121,8 @@ export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
     grupo: fila.grupo_codigo as GrupoCodigo,
     supervisorUsuario: fila.supervisor_usuario,
     supervisorNombre: fila.supervisor_nombre,
+    responsables: fila.responsables ?? [],
+    esquema: fila.esquema ?? "3x8",
     tanquesEncontrados:
       fila.tanques_encontrados?.map((t) => ({
         numeroTanque: t.numero_tanque,

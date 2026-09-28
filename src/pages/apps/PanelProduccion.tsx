@@ -83,7 +83,7 @@ import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/ti
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
-import { fechaPlanta, horaCortaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { fechaPlanta, horaCortaPlanta, horaPlanta, restarDias, turnoTipoActual } from "@/lib/tiempoPlanta"
 import { duracionMin, listarParadas, minutosPorLinea, type Parada } from "@/lib/paradas"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { codigoDeParadaLive, useCatalogoParadas } from "@/lib/paradasCatalogo"
@@ -115,14 +115,6 @@ const HORARIOS: Record<string, { inicio: string; fin: string }> = {
 
 function haceDias(n: number) {
   return restarDias(fechaPlanta(), n)
-}
-
-function turnoTipoActual(): string {
-  const [h, m] = horaPlanta().split(":").map(Number)
-  const ahora = h * 60 + m
-  if (ahora >= 7 * 60 && ahora < 15 * 60) return "TURNO_1"
-  if (ahora >= 15 * 60 && ahora < 22 * 60 + 30) return "TURNO_2"
-  return "TURNO_3"
 }
 
 type EstadoLinea =
@@ -298,7 +290,7 @@ export default function PanelProduccion() {
   const [cargando, setCargando] = useState(true)
   const [enVivo, setEnVivo] = useState(true)
   const [fecha, setFecha] = useState(() => fechaPlanta())
-  const [turnoTipo, setTurnoTipo] = useState(() => turnoTipoActual())
+  const [turnoTipo, setTurnoTipo] = useState<string>(() => turnoTipoActual())
   const [buscado, setBuscado] = useState(false)
   /*
    * El turno pasado sin procesar: la merma se calcula abajo (en el

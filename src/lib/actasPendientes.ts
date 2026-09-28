@@ -52,6 +52,8 @@ export function useGenerarActasPendientes(): void {
             ajustesVolumen: turno.ajustesVolumen,
             paradas,
             serviciosIndustriales,
+            responsables: turno.responsables,
+            esquema: turno.esquema,
             supervisorNombre: session.nombre || session.username,
             area: session.area,
             lineas,
