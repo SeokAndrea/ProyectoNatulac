@@ -3,7 +3,7 @@
  * plan-rework-3-modulos-y-merma.md, Fase 1 (Opción A+C para la sesión de
  * turno, confirmada con el dueño).
  *
- * NO depende del TurnoProvider viejo (src/lib/turno.tsx) — solo de
+ * NO depende del TurnoProvider viejo (src/lib/turno.ts) — solo de
  * useSesionTurno() para saber turnoId/usuario. Busca su propia porción de
  * datos llamando a turno_json() directo y quedándose solo con tanques y
  * preparaciones — el mismo patrón que useProduccion() y
@@ -27,6 +27,7 @@ import {
   transferirTanque as transferirTanqueAccion,
 } from "./ajustes"
 import { confirmarEstadoTanque as confirmarEstadoTanqueAccion, iniciarPreparacion as iniciarPreparacionAccion, liberarLote as liberarLoteAccion } from "./nucleo"
+import { registrarAnalisisCalidad as registrarAnalisisCalidadAccion, type DatosAnalisisCalidad } from "@/lib/calidad"
 import { mapearAjusteVolumen, mapearDesvaseLote, mapearPreparacion, mapearTanque, mapearTransferencia } from "./mapear"
 import type {
   AjusteVolumenRegistro,
@@ -65,7 +66,10 @@ export interface UsePreparacionResultado {
   cargando: boolean
   recargar: () => Promise<void>
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
+  /** Libera el lote (tanque LISTO). Solo en áreas sin «Calidad libera»; con él, libera registrarAnalisisCalidad. */
   liberarLote: (loteId: string) => Promise<Resultado>
+  /** Calidad: guarda Brix/acidez/conformidad del lote; si es conforme, lo libera (tanque LISTO). */
+  registrarAnalisisCalidad: (loteId: string, datos: DatosAnalisisCalidad) => Promise<Resultado>
   ajustarPreparacion: (loteId: string, litros: number, detalle: string | null) => Promise<Resultado>
   /** Fija el volumen real del lote (100%) — mueve `volumen_l` Y `volumen_inicial_l`. Solo mientras ninguna corrida tomó del lote. */
   fijarVolumenLote: (loteId: string, volumenReal: number) => Promise<Resultado>
@@ -150,6 +154,14 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     return resultado
   }
 
+  async function registrarAnalisisCalidad(loteId: string, datos: DatosAnalisisCalidad): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await registrarAnalisisCalidadAccion(usuario, turnoId, loteId, datos)
+    if (!resultado.ok) return resultado
+    tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return { ok: true }
+  }
+
   async function ajustarPreparacion(loteId: string, litros: number, detalle: string | null): Promise<Resultado> {
     if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
     const resultado = await ajustarPreparacionAccion(usuario, turnoId, loteId, litros, detalle)
@@ -222,6 +234,7 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     recargar,
     iniciarPreparacion,
     liberarLote,
+    registrarAnalisisCalidad,
     ajustarPreparacion,
     fijarVolumenLote,
     transferirTanque,

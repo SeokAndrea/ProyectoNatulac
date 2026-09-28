@@ -27,6 +27,7 @@ import ServiciosIndustriales from "@/pages/apps/ServiciosIndustriales"
 import RegistrosServiciosIndustriales from "@/pages/apps/RegistrosServiciosIndustriales"
 import ErroresCliente from "@/pages/apps/ErroresCliente"
 import PreparacionPLC from "@/pages/apps/PreparacionPLC"
+import Calidad from "@/pages/apps/Calidad"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { VersionChecker } from "@/components/VersionChecker"
 
@@ -243,6 +244,14 @@ export default function App() {
           element={
             <ProtectedRoute app="errores">
               <ErroresCliente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calidad"
+          element={
+            <ProtectedRoute app="calidad">
+              <Calidad />
             </ProtectedRoute>
           }
         />

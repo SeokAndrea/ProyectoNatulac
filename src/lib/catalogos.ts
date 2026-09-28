@@ -33,6 +33,7 @@ export const ROLES = [
   { codigo: "ANALISTA", nombre: "Analista de Producción" },
   { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción" },
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
+  { codigo: "CALIDAD", nombre: "Analista de Calidad" },
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
 ] as const
 

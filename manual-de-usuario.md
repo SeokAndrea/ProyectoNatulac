@@ -78,7 +78,7 @@ Reemplaza el papel y las hojas de cálculo del turno. Registra tanques, preparac
 | **Semielaborado** | Mezcla preparada en el tanque, antes de llenarse en envases. |
 | **Preparación** | Mezcla de un tanque: sabor, cantidad de tambores (o kits) y lote. |
 | **Lote** | Número de 4 dígitos (0001, 0002…) que identifica una preparación. Si escribes `3`, el sistema lo guarda como `0003`. |
-| **Liberar** | Marcar una preparación como lista. Solo un tanque **Liberado** puede alimentar una línea. |
+| **Liberar** | Marcar una preparación como lista. En las áreas donde libera Calidad, lo hace **Calidad** con un análisis conforme. Solo un tanque **Liberado** puede alimentar una línea. |
 | **Línea** | Llenadora de envases (Línea 1, 2 y 3). |
 | **Corrida** | Período en que una línea llena un lote con una presentación y una velocidad. Una línea puede tener varias corridas en un turno. |
 | **Presentación** | Tamaño del envase (por ejemplo 1000 ml o 250 ml) y su empaque: envases por caja y cajas por paleta. |
@@ -386,7 +386,7 @@ Sin turno, la pantalla muestra «Primero debes iniciar un turno» y el botón **
 |---|---|---|
 | **Liberado** | Preparación lista. Una línea puede tomarla. | **Iniciar nueva preparación**, **Iniciar CIP**, **Fijar volumen real** o **Medir tanque**, **Transferir**, **Desvase**, **Editar** |
 | **Con Restos N L** | El lote se cerró pero quedó producto. | **Iniciar Preparación**, **Iniciar CIP**, **Fijar volumen real** o **Medir tanque**, **Transferir**, **Desvase**, **Editar** |
-| **En Preparación No Liberado** | Mezcla en curso. | **Liberar (marcar Listo)**, **Ajustar**, **Editar** |
+| **En Preparación No Liberado** | Mezcla en curso. | **Liberar (marcar Listo)** (o esperar a Calidad), **Ajustar**, **Editar** |
 | **Con Restos 0 L** | Vacío, sin limpiar. Muestra «Último: sabor · Lote». | **Iniciar Preparación**, **Iniciar CIP**, **Editar** |
 | **En CIP** | Limpieza en curso, con la hora de inicio. | **Terminó CIP**, **Editar** |
 | **Limpio** | Disponible para preparar. | **Iniciar Preparación**, **Iniciar CIP**, **Editar** |
@@ -425,7 +425,8 @@ Se usan con el tanque **En Preparación No Liberado**.
 | **Detalle (opcional)** | Nota del ajuste. |
 | **Sumar** | Suma los litros al volumen del lote. Queda en el Acta como ajuste de volumen. |
 | **Cancelar** | Cierra el panel. |
-| **Liberar (marcar Listo)** | Pasa el tanque a **Liberado**. Desde ese momento una línea puede tomarlo. |
+| **Liberar (marcar Listo)** | Pasa el tanque a **Liberado**. Desde ese momento una línea puede tomarlo. No aparece en las áreas donde libera Calidad. |
+| **Esperando análisis de Calidad** | Solo en las áreas donde libera Calidad. Calidad registra Brix, acidez y conformidad en su pantalla (**Calidad**). Si es conforme, el tanque pasa a **Liberado** y una línea puede tomarlo. Si no, aparece **No conforme** con su observación: ajusta y Calidad vuelve a analizar. |
 
 **Nota.** Lo que sumas con **Ajustar** aumenta también el volumen de partida del lote, por eso no cuenta como merma.
 
@@ -1804,7 +1805,7 @@ Cada tipo tendrá un **tiempo guía**. El sistema calculará la duración y el d
 
 **Durante el turno**
 
-- [ ] Preparar el tanque (**Iniciar Preparación**), **Ajustar** si hace falta y **Liberar**.
+- [ ] Preparar el tanque (**Iniciar Preparación**), **Ajustar** si hace falta y **Liberar** (o esperar a que **Calidad** lo libere).
 - [ ] **Arrancar línea** con el tanque Liberado. Verificar presentación y velocidad.
 - [ ] Registrar cada parada con **Parada Operacional** y su motivo.
 - [ ] Anotar las **Novedades del turno** con su hora.

@@ -321,6 +321,13 @@ Dos tablas de ajuste de un lote, distintas:
   líneas del mismo lote siguen OK.
 - `continuar_siguiente_lote()` lleva la misma guarda antes de insertar la corrida nueva.
 
+### `analisis_calidad` (20261086)
+Cada análisis de Calidad de un lote: `preparacion_id`, `turno_id` (turno del análisis), `brix`,
+`acidez`, `conforme`, `observacion`, `usuario_id` (analista). Se guardan todos.
+`registrar_analisis_calidad()` lo inserta y, si es conforme, libera el lote. Con
+`areas.calidad_libera` encendido, `liberar_lote()` exige permiso `LOTE_LIBERAR` y análisis conforme;
+apagado, libera el supervisor como antes. Nace encendido solo en Pruebas (ver `plan-calidad.md`).
+
 ### `turno_lineas` (ampliada)
 Además de la relación turno↔línea original, ahora guarda la
 presentación y velocidad elegidas **por línea** (dos líneas pueden

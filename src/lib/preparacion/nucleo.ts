@@ -1,10 +1,12 @@
 /**
  * Núcleo de Preparación: el ciclo idealizado de un lote — iniciar → liberar.
+ * En las áreas con «Calidad libera» encendido, liberar lo hace Calidad al
+ * registrar un análisis conforme (src/lib/calidad.ts).
  * Nada más. Cualquier función que exista para manejar algo que salió
  * distinto de lo planeado (un ajuste, una transferencia, guardar en pipa)
  * va en ajustes.ts, no acá — ver plan-rework-3-modulos-y-merma.md, Fase 1.
  *
- * Extraídas de src/lib/turno.tsx (TurnoProvider) como funciones sueltas:
+ * Extraídas de src/lib/turno.ts (TurnoProvider) como funciones sueltas:
  * ya no dependen de un Context de React ni de su estado — reciben
  * `usuario`/`turnoId` como parámetro y devuelven el turno_json crudo para
  * que quien las llama decida cómo actualizar su estado. Mismo comportamiento
@@ -46,7 +48,7 @@ export async function liberarLote(usuario: string, turnoId: string, loteId: stri
   })
 
   if (error || !data) {
-    return { ok: false, error: "No se pudo liberar el lote. Intenta de nuevo." }
+    return { ok: false, error: error?.message ?? "No se pudo liberar el lote. Intenta de nuevo." }
   }
 
   return { ok: true, data }

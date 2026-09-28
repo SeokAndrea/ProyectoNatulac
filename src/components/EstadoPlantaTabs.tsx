@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 import {
   ArrowRightLeft,
   Beaker,
   BroomSparkles,
   CheckCircle2,
   Container,
+  FlaskConical,
   Loader2,
   PackageOpen,
   PenLine,
@@ -21,6 +23,8 @@ import { MedirTanqueInline } from "@/components/MedirTanqueInline"
 import { TanqueEditForm } from "@/components/TanqueEditForm"
 import { TanqueVisual } from "@/components/TanqueVisual"
 import { useAuth } from "@/lib/auth"
+import { useAnalisisCalidad, useCalidadLibera, type AnalisisCalidad } from "@/lib/calidad"
+import { puede } from "@/lib/permisos"
 import { listarDesvases, type Desvase } from "@/lib/desvases"
 import { colorSabor } from "@/lib/coloresSabor"
 import { nombreSaborConFamilia, unidadPreparacion, type Sabor } from "@/lib/sabores"
@@ -77,16 +81,19 @@ export type ModoEstadoPlanta = "status" | "preparacion"
  *     ConfirmarEstadoTanque) + "Corregir" si algo no coincide con la
  *     realidad después de confirmado (mismo TanqueEditForm que usa
  *     "Editar" — nombre distinto porque es un momento distinto, pero
- *     es la misma acción). Sin botones para arrancar algo nuevo — ni
- *     Iniciar Preparación/Liberar.
- *   - "preparacion": todas las acciones para arrancar algo nuevo —
- *     iniciar/liberar un tanque.
+ *     es la misma acción). Sin botones para arrancar algo nuevo.
+ *   - "preparacion": todas las acciones para arrancar algo nuevo.
+ *
+ * Liberar: en las áreas con «Calidad libera» encendido lo hace Calidad al
+ * registrar un análisis conforme (src/pages/apps/Calidad.tsx), y el tanque
+ * En Preparación muestra si espera a Calidad o el resultado del último
+ * análisis. Apagado, el supervisor libera acá con «Liberar».
  *
  * Ciclo de vida de un tanque (modo "preparacion"): Limpio/Sucio (o
  * incluso ya Listo, para arrancar un lote nuevo que reemplaza al
  * actual) → "Iniciar Preparación" (sabor + tambores; el volumen sale
  * solo de tambores × sabor.volumen) → En Preparación (no liberado) →
- * "Liberar" → Listo (recién ahí una corrida lo puede tomar). Limpio y
+ * "Liberar" (o Calidad, si el área lo tiene encendido) → Listo (recién ahí una corrida lo puede tomar). Limpio y
  * Vacío eran la misma cosa (nada adentro, disponible) — se fusionaron
  * en Limpio, que además puede llegar de CIP (limpieza terminada).
  *
@@ -129,6 +136,10 @@ export function EstadoPlantaTabs({
   const { corridas, cargando: cargandoProduccion } = useProduccion(turnoIdProp)
   const sesion = useSesionTurno()
   const turnoId = turnoIdProp === undefined ? sesion.turnoId : turnoIdProp
+  const lotesAbiertos = preparaciones.filter((p) => !p.liberadoEn && !p.cerradoEn).map((p) => p.id)
+  const { porLote: analisisPorLote } = useAnalisisCalidad(lotesAbiertos)
+  const puedeIrACalidad = puede(session, "LOTE_LIBERAR") || session?.area === "PRUEBAS"
+  const calidadLibera = useCalidadLibera(session?.area ?? null)
 
   if (cargando || cargandoProduccion) {
     return (
@@ -154,7 +165,10 @@ export function EstadoPlantaTabs({
           onCambiarCondicion={cambiarCondicionTanque}
           onConfirmarEstadoTanque={confirmarEstadoTanque}
           onIniciarPreparacion={iniciarPreparacion}
+          analisisPorLote={analisisPorLote}
+          calidadLibera={calidadLibera}
           onLiberarLote={liberarLote}
+          puedeIrACalidad={puedeIrACalidad}
           onAjustar={ajustarPreparacion}
           onFijarVolumenLote={fijarVolumenLote}
           turnoId={turnoId}
@@ -222,7 +236,10 @@ function TanqueCard({
   onCambiarCondicion,
   onConfirmarEstadoTanque,
   onIniciarPreparacion,
+  analisisPorLote,
+  calidadLibera,
   onLiberarLote,
+  puedeIrACalidad,
   onAjustar,
   onFijarVolumenLote,
   turnoId,
@@ -242,7 +259,12 @@ function TanqueCard({
   onCambiarCondicion: (datos: DatosCambiarTanque) => Promise<Resultado>
   onConfirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
   onIniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
+  /** Análisis de Calidad de los lotes abiertos (el más nuevo primero). */
+  analisisPorLote: Map<string, AnalisisCalidad[]>
+  /** true = en esta área libera Calidad; false = libera el supervisor; null = cargando. */
+  calidadLibera: boolean | null
   onLiberarLote: (loteId: string) => Promise<Resultado>
+  puedeIrACalidad: boolean
   onAjustar: (loteId: string, litros: number, detalle: string | null) => Promise<Resultado>
   onFijarVolumenLote: (loteId: string, volumenReal: number) => Promise<Resultado>
   turnoId: string | null
@@ -257,8 +279,9 @@ function TanqueCard({
   onCapturarRestoOrigen: (numeroTanqueOrigen: 1 | 2 | 3, litrosResto: number) => Promise<Resultado>
 }) {
   const [editando, setEditando] = useState(false)
-  const [mostrarFormPrep, setMostrarFormPrep] = useState(false)
   const [liberando, setLiberando] = useState(false)
+  const [errorLiberar, setErrorLiberar] = useState<string | null>(null)
+  const [mostrarFormPrep, setMostrarFormPrep] = useState(false)
   const [mostrarAjuste, setMostrarAjuste] = useState(false)
   const [litrosAjuste, setLitrosAjuste] = useState("")
   const [detalleAjuste, setDetalleAjuste] = useState("")
@@ -539,19 +562,30 @@ function TanqueCard({
         {/* También en modo "status": si al editar el tanque queda En Preparación, se debe poder liberar aquí mismo sin ir a Preparación. */}
         {(modo === "preparacion" || modo === "status") && tanque.condicion === "EN_PREPARACION" && loteAbierto && (
           <div className="flex flex-col gap-2">
-            <Button
-              size="sm"
-              className="self-start"
-              disabled={liberando || ajustando}
-              onClick={async () => {
-                setLiberando(true)
-                await onLiberarLote(loteAbierto.id)
-                setLiberando(false)
-              }}
-            >
-              {liberando ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-              Liberar (marcar Listo)
-            </Button>
+            {calidadLibera ? (
+              <EstadoCalidadLote ultimo={analisisPorLote.get(loteAbierto.id)?.[0] ?? null} puedeIrACalidad={puedeIrACalidad} />
+            ) : (
+              <Button
+                size="sm"
+                className="self-start"
+                disabled={calidadLibera === null || liberando || ajustando}
+                onClick={async () => {
+                  setLiberando(true)
+                  setErrorLiberar(null)
+                  const r = await onLiberarLote(loteAbierto.id)
+                  if (!r.ok) setErrorLiberar(r.error)
+                  setLiberando(false)
+                }}
+              >
+                {liberando ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                Liberar (marcar Listo)
+              </Button>
+            )}
+            {errorLiberar && (
+              <p className="text-xs text-destructive" role="alert">
+                {errorLiberar}
+              </p>
+            )}
 
             {mostrarAjuste ? (
               <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2.5">
@@ -1191,6 +1225,35 @@ function FormularioIniciarPreparacion({
           Cancelar
         </Button>
       </div>
+    </div>
+  )
+}
+
+/** En Preparación: el lote espera a Calidad, o el resultado de su último análisis (si no fue conforme, hay que ajustar). */
+function EstadoCalidadLote({ ultimo, puedeIrACalidad }: { ultimo: AnalisisCalidad | null; puedeIrACalidad: boolean }) {
+  const noConforme = ultimo !== null && !ultimo.conforme
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-1 rounded-lg border p-2.5 text-xs",
+        noConforme ? "border-destructive/40 bg-destructive/5" : "border-info/30 bg-info/5",
+      )}
+    >
+      <p className={cn("flex items-center gap-1.5 font-semibold", noConforme ? "text-destructive" : "text-info")}>
+        <FlaskConical className="size-3.5 shrink-0" />
+        {noConforme ? "No conforme: ajustar y volver a pedir análisis" : "Esperando análisis de Calidad"}
+      </p>
+      {noConforme && ultimo && (
+        <p className="text-muted-foreground">
+          Brix {ultimo.brix} · Acidez {ultimo.acidez}
+          {ultimo.observacion ? ` · ${ultimo.observacion}` : ""} — {ultimo.analistaNombre}
+        </p>
+      )}
+      {puedeIrACalidad && (
+        <Link to="/calidad" className="self-start font-medium text-primary underline-offset-2 hover:underline">
+          Ir a Calidad
+        </Link>
+      )}
     </div>
   )
 }

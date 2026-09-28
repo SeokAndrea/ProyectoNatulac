@@ -119,6 +119,19 @@ export const apps: AppDef[] = [
     seccion: "produccion",
   },
   {
+    slug: "calidad",
+    title: "Calidad",
+    description: "Analizar y liberar los lotes preparados: Brix, acidez y conformidad.",
+    href: "/calidad",
+    icon: FlaskConical,
+    requiereTurno: false,
+    permiso: "LOTE_LIBERAR",
+    // Por ahora solo en Pruebas: la planta todavía no decidió si Calidad libera. Ver plan-calidad.md.
+    areasPermitidas: ["PRUEBAS"],
+    color: "purple",
+    seccion: "produccion",
+  },
+  {
     slug: "lineas",
     title: "Líneas",
     description: "Activar o detener corridas de las 3 líneas — en cualquier momento del turno.",
