@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 import { Loader2, Plus, Wrench, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,6 +45,19 @@ export function ModoCorreccionBanner({ turno, onSalir }: { turno: TurnoCorregido
         </Button>
       </div>
       {turno.correccionActiva ? <CorreccionAbierta turno={turno} /> : <PedirMotivo turno={turno} />}
+      {/* Las páginas del mismo turno corregido (sin esto, a Paradas solo se llegaba escribiendo la dirección). */}
+      <nav className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+        {[
+          ["Producto Terminado", "/producto-terminado"],
+          ["Paradas", "/paradas"],
+          ["Preparación", "/preparacion"],
+          ["Líneas", "/lineas"],
+        ].map(([titulo, ruta]) => (
+          <Link key={ruta} to={`${ruta}?turnoId=${turno.id}`} className="underline underline-offset-2 hover:text-foreground">
+            {titulo}
+          </Link>
+        ))}
+      </nav>
     </div>
   )
 }
