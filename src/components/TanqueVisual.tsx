@@ -145,9 +145,9 @@ export function TanqueVisual({
             className="liquid-wave-2 absolute -top-1 h-2.5 w-[170%] rounded-[50%]"
             style={{ backgroundColor: color, opacity: 0.55 }}
           />
-          <span className="liquid-bubble absolute bottom-2 left-1/3 size-1 rounded-full bg-background/70" />
+          <span className="liquid-bubble absolute bottom-2 left-1/3 size-1 rounded-full bg-white/70" />
           <span
-            className="liquid-bubble absolute bottom-3 left-2/3 size-1.5 rounded-full bg-background/60"
+            className="liquid-bubble absolute bottom-3 left-2/3 size-1.5 rounded-full bg-white/60"
             style={{ animationDelay: "1.4s" }}
           />
         </div>
@@ -233,7 +233,7 @@ export function TanqueVisual({
             {BURBUJAS_CIP.map((b, i) => (
               <span
                 key={i}
-                className="liquid-bubble absolute rounded-full border border-info/40 bg-background/90"
+                className="liquid-bubble absolute rounded-full border border-info/40 bg-white/90"
                 style={{ left: b.left, bottom: b.bottom, width: b.size, height: b.size, animationDelay: `${i * 0.5}s` }}
               />
             ))}

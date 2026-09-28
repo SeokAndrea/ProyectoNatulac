@@ -10,6 +10,18 @@
   <meta name="apple-mobile-web-app-title" content="Natulac" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Producción Natulac</title>
+  <script>
+    // Modo oscuro antes de que cargue la app (sin destello blanco). Misma clave que src/lib/tema.ts.
+    try {
+      var t = localStorage.getItem("natulac-tema")
+      var oscuro = t === "oscuro" || (t !== "claro" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+      if (oscuro) {
+        document.documentElement.classList.add("dark")
+        document.documentElement.style.colorScheme = "dark"
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", "#1b2230")
+      }
+    } catch (e) {}
+  </script>
 </head>
 
 <body>

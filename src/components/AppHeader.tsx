@@ -1,10 +1,17 @@
 import type { ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
-import { LogOut } from "lucide-react"
+import { LogOut, Monitor, Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { EstadoBanner } from "@/components/EstadoBanner"
 import { useAuth } from "@/lib/auth"
+import { useTema, type Tema } from "@/lib/tema"
+
+const TEMA_INFO: Record<Tema, { Icono: typeof Sun; etiqueta: string }> = {
+  claro: { Icono: Sun, etiqueta: "Tema claro" },
+  oscuro: { Icono: Moon, etiqueta: "Tema oscuro" },
+  sistema: { Icono: Monitor, etiqueta: "Tema del equipo" },
+}
 
 function initials(name: string) {
   return name
@@ -35,6 +42,8 @@ export function AppHeader({
 }) {
   const { session, logout } = useAuth()
   const navigate = useNavigate()
+  const { tema, siguiente } = useTema()
+  const { Icono: IconoTema, etiqueta: etiquetaTema } = TEMA_INFO[tema]
 
   function handleLogout() {
     logout()
@@ -57,6 +66,17 @@ export function AppHeader({
           ) : (
             <div className="flex-1" />
           )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={siguiente}
+            aria-label={`${etiquetaTema}. Cambiar tema`}
+            title={`${etiquetaTema} (clic para cambiar)`}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <IconoTema className="size-4.5" />
+          </Button>
 
           {session && (
             <div className="flex items-center gap-2">

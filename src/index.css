@@ -311,6 +311,19 @@
   );
 }
 
+/* Modo oscuro: el brillo del vidrio se armaba con el color de fondo, que en
+   oscuro es casi negro y dejaba una franja negra sobre el líquido. Acá el
+   brillo es blanco suave y el borde, una sombra leve. */
+.dark .tank-glass {
+  background-image: linear-gradient(
+    100deg,
+    color-mix(in oklab, black 22%, transparent) 0%,
+    transparent 32%,
+    color-mix(in oklab, white 14%, transparent) 46%,
+    transparent 60%
+  );
+}
+
 /* Burbujeo lento del líquido. */
 @utility liquid-bubble {
   animation: liquid-bubble 4.5s ease-in-out infinite;
