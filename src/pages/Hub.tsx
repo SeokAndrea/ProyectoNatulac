@@ -16,6 +16,13 @@ const EMOJI_SALUDO_POR_USUARIO: Record<string, string> = {
 }
 const EMOJI_SALUDO_DEFAULT = "👋"
 
+/**
+ * Supervisor en el teléfono: el flujo del turno arriba de todo, en este
+ * orden (dueño, 2026-09-30). En pantallas grandes, y para los otros roles,
+ * el hub queda como siempre.
+ */
+const FLUJO_SUPERVISOR = ["comenzar-turno", "preparacion", "lineas", "producto-terminado", "finalizar-turno", "panel-produccion"]
+
 export default function Hub() {
   const { session } = useAuth()
   const sesion = useSesionTurno()
@@ -29,6 +36,12 @@ export default function Hub() {
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
   const secciones = agruparPorSeccion(principales)
+  const flujo =
+    session?.rol === "SUPERVISOR"
+      ? FLUJO_SUPERVISOR.map((slug) => appsVisibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)
+      : []
+  /** En el teléfono, lo que ya está en el flujo del supervisor no se repite más abajo. "grid" para que la tarjeta ocupe todo el alto, como antes. */
+  const soloEnPantallaGrande = (app: AppDef) => (flujo.includes(app) ? "hidden sm:grid" : "grid")
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
@@ -52,10 +65,20 @@ export default function Hub() {
             </p>
           </div>
 
+          {flujo.length > 0 && (
+            <div className="grid grid-cols-1 gap-2.5 sm:hidden">
+              {flujo.map((app) => (
+                <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} />
+              ))}
+            </div>
+          )}
+
           {atajos.length > 0 && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:w-auto lg:shrink-0">
               {atajos.map((app) => (
-                <TarjetaAtajo key={app.slug} app={app} turnoActivo={turnoActivo} />
+                <div key={app.slug} className={soloEnPantallaGrande(app)}>
+                  <TarjetaAtajo app={app} turnoActivo={turnoActivo} />
+                </div>
               ))}
             </div>
           )}
@@ -71,7 +94,9 @@ export default function Hub() {
               )}
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
                 {appsSeccion.map((app) => (
-                  <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} />
+                  <div key={app.slug} className={soloEnPantallaGrande(app)}>
+                    <AppCard app={app} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} />
+                  </div>
                 ))}
               </div>
             </section>
