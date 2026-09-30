@@ -17,8 +17,8 @@ const EMOJI_SALUDO_POR_USUARIO: Record<string, string> = {
 const EMOJI_SALUDO_DEFAULT = "👋"
 
 /**
- * Supervisor en el teléfono: el flujo del turno arriba de todo, en este
- * orden (dueño, 2026-09-30). En pantallas grandes, y para los otros roles,
+ * Cargo Supervisor, en el teléfono: el flujo del turno arriba de todo, en este
+ * orden (dueño, 2026-09-30). En pantallas grandes, y para los otros cargos,
  * el hub queda como siempre.
  */
 const FLUJO_SUPERVISOR = [
@@ -47,7 +47,8 @@ export default function Hub() {
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
   const secciones = agruparPorSeccion(principales)
-  const esSupervisor = session?.rol === "SUPERVISOR"
+  // Por CARGO (rótulo del puesto en Personal), no por rol: el cargo no da permisos, solo ordena el inicio.
+  const esSupervisor = session?.cargo === "SUPERVISOR"
   const porSlug = (slugs: string[]) =>
     slugs.map((slug) => appsVisibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)
   const flujo = esSupervisor ? porSlug(FLUJO_SUPERVISOR) : []

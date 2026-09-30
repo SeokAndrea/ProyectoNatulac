@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
-import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
+import type { AreaCodigo, CargoCodigo, RolCodigo } from "@/lib/catalogos"
 import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
 import { supabase } from "@/lib/supabase"
@@ -17,6 +17,8 @@ interface PerfilActual {
   area: AreaCodigo | null
   esDueno: boolean
   permisos: Permiso[]
+  /** Rótulo del puesto (usuarios.cargo): solo visual, lo usa el inicio para ordenar las tarjetas. */
+  cargo: CargoCodigo | null
 }
 
 /**
@@ -29,13 +31,14 @@ async function cargarPerfil(usuario: string): Promise<PerfilActual | null | unde
   const { data, error } = await supabase.rpc("perfil_sesion", { p_usuario: usuario })
   if (error) return undefined
   if (!data) return null
-  const f = data as { activo: boolean; rol: string; area: string | null; es_dueno: boolean; permisos: string[] | null }
+  const f = data as { activo: boolean; rol: string; area: string | null; es_dueno: boolean; cargo?: string | null; permisos: string[] | null }
   return {
     activo: Boolean(f.activo),
     rol: f.rol as RolCodigo,
     area: f.area as AreaCodigo | null,
     esDueno: Boolean(f.es_dueno),
     permisos: (f.permisos ?? []) as Permiso[],
+    cargo: (f.cargo ?? null) as CargoCodigo | null,
   }
 }
 
@@ -57,6 +60,8 @@ export interface Session {
    * clave escrita no cumple la política. Ver App.tsx y PrimerIngreso.tsx.
    */
   debeCompletarPerfil: boolean
+  /** Rótulo del puesto (Supervisor, Jefe de Producción…). Solo visual: no da permisos. Llega con perfil_sesion al abrir la app. */
+  cargo?: CargoCodigo | null
 }
 
 export interface DatosPrimerIngreso {
@@ -130,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null)
         return
       }
-      actualizar({ rol: perfil.rol, area: perfil.area, esDueno: perfil.esDueno, permisos: perfil.permisos })
+      actualizar({ rol: perfil.rol, area: perfil.area, esDueno: perfil.esDueno, permisos: perfil.permisos, cargo: perfil.cargo })
     })
     return () => {
       cancelado = true
