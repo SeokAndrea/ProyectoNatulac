@@ -11,9 +11,8 @@ import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import MisActas from "@/pages/apps/MisActas"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
 import PanelParadas from "@/pages/apps/PanelParadas"
-import Paradas from "@/pages/apps/Paradas"
+import RegistrarParadas from "@/pages/apps/RegistrarParadas"
 import CatalogoParadas from "@/pages/apps/CatalogoParadas"
-import ParadasMantenimiento from "@/pages/apps/ParadasMantenimiento"
 import Programacion from "@/pages/apps/Programacion"
 import EdicionDatos from "@/pages/apps/EdicionDatos"
 import Personal from "@/pages/apps/Personal"
@@ -123,7 +122,7 @@ export default function App() {
           path="/paradas"
           element={
             <ProtectedRoute app="paradas">
-              <Paradas />
+              <RegistrarParadas />
             </ProtectedRoute>
           }
         />
@@ -135,14 +134,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/paradas-mantenimiento"
-          element={
-            <ProtectedRoute app="paradas-mantenimiento">
-              <ParadasMantenimiento />
-            </ProtectedRoute>
-          }
-        />
+        {/* La pantalla de Mantenimiento pasó a ser Registrar Paradas, para todos (migración 20261090). */}
+        <Route path="/paradas-mantenimiento" element={<Navigate to="/paradas" replace />} />
         <Route
           path="/panel-paradas"
           element={

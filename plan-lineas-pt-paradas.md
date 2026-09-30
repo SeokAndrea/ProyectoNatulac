@@ -4,7 +4,20 @@ Documento vivo. Creado el 2026-09-30. Rama: `lineas-cip-paradas`.
 
 Cómo funciona hoy y problemas encontrados: `docs/flujos-lineas-y-producto-terminado.md`.
 
-**Estado: diseño para revisar. Todavía no hay código.**
+**Estado (2026-09-30):**
+
+- [x] Paso 1, arreglos pequeños (F). En producción.
+- [x] Paso 2, Paradas (P): código listo en la rama. Falta correr
+  `scripts/ensayo-20261090-paradas.sql` en producción y, si termina en
+  "ENSAYO OK", `db push` y desplegar.
+  - Cambio respecto del diseño: el tiempo ocioso sigue siendo texto libre
+    (el catálogo no tiene tipos de ocioso); en la pantalla se elige "Parada
+    del catálogo" o "Tiempo ocioso".
+  - La guarda de paradas pendientes en `finalizar_turno` aplica también al
+    Área de Pruebas, para poder probarla.
+- [ ] Paso 3, Líneas (G, H, C, A, B).
+- [ ] Paso 4, Producto Terminado (D).
+- [ ] Paso 5, Panel, manual.
 
 ## Objetivo
 

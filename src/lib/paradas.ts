@@ -87,6 +87,11 @@ export interface LineaDeTipo {
  * y Operacionales. Todo lo demás de No programada (equipos, Suministro, Equipo de Proceso, Domino) lo
  * registra Mantenimiento (dueño, 2026-09-21).
  */
+/** +1 sin código: al completarlo hay que elegir la falla de equipo real (migración 20261090). */
+export const TIPO_FALLA_SIN_ESPECIFICAR = "FALLA_SIN_ESPECIFICAR"
+/** +1 que crea Líneas al parar una corrida: el tipo se elige después, en Registrar Paradas. */
+export const TIPO_POR_CLASIFICAR = "POR_CLASIFICAR"
+
 export const FAMILIAS_SUPERVISOR: FamiliaParada[] = ["PROGRAMADA", "EXTERNA", "OPERACIONAL"]
 export const registraSupervisor = (t: { familia: FamiliaParada }) => FAMILIAS_SUPERVISOR.includes(t.familia)
 
@@ -266,6 +271,12 @@ export interface Parada {
    */
   fin: string | null
   supervisorNombre: string | null
+  /**
+   * +1 todavía sin minutos (migración 20261090). Se guarda con inicio = fin,
+   * así que en todos los reportes cuenta 1 vez y 0 min hasta completarla.
+   * No es lo mismo que "en curso" (fin null).
+   */
+  pendiente?: boolean
 }
 
 export const paradaAbierta = (p: Parada) => p.fin === null
@@ -542,6 +553,7 @@ interface FilaParada {
   inicio: string
   fin: string | null
   supervisor_nombre: string | null
+  pendiente?: boolean | null
 }
 
 /** Lee `listar_paradas` (migración 20261061). Devuelve [] si la lectura falla. */
@@ -569,6 +581,7 @@ export async function listarParadas(filtros: FiltrosParadas): Promise<Parada[]> 
     inicio: f.inicio,
     fin: f.fin,
     supervisorNombre: f.supervisor_nombre,
+    pendiente: f.pendiente === true,
   }))
 }
 
@@ -642,4 +655,72 @@ export async function cerrarParadaMantenimiento(usuario: string, paradaId: strin
 export async function eliminarParadaMantenimiento(usuario: string, paradaId: string, pagina: string): Promise<Resultado> {
   const { error } = await supabase.rpc("eliminar_parada_mantenimiento", { p_usuario: usuario, p_parada_id: paradaId, p_pagina: pagina })
   return error ? { ok: false, error: error.message || "No se pudo eliminar la parada. Intenta de nuevo." } : { ok: true }
+}
+
+// ------------------------------------------------------------
+// Registrar Paradas, pantalla única (migración 20261090)
+// ------------------------------------------------------------
+
+export interface DatosAnotarParada {
+  lineaCodigo: string
+  /** null = tiempo ocioso de texto libre (la nota es obligatoria). */
+  tipoCodigo: string | null
+  /** Hora de planta 'YYYY-MM-DDTHH:MM:SS'. null = +1 pendiente (sin minutos). */
+  inicio: string | null
+  /** null con inicio = en curso. */
+  fin: string | null
+  nota: string | null
+}
+
+/** +1 pendiente (sin inicio) o parada con horas reales (en curso si no trae fin). */
+export async function anotarParada(usuario: string, datos: DatosAnotarParada, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("anotar_parada", {
+    p_usuario: usuario,
+    p_linea_codigo: datos.lineaCodigo,
+    p_tipo_codigo: datos.tipoCodigo,
+    p_inicio: datos.inicio,
+    p_fin: datos.fin,
+    p_nota: datos.nota,
+    p_pagina: pagina,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo guardar la parada. Intenta de nuevo." } : { ok: true }
+}
+
+export interface DatosCompletarParada {
+  /** Minutos que duró. Se ignora si vienen inicio y fin. */
+  minutos: number | null
+  inicio: string | null
+  fin: string | null
+  /** Solo para "Falla sin especificar" o "Parada por clasificar": el tipo real. */
+  tipoCodigo: string | null
+  /** Obligatoria si es Programada y pasó su tiempo guía. */
+  justificacion: string | null
+}
+
+/** Pone cuánto duró una parada pendiente (y su tipo real, si hacía falta). */
+export async function completarParada(usuario: string, paradaId: string, datos: DatosCompletarParada, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("completar_parada", {
+    p_usuario: usuario,
+    p_parada_id: paradaId,
+    p_minutos: datos.minutos,
+    p_inicio: datos.inicio,
+    p_fin: datos.fin,
+    p_tipo_codigo: datos.tipoCodigo,
+    p_justificacion: datos.justificacion,
+    p_pagina: pagina,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo completar la parada. Intenta de nuevo." } : { ok: true }
+}
+
+/** Elimina cualquier parada cargada por error (queda en Auditoría). */
+export async function eliminarParada(usuario: string, paradaId: string, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("eliminar_parada", { p_usuario: usuario, p_parada_id: paradaId, p_pagina: pagina })
+  return error ? { ok: false, error: error.message || "No se pudo eliminar la parada. Intenta de nuevo." } : { ok: true }
+}
+
+/** Tipos que se completan eligiendo otro tipo: cuál filtro de catálogo ofrecer, o null si no hace falta. */
+export function tipoACompletar(tipoCodigo: string | null): "EQUIPO" | "TODOS" | null {
+  if (tipoCodigo === TIPO_FALLA_SIN_ESPECIFICAR) return "EQUIPO"
+  if (tipoCodigo === TIPO_POR_CLASIFICAR) return "TODOS"
+  return null
 }

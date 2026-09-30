@@ -28,9 +28,11 @@ es lo que reemplazó al viejo `TurnoProvider` como fuente de "qué turno
 está activo". `src/lib/tiempoPlanta.ts` centraliza fecha/hora de planta
 (America/Caracas) — evitar `new Date()` suelto en código nuevo.
 
-El módulo **Paradas** (downtime de líneas) es una iniciativa aparte,
-todavía en FASE A′ (UI contra fixture, gated a Área de Pruebas) — ver
-`plan-paradas.md`.
+El módulo **Paradas** (downtime de líneas) ya guarda en la base. Desde la
+migración 20261090 hay **una sola pantalla**, Registrar Paradas (antes
+había una del supervisor y otra de Mantenimiento): cada parada entra como
++1 pendiente y después se pone cuánto duró. Ver
+`plan-lineas-pt-paradas.md`, sección P.
 
 ## Marca / branding
 
@@ -53,7 +55,7 @@ todavía en FASE A′ (UI contra fixture, gated a Área de Pruebas) — ver
 | Textos de "Producto Terminado" | `src/pages/apps/ProductoTerminado.tsx` |
 | Textos de "Finalizar Turno" | `src/pages/apps/FinalizarTurno.tsx` |
 | Textos del Panel de Producción (tanques en vivo, líneas, merma, Resumen de Planta) | `src/pages/apps/PanelProduccion.tsx` |
-| Textos de "Registrar Paradas" / "Panel de Paradas" (FASE A′, ver `plan-paradas.md`) | `src/pages/apps/Paradas.tsx`, `src/components/RegistroParadas.tsx`, `src/pages/apps/PanelParadas.tsx`, `src/components/PanelParadasVista.tsx` |
+| Textos de "Registrar Paradas" (pantalla única, +1 pendiente) / "Panel de Paradas" | `src/pages/apps/RegistrarParadas.tsx`, `src/components/BuscadorTipoParada.tsx`, `src/pages/apps/PanelParadas.tsx`, `src/components/PanelParadasVista.tsx` |
 | Textos de "Programación" | `src/pages/apps/Programacion.tsx` |
 | Textos de "Servicios Industriales" | `src/pages/apps/ServiciosIndustriales.tsx` |
 | Textos de "Validar" (revisión post-turno, VALIDAR) | `src/pages/apps/Validar.tsx`, `src/components/ValidarLista.tsx` |
@@ -123,7 +125,7 @@ página (cada pestaña llama a `recargar()` del contexto).
 | Status y Preparación (misma UI compartida — Status es Recepción: confirmar/corregir lo heredado del turno anterior; Preparación está disponible todo el turno). Condición de tanque real: `LISTO` \| `SUCIO` \| `EN_PREPARACION` \| `STANDBY` \| `CIP` \| `LIMPIO` (candidato a fusionar SUCIO+STANDBY, ver plan Fase 1) | `src/components/EstadoPlantaTabs.tsx` (`modo="status"` / `modo="preparacion"`), `src/pages/apps/Status.tsx`, `src/pages/apps/Preparacion.tsx` |
 | Líneas: activar corrida, Parada Operacional (+motivo), Detener línea (dos pasos: detener deja `ESPERANDO_PT`, cargar el PT es lo único que cierra) | `src/pages/apps/Lineas.tsx`, `src/components/LineasEstadoPlanta.tsx` |
 | Comenzar Turno (solo Turno tipo + Grupo — al confirmar manda derecho a Status) | `src/pages/apps/ComenzarTurno.tsx`, `src/components/TanqueEditForm.tsx` |
-| Paradas (downtime de líneas) — iniciativa aparte, FASE A′ contra fixture, ver `plan-paradas.md` | `src/lib/paradas.ts`, `src/pages/apps/Paradas.tsx`, `src/components/RegistroParadas.tsx`, `src/pages/apps/PanelParadas.tsx`, `src/components/PanelParadasVista.tsx` |
+| Paradas (downtime de líneas): +1 pendiente, completar, eliminar (migración 20261090) | `src/lib/paradas.ts`, `src/pages/apps/RegistrarParadas.tsx`, `src/components/BuscadorTipoParada.tsx`, `src/pages/apps/PanelParadas.tsx`, `src/components/PanelParadasVista.tsx` |
 
 ## Piezas compartidas entre páginas
 

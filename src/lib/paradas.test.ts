@@ -10,6 +10,7 @@ import {
   fmtDuracion,
   minutosPorClaseSinSolape,
   minutosPorLinea,
+  tipoACompletar,
   paradaAbierta,
   porTipo,
   porTipoPorFrecuencia,
@@ -309,5 +310,38 @@ describe("quién registra qué (supervisor / Mantenimiento)", () => {
     const suyas = (t: { clase: string; familia: string }) => t.clase === "PROGRAMADA" || t.familia === "EXTERNA" || t.familia === "OPERACIONAL"
     expect(delSupervisor.every(suyas)).toBe(true)
     expect(delSupervisor.length).toBe(CATALOGO_TIPOS.filter(suyas).length)
+  })
+})
+
+describe("parada pendiente (+1 sin minutos, migración 20261090)", () => {
+  it("tipoACompletar: Falla sin especificar pide una falla de equipo; Parada por clasificar, cualquier tipo; el resto nada", () => {
+    expect(tipoACompletar("FALLA_SIN_ESPECIFICAR")).toBe("EQUIPO")
+    expect(tipoACompletar("POR_CLASIFICAR")).toBe("TODOS")
+    expect(tipoACompletar("CAMBIO_LOTE")).toBeNull()
+    expect(tipoACompletar(null)).toBeNull()
+  })
+
+  it("se guarda con inicio = fin: cuenta 1 vez y 0 min, y no queda 'en curso'", () => {
+    const pendiente = {
+      id: "p1",
+      clase: "PROGRAMADA" as const,
+      origen: "MANUAL" as const,
+      lineaCodigo: "LINEA_1",
+      turnoTipo: "TURNO_1",
+      tipoCodigo: "CAMBIO_LOTE",
+      tipoNombre: "Cambio de Lote",
+      tiempoGuiaMin: 10,
+      nota: null,
+      justificacionDesvio: null,
+      inicio: "2026-09-30T08:10:00",
+      fin: "2026-09-30T08:10:00",
+      supervisorNombre: null,
+      pendiente: true,
+    }
+    const ahora = new Date("2026-09-30T12:00:00")
+    expect(duracionMin(pendiente, ahora)).toBe(0)
+    const programada = resumenPorClase([pendiente], ahora).find((r) => r.clase === "PROGRAMADA")!
+    expect(programada.veces).toBe(1)
+    expect(programada.minutos).toBe(0)
   })
 })

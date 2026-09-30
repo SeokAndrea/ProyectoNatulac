@@ -144,6 +144,9 @@ export default function FinalizarTurno() {
   const puedeFinalizar =
     esPruebas || (!sesion.sinResponsable && (soyResponsable || puede(session, "TURNO_CORREGIR") || !!session?.esDueno))
   const lineasSinResolver = esPruebas ? [] : prod.corridas.filter((c) => c.activa && c.entregadaEn === null)
+  /** Paradas sumadas como +1 sin minutos (o Falla sin especificar sin código): finalizar_turno() no deja cerrar (migración 20261090, también en Pruebas). */
+  const paradasPendientes = paradas.filter((p) => p.pendiente)
+  const bloqueado = lineasSinResolver.length > 0 || paradasPendientes.length > 0
 
 
   /** Resumen del turno: cajas por línea (paletas × cajas/paleta + sueltas) y litros totales — mismo cálculo que tenía "Producto Terminado por línea". */
@@ -154,7 +157,7 @@ export default function FinalizarTurno() {
   const litrosTotales = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
 
   async function handleFinalizar() {
-    if (lineasSinResolver.length > 0) return
+    if (bloqueado) return
     if (itemsFaltantes.length > 0 && !confirmando) {
       setConfirmando(true)
       return
@@ -276,7 +279,32 @@ export default function FinalizarTurno() {
           </div>
         )}
 
-        {itemsFaltantes.length > 0 && lineasSinResolver.length === 0 && (
+        {paradasPendientes.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+            <p className="flex items-center gap-1.5 font-medium">
+              <AlertTriangle className="size-4 shrink-0" />
+              {paradasPendientes.length === 1
+                ? "Hay 1 parada sin completar"
+                : `Hay ${paradasPendientes.length} paradas sin completar`}
+            </p>
+            <ul className="list-inside list-disc pl-1">
+              {paradasPendientes.map((p) => (
+                <li key={p.id}>
+                  {lineas.find((l) => l.codigo.replace(/^LINEA_T?/, "") === p.lineaCodigo.replace(/^LINEA_/, ""))?.nombre ??
+                    p.lineaCodigo}
+                  {" · "}
+                  {p.nota || p.tipoNombre}
+                </li>
+              ))}
+            </ul>
+            <p>Pon cuánto duró cada una (y el código si es una falla sin especificar) antes de finalizar.</p>
+            <Button asChild size="sm" variant="outline" className="self-start">
+              <Link to="/paradas">Ir a Registrar Paradas</Link>
+            </Button>
+          </div>
+        )}
+
+        {itemsFaltantes.length > 0 && !bloqueado && (
           <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/30 px-3 py-2.5 text-sm text-foreground">
             <p className="flex items-center gap-1.5 font-medium">
               <AlertTriangle className="size-4 shrink-0 text-warning" />
@@ -411,7 +439,7 @@ export default function FinalizarTurno() {
 
           <SeccionColapsable
             titulo="Paradas del turno"
-            descripcion="Lo que se cargó en Registrar Paradas — sale en el Acta con su comentario."
+            descripcion="Lo que se cargó en Registrar Paradas. Sale en el Acta con su comentario."
             abiertoPorDefecto={paradas.length > 0}
           >
             {paradas.length === 0 ? (
@@ -429,7 +457,7 @@ export default function FinalizarTurno() {
                           {p.tipoNombre}
                         </span>
                       </p>
-                      <span className="num shrink-0 font-semibold text-warning">{fmtDuracion(duracionMin(p))}</span>
+                      <span className="num shrink-0 font-semibold text-warning">{p.pendiente ? "Sin completar" : fmtDuracion(duracionMin(p))}</span>
                     </div>
                     {(p.nota || p.justificacionDesvio) && (
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -490,7 +518,7 @@ export default function FinalizarTurno() {
           variant="outline"
           className="border-destructive/40 text-destructive hover:bg-destructive/10"
           onClick={handleFinalizar}
-          disabled={finalizando || lineasSinResolver.length > 0 || !puedeFinalizar}
+          disabled={finalizando || bloqueado || !puedeFinalizar}
         >
           {finalizando ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
           {confirmando && itemsFaltantes.length > 0 && lineasSinResolver.length === 0

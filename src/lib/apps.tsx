@@ -40,10 +40,10 @@ export interface AppDef {
   requiereTurno: boolean
   /**
    * Si se define, la tarjeta (y su ruta, ver ProtectedRoute) solo es
-   * para quien tenga este permiso (ver src/lib/permisos.ts). Sin esta
+   * para quien tenga este permiso, o cualquiera de la lista (ver src/lib/permisos.ts). Sin esta
    * propiedad, la ve cualquier sesión.
    */
-  permiso?: Permiso
+  permiso?: Permiso | Permiso[]
   /** Roles que NO ven la tarjeta aunque no pida permiso (ej. Mantenimiento solo ve los paneles y sus paradas). */
   rolesExcluidos?: RolCodigo[]
   /** Si se define, la tarjeta solo aparece para usuarios de estas áreas (ej. Servicios Industriales, que no tiene un rol propio). */
@@ -189,11 +189,12 @@ export const apps: AppDef[] = [
   {
     slug: "paradas",
     title: "Registrar Paradas",
-    description: "Paradas programadas y tiempo ocioso, por línea — el supervisor las carga a mano.",
+    description: "Sumar paradas de las líneas y poner cuánto duraron.",
     href: "/paradas",
     icon: Wrench,
     requiereTurno: false,
-    permiso: "PARADAS_REGISTRAR",
+    // Pantalla única (antes había una para supervisores y otra para Mantenimiento): entra quien tenga cualquiera de los dos permisos.
+    permiso: ["PARADAS_REGISTRAR", "PARADAS_MANTENIMIENTO"],
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     seccion: "produccion",
   },
@@ -206,16 +207,6 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     permiso: "CATALOGO_PARADAS",
     seccion: "base-datos",
-  },
-  {
-    slug: "paradas-mantenimiento",
-    title: "Paradas de Mantenimiento",
-    description: "Registrar las paradas de Aséptico con el catálogo de siempre, con hora de inicio y fin.",
-    href: "/paradas-mantenimiento",
-    icon: Wrench,
-    permiso: "PARADAS_MANTENIMIENTO",
-    requiereTurno: false,
-    atajo: true,
   },
   {
     slug: "panel-paradas",
@@ -393,7 +384,7 @@ export function appPorSlug(slug: string): AppDef | undefined {
 export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (!session) return false
   if (session.area === "PRUEBAS") return true
-  if (app.permiso && !puede(session, app.permiso)) return false
+  if (app.permiso && ![app.permiso].flat().some((p) => puede(session, p))) return false
   if (app.rolesExcluidos?.includes(session.rol)) return false
   if (app.areasPermitidas && !(session.area && app.areasPermitidas.includes(session.area))) return false
   if (app.areasExcluidas && session.area && app.areasExcluidas.includes(session.area)) return false
