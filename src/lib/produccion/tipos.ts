@@ -144,3 +144,29 @@ export interface FilaContador {
   justificacion: string | null
   creado_en: string
 }
+
+/** Motivo de un CIP de línea (migración 20261091). Cada uno suma su +1 en Registrar Paradas. */
+export type MotivoCip = "SUMINISTRO_ELECTRICO" | "HORAS_36" | "FALLA_MECANICA"
+
+export const MOTIVOS_CIP: { codigo: MotivoCip; nombre: string }[] = [
+  { codigo: "SUMINISTRO_ELECTRICO", nombre: "Falla en Suministro Eléctrico" },
+  { codigo: "HORAS_36", nombre: "36 h de trabajo" },
+  { codigo: "FALLA_MECANICA", nombre: "Falla mecánica prolongada" },
+]
+
+export interface DatosCipLinea {
+  linea: LineaCodigo
+  motivo: MotivoCip
+  descripcion?: string | null
+  /** Con corrida corriendo: cuál, y si el lote sigue después del CIP (queda en pausa) o termina (queda Esperando PT). */
+  corridaId?: string | null
+  loteSigue?: boolean | null
+}
+
+/** Parada (+1) que tiene detenida a una línea: hasta completarla no se termina el CIP. */
+export interface ParadaQueDetiene {
+  linea: LineaCodigo
+  paradaId: string
+  pendiente: boolean
+  tipoNombre: string
+}

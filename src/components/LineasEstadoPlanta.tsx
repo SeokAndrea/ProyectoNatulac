@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 import { Beaker, CheckCircle2, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square, Undo2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,19 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import { useProduccion } from "@/lib/produccion/useProduccion"
-import type { CondicionLinea, Corrida, DatosActivarLinea, DatosCambiarLinea, LineaEstado } from "@/lib/produccion/tipos"
+import { paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
+import { useSesionTurno } from "@/lib/sesionTurno"
+import {
+  MOTIVOS_CIP,
+  type CondicionLinea,
+  type Corrida,
+  type DatosActivarLinea,
+  type DatosCambiarLinea,
+  type DatosCipLinea,
+  type LineaEstado,
+  type MotivoCip,
+  type ParadaQueDetiene,
+} from "@/lib/produccion/tipos"
 
 type Resultado = { ok: true } | { ok: false; error: string }
 
@@ -74,7 +87,31 @@ export function LineasEstadoPlanta({
     seguirMismoLote,
     cambiarCondicionLinea,
     confirmarEstadoLinea,
+    ponerLineaEnCip,
+    terminarCip,
+    continuarCorridaDetenida,
+    terminarLinea,
   } = useProduccion(turnoId)
+
+  // Qué parada (+1) tiene detenida a cada línea: hasta completarla no se termina el CIP.
+  const sesion = useSesionTurno()
+  const idTurno = turnoId === undefined ? sesion.turnoId : turnoId
+  const [paradasDetienen, setParadasDetienen] = useState<ParadaQueDetiene[]>([])
+  const recargarParadas = useCallback(async () => {
+    setParadasDetienen(idTurno ? await paradasQueDetienenLineas(idTurno) : [])
+  }, [idTurno])
+  useEffect(() => {
+    void recargarParadas()
+  }, [recargarParadas])
+
+  /** Después de un CIP o de terminarlo, se vuelve a leer qué parada detiene a cada línea. */
+  function yRecargarParadas<A extends unknown[]>(fn: (...args: A) => Promise<Resultado>) {
+    return async (...args: A) => {
+      const resultado = await fn(...args)
+      if (resultado.ok) await recargarParadas()
+      return resultado
+    }
+  }
 
   if (cargandoCatalogos || cargandoPreparacion || cargandoProduccion) {
     return (
@@ -111,6 +148,11 @@ export function LineasEstadoPlanta({
             onSeguirMismoLote={seguirMismoLote}
             onConfirmarEstadoLinea={confirmarEstadoLinea}
             onCambiarCondicionLinea={cambiarCondicionLinea}
+            paradaQueDetiene={paradasDetienen.find((p) => p.linea === l.codigo && p.pendiente) ?? null}
+            onPonerEnCip={yRecargarParadas(ponerLineaEnCip)}
+            onTerminarCip={yRecargarParadas(terminarCip)}
+            onContinuarCorridaDetenida={continuarCorridaDetenida}
+            onTerminarLinea={terminarLinea}
           />
         ))}
     </div>
@@ -136,6 +178,11 @@ function LineaCard({
   onSeguirMismoLote,
   onConfirmarEstadoLinea,
   onCambiarCondicionLinea,
+  paradaQueDetiene,
+  onPonerEnCip,
+  onTerminarCip,
+  onContinuarCorridaDetenida,
+  onTerminarLinea,
 }: {
   lineaCodigo: LineaCodigo
   nombreLinea: string
@@ -155,6 +202,12 @@ function LineaCard({
   onSeguirMismoLote: (corridaId: string) => Promise<Resultado>
   onConfirmarEstadoLinea: (corridaId: string) => Promise<Resultado>
   onCambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>
+  /** Parada (+1) sin completar que tiene detenida a esta línea (la del CIP). */
+  paradaQueDetiene: ParadaQueDetiene | null
+  onPonerEnCip: (datos: DatosCipLinea) => Promise<Resultado>
+  onTerminarCip: (linea: string) => Promise<Resultado>
+  onContinuarCorridaDetenida: (corridaId: string) => Promise<Resultado>
+  onTerminarLinea: (corridaId: string) => Promise<Resultado>
 }) {
   const activa = lineaTurno !== null
   const pausada = lineaTurno?.pausadaEn != null
@@ -170,8 +223,21 @@ function LineaCard({
   /** "Detener línea": 2ª confirmación — deja la corrida esperando el PT. */
   const [confirmarDetener, setConfirmarDetener] = useState(false)
   const [enviandoEstadoLinea, setEnviandoEstadoLinea] = useState(false)
-  // Iniciar CIP pide un segundo clic, como Arrancar línea (una línea en CIP queda así hasta que alguien marque "Terminó CIP").
-  const [confirmandoCip, setConfirmandoCip] = useState(false)
+  /**
+   * Formulario de CIP, paso a paso (plan-lineas-pt-paradas.md, sección C):
+   * motivo → (con corrida) ¿el lote sigue? → descripción opcional →
+   * confirmar dos veces. Cada respuesta reemplaza a su pregunta; Cancelar
+   * borra todo.
+   */
+  const [cip, setCip] = useState<{
+    conCorrida: boolean
+    motivo: MotivoCip | null
+    loteSigue: boolean | null
+    descripcion: string
+    confirmar: boolean
+  } | null>(null)
+  /** "El lote ya no sigue" (CIP con el lote en pausa): segunda confirmación. */
+  const [confirmarLoteNoSigue, setConfirmarLoteNoSigue] = useState(false)
   const [errorEstadoLinea, setErrorEstadoLinea] = useState<string | null>(null)
   const [observacionBorrador, setObservacionBorrador] = useState(lineaEstado?.observacion ?? "")
   const [presentacion, setPresentacion] = useState<PresentacionCodigo | "">(lineaTurno?.presentacion ?? "")
@@ -328,6 +394,191 @@ function LineaCard({
     }
   }
 
+  function abrirCip(conCorrida: boolean) {
+    setErrorAccion(null)
+    setCip({ conCorrida, motivo: null, loteSigue: null, descripcion: "", confirmar: false })
+  }
+
+  async function enviarCip() {
+    if (!cip || !cip.motivo) return
+    if (!cip.confirmar) {
+      setCip({ ...cip, confirmar: true })
+      return
+    }
+    setEnviandoAccion(true)
+    setErrorAccion(null)
+    const resultado = await onPonerEnCip({
+      linea: lineaCodigo,
+      motivo: cip.motivo,
+      descripcion: cip.descripcion,
+      corridaId: cip.conCorrida ? (lineaTurno?.id ?? null) : null,
+      loteSigue: cip.conCorrida ? cip.loteSigue : null,
+    })
+    setEnviandoAccion(false)
+    if (!resultado.ok) {
+      setErrorAccion(resultado.error)
+      return
+    }
+    setCip(null)
+  }
+
+  async function terminarElCip() {
+    setEnviandoAccion(true)
+    setErrorAccion(null)
+    const resultado = await onTerminarCip(lineaCodigo)
+    setEnviandoAccion(false)
+    if (!resultado.ok) setErrorAccion(resultado.error)
+  }
+
+  async function continuarLoteDetenido() {
+    if (!corridaEsperandoPt) return
+    setEnviandoAccion(true)
+    setErrorAccion(null)
+    const resultado = await onContinuarCorridaDetenida(corridaEsperandoPt.id)
+    setEnviandoAccion(false)
+    if (!resultado.ok) setErrorAccion(resultado.error)
+  }
+
+  async function loteNoSigue() {
+    if (!lineaTurno) return
+    setEnviandoAccion(true)
+    setErrorAccion(null)
+    const resultado = await onTerminarLinea(lineaTurno.id)
+    setEnviandoAccion(false)
+    if (!resultado.ok) {
+      setErrorAccion(resultado.error)
+      return
+    }
+    setConfirmarLoteNoSigue(false)
+  }
+
+  const nombreMotivo = (m: MotivoCip) => MOTIVOS_CIP.find((x) => x.codigo === m)?.nombre ?? m
+
+  /** Formulario de CIP paso a paso: una pregunta a la vez; lo respondido queda en una línea. */
+  function renderFormCip() {
+    if (!cip) return null
+    const listo = cip.motivo !== null && (!cip.conCorrida || cip.loteSigue !== null)
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+        <p className="text-xs font-semibold text-foreground">Poner en CIP</p>
+        {cip.motivo === null ? (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs text-muted-foreground">Motivo del CIP</p>
+            <div className="flex flex-wrap gap-2">
+              {MOTIVOS_CIP.map((m) => (
+                <Button key={m.codigo} size="sm" variant="outline" onClick={() => setCip({ ...cip, motivo: m.codigo })}>
+                  {m.nombre}
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Motivo: <span className="font-medium text-foreground">{nombreMotivo(cip.motivo)}</span>
+          </p>
+        )}
+
+        {cip.conCorrida && cip.motivo !== null && lineaTurno && (
+          cip.loteSigue === null ? (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs text-muted-foreground">¿El Lote {lineaTurno.lote ?? ""} sigue después del CIP?</p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => setCip({ ...cip, loteSigue: true })}>
+                  Sí, sigue
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setCip({ ...cip, loteSigue: false })}>
+                  No, termina aquí
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Lote {lineaTurno.lote ?? ""}:{" "}
+              <span className="font-medium text-foreground">{cip.loteSigue ? "sigue después del CIP" : "termina aquí"}</span>
+            </p>
+          )
+        )}
+
+        {listo && (
+          <>
+            <Textarea
+              value={cip.descripcion}
+              onChange={(e) => setCip({ ...cip, descripcion: e.target.value.slice(0, 140), confirmar: false })}
+              maxLength={140}
+              rows={2}
+              placeholder="Descripción breve (opcional: ya está el motivo)"
+              className="text-sm"
+            />
+            {cip.confirmar && (
+              <p className="rounded-md bg-muted/60 p-2 text-xs text-foreground">
+                {cip.conCorrida && lineaTurno
+                  ? cip.loteSigue
+                    ? `La línea para y queda en CIP. El Lote ${lineaTurno.lote ?? ""} continúa al terminar el CIP.`
+                    : `La corrida del Lote ${lineaTurno.lote ?? ""} se detiene y queda esperando su Producto Terminado.`
+                  : "La línea queda en CIP."}{" "}
+                Se suma un +1 en Registrar Paradas. ¿Confirmas?
+              </p>
+            )}
+          </>
+        )}
+
+        {errorAccion && (
+          <p className="text-xs text-destructive" role="alert">
+            {errorAccion}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {listo && (
+            <Button size="sm" variant={cip.confirmar ? "destructive" : "default"} onClick={enviarCip} disabled={enviandoAccion}>
+              {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
+              {cip.confirmar ? "Sí, poner en CIP" : "Poner en CIP"}
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => setCip(null)} disabled={enviandoAccion}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  /** Aviso cuando la parada del CIP (el +1) todavía no tiene tipo o minutos: hasta completarla no se termina el CIP. */
+  function renderParadaPendiente() {
+    if (!paradaQueDetiene) return null
+    return (
+      <div className="flex flex-col gap-1.5 rounded-md border border-warning/40 bg-warning-soft/40 p-2">
+        <p className="text-xs text-foreground">
+          Para terminar el CIP, completa su parada («{paradaQueDetiene.tipoNombre}») en Registrar Paradas.
+        </p>
+        <Button asChild size="sm" variant="outline" className="self-start">
+          <Link to={`/paradas?parada=${paradaQueDetiene.paradaId}`}>Ir a Registrar Paradas</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  /** Línea en CIP sin corrida en pausa: motivo, desde cuándo y Terminó CIP (bloqueado mientras falte la parada). */
+  function renderEstadoCip() {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-muted-foreground">
+          {lineaEstado?.observacion ? <span className="font-medium text-foreground">{lineaEstado.observacion}. </span> : null}
+          En CIP{lineaEstado?.cipIniciadoEn ? ` desde las ${horaCortaPlanta(lineaEstado.cipIniciadoEn, lineaEstado.cipIniciadoEn)}` : ""}.
+        </p>
+        {renderParadaPendiente()}
+        <Button size="sm" className="self-start" disabled={enviandoAccion || paradaQueDetiene !== null} onClick={terminarElCip}>
+          {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+          Terminó CIP
+        </Button>
+        {errorAccion && (
+          <p className="text-xs text-destructive" role="alert">
+            {errorAccion}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   /**
    * Botones de condición de línea: Sin programación / Cambio de Presentación / CIP.
    * `bloqueadoPorCorrida` = la línea tiene una corrida activa (o detenida sin
@@ -337,18 +588,11 @@ function LineaCard({
    */
   function renderCondicionBotones({ bloqueadoPorCorrida = false }: { bloqueadoPorCorrida?: boolean } = {}) {
     const deshabilitado = enviandoEstadoLinea || bloqueadoPorCorrida
+    if (cip && !cip.conCorrida) return renderFormCip()
     return (
       <div className="flex flex-col gap-2">
         {condicionLinea === "CIP" && !bloqueadoPorCorrida ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs text-muted-foreground">
-              En CIP{lineaEstado?.cipIniciadoEn ? ` desde las ${horaCortaPlanta(lineaEstado.cipIniciadoEn, lineaEstado.cipIniciadoEn)}` : ""}.
-            </p>
-            <Button size="sm" disabled={enviandoEstadoLinea} onClick={() => cambiarEstadoLinea("LISTA")}>
-              {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-              Terminó CIP
-            </Button>
-          </div>
+          renderEstadoCip()
         ) : (
           <div className="flex flex-wrap gap-2">
             <Button
@@ -367,27 +611,10 @@ function LineaCard({
             >
               Cambio de Presentación
             </Button>
-            <Button
-              size="sm"
-              variant={confirmandoCip ? "destructive" : "outline"}
-              disabled={deshabilitado}
-              onClick={async () => {
-                if (!confirmandoCip) {
-                  setConfirmandoCip(true)
-                  return
-                }
-                await cambiarEstadoLinea("CIP")
-                setConfirmandoCip(false)
-              }}
-            >
-              {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
-              {confirmandoCip ? "¿Seguro? Sí, iniciar CIP" : "Iniciar CIP"}
+            <Button size="sm" variant="outline" disabled={deshabilitado} onClick={() => abrirCip(false)}>
+              <Beaker className="size-3.5" />
+              Iniciar CIP
             </Button>
-            {confirmandoCip && (
-              <Button size="sm" variant="ghost" disabled={enviandoEstadoLinea} onClick={() => setConfirmandoCip(false)}>
-                Cancelar
-              </Button>
-            )}
           </div>
         )}
         {bloqueadoPorCorrida && (
@@ -601,6 +828,8 @@ function LineaCard({
     )
   }
 
+  /** CIP con el lote en pausa (sigue después), o CIP con una corrida esperando su PT: se muestra "En CIP". */
+  const enCip = condicionLinea === "CIP"
   const numeroLinea = Number(lineaCodigo.replace("LINEA_", "")) || 0
   const estadoVisual: EstadoVisualLinea = !activa
     ? condicionLinea === "CIP"
@@ -611,7 +840,9 @@ function LineaCard({
     : loteTerminado
       ? "terminada"
       : pausada
-        ? "parada"
+        ? enCip
+          ? "cip"
+          : "parada"
         : "corriendo"
   // Corriendo, en pausa, CIP y detenida: la cinta animada (misma que el Panel
   // de Producción). El resto de los estados sigue con su ícono.
@@ -619,7 +850,9 @@ function LineaCard({
     ? loteTerminado
       ? null
       : pausada
-        ? "parada"
+        ? enCip
+          ? "cip"
+          : "parada"
         : "corriendo"
     : condicionLinea === "CIP"
       ? "cip"
@@ -650,13 +883,17 @@ function LineaCard({
             className="shrink-0"
           >
             {esperandoPt
-              ? "Esperando PT"
+              ? enCip
+                ? "En CIP"
+                : "Esperando PT"
               : !activa
                 ? nombreCondicionLinea[condicionLinea]
                 : loteTerminado
                   ? "Terminó el Lote"
                   : pausada
-                    ? "Parada"
+                    ? enCip
+                      ? "En CIP"
+                      : "Parada"
                     : "Corriendo"}
           </Badge>
         </div>
@@ -829,6 +1066,49 @@ function LineaCard({
                 </div>
               )}
             </div>
+          ) : cip && cip.conCorrida && lineaTurno ? (
+            renderFormCip()
+          ) : pausada && enCip && lineaTurno ? (
+            // CIP con el lote en pausa: al terminar el CIP la misma corrida sigue.
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">
+                {lineaEstado?.observacion ? <span className="font-medium text-foreground">{lineaEstado.observacion}. </span> : null}
+                En CIP{lineaEstado?.cipIniciadoEn ? ` desde las ${horaCortaPlanta(lineaEstado.cipIniciadoEn, lineaEstado.cipIniciadoEn)}` : ""}. El
+                Lote {lineaTurno.lote ?? ""} sigue después del CIP.
+              </p>
+              {renderParadaPendiente()}
+              {confirmarLoteNoSigue ? (
+                <div className="flex flex-col gap-2 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-2">
+                  <p className="text-xs text-foreground">
+                    La corrida del Lote {lineaTurno.lote ?? ""} se detiene y queda esperando su Producto Terminado. La línea sigue
+                    en CIP. ¿Confirmas?
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="destructive" onClick={loteNoSigue} disabled={enviandoAccion}>
+                      Sí, el lote no sigue
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmarLoteNoSigue(false)} disabled={enviandoAccion}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={terminarElCip} disabled={enviandoAccion || paradaQueDetiene !== null}>
+                    {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                    Terminó CIP: continuar el Lote {lineaTurno.lote ?? ""}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setConfirmarLoteNoSigue(true)} disabled={enviandoAccion}>
+                    El lote ya no sigue
+                  </Button>
+                </div>
+              )}
+              {errorAccion && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorAccion}
+                </p>
+              )}
+            </div>
           ) : pausada && lineaTurno ? (
             <div className="flex flex-col gap-2">
               <p className="text-xs text-muted-foreground">Parada Operacional.</p>
@@ -836,6 +1116,10 @@ function LineaCard({
                 <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion}>
                   {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
                   Continuar
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => abrirCip(true)} disabled={enviandoAccion}>
+                  <Beaker className="size-3.5" />
+                  Pasar a CIP
                 </Button>
                 <Button
                   variant="outline"
@@ -877,6 +1161,10 @@ function LineaCard({
                   <PauseCircle className="size-3.5" />
                   Parada Operacional
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => abrirCip(true)}>
+                  <Beaker className="size-3.5" />
+                  CIP
+                </Button>
               </div>
               {errorAccion && (
                 <p className="text-xs text-destructive" role="alert">
@@ -884,17 +1172,37 @@ function LineaCard({
                 </p>
               )}
             </div>
+          ) : corridaEsperandoPt && enCip ? (
+            // CIP en el que el lote terminó: falta su PT y terminar el CIP (en cualquier orden).
+            <div className="flex flex-col gap-2">
+              <p className="rounded-lg border border-warning/40 bg-warning-soft/40 p-2 text-xs text-foreground">
+                La corrida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} espera su Producto Terminado.
+              </p>
+              {renderEstadoCip()}
+            </div>
           ) : corridaEsperandoPt ? (
             <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
               <p className="text-xs text-foreground">
-                Corrida detenida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} — carga su Producto
-                Terminado para cerrarla. Hasta entonces la línea no cambia de estado (Sin programación / Cambio de
-                Presentación / CIP).
+                Corrida detenida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""}. Si el lote sigue,
+                continúalo sin cargar Producto Terminado. Si no, carga su PT para cerrarla.
               </p>
-              <Button variant="outline" size="sm" className="self-start" onClick={empezarEdicion}>
-                <PlayCircle className="size-3.5" />
-                Arrancar otra línea
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={continuarLoteDetenido} disabled={enviandoAccion}>
+                  {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                  Continuar el Lote {corridaEsperandoPt.lote ?? ""}
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/producto-terminado">Cargar su PT</Link>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={empezarEdicion}>
+                  Arrancar con otro tanque
+                </Button>
+              </div>
+              {errorAccion && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorAccion}
+                </p>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-2">

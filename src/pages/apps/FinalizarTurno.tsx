@@ -52,7 +52,6 @@ export default function FinalizarTurno() {
   const { lineas, presentaciones, velocidades } = useCatalogosLive()
   const navigate = useNavigate()
   const [finalizando, setFinalizando] = useState(false)
-  const [confirmando, setConfirmando] = useState(false)
   const [errorFinalizar, setErrorFinalizar] = useState<string | null>(null)
   const [sabores, setSabores] = useState<Sabor[]>([])
   const [paradas, setParadas] = useState<Parada[]>([])
@@ -111,25 +110,10 @@ export default function FinalizarTurno() {
   }
 
   /*
-   * Lo que "debería" tener el acta de fin de turno — hoy cubre
-   * Preparaciones, Contadores y Producto Terminado (lo que ya
-   * existe). Ya no incluye "Recepción": tanques y líneas son estado
-   * continuo y todo turno nace con los 3 tanques ya creados, así que
-   * esa condición era siempre verdadera.
+   * Sin lista de "Falta cargar X cosas" (dueño, 2026-09-30): lo que de
+   * verdad impide cerrar lo bloquea la base (finalizar_turno) y se
+   * avisa arriba (líneas activas, paradas sin completar).
    */
-  const itemsFaltantes = [
-    ...prep.tanques
-      .filter((t) => t.condicion === "EN_PREPARACION")
-      .filter((t) => !prep.preparaciones.some((p) => p.numeroTanque === t.numeroTanque))
-      .map((t) => `Preparación — Tanque ${t.numeroTanque}`),
-    ...prep.tanques.filter((t) => !t.confirmadoFinEn).map((t) => `Estado final — Tanque ${t.numeroTanque} sin confirmar`),
-    ...prod.corridas
-      .filter((l) => !prod.contadores.some((c) => c.corridaId === l.id))
-      .map((l) => `Contadores — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`),
-    ...prod.corridas
-      .filter((l) => !pt.registros.some((p) => p.corridaId === l.id))
-      .map((l) => `Producto Terminado — ${nombrePorCodigo(lineas, l.linea)}${l.lote ? ` (Lote ${l.lote})` : ""}`),
-  ]
 
   /*
    * Case 6 — corridas todavía activas sin resolver: bloqueo DURO (no
@@ -158,10 +142,6 @@ export default function FinalizarTurno() {
 
   async function handleFinalizar() {
     if (bloqueado) return
-    if (itemsFaltantes.length > 0 && !confirmando) {
-      setConfirmando(true)
-      return
-    }
     if (!session || !sesion.turnoId || !sesion.codigo || !sesion.fecha || !sesion.turnoTipo || !sesion.grupo) return
     setFinalizando(true)
     setErrorFinalizar(null)
@@ -193,7 +173,6 @@ export default function FinalizarTurno() {
     if (!resultadoCierre.ok) {
       // p. ej. una corrida detenida sin su Producto Terminado (costura 2).
       setFinalizando(false)
-      setConfirmando(false)
       setErrorFinalizar(resultadoCierre.error)
       return
     }
@@ -301,23 +280,6 @@ export default function FinalizarTurno() {
             <Button asChild size="sm" variant="outline" className="self-start">
               <Link to="/paradas">Ir a Registrar Paradas</Link>
             </Button>
-          </div>
-        )}
-
-        {itemsFaltantes.length > 0 && !bloqueado && (
-          <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/30 px-3 py-2.5 text-sm text-foreground">
-            <p className="flex items-center gap-1.5 font-medium">
-              <AlertTriangle className="size-4 shrink-0 text-warning" />
-              Falta cargar {itemsFaltantes.length} cosa{itemsFaltantes.length === 1 ? "" : "s"}:
-            </p>
-            <ul className="list-inside list-disc pl-1">
-              {itemsFaltantes.map((item, i) => (
-                <li key={i}>{item}</li>
-              ))}
-            </ul>
-            <p className="text-xs text-muted-foreground">
-              Puedes finalizar igual (queda un segundo clic de confirmación), o revisar las secciones de abajo primero.
-            </p>
           </div>
         )}
 
@@ -521,9 +483,7 @@ export default function FinalizarTurno() {
           disabled={finalizando || bloqueado || !puedeFinalizar}
         >
           {finalizando ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
-          {confirmando && itemsFaltantes.length > 0 && lineasSinResolver.length === 0
-            ? "Finalizar de todos modos"
-            : "Finalizar Turno (genera el Acta)"}
+          Finalizar Turno (genera el Acta)
         </Button>
       </div>
     </AppShell>

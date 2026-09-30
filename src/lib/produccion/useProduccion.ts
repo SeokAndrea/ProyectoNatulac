@@ -10,13 +10,23 @@ import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { supabase } from "@/lib/supabase"
 import { activarLinea as activarLineaNucleo, cambiarCondicionLinea, confirmarEstadoLinea, continuarLinea, pausarLinea, registrarContador as registrarContadorNucleo, terminarLinea, terminarSaborLinea } from "./nucleo"
-import { actualizarJustificacionContador as actualizarJustificacionContadorAjuste, continuarSiguienteLote, detenerLineaPorFalla, entregarCorrida, seguirMismoLote } from "./ajustes"
+import {
+  actualizarJustificacionContador as actualizarJustificacionContadorAjuste,
+  continuarCorridaDetenida,
+  continuarSiguienteLote,
+  detenerLineaPorFalla,
+  entregarCorrida,
+  ponerLineaEnCip,
+  seguirMismoLote,
+  terminarCip,
+} from "./ajustes"
 import { mapearContador, mapearCorrida, mapearLineaEstado } from "./mapear"
 import type {
   ContadorRegistro,
   Corrida,
   DatosActivarLinea,
   DatosCambiarLinea,
+  DatosCipLinea,
   DatosNuevoContador,
   FilaContador,
   FilaCorrida,
@@ -48,6 +58,12 @@ export interface UseProduccionResultado {
   entregarCorrida: (corridaId: string) => Promise<Resultado>
   cambiarCondicionLinea: (datos: DatosCambiarLinea) => Promise<Resultado>
   confirmarEstadoLinea: (corridaId: string) => Promise<Resultado>
+  /** CIP con motivo; con corrida, el lote sigue (pausa) o termina (Esperando PT). Suma el +1 en Paradas. */
+  ponerLineaEnCip: (datos: DatosCipLinea) => Promise<Resultado>
+  /** Termina el CIP (exige su parada completa); si el lote seguía, continúa. */
+  terminarCip: (linea: string) => Promise<Resultado>
+  /** La misma corrida detenida (Esperando PT) vuelve a correr, sin cargar PT. */
+  continuarCorridaDetenida: (corridaId: string) => Promise<Resultado>
   registrarContador: (datos: DatosNuevoContador) => Promise<Resultado>
   actualizarJustificacionContador: (contadorId: string, justificacion: string) => Promise<Resultado>
 }
@@ -134,6 +150,9 @@ export function useProduccion(turnoIdElegido?: string | null): UseProduccionResu
     entregarCorrida: conSesion(entregarCorrida),
     cambiarCondicionLinea: conSesion(cambiarCondicionLinea),
     confirmarEstadoLinea: conSesion(confirmarEstadoLinea),
+    ponerLineaEnCip: conSesion(ponerLineaEnCip),
+    terminarCip: conSesion(terminarCip),
+    continuarCorridaDetenida: conSesion(continuarCorridaDetenida),
     registrarContador: conSesion(registrarContadorNucleo),
     actualizarJustificacionContador,
   }

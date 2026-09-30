@@ -15,7 +15,27 @@ Cómo funciona hoy y problemas encontrados: `docs/flujos-lineas-y-producto-termi
     del catálogo" o "Tiempo ocioso".
   - La guarda de paradas pendientes en `finalizar_turno` aplica también al
     Área de Pruebas, para poder probarla.
-- [ ] Paso 3, Líneas (G, H, C, A, B).
+- [x] Paso 2 desplegable: ensayo OK (12 chequeos) y ya en `main`.
+- [ ] Paso 3, Líneas, **parte 1** (código listo en la rama; falta su ensayo,
+  que requiere la 20261090 ya aplicada):
+  - "Continuar el Lote X" en una corrida Esperando PT (la misma corrida
+    vuelve a correr sin PT): si no tiene Contador ni PT, el tanque sigue
+    Listo, la línea no corre otra cosa y no está en CIP.
+  - CIP con motivo paso a paso (motivo → ¿el lote sigue? → descripción
+    opcional → confirmar) desde la corrida, desde una Parada Operacional
+    ("Pasar a CIP") y con la línea sin corrida. Suma el +1 y lo liga a la
+    línea (`lineas_estado.parada_id`).
+  - "Terminó CIP" (y "Terminó CIP: continuar el Lote X") bloqueado hasta
+    completar la parada del CIP, con botón a Registrar Paradas.
+  - "El lote ya no sigue" (CIP con el lote en pausa → Esperando PT).
+  - Panel de Producción: muestra el motivo del CIP y "En CIP" con el lote en
+    pausa.
+  - Finalizar Turno: se quitó "Falta cargar X cosas" y su segundo clic
+    (pedido del dueño). Quedan los bloqueos reales.
+  - Migración 20261091 + `scripts/ensayo-20261091-lineas-cip.sql` (12 chequeos).
+- [ ] Paso 3, Líneas, parte 2: Agregar parada con descripción (H), "No
+  estaba corriendo" y "Continuar al siguiente lote" en Comenzar Turno (A, B),
+  descripción breve en todos los estados (G).
 - [ ] Paso 4, Producto Terminado (D).
 - [ ] Paso 5, Panel, manual.
 

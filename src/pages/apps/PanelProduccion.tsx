@@ -217,12 +217,21 @@ function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[], lineas
   return lineasCatalogo.map((lc) => {
     const corridasLinea = corridas.filter((l) => l.linea === lc.codigo)
     const estadoContinuo = lineasEstado.find((e) => e.linea === lc.codigo)
-    // La nota solo tiene sentido mostrarla cuando la línea está DETENIDA y sin corrida activa.
-    const observacion = estadoContinuo?.condicion === "DETENIDA" ? estadoContinuo.observacion : null
+    // La nota se muestra con la línea Detenida o en CIP (motivo + descripción del supervisor, migración 20261091).
+    const observacion =
+      estadoContinuo?.condicion === "DETENIDA" || estadoContinuo?.condicion === "CIP" ? estadoContinuo.observacion : null
 
     const activa = corridasLinea.find((l) => l.activa)
     if (activa) {
-      return { codigo: lc.codigo, nombre: lc.nombre, estado: activa.pausadaEn ? "parada" : "activa", corrida: activa, observacion: null }
+      // Pausada por un CIP en el que el lote sigue: se ve "En CIP", con su motivo.
+      const enCip = activa.pausadaEn && estadoContinuo?.condicion === "CIP"
+      return {
+        codigo: lc.codigo,
+        nombre: lc.nombre,
+        estado: enCip ? "cip" : activa.pausadaEn ? "parada" : "activa",
+        corrida: activa,
+        observacion: enCip ? observacion : null,
+      }
     }
     const esperandoCierre = corridasLinea.find((l) => l.esperandoCierre)
     if (esperandoCierre) {
