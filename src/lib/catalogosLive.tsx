@@ -102,7 +102,11 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
     // Industriales vería también las líneas de Pruebas mezcladas. Aséptico
     // es la única área productiva real que queda (Vacío se eliminó del
     // todo el 2026-09-25), así que se filtra directo a esa.
-    const areaCatalogo = session?.area === "SERVICIOS_INDUSTRIALES" ? "ASEPTICO" : (session?.area ?? null)
+    // Calidad y Mantenimiento (también áreas de apoyo) igual: miran Aséptico.
+    const areaCatalogo =
+      session?.area && ["SERVICIOS_INDUSTRIALES", "CALIDAD", "MANTENIMIENTO"].includes(session.area)
+        ? "ASEPTICO"
+        : (session?.area ?? null)
     const [lineasRes, presentacionesRes, velocidadesRes] = await Promise.all([
       supabase.rpc("listar_lineas", { p_area_codigo: areaCatalogo }),
       supabase.rpc("listar_presentaciones"),

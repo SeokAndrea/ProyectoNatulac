@@ -288,6 +288,8 @@ function TanqueCard({
   const [ajustando, setAjustando] = useState(false)
   const [errorAjuste, setErrorAjuste] = useState<string | null>(null)
   const [cambiandoCip, setCambiandoCip] = useState(false)
+  // Iniciar CIP pide un segundo clic, como Arrancar línea.
+  const [confirmandoCip, setConfirmandoCip] = useState(false)
   /** "Medir tanque": relectura física del volumen del lote (medir_tanque). */
   const [mostrarMedir, setMostrarMedir] = useState(false)
   /** "Fijar volumen real": corrige el 100% del lote (fijar_volumen_lote) — solo si todavía no corrió ninguna línea. */
@@ -715,10 +717,27 @@ function TanqueCard({
                   <Beaker className="size-3.5" />
                   {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
                 </Button>
-                <Button size="sm" variant="outline" disabled={cambiandoCip} onClick={() => cambiarCip("CIP")}>
+                <Button
+                  size="sm"
+                  variant={confirmandoCip ? "destructive" : "outline"}
+                  disabled={cambiandoCip}
+                  onClick={async () => {
+                    if (!confirmandoCip) {
+                      setConfirmandoCip(true)
+                      return
+                    }
+                    await cambiarCip("CIP")
+                    setConfirmandoCip(false)
+                  }}
+                >
                   {cambiandoCip ? <Loader2 className="size-3.5 animate-spin" /> : <BroomSparkles className="size-3.5" />}
-                  Iniciar CIP
+                  {confirmandoCip ? "¿Seguro? Sí, iniciar CIP" : "Iniciar CIP"}
                 </Button>
+                {confirmandoCip && (
+                  <Button size="sm" variant="ghost" disabled={cambiandoCip} onClick={() => setConfirmandoCip(false)}>
+                    Cancelar
+                  </Button>
+                )}
                 {(tanque.condicion === "LISTO" || tanque.condicion === "STANDBY") &&
                   (loteActivoSinCorrida ? (
                     <Button size="sm" variant="outline" onClick={() => setMostrarFijar(true)}>

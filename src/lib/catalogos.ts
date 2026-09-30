@@ -19,10 +19,21 @@ export const AREAS = [
   { codigo: "ASEPTICO", nombre: "Producción Aséptico" },
   { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales" },
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
+  { codigo: "CALIDAD", nombre: "Calidad" },
   { codigo: "PRUEBAS", nombre: "Área de Pruebas" },
 ] as const
 
 export type AreaCodigo = (typeof AREAS)[number]["codigo"]
+
+/** Roles de Calidad: solo van en el área Calidad (o en Pruebas, para probar). Migración 20261089. */
+const ROLES_CALIDAD: readonly string[] = ["CALIDAD", "SUPERVISOR_CALIDAD"]
+
+/** ¿Este rol se puede dar en esta área? Mismo criterio que el trigger trg_rol_area_calidad del servidor. */
+export function rolPermitidoEnArea(rol: string, area: string | null | undefined): boolean {
+  if (!area || area === "PRUEBAS") return true
+  if (area === "CALIDAD") return ROLES_CALIDAD.includes(rol)
+  return !ROLES_CALIDAD.includes(rol)
+}
 
 // Rework 2026-09-27: el rol es un paquete de permisos por defecto (ver
 // src/lib/permisos.ts y la migración 20261078090000_roles_y_permisos.sql).
@@ -34,6 +45,7 @@ export const ROLES = [
   { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción" },
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
   { codigo: "CALIDAD", nombre: "Analista de Calidad" },
+  { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad" },
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
 ] as const
 

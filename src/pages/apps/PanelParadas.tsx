@@ -60,7 +60,10 @@ const REFRESCO_MS = 20 * 1000
 
 export default function PanelParadas() {
   const { session } = useAuth()
-  const area = session?.area ?? null
+  // Las áreas de apoyo (Calidad, Servicios Industriales, Mantenimiento) no tienen turno propio:
+  // miran producción, igual que el Super Admin (null = todas menos Pruebas).
+  const area =
+    session?.area && !["CALIDAD", "SERVICIOS_INDUSTRIALES", "MANTENIMIENTO"].includes(session.area) ? session.area : null
   const { lineas: lineasReales, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   // `turno?.id ?? null` (nunca undefined): si todavía no hay turno resuelto

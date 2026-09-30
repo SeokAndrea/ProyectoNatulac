@@ -19,9 +19,19 @@ const COLOR_BORDE_HOVER: Record<NonNullable<AppDef["color"]>, string> = {
 }
 
 /** Tarjeta de app del Hub — también reusada por páginas de agrupación como Calculadoras. */
-export function AppCard({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean }) {
+export function AppCard({
+  app,
+  turnoActivo,
+  turnoPorAsumir = false,
+}: {
+  app: AppDef
+  turnoActivo: boolean
+  /** Hay un turno abierto pero no es mío (lo abrió el respaldo sin responsable, o lo tiene otra persona): Comenzar Turno sigue disponible para asumirlo o tomar el relevo. */
+  turnoPorAsumir?: boolean
+}) {
   const Icon = app.icon
-  const bloqueada = !app.href || (app.requiereTurno && !turnoActivo) || (app.bloqueaConTurno && turnoActivo)
+  const bloqueadaPorTurno = !!app.bloqueaConTurno && turnoActivo && !turnoPorAsumir
+  const bloqueada = !app.href || (app.requiereTurno && !turnoActivo) || bloqueadaPorTurno
   const resaltada = app.resaltarConTurno && turnoActivo && !bloqueada
 
   const iconoWrap = (
@@ -55,9 +65,11 @@ export function AppCard({ app, turnoActivo }: { app: AppDef; turnoActivo: boolea
       <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground sm:mt-1 sm:line-clamp-none sm:text-sm">
         {!app.href
           ? "Próximamente."
-          : app.bloqueaConTurno && turnoActivo
+          : bloqueadaPorTurno
             ? "Ya tienes un turno en curso."
-            : app.requiereTurno && !turnoActivo
+            : app.bloqueaConTurno && turnoPorAsumir
+              ? "Hay un turno abierto: asúmelo o toma el relevo."
+              : app.requiereTurno && !turnoActivo
               ? "Se habilita al iniciar un turno."
               : app.description}
       </p>
@@ -71,7 +83,7 @@ export function AppCard({ app, turnoActivo }: { app: AppDef; turnoActivo: boolea
         title={
           !app.href
             ? "Todavía no está construido"
-            : app.bloqueaConTurno && turnoActivo
+            : bloqueadaPorTurno
               ? "Ya tienes un turno en curso"
               : "Inicia un turno para habilitar esta sección"
         }

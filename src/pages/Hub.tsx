@@ -21,6 +21,9 @@ export default function Hub() {
   const sesion = useSesionTurno()
   useGenerarActasPendientes()
   const turnoActivo = sesion.turnoId !== null
+  // Mismo criterio que ComenzarTurno: solo el responsable actual "tiene" el turno; el resto puede asumirlo o tomar el relevo.
+  const soyResponsable = !sesion.sinResponsable && sesion.supervisorUsuario === session?.username.toLowerCase()
+  const turnoPorAsumir = turnoActivo && !soyResponsable && puede(session, "TURNO_ASUMIR")
   // Mismo criterio que las rutas (ProtectedRoute): puedeVerApp en src/lib/apps.tsx.
   const appsVisibles = apps.filter((app) => puedeVerApp(session, app))
   const atajos = appsVisibles.filter((app) => app.atajo)
@@ -39,9 +42,13 @@ export default function Hub() {
               {session ? (EMOJI_SALUDO_POR_USUARIO[session.username.toLowerCase()] ?? EMOJI_SALUDO_DEFAULT) : EMOJI_SALUDO_DEFAULT}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-              {turnoActivo || !puede(session, "TURNO_ASUMIR")
-                ? "Elige una aplicación para continuar."
-                : "Inicia un turno para habilitar el resto de las aplicaciones."}
+              {turnoPorAsumir
+                ? sesion.sinResponsable
+                  ? "Hay un turno abierto sin responsable. Entra a Comenzar Turno para asumirlo."
+                  : "Elige una aplicación para continuar."
+                : turnoActivo || !puede(session, "TURNO_ASUMIR")
+                  ? "Elige una aplicación para continuar."
+                  : "Inicia un turno para habilitar el resto de las aplicaciones."}
             </p>
           </div>
 
@@ -64,7 +71,7 @@ export default function Hub() {
               )}
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
                 {appsSeccion.map((app) => (
-                  <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} />
+                  <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} />
                 ))}
               </div>
             </section>

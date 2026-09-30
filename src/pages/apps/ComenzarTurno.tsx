@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import {
+  grupoDeRotacion,
   guardarEsquemaTurnos,
   guardarTurnosAutomaticos,
   obtenerAjustesTurnos,
@@ -22,7 +23,7 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useSesionTurno, type ResponsableTurno } from "@/lib/sesionTurno"
-import { horaCortaPlanta, horaDelDiaPlanta, turnoParaIniciar } from "@/lib/tiempoPlanta"
+import { franjaDeHora, franjaParaIniciar, horaCortaPlanta, horaDelDiaPlanta } from "@/lib/tiempoPlanta"
 
 const fechaHoy = new Date().toLocaleDateString("es-CO", {
   weekday: "long",
@@ -75,7 +76,7 @@ export default function ComenzarTurno() {
       <AppShell title="Comenzar Turno" description="Registro de inicio de turno">
         <div className="mx-auto flex max-w-lg flex-col gap-4">
           <AjustesDeTurnos area={area} />
-          <FormularioNuevoTurno onIniciar={sesion.iniciarTurno} />
+          <FormularioNuevoTurno area={area} onIniciar={sesion.iniciarTurno} />
         </div>
       </AppShell>
     )
@@ -83,11 +84,19 @@ export default function ComenzarTurno() {
 
   const soyResponsable = !sesion.sinResponsable && sesion.supervisorUsuario === session?.username.toLowerCase()
   if (!soyResponsable) {
+    // El turno abierto no es el que toca comenzar ahora (ya terminó, o falta 1 h o menos para el
+    // cambio): se ofrece comenzar el de ahora, que cierra el abierto. Si el abierto sigue siendo el
+    // de esta hora (llegó antes), también se puede asumir ese.
+    const objetivo = franjaParaIniciar()
+    const actual = franjaDeHora()
+    const esElObjetivo = sesion.fecha === objetivo.fecha && sesion.turnoTipo === objetivo.tipo
+    const esElActual = sesion.fecha === actual.fecha && sesion.turnoTipo === actual.tipo
     return (
       <AppShell title="Comenzar Turno" description={`Turno ${sesion.codigo}`}>
         <div className="mx-auto flex max-w-lg flex-col gap-4">
           <AjustesDeTurnos area={area} />
-          <AsumirTurno />
+          {!esElObjetivo && <ComenzarTurnoDeAhora area={area} objetivo={objetivo} terminado={!esElActual} />}
+          {(esElObjetivo || esElActual) && <AsumirTurno />}
         </div>
       </AppShell>
     )
@@ -155,6 +164,7 @@ function TurnoYaEnCurso() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ListaResponsables responsables={sesion.responsables} fecha={sesion.fecha} />
+        <GrupoDelTurno />
         <Button asChild className="w-full">
           <Link to="/finalizar-turno">
             <ClipboardCheck className="size-4" />
@@ -179,6 +189,12 @@ function AsumirTurno() {
   const [error, setError] = useState<string | null>(null)
   // Tomar el relevo le quita el turno a otra persona: pide un segundo clic.
   const [confirmandoRelevo, setConfirmandoRelevo] = useState(false)
+
+  const area: AreaCodigo = session?.area ?? "ASEPTICO"
+  const grupoRotacion = useGrupoDeRotacion(area, sesion.fecha, sesion.turnoTipo)
+  useEffect(() => {
+    if (grupoRotacion) setGrupo((g) => g || grupoRotacion)
+  }, [grupoRotacion])
 
   const puedeAsumir = puede(session, "TURNO_ASUMIR")
   const esRelevo = !sesion.sinResponsable
@@ -225,18 +241,7 @@ function AsumirTurno() {
         {sesion.grupoPendiente && (
           <div className="flex flex-col gap-2">
             <Label>Grupo</Label>
-            <Select value={grupo} onValueChange={(v) => setGrupo(v as GrupoCodigo)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecciona un grupo" />
-              </SelectTrigger>
-              <SelectContent>
-                {GRUPOS.map((g) => (
-                  <SelectItem key={g.codigo} value={g.codigo}>
-                    {g.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SelectorGrupo value={grupo} rotacion={grupoRotacion} onChange={setGrupo} />
           </div>
         )}
 
@@ -269,14 +274,202 @@ function AsumirTurno() {
   )
 }
 
+/** Grupo que le toca a ese turno por la rotación semanal (null mientras carga, o si el área no tiene rotación). */
+function useGrupoDeRotacion(area: AreaCodigo, fecha: string | null, turnoTipo: TurnoTipoCodigo | "" | null): GrupoCodigo | null {
+  const [grupo, setGrupo] = useState<GrupoCodigo | null>(null)
+  useEffect(() => {
+    if (!fecha || !turnoTipo) {
+      setGrupo(null)
+      return
+    }
+    let vigente = true
+    grupoDeRotacion(area, fecha, turnoTipo).then((g) => {
+      if (vigente) setGrupo(g)
+    })
+    return () => {
+      vigente = false
+    }
+  }, [area, fecha, turnoTipo])
+  return grupo
+}
+
+/** Selector de grupo; marca cuál es el de la rotación. */
+function SelectorGrupo({
+  value,
+  rotacion,
+  onChange,
+  disabled,
+}: {
+  value: GrupoCodigo | ""
+  rotacion: GrupoCodigo | null
+  onChange: (grupo: GrupoCodigo) => void
+  disabled?: boolean
+}) {
+  return (
+    <>
+      <Select value={value} onValueChange={(v) => onChange(v as GrupoCodigo)} disabled={disabled}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Selecciona un grupo" />
+        </SelectTrigger>
+        <SelectContent>
+          {GRUPOS.map((g) => (
+            <SelectItem key={g.codigo} value={g.codigo}>
+              {g.nombre}
+              {g.codigo === rotacion ? " · rotación" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {rotacion && value !== "" && value !== rotacion && (
+        <p className="text-xs text-warning-foreground">Por la rotación de esta semana le toca al {nombreGrupo(rotacion)}.</p>
+      )}
+    </>
+  )
+}
+
+/*
+ * El turno abierto no es el que toca comenzar ahora: ya terminó (ej. el T3
+ * que quedó abierto y son las 7:20) o falta 1 h o menos para el cambio. Se
+ * comienza el de ahora: el servidor cierra el abierto entregando las
+ * corridas activas y el nuevo las hereda (migración 20261087). Cierra el
+ * turno de otra persona: pide un segundo clic.
+ */
+function ComenzarTurnoDeAhora({
+  area,
+  objetivo,
+  terminado,
+}: {
+  area: AreaCodigo
+  objetivo: { tipo: TurnoTipoCodigo; fecha: string }
+  terminado: boolean
+}) {
+  const sesion = useSesionTurno()
+  const { session } = useAuth()
+  const grupoRotacion = useGrupoDeRotacion(area, objetivo.fecha, objetivo.tipo)
+  const [grupo, setGrupo] = useState<GrupoCodigo | "">("")
+  const [confirmando, setConfirmando] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (grupoRotacion) setGrupo((g) => g || grupoRotacion)
+  }, [grupoRotacion])
+
+  const nombreObjetivo = nombrePorCodigo(TURNO_TIPOS, objetivo.tipo)
+  const nombreAbierto = nombrePorCodigo(TURNO_TIPOS, sesion.turnoTipo!)
+  const [, mesAbierto, diaAbierto] = (sesion.fecha ?? "").split("-")
+
+  async function comenzar() {
+    if (grupo === "") return
+    if (!confirmando) {
+      setConfirmando(true)
+      return
+    }
+    setEnviando(true)
+    setError(null)
+    const r = await sesion.iniciarTurno(objetivo.tipo, grupo)
+    setEnviando(false)
+    if (!r.ok) {
+      setError(r.error)
+      setConfirmando(false)
+    }
+  }
+
+  if (!puede(session, "TURNO_ASUMIR")) return null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{terminado ? `El turno ${sesion.codigo} ya terminó` : `¿Vienes para el ${nombreObjetivo}?`}</CardTitle>
+        <CardDescription>
+          {terminado
+            ? `Es el ${nombreAbierto} del ${diaAbierto}/${mesAbierto}${sesion.sinResponsable ? ", sin responsable" : `, a cargo de ${sesion.supervisorNombre}`}. `
+            : "Falta poco para el cambio de turno. "}
+          Al comenzar el {nombreObjetivo}, el {sesion.codigo} se cierra y el nuevo sigue con los tanques y las líneas como
+          están.{!terminado && " Si sigues en el turno de ahora, asúmelo abajo."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Label>Grupo</Label>
+          <SelectorGrupo
+            value={grupo}
+            rotacion={grupoRotacion}
+            onChange={(g) => {
+              setGrupo(g)
+              setConfirmando(false)
+            }}
+            disabled={enviando}
+          />
+        </div>
+
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+
+        <Button className="w-full" disabled={grupo === "" || enviando} onClick={comenzar}>
+          {enviando ? <Loader2 className="size-4 animate-spin" /> : <PlayCircle className="size-4" />}
+          {confirmando ? `Sí, cerrar ${sesion.codigo} y comenzar el ${nombreObjetivo}` : `Comenzar ${nombreObjetivo}`}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Grupo del turno en curso; el responsable lo puede cambiar si ese día no se cumplió la rotación. */
+function GrupoDelTurno() {
+  const sesion = useSesionTurno()
+  const { session } = useAuth()
+  const area: AreaCodigo = session?.area ?? "ASEPTICO"
+  const grupoRotacion = useGrupoDeRotacion(area, sesion.fecha, sesion.turnoTipo)
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function cambiar(g: GrupoCodigo) {
+    if (g === sesion.grupo) return
+    setGuardando(true)
+    setError(null)
+    const r = await sesion.cambiarGrupo(g)
+    setGuardando(false)
+    if (!r.ok) setError(r.error)
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Grupo del turno</Label>
+      <SelectorGrupo
+        value={sesion.grupoPendiente ? "" : (sesion.grupo ?? "")}
+        rotacion={grupoRotacion}
+        onChange={cambiar}
+        disabled={guardando}
+      />
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function FormularioNuevoTurno({
+  area,
   onIniciar,
 }: {
+  area: AreaCodigo
   onIniciar: (turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
 }) {
   // Viene elegido el turno de ahora, o el siguiente si falta 1 h o menos (el que llega antes). Se puede cambiar.
-  const [turnoTipo, setTurnoTipo] = useState<TurnoTipoCodigo | "">(() => turnoParaIniciar())
+  const [turnoTipo, setTurnoTipo] = useState<TurnoTipoCodigo | "">(() => franjaParaIniciar().tipo)
   const [grupo, setGrupo] = useState<GrupoCodigo | "">("")
+  const grupoRotacion = useGrupoDeRotacion(area, franjaParaIniciar().fecha, turnoTipo)
+  const [grupoTocado, setGrupoTocado] = useState(false)
+  // El grupo viene de la rotación mientras no lo cambien a mano.
+  useEffect(() => {
+    if (!grupoTocado && grupoRotacion) setGrupo(grupoRotacion)
+  }, [grupoRotacion, grupoTocado])
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -335,18 +528,14 @@ function FormularioNuevoTurno({
 
         <div className="flex flex-col gap-2">
           <Label>Grupo</Label>
-          <Select value={grupo} onValueChange={(v) => setGrupo(v as GrupoCodigo)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Selecciona un grupo" />
-            </SelectTrigger>
-            <SelectContent>
-              {GRUPOS.map((g) => (
-                <SelectItem key={g.codigo} value={g.codigo}>
-                  {g.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SelectorGrupo
+            value={grupo}
+            rotacion={grupoRotacion}
+            onChange={(v) => {
+              setGrupoTocado(true)
+              setGrupo(v)
+            }}
+          />
         </div>
 
         {error && (

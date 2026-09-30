@@ -81,6 +81,8 @@ export interface SesionTurno {
   finalizarTurno: () => Promise<{ ok: true } | { ok: false; error: string }>
   /** Asumir el turno abierto (sin responsable) o tomar el relevo de otro. El grupo solo se pide si está pendiente. */
   asumirTurno: (grupo: GrupoCodigo | null) => Promise<{ ok: true } | { ok: false; error: string }>
+  /** Cambia el grupo del turno abierto (si ese día no se cumplió la rotación). Solo el responsable o quien corrige turnos. */
+  cambiarGrupo: (grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
   /** Vuelve a leer el turno abierto sin mostrar la pantalla de carga (ej. después de prender el 12x12). */
   refrescar: () => Promise<void>
 }
@@ -243,6 +245,22 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true as const }
   }
 
+  async function cambiarGrupo(grupoElegido: GrupoCodigo) {
+    if (!usuario || !turnoId) {
+      return { ok: false as const, error: "No hay un turno abierto." }
+    }
+    const { data, error } = await supabase.rpc("cambiar_grupo_turno", {
+      p_usuario: usuario,
+      p_turno_id: turnoId,
+      p_grupo_codigo: grupoElegido,
+    })
+    if (error || !data) {
+      return { ok: false as const, error: error?.message || "No se pudo cambiar el grupo. Intenta de nuevo." }
+    }
+    tomarIdentidad(data as FilaTurnoIdentidad)
+    return { ok: true as const }
+  }
+
   async function finalizarTurno() {
     if (!turnoId) {
       return { ok: false as const, error: "No hay un turno en curso." }
@@ -294,6 +312,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
         iniciarTurno,
         finalizarTurno,
         asumirTurno,
+        cambiarGrupo,
         refrescar,
       }}
     >
