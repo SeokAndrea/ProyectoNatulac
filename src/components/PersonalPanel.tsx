@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { AREAS, CARGOS, ROLES, nombrePorCodigo, type AreaCodigo, type CargoCodigo, type RolCodigo } from "@/lib/catalogos"
+import { AREAS, CARGOS, ROLES, nombrePorCodigo, rolPermitidoEnArea, type AreaCodigo, type CargoCodigo, type RolCodigo } from "@/lib/catalogos"
 import { useAuth } from "@/lib/auth"
 import { PERMISOS, type Permiso } from "@/lib/permisos"
 import {
@@ -335,6 +335,8 @@ function FilaPersonal({
   const [area, setArea] = useState<AreaCodigo | "">(persona.area ?? "")
   const [areaOrigen, setAreaOrigen] = useState<AreaCodigo | "">(persona.areaOrigen ?? "")
   const [rol, setRol] = useState<RolCodigo>(persona.rol)
+  // Solo los roles que van en el área elegida (el área Calidad solo lleva roles de Calidad).
+  const rolesDelArea = rolesDisponibles.filter((r) => rolPermitidoEnArea(r.codigo, area))
   const [cargo, setCargo] = useState<CargoCodigo | "">(persona.cargo ?? "")
   const [passwordNueva, setPasswordNueva] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -428,7 +430,16 @@ function FilaPersonal({
         </td>
         <td className="py-1.5 pr-3">
           <div className="flex flex-col gap-1">
-            <Select value={area} onValueChange={(v) => setArea(v as AreaCodigo)}>
+            <Select
+              value={area}
+              onValueChange={(v) => {
+                setArea(v as AreaCodigo)
+                if (!rolPermitidoEnArea(rol, v)) {
+                  const primero = rolesDisponibles.find((r) => rolPermitidoEnArea(r.codigo, v))
+                  if (primero) setRol(primero.codigo as RolCodigo)
+                }
+              }}
+            >
               <SelectTrigger className="h-7 w-full">
                 <SelectValue placeholder="Área" />
               </SelectTrigger>
@@ -465,7 +476,7 @@ function FilaPersonal({
               <SelectValue placeholder="Rol" />
             </SelectTrigger>
             <SelectContent>
-              {rolesDisponibles.map((r) => (
+              {rolesDelArea.map((r) => (
                 <SelectItem key={r.codigo} value={r.codigo}>
                   {r.nombre}
                 </SelectItem>
@@ -693,6 +704,8 @@ function FormularioNuevoPersonal({
   const [area, setArea] = useState<AreaCodigo | "">(areaFija ?? "")
   const [areaOrigen, setAreaOrigen] = useState<AreaCodigo | "">("")
   const [rol, setRol] = useState<RolCodigo | "">("")
+  // Solo los roles que van en el área elegida (el área Calidad solo lleva roles de Calidad).
+  const rolesDelArea = rolesDisponibles.filter((r) => rolPermitidoEnArea(r.codigo, area))
   const [cargo, setCargo] = useState<CargoCodigo | "">("")
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -739,7 +752,14 @@ function FormularioNuevoPersonal({
           onChange={(e) => setPassword(e.target.value)}
           className="h-8"
         />
-        <Select value={area} onValueChange={(v) => setArea(v as AreaCodigo)} disabled={areasDisponibles.length <= 1}>
+        <Select
+          value={area}
+          onValueChange={(v) => {
+            setArea(v as AreaCodigo)
+            if (rol !== "" && !rolPermitidoEnArea(rol, v)) setRol("")
+          }}
+          disabled={areasDisponibles.length <= 1}
+        >
           <SelectTrigger className="h-8 w-full">
             <SelectValue placeholder="Área" />
           </SelectTrigger>
@@ -756,7 +776,7 @@ function FormularioNuevoPersonal({
             <SelectValue placeholder="Rol" />
           </SelectTrigger>
           <SelectContent>
-            {rolesDisponibles.map((r) => (
+            {rolesDelArea.map((r) => (
               <SelectItem key={r.codigo} value={r.codigo}>
                 {r.nombre}
               </SelectItem>

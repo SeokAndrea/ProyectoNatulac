@@ -1,4 +1,4 @@
-import type { AreaCodigo } from "@/lib/catalogos"
+import type { AreaCodigo, GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import type { EsquemaTurnos } from "@/lib/sesionTurno"
 import { supabase } from "@/lib/supabase"
 
@@ -34,6 +34,21 @@ export async function guardarEsquemaTurnos(
   })
   if (error) return { ok: false, error: error.message || "No se pudo cambiar el esquema." }
   return { ok: true }
+}
+
+/**
+ * Grupo que le toca a un turno por la rotación semanal (migración 20261087:
+ * el de T1 pasa a T3, el de T3 a T2 y el de T2 a T1). null = el área no
+ * tiene rotación cargada, o no se pudo consultar.
+ */
+export async function grupoDeRotacion(area: AreaCodigo, fecha: string, turnoTipo: TurnoTipoCodigo): Promise<GrupoCodigo | null> {
+  const { data, error } = await supabase.rpc("grupo_de_rotacion", {
+    p_area_codigo: area,
+    p_fecha: fecha,
+    p_turno_tipo_codigo: turnoTipo,
+  })
+  if (error || !data) return null
+  return data as GrupoCodigo
 }
 
 export async function guardarTurnosAutomaticos(

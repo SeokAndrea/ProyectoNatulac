@@ -58,10 +58,10 @@
 #   pt_cajas_sueltas       Cajas sueltas (resto que no completó paleta).
 #   pt_litros              Litros que registró Producto Terminado.
 #
-#   --- Valores esperados (lo que verificás; dejá vacío lo que no) ---
+#   --- Valores esperados (lo que verificas; deja vacío lo que no) ---
 #   esp_merma_envase_corrida_pct   Merma de envase de ESA corrida.
 #   esp_merma_envase_turno_pct     Merma de envase de TODO el turno
-#                                  (cargala en una fila del caso).
+#                                  (cárgala en una fila del caso).
 #   esp_rendimiento_turno_pct      Merma de semielaborado del turno
 #                                  (1 − pt_litros ÷ litros que salieron del tanque).
 #   esp_cajas_esperadas            Cajas que debía sacar la corrida.
@@ -80,8 +80,8 @@
 #   cumplimiento_%    = suma(cajas_reales activas) / suma(cajas_esperadas activas) * 100
 #
 # Los % se comparan con 0.5 puntos de tolerancia y las cajas con 1 de
-# tolerancia (redondeos). Borrá los dos casos de ejemplo cuando cargues
-# los reales, o dejalos: son válidos y sirven de guía.
+# tolerancia (redondeos). Borra los dos casos de ejemplo cuando cargues
+# los reales, o déjalos: son válidos y sirven de guía.
 # ============================================================================
 caso,turno_estado,hora_inicio,hora_fin,tanque,sabor,lote,litros_iniciales,litros_finales,lote_cerrado,linea,presentacion_ml,envases_x_caja,cajas_x_paleta,velocidad_envases_hora,corrida_activa,contador_envases,pt_paletas,pt_cajas_sueltas,pt_litros,esp_merma_envase_corrida_pct,esp_merma_envase_turno_pct,esp_rendimiento_turno_pct,esp_cajas_esperadas,esp_cajas_reales,esp_cumplimiento_turno_pct
 ejemplo-2lineas,CERRADO,07:00,15:00,1,Manzana,L-101,10000,400,si,LINEA_T1,1000,12,60,9000,si,72000,98,40,9550,1.33,1.19,0.57,6000,6000,97.5

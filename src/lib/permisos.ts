@@ -22,6 +22,7 @@ export const PERMISOS = [
   { codigo: "CALCULADORAS", nombre: "Calculadoras" },
   { codigo: "ESQUEMA_TURNOS", nombre: "Cambiar esquema de turnos (3x8 / 12x12)" },
   { codigo: "LOTE_LIBERAR", nombre: "Analizar y liberar lotes (Calidad)" },
+  { codigo: "CALIDAD_PARAMETROS", nombre: "Editar parámetros de Calidad (Brix y acidez por sabor)" },
 ] as const
 
 export type Permiso = (typeof PERMISOS)[number]["codigo"]

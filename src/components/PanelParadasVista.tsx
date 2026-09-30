@@ -27,7 +27,7 @@ import {
 
 /*
  * Panel de Paradas — dashboard solo lectura, mismo estilo que el Panel de
- * Producción. Filtro de Turno (uno o "Todos") + Período (Ayer / Últimos
+ * Producción. Filtro de Turno (uno o "Todos") + Período (Hoy / Ayer / Últimos
  * 7 días / Este mes). Todo el contenido (Top por frecuencia y por tiempo
  * — la primera de cada línea — + las 3 líneas con su cinta animada, su
  * OEE (Disponibilidad × Rendimiento, mismo cálculo que el Panel de
@@ -44,8 +44,9 @@ import {
  * real). undefined = todavía cargando.
  */
 
-type PeriodoCodigo = "AYER" | "7D" | "MES"
+type PeriodoCodigo = "HOY" | "AYER" | "7D" | "MES"
 const PERIODO_FILTRO: { codigo: PeriodoCodigo; etiqueta: string }[] = [
+  { codigo: "HOY", etiqueta: "Hoy" },
   { codigo: "AYER", etiqueta: "Ayer" },
   { codigo: "7D", etiqueta: "Últimos 7 días" },
   { codigo: "MES", etiqueta: "Este mes" },
@@ -107,10 +108,11 @@ export function PanelParadasVista({
     return () => clearInterval(id)
   }, [])
 
-  // Todo se calcula desde HOY (fecha de planta): Ayer = solo el día de
-  // ayer; 7 días = hoy y los 6 anteriores; Este mes = del 1 hasta hoy.
+  // Todo se calcula desde HOY (fecha de planta): Hoy = solo hoy; Ayer = solo
+  // el día de ayer; 7 días = hoy y los 6 anteriores; Este mes = del 1 hasta hoy.
   const hoy = fechaPlanta(ahora)
   const { desde, hasta } = useMemo(() => {
+    if (periodo === "HOY") return { desde: hoy, hasta: hoy }
     if (periodo === "AYER") {
       const ayer = restarDias(hoy, 1)
       return { desde: ayer, hasta: ayer }

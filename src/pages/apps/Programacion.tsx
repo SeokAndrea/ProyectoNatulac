@@ -35,7 +35,10 @@ export default function Programacion() {
   const editable = puede(session ?? null, "PROGRAMACION_EDITAR")
   const fecha = fechaJornada()
 
-  const [area, setArea] = useState<AreaCodigo>(session?.area ?? "ASEPTICO")
+  // Las áreas de apoyo (Calidad, Servicios Industriales, Mantenimiento) no tienen plan propio: ven el de Aséptico.
+  const [area, setArea] = useState<AreaCodigo>(
+    !session?.area || ["CALIDAD", "SERVICIOS_INDUSTRIALES", "MANTENIMIENTO"].includes(session.area) ? "ASEPTICO" : session.area,
+  )
   const [sabores, setSabores] = useState<Sabor[]>([])
   const [plan, setPlan] = useState<ProgramacionItem[]>([])
   const [filas, setFilas] = useState<Fila[]>([])

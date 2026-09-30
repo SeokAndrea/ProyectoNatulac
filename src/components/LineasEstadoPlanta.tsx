@@ -170,6 +170,8 @@ function LineaCard({
   /** "Detener línea": 2ª confirmación — deja la corrida esperando el PT. */
   const [confirmarDetener, setConfirmarDetener] = useState(false)
   const [enviandoEstadoLinea, setEnviandoEstadoLinea] = useState(false)
+  // Iniciar CIP pide un segundo clic, como Arrancar línea (una línea en CIP queda así hasta que alguien marque "Terminó CIP").
+  const [confirmandoCip, setConfirmandoCip] = useState(false)
   const [errorEstadoLinea, setErrorEstadoLinea] = useState<string | null>(null)
   const [observacionBorrador, setObservacionBorrador] = useState(lineaEstado?.observacion ?? "")
   const [presentacion, setPresentacion] = useState<PresentacionCodigo | "">(lineaTurno?.presentacion ?? "")
@@ -365,10 +367,27 @@ function LineaCard({
             >
               Cambio de Presentación
             </Button>
-            <Button size="sm" variant="outline" disabled={deshabilitado} onClick={() => cambiarEstadoLinea("CIP")}>
+            <Button
+              size="sm"
+              variant={confirmandoCip ? "destructive" : "outline"}
+              disabled={deshabilitado}
+              onClick={async () => {
+                if (!confirmandoCip) {
+                  setConfirmandoCip(true)
+                  return
+                }
+                await cambiarEstadoLinea("CIP")
+                setConfirmandoCip(false)
+              }}
+            >
               {enviandoEstadoLinea ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
-              Iniciar CIP
+              {confirmandoCip ? "¿Seguro? Sí, iniciar CIP" : "Iniciar CIP"}
             </Button>
+            {confirmandoCip && (
+              <Button size="sm" variant="ghost" disabled={enviandoEstadoLinea} onClick={() => setConfirmandoCip(false)}>
+                Cancelar
+              </Button>
+            )}
           </div>
         )}
         {bloqueadoPorCorrida && (

@@ -126,8 +126,8 @@ export const apps: AppDef[] = [
     icon: FlaskConical,
     requiereTurno: false,
     permiso: "LOTE_LIBERAR",
-    // Por ahora solo en Pruebas: la planta todavía no decidió si Calidad libera. Ver plan-calidad.md.
-    areasPermitidas: ["PRUEBAS"],
+    // Área Calidad (apoyo: ve el turno de Aséptico, migración 20261089) y Pruebas para probar. Ver plan-calidad.md.
+    areasPermitidas: ["CALIDAD", "PRUEBAS"],
     color: "purple",
     seccion: "produccion",
   },
