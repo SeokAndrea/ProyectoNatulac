@@ -21,7 +21,18 @@ const EMOJI_SALUDO_DEFAULT = "👋"
  * orden (dueño, 2026-09-30). En pantallas grandes, y para los otros roles,
  * el hub queda como siempre.
  */
-const FLUJO_SUPERVISOR = ["comenzar-turno", "preparacion", "lineas", "producto-terminado", "finalizar-turno", "panel-produccion"]
+const FLUJO_SUPERVISOR = [
+  "comenzar-turno",
+  "preparacion",
+  "lineas",
+  "producto-terminado",
+  "paradas",
+  "finalizar-turno",
+  "mis-actas",
+  "panel-produccion",
+]
+/** Supervisor en el teléfono: estas van al final de todo, debajo de las secciones. */
+const AL_FINAL_SUPERVISOR = ["programacion", "manual", "panel-paradas"]
 
 export default function Hub() {
   const { session } = useAuth()
@@ -36,12 +47,15 @@ export default function Hub() {
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
   const secciones = agruparPorSeccion(principales)
-  const flujo =
-    session?.rol === "SUPERVISOR"
-      ? FLUJO_SUPERVISOR.map((slug) => appsVisibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)
-      : []
-  /** En el teléfono, lo que ya está en el flujo del supervisor no se repite más abajo. "grid" para que la tarjeta ocupe todo el alto, como antes. */
-  const soloEnPantallaGrande = (app: AppDef) => (flujo.includes(app) ? "hidden sm:grid" : "grid")
+  const esSupervisor = session?.rol === "SUPERVISOR"
+  const porSlug = (slugs: string[]) =>
+    slugs.map((slug) => appsVisibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)
+  const flujo = esSupervisor ? porSlug(FLUJO_SUPERVISOR) : []
+  const alFinal = esSupervisor ? porSlug(AL_FINAL_SUPERVISOR) : []
+  /** En el teléfono, lo que ya está arriba (flujo) o abajo (al final) no se repite en su lugar de siempre. "grid" para que la tarjeta ocupe todo el alto, como antes. */
+  const soloEnPantallaGrande = (app: AppDef) => (flujo.includes(app) || alFinal.includes(app) ? "hidden sm:grid" : "grid")
+  /** Una sección cuyas tarjetas ya salen arriba o abajo tampoco muestra su título vacío en el teléfono. */
+  const seccionVacia = (appsSeccion: AppDef[]) => appsSeccion.every((app) => flujo.includes(app) || alFinal.includes(app))
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
@@ -86,7 +100,7 @@ export default function Hub() {
 
         <div className="space-y-8">
           {secciones.map(({ titulo, apps: appsSeccion }) => (
-            <section key={titulo ?? "otras"}>
+            <section key={titulo ?? "otras"} className={seccionVacia(appsSeccion) ? "hidden sm:block" : undefined}>
               {titulo && (
                 <h2 className="mb-3 border-b border-border/70 pb-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   {titulo}
@@ -101,6 +115,19 @@ export default function Hub() {
               </div>
             </section>
           ))}
+
+          {alFinal.length > 0 && (
+            <section className="sm:hidden">
+              <h2 className="mb-3 border-b border-border/70 pb-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Más
+              </h2>
+              <div className="grid grid-cols-1 gap-2.5">
+                {alFinal.map((app) => (
+                  <TarjetaAtajo key={app.slug} app={app} turnoActivo={turnoActivo} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </main>
     </div>
