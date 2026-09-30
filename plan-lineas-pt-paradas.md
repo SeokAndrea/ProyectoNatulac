@@ -262,8 +262,8 @@ las funciones que ya existen:
 
 | Archivo | Cambio |
 |---|---|
-| `supabase/migrations/20261087090000_paradas_pantalla_unica.sql` | `paradas.pendiente`, tipo `FALLA_SIN_ESPECIFICAR`, registrar (nueva versión), `completar_parada`, `listar_paradas` devuelve `pendiente`, `finalizar_turno` bloquea pendientes |
-| `supabase/migrations/20261088090000_lineas_cip_y_cierre_corrida.sql` | `quitar_corrida_heredada`, `detener_linea_a_cip`, `cerrar_corrida`, `cambiar_condicion_linea` (motivo y +1 en CIP), `activar_linea` (borra la heredada sin producción) |
+| `supabase/migrations/20261090090000_paradas_pantalla_unica.sql` | `paradas.pendiente`, tipo `FALLA_SIN_ESPECIFICAR`, registrar (nueva versión), `completar_parada`, `listar_paradas` devuelve `pendiente`, `finalizar_turno` bloquea pendientes |
+| `supabase/migrations/20261091090000_lineas_cip_y_cierre_corrida.sql` | `quitar_corrida_heredada`, `detener_linea_a_cip`, `cerrar_corrida`, `cambiar_condicion_linea` (motivo y +1 en CIP), `activar_linea` (borra la heredada sin producción) |
 | `scripts/test-paradas-pantalla-unica.sql`, `scripts/test-lineas-cip-y-cierre-corrida.sql` | Pruebas SQL, mismo estilo que los otros `scripts/test-*.sql` |
 | `src/lib/paradas.ts` (+ test) | `pendiente` en `Parada`, completar, registrar |
 | `src/pages/apps/ParadasMantenimiento.tsx` → pantalla única | Pendientes, +1, ocioso, Falla sin especificar |
