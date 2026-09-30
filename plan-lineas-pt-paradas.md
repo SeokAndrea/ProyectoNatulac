@@ -28,7 +28,7 @@ Agilizar e interconectar:
 | Falla sin especificar | +1 pendiente. Al completarla hay que poner el código y el equipo |
 | Finalizar turno con pendientes | **Bloqueado** hasta completarlas |
 | Línea heredada que no corría | Se quita del turno **sin PT** |
-| Motivos del CIP | PNP (falla eléctrica), 36 h de trabajo, falla mecánica prolongada |
+| Motivos del CIP | Falla en Suministro Eléctrico, 36 h de trabajo, falla mecánica prolongada |
 | Cerrar una corrida en PT | Exige **PT y Contador**. El Contador no se pide si la corrida ya tenía uno |
 | Motivo del CIP al cambiar de turno | No se copia (descartado, no es importante) |
 | Paradas repetidas | Antes de un +1 nuevo, se pide cuánto tardó el anterior igual pendiente. "Es un error" no guarda el nuevo |
@@ -39,7 +39,7 @@ Agilizar e interconectar:
 
 | Lo que elige el supervisor | Parada +1 |
 |---|---|
-| CIP por PNP (falla eléctrica) | Falla en Suministro Eléctrico (`FALLA_SUMINISTRO_ELECTRICO`) |
+| CIP por Falla en Suministro Eléctrico | Falla en Suministro Eléctrico (`FALLA_SUMINISTRO_ELECTRICO`) |
 | CIP por 36 h de trabajo | Limpieza Intermedia Programada (`LIMPIEZA_INTERMEDIA`) |
 | CIP por falla mecánica prolongada | Falla sin especificar (tipo nuevo) |
 | Cambio de Lote | Cambio de Lote (`CAMBIO_LOTE`) |
@@ -146,7 +146,8 @@ lo nuevo):
 
 **Permiso:** entra quien tenga `PARADAS_REGISTRAR` **o** `PARADAS_MANTENIMIENTO`.
 
-**Pantalla** (`/paradas`, basada en `ParadasMantenimiento.tsx`):
+**Pantalla:** es la que hoy se llama **"Paradas de Mantenimiento"**
+(`ParadasMantenimiento.tsx`), abierta a todos. Queda en `/paradas`:
 
 - Nueva parada: línea, tipo (incluye "Falla sin especificar"), horas
   opcionales, detalle. Botón "+1" (o "Guardar" si tiene horas).
@@ -204,20 +205,71 @@ PT, en vez de dejarla cerrada.
 
 - Cada vez que la línea cambia de estado (CIP, Parada, Cambio de Sabor, Sin
   programación, Cambio de Presentación), el supervisor escribe una
-  **descripción breve** a mano (máx. 140 caracteres). En CIP va junto al motivo.
+  **descripción breve** a mano (máx. 140 caracteres). En CIP es **opcional**,
+  porque ya está el motivo.
 - Se guarda en `lineas_estado.observacion` para **todas** las condiciones
   (hoy solo se guarda para Parada).
 - El Panel de Producción la muestra en **todos** los estados de la línea, no
   solo en Parada. `src/pages/apps/PanelProduccion.tsx:219`.
+
+### H. Parada con la línea corriendo (reemplaza a "Parada Operacional")
+
+Una línea puede parar un rato por algo que no es CIP (ejemplo: 20 min por un
+atasco) y seguir con la misma corrida.
+
+- Línea corriendo → botón **Agregar parada**: solo la **descripción breve**
+  (obligatoria). Sin catálogo en Líneas.
+- Suma un **+1 "Parada por clasificar"** en Registrar Paradas y deja la corrida
+  en pausa (como hoy `pausar_linea`). La línea se ve **"Parada"** con la
+  descripción en Líneas y en el Panel de Producción.
+- Botón **"Ir a Registrar Paradas"**: abre esa parada ya desplegada. Ahí se
+  elige el tipo en el catálogo y se ponen los minutos. Se ofrece "Usar N min"
+  con el tiempo pasado desde el +1.
+- **Buscador del catálogo:** no muestra nada hasta que se escribe; como máximo
+  8 resultados, agrupados por familia. Ignora tildes y mayúsculas, y acepta
+  varias palabras en cualquier orden ("logistica", "cambio sabor", "a3f").
+- **Registrar Paradas, compacto:** cada pendiente es una sola fila (línea,
+  descripción, hora, "Detiene la línea" si corresponde) con un botón
+  **Completar**; el formulario se abre solo en esa fila. "Anotar otra parada"
+  y "Completas del turno" quedan plegados.
+- **Producto Terminado con la línea parada:** si falta completar la parada, el
+  botón lleva a Registrar Paradas; si ya está completa, a Líneas.
+- **La línea no puede continuar hasta completar esa parada.** Misma regla para
+  "Terminó CIP" (parada del CIP) y para "Arrancar línea" después de un Cambio
+  de Sabor o de Lote sin tanque listo.
+- Desde la línea parada también se puede **pasar a CIP**. La parada anterior
+  sigue pendiente y se suma la del CIP.
+- Mientras la línea está parada, Producto Terminado no deja cerrar la corrida
+  (como hoy): primero se continúa o se pasa a CIP.
+- Base de datos: `pausar_linea` recibe el tipo y crea el +1 en la misma
+  transacción; `continuar_linea` recibe los minutos (opcionales) y completa esa
+  parada. La parada queda ligada a la corrida (`paradas.turno_linea_id`).
 
 ### C. CIP con motivo
 
 - **Línea sin corrida:** "Iniciar CIP" pide el motivo. `cambiar_condicion_linea`
   guarda el texto también para CIP (hoy solo para Parada) y suma el +1.
 - **Línea corriendo, pausada o con lote terminado:** botón nuevo "CIP", con
-  motivo y doble confirmación. Función nueva `detener_linea_a_cip`: como
-  `detener_linea_por_falla`, pero deja la línea en CIP y suma el +1. La corrida
-  queda Esperando PT.
+  motivo y doble confirmación. Pregunta **"¿El lote sigue después del CIP?"**
+  (ejemplo: se fue la luz y luego se continúa el mismo lote):
+  - **Sí, sigue:** la corrida queda **abierta y en pausa** (no pide PT a mitad
+    del lote) y la línea queda "En CIP". Al terminar: botón **"Terminó CIP:
+    continuar el Lote X"**, que reanuda la misma corrida. Mientras tanto hay un
+    botón **"El lote ya no sigue"**, que la pasa a Esperando PT.
+  - **No, termina aquí:** la corrida queda Esperando PT, como con Detener línea.
+  - Función nueva `detener_linea_a_cip(usuario, turno, corrida, motivo, lote_sigue)`.
+    En ambos casos deja la línea en CIP y suma el +1 en la misma transacción.
+  - Terminar el CIP exige completar su parada, como el resto (sección H).
+- **Motivos, tal como se muestran:** "Falla en Suministro Eléctrico", "36 h de
+  trabajo" y "Falla mecánica prolongada".
+- **Formularios paso a paso:** se muestra una sola pregunta a la vez. Al
+  responder, las opciones desaparecen y queda una línea con lo elegido
+  ("Motivo: Falla en Suministro Eléctrico"); después aparece la siguiente
+  pregunta. Orden: motivo → "¿El lote sigue?" (si hay corrida) → descripción y
+  botón. Si hubo un error, **Cancelar** borra lo respondido y se empieza de
+  nuevo. Igual en Comenzar Turno ("No estaba corriendo": primero en qué quedó
+  la línea), Líneas y Producto Terminado ("¿Qué sigue?"; ahí Cancelar no borra
+  el Contador ni el PT escritos).
 - **Panel de Producción:** muestra el motivo también con la línea en CIP
   (hoy solo con Parada). `src/pages/apps/PanelProduccion.tsx:219`.
 
@@ -279,8 +331,8 @@ las funciones que ya existen:
 
 1. Arreglos pequeños (F). Sin base de datos.
 2. Paradas: migración, pruebas SQL, pantalla única, Finalizar Turno (P).
-3. Líneas: migración, pruebas SQL, descripción breve (G), CIP con motivo (C),
-   revisión de inicio (A, B).
+3. Líneas: migración, pruebas SQL, descripción breve (G), Parada y Continuar
+   (H), CIP con motivo (C), revisión de inicio (A, B).
 4. Producto Terminado (D).
 5. Panel, manual y MAPA.
 

@@ -1,0 +1,1398 @@
+<title>Simulador de Turno</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: barra del turno y pestañas arriba; a la izquierda la pantalla elegida, a la derecha la bitácora de lo que hace el sistema. */
+:root {
+  --bg: oklch(0.972 0.003 247.858);
+  --surface: oklch(1 0 0);
+  --soft: oklch(0.955 0.008 250);
+  --ink: oklch(0.129 0.042 264.695);
+  --muted: oklch(0.45 0.035 257.4);
+  --line: oklch(0.9 0.014 255.5);
+  --primary: oklch(0.208 0.042 265.755);
+  --on-primary: oklch(0.984 0.003 247.858);
+  --ok: oklch(0.63 0.16 156);
+  --ok-ink: oklch(0.38 0.11 156);
+  --ok-soft: oklch(0.94 0.05 156);
+  --warn: oklch(0.76 0.15 74);
+  --warn-ink: oklch(0.42 0.1 66);
+  --warn-soft: oklch(0.95 0.06 84);
+  --bad: oklch(0.56 0.21 22);
+  --bad-ink: oklch(0.44 0.17 24);
+  --bad-soft: oklch(0.94 0.05 22);
+  --info: oklch(0.55 0.16 245);
+  --info-ink: oklch(0.42 0.13 250);
+  --info-soft: oklch(0.94 0.04 245);
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", monospace;
+  --r: 0.5rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: oklch(0.196 0.02 258);
+    --surface: oklch(0.245 0.022 258);
+    --soft: oklch(0.285 0.03 260);
+    --ink: oklch(0.97 0.004 247.9);
+    --muted: oklch(0.72 0.04 256.8);
+    --line: oklch(0.36 0.03 258);
+    --primary: oklch(0.929 0.013 255.508);
+    --on-primary: oklch(0.208 0.042 265.755);
+    --ok-ink: oklch(0.82 0.12 156);
+    --ok-soft: oklch(0.32 0.06 156);
+    --warn-ink: oklch(0.87 0.12 82);
+    --warn-soft: oklch(0.34 0.06 74);
+    --bad-ink: oklch(0.8 0.13 24);
+    --bad-soft: oklch(0.33 0.07 22);
+    --info-ink: oklch(0.82 0.1 245);
+    --info-soft: oklch(0.32 0.06 245);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: oklch(0.196 0.02 258);
+  --surface: oklch(0.245 0.022 258);
+  --soft: oklch(0.285 0.03 260);
+  --ink: oklch(0.97 0.004 247.9);
+  --muted: oklch(0.72 0.04 256.8);
+  --line: oklch(0.36 0.03 258);
+  --primary: oklch(0.929 0.013 255.508);
+  --on-primary: oklch(0.208 0.042 265.755);
+  --ok-ink: oklch(0.82 0.12 156);
+  --ok-soft: oklch(0.32 0.06 156);
+  --warn-ink: oklch(0.87 0.12 82);
+  --warn-soft: oklch(0.34 0.06 74);
+  --bad-ink: oklch(0.8 0.13 24);
+  --bad-soft: oklch(0.33 0.07 22);
+  --info-ink: oklch(0.82 0.1 245);
+  --info-soft: oklch(0.32 0.06 245);
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+
+.top {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding-inline: 16px;
+}
+.top-row {
+  max-width: 1240px;
+  margin-inline: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding-block: 10px;
+}
+.brand { display: flex; flex-direction: column; margin-right: auto; }
+.brand h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.brand span { font-size: 12px; color: var(--muted); }
+.chip-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+.tabs {
+  max-width: 1240px;
+  margin-inline: auto;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab {
+  border: 0;
+  background: none;
+  padding: 10px 12px 11px;
+  font-weight: 500;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--primary); font-weight: 600; }
+.count {
+  min-width: 20px;
+  height: 20px;
+  padding-inline: 6px;
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.wrap {
+  max-width: 1240px;
+  margin-inline: auto;
+  padding: 20px 16px 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+@media (min-width: 1000px) {
+  .wrap { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+  .aside { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 110px); }
+}
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.intro { display: flex; flex-direction: column; gap: 4px; }
+.intro h2 { font-size: 20px; font-weight: 700; }
+.intro p { color: var(--muted); max-width: 68ch; }
+
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.linea-tag {
+  font-weight: 700;
+  font-size: 15px;
+  padding: 2px 8px;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+}
+.kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; font-size: 14px; }
+.kv dt { font-size: 12px; color: var(--muted); }
+.kv dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.num { font-variant-numeric: tabular-nums; }
+.small { font-size: 13px; color: var(--muted); }
+.mono { font-family: var(--font-mono); font-size: 12.5px; }
+
+.pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pill.ok { background: var(--ok-soft); color: var(--ok-ink); }
+.pill.warn { background: var(--warn-soft); color: var(--warn-ink); }
+.pill.bad { background: var(--bad-soft); color: var(--bad-ink); }
+.pill.info { background: var(--info-soft); color: var(--info-ink); }
+.pill.mute { background: var(--soft); color: var(--muted); }
+
+.note {
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.note.warn { background: var(--warn-soft); color: var(--warn-ink); }
+.note.info { background: var(--info-soft); color: var(--info-ink); }
+.note.ok { background: var(--ok-soft); color: var(--ok-ink); }
+.note.bad { background: var(--bad-soft); color: var(--bad-ink); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { background: var(--soft); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.btn.primary:hover:not(:disabled) { background: var(--primary); opacity: 0.9; }
+.btn.danger { color: var(--bad-ink); border-color: color-mix(in oklch, var(--bad) 45%, var(--line)); }
+.btn.ghost { border-color: transparent; background: none; color: var(--muted); }
+.btn.plus { font-family: var(--font-mono); font-weight: 600; font-size: 15px; padding-inline: 16px; }
+
+.form {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--soft);
+}
+.form-title { font-size: 13px; font-weight: 600; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
+.field input, .field select, .field textarea, .inp {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 14px;
+  color: var(--ink);
+  width: 100%;
+  min-width: 0;
+}
+.field textarea { resize: vertical; min-height: 56px; }
+.fields2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt {
+  border: 2px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+.opt[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklch, var(--primary) 8%, var(--surface)); }
+.opt small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.missing { font-size: 12.5px; color: var(--bad-ink); display: flex; flex-direction: column; gap: 2px; margin: 0; padding-left: 16px; }
+
+.tanques { display: flex; flex-wrap: wrap; gap: 8px; }
+.tanque {
+  flex: 1 1 180px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tanque b { font-size: 14px; }
+
+.list { display: flex; flex-direction: column; gap: 8px; }
+.row {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.row-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.row-title { font-weight: 600; }
+.row-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.row-inline .field { flex: 1 1 140px; }
+.section-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
+.aside {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 140px);
+  overflow: hidden;
+}
+.aside h2 { font-size: 14px; font-weight: 600; }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: 44px 1fr; gap: 6px; font-size: 13px; }
+.log time { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 1px; }
+.log li.sys span { color: var(--ink); }
+.log li.sys span::before { content: "Sistema · "; color: var(--info-ink); font-weight: 600; }
+.log li.usr span { color: var(--muted); }
+
+.banner {
+  border: 1px solid color-mix(in oklch, var(--info) 40%, var(--line));
+  background: var(--info-soft);
+  color: var(--ink);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.banner b { color: var(--info-ink); }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in oklch, var(--ink) 40%, transparent);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 18px;
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.modal h3 { font-size: 17px; }
+
+details.closed summary { cursor: pointer; color: var(--muted); font-size: 14px; padding-block: 4px; }
+.proto {
+  font-size: 12px;
+  color: var(--warn-ink);
+  background: var(--warn-soft);
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .flash { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { box-shadow: 0 0 0 3px color-mix(in oklch, var(--info) 45%, transparent); } to { box-shadow: 0 0 0 0 transparent; } }
+}
+.picker { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pick-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+.pick-group { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-top: 4px; font-weight: 600; }
+.pick {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 6px 9px;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.pick:hover { background: var(--soft); }
+.pick[aria-pressed="true"] { border-color: var(--primary); background: color-mix(in oklch, var(--primary) 8%, var(--surface)); }
+.pick .mono { min-width: 84px; color: var(--muted); }
+.elegido { font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.desc-linea { font-size: 15px; font-weight: 500; }
+</style>
+
+<div id="app"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Catálogo de ejemplo (el real tiene ~46 tipos + las fallas de cada equipo) ----------
+  const TIPOS = {
+    CAMBIO_LOTE: { nombre: "Cambio de Lote", clase: "Programada", familia: "Programadas", guia: 10, cod: (n) => `PPL${n}` },
+    CAMBIO_SABOR: { nombre: "Cambio de Sabor", clase: "Programada", familia: "Programadas", guia: 25, cod: (n) => `PPL${n}` },
+    LIMPIEZA_INTERMEDIA: { nombre: "Limpieza Intermedia Programada", clase: "Programada", familia: "Programadas", guia: 180, cod: (n) => `PPL${n}` },
+    DESCANSO_LEGAL: { nombre: "Descanso Legal", clase: "Programada", familia: "Programadas", guia: 30, cod: (n) => `PPL${n}` },
+    FALTA_INSUMOS_PALETAS: { nombre: "Falta de Insumos/Paletas", clase: "No programada", familia: "Línea no programada", guia: null, cod: (n) => `LNPEL${n}-2` },
+    FALLA_SUMINISTRO_ELECTRICO: { nombre: "Falla en Suministro Eléctrico", clase: "No programada", familia: "Línea no programada", guia: null, cod: (n) => `LNPEL${n}-3` },
+    LOGISTICA_LINEA: { nombre: "Logística de Línea", clase: "No programada", familia: "Operacionales", guia: null, cod: (n) => `OPL${n}-3` },
+    FALTA_DISPONIBILIDAD_INSUMO: { nombre: "Falta de Disponibilidad de Insumo", clase: "No programada", familia: "Operacionales", guia: null, cod: (n) => `OPL${n}-5` },
+    FALLA_OPERACIONAL: { nombre: "Falla Operacional (Operación)", clase: "No programada", familia: "Operacionales", guia: null, cod: (n) => `OPL${n}-7` },
+    FALTA_OPERADOR: { nombre: "Falta de Operador", clase: "No programada", familia: "Operacionales", guia: null, cod: (n) => `OPL${n}-8` },
+    FALTA_VAPOR: { nombre: "Falta de Vapor", clase: "No programada", familia: "Suministro", guia: null, cod: (n) => `SCL${n}-1` },
+    EQ_A3F_12: { nombre: "A3 Flex · Falla de mordazas", clase: "No programada", familia: "Equipos", guia: null, cod: () => "A3F-12" },
+    EQ_A3F_31: { nombre: "A3 Flex · Falla de sellado transversal", clase: "No programada", familia: "Equipos", guia: null, cod: () => "A3F-31" },
+    EQ_CP_4: { nombre: "Cardboard Packer · Atasco de cajas", clase: "No programada", familia: "Equipos", guia: null, cod: () => "CP-4" },
+    EQ_HX_3: { nombre: "Helix · Falla del aplicador", clase: "No programada", familia: "Equipos", guia: null, cod: () => "HX-3" },
+    EQ_ST_2: { nombre: "Straw · Falla de pajilla", clase: "No programada", familia: "Equipos", guia: null, cod: () => "ST-2" },
+    OCIOSO: { nombre: "Tiempo ocioso", clase: "Ocioso", familia: "Tiempo ocioso", guia: null, cod: () => "—" },
+    FALLA_SIN_ESPECIFICAR: { nombre: "Falla sin especificar", clase: "No programada", familia: "Por completar", guia: null, cod: () => "falta código", completar: "EQUIPO" },
+    POR_CLASIFICAR: { nombre: "Parada por clasificar", clase: "—", familia: "Por completar", guia: null, cod: () => "falta tipo", completar: "TODOS" },
+  };
+  const FILTRO_COMPLETAR = {
+    TODOS: (k, t) => t.familia !== "Por completar",
+    EQUIPO: (k, t) => t.familia === "Equipos",
+  };
+  const FILTRO_REGISTRO = (k) => k !== "POR_CLASIFICAR";
+  const MOTIVOS_CIP = {
+    PNP: { label: "Falla en Suministro Eléctrico", tipo: "FALLA_SUMINISTRO_ELECTRICO" },
+    H36: { label: "36 h de trabajo", tipo: "LIMPIEZA_INTERMEDIA" },
+    MEC: { label: "Falla mecánica prolongada", tipo: "FALLA_SIN_ESPECIFICAR" },
+  };
+  const CONDICIONES = {
+    LISTA: { nombre: "Lista para arrancar", pill: "ok" },
+    CIP: { nombre: "En CIP", pill: "warn" },
+    DETENIDA: { nombre: "Parada", pill: "bad" },
+    SIN_PROGRAMACION: { nombre: "Sin programación", pill: "info" },
+    CAMBIO_PRESENTACION: { nombre: "Cambio de Presentación", pill: "warn" },
+  };
+  // 250 ml: 24 envases por caja, 90 cajas por paleta (valores de ejemplo).
+  const ENV_X_CAJA = 24;
+  const CAJAS_X_PALETA = 90;
+  const ML = 250;
+
+  // ---------- Estado ----------
+  let S;
+  let uidN = 100;
+  const uid = (p) => `${p}${++uidN}`;
+
+  function inicial() {
+    return {
+      min: 7 * 60 + 15,
+      tab: "status",
+      d: {},
+      ui: {},
+      banner: null,
+      aviso: null,
+      tanques: [
+        { n: 1, sabor: "Naranja", lote: "0004", litros: 3200, listo: true },
+        { n: 2, sabor: "Naranja", lote: "0005", litros: 18000, listo: true },
+        { n: 3, sabor: "Mango", lote: "0012", litros: 17600, listo: true },
+      ],
+      lineas: [
+        { n: 1, cond: "LISTA", desc: "", motivo: null, paradaId: null },
+        { n: 2, cond: "LISTA", desc: "", motivo: null, paradaId: null },
+        { n: 3, cond: "CIP", desc: "Limpieza por horas de trabajo, arrancó a las 05:40", motivo: "H36", paradaId: null },
+      ],
+      corridas: [
+        { id: "c1", linea: 1, sabor: "Naranja", lote: "0004", tanque: 1, vel: 9000, estado: "ACTIVA", heredada: true, confirmada: false, contador: 0, buenos: 0, pt: null, pausa: null },
+        { id: "c2", linea: 2, sabor: "Mango", lote: "0011", tanque: null, vel: 7500, estado: "ACTIVA", heredada: true, confirmada: false, contador: 0, buenos: 0, pt: null, pausa: null },
+      ],
+      paradas: [
+        { id: "p1", linea: 1, tipo: "FALLA_SIN_ESPECIFICAR", pendiente: true, hora: "07:05", desde: 7 * 60 + 5, origen: "Manual · Mantenimiento", detalle: "La llenadora se detuvo, revisando", min: null, just: "" },
+        { id: "p2", linea: 1, tipo: "LOGISTICA_LINEA", pendiente: false, hora: "07:02", desde: 7 * 60 + 2, origen: "Manual · Supervisor", detalle: "", min: 12, just: "" },
+      ],
+      log: [
+        { h: "07:00", t: "Abrió el turno T1 y copió las corridas activas del turno anterior (Línea 1 y Línea 2), sin confirmar.", k: "sys" },
+      ],
+      finalizado: false,
+    };
+  }
+
+  // ---------- Utilidades ----------
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const hhmm = (m = S.min) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const fmt = (n) => Number(n).toLocaleString("es-VE");
+  const tick = (m = 4) => { S.min += m; };
+  const log = (t, k = "sys") => S.log.unshift({ h: hhmm(), t, k });
+  const dget = (k) => S.d[k] ?? "";
+  const dnum = (k) => { const v = S.d[k]; return v === undefined || v === "" ? null : Number(v); };
+  const clearD = (prefix) => { Object.keys(S.d).forEach((k) => { if (k.startsWith(prefix)) delete S.d[k]; }); };
+  const nombreLinea = (n) => `Línea ${n}`;
+  const linea = (n) => S.lineas.find((l) => l.n === n);
+  const activa = (n) => S.corridas.find((c) => c.linea === n && (c.estado === "ACTIVA" || c.estado === "ENTREGADA"));
+  const esperando = (n) => S.corridas.filter((c) => c.linea === n && c.estado === "ESPERANDO_PT");
+  const enUso = (t) => S.corridas.some((c) => (c.estado === "ACTIVA" || c.estado === "ENTREGADA") && c.tanque === t.n);
+  const siguienteLote = (lote) => String(Number(lote) + 1).padStart(Math.max(4, lote.length), "0");
+  function tanqueSiguiente(c) {
+    const cand = S.tanques.filter((t) => t.listo && t.sabor === c.sabor && t.lote === siguienteLote(c.lote) && !enUso(t));
+    return cand.length === 1 ? cand[0] : null;
+  }
+  const tanquesLibres = () => S.tanques.filter((t) => t.listo && !enUso(t));
+  const pendientesParadas = () => S.paradas.filter((p) => p.pendiente);
+  const porRevisar = () => S.corridas.filter((c) => c.heredada && c.estado === "ACTIVA" && !c.confirmada);
+  const paraPT = () => S.corridas.filter((c) => c.estado === "ACTIVA" || c.estado === "ESPERANDO_PT");
+  const parada = (id) => S.paradas.find((p) => p.id === id) || null;
+  /** Parada sin completar que impide continuar o arrancar la línea. */
+  function paradaQueBloquea(n) {
+    const a = activa(n);
+    if (a && a.pausa) { const p = parada(a.pausa.pid); return p && p.pendiente ? p : null; }
+    const l = linea(n);
+    const p = l.paradaId ? parada(l.paradaId) : null;
+    return p && p.pendiente ? p : null;
+  }
+  /** Línea a la que esta parada tiene detenida (o null). */
+  function lineaBloqueadaPor(p) {
+    const n = p.linea;
+    const b = paradaQueBloquea(n);
+    return b && b.id === p.id ? n : null;
+  }
+
+  // ---------- Paradas ----------
+  function sumarParada(n, tipo, origen, detalle = "") {
+    const p = { id: uid("p"), linea: n, tipo, pendiente: true, hora: hhmm(), desde: S.min, origen, detalle, min: null, just: "" };
+    S.paradas.push(p);
+    log(`+1 «${TIPOS[tipo].nombre}» en ${nombreLinea(n)}. Queda pendiente en Registrar Paradas.`);
+    return p;
+  }
+  const dupDe = (n, tipo) => S.paradas.find((p) => p.pendiente && p.linea === n && p.tipo === tipo);
+  /** Si ya hay un +1 igual pendiente en la línea, primero se pide cuánto tardó ese. */
+  function conControlRepetida(n, tipo, contexto, seguir) {
+    const d = dupDe(n, tipo);
+    if (!d) return seguir();
+    clearD("modal.");
+    S.ui.modal = { k: "dup", pid: d.id, contexto, seguir };
+    render();
+  }
+  function faltanParaCompletar(p, pref) {
+    const faltan = [];
+    const comp = TIPOS[p.tipo].completar;
+    const tipoFinal = comp ? dget(`${pref}.tipo`) : p.tipo;
+    if (comp && !tipoFinal) faltan.push(comp === "EQUIPO" ? "Código y equipo de la falla" : "Tipo de parada (búscalo en el catálogo)");
+    const m = dnum(`${pref}.min`);
+    if (!(m > 0)) faltan.push("Minutos que duró (mayor que 0)");
+    const t = tipoFinal ? TIPOS[tipoFinal] : null;
+    if (t && t.guia && m > t.guia && !dget(`${pref}.just`).trim()) faltan.push(`Justificación: pasó del tiempo guía de ${t.guia} min`);
+    return faltan;
+  }
+  function completarParada(p, pref) {
+    const bloqueaba = lineaBloqueadaPor(p);
+    const comp = TIPOS[p.tipo].completar;
+    if (comp) { p.tipoOriginal = p.tipo; p.tipo = dget(`${pref}.tipo`); }
+    p.min = dnum(`${pref}.min`);
+    p.just = dget(`${pref}.just`).trim();
+    p.pendiente = false;
+    log(`${nombreLinea(p.linea)}: «${TIPOS[p.tipo].nombre}» completada con ${p.min} min.`, "usr");
+    if (bloqueaba) {
+      log(`${nombreLinea(bloqueaba)} ya puede continuar.`);
+      S.aviso = bloqueaba;
+    }
+    clearD(pref + ".");
+  }
+
+  // ---------- Acciones ----------
+  const A = {};
+
+  A.tab = (el) => { S.tab = el.dataset.v; if (S.tab !== "paradas") S.aviso = null; render(); window.scrollTo({ top: 0 }); };
+  A.set = (el) => { S.d[el.dataset.k] = el.dataset.v; render(); };
+  A.ui = (el) => { S.ui[el.dataset.k] = el.dataset.v === "" ? null : el.dataset.v; render(); };
+  /** Cancelar un formulario paso a paso: borra lo respondido y cierra (data-cerrar = llave de S.ui). */
+  /** Cancela solo algunas respuestas (ej. "¿Qué sigue?" en Producto Terminado, sin borrar el Contador ni el PT). */
+  A.cancelarClaves = (el) => { el.dataset.claves.split(",").forEach((k) => delete S.d[k]); render(); };
+  A.cancelar = (el) => {
+    clearD(el.dataset.pref + ".");
+    if (el.dataset.cerrar) S.ui[el.dataset.cerrar] = null;
+    render();
+  };
+  A.reiniciar = () => { S = inicial(); render(); };
+  A.avanzar = () => { S.min += 10; render(); };
+
+  // Comenzar Turno
+  A.confirmar = (el) => {
+    const c = S.corridas.find((x) => x.id === el.dataset.id);
+    c.confirmada = true;
+    tick();
+    log(`Confirmaste ${nombreLinea(c.linea)}: sigue con ${c.sabor} · Lote ${c.lote}.`, "usr");
+    render();
+  };
+  function nuevaCorrida(n, t, vel) {
+    S.corridas.push({ id: uid("c"), linea: n, sabor: t.sabor, lote: t.lote, tanque: t.n, vel, estado: "ACTIVA", heredada: false, confirmada: true, contador: 0, buenos: 0, pt: null, pausa: null });
+  }
+  A.continuarRevision = (el) => {
+    const c = S.corridas.find((x) => x.id === el.dataset.id);
+    const t = tanqueSiguiente(c);
+    if (!t) return;
+    tick();
+    S.corridas = S.corridas.filter((x) => x.id !== c.id);
+    nuevaCorrida(c.linea, t, c.vel);
+    log(`Continuaste ${nombreLinea(c.linea)} al siguiente lote.`, "usr");
+    log(`Quitó la copia heredada del Lote ${c.lote} (no produjo en este turno, no pide Producto Terminado). ${nombreLinea(c.linea)} arrancó con el Lote ${t.lote} del Tanque ${t.n}, misma presentación y velocidad.`);
+    render();
+  };
+  A.noCorriaOk = (el) => {
+    const c = S.corridas.find((x) => x.id === el.dataset.id);
+    const pref = `nc.${c.id}`;
+    const cond = dget(`${pref}.cond`);
+    const l = linea(c.linea);
+    const aplicar = () => {
+      tick();
+      S.corridas = S.corridas.filter((x) => x.id !== c.id);
+      l.cond = cond;
+      l.desc = dget(`${pref}.desc`).trim();
+      l.motivo = cond === "CIP" ? dget(`${pref}.motivo`) : null;
+      S.ui.noCorria = null;
+      log(`Marcaste que ${nombreLinea(c.linea)} no estaba corriendo.`, "usr");
+      log(`Quitó la copia heredada del Lote ${c.lote} sin pedir Producto Terminado: el turno anterior conserva la suya. ${nombreLinea(c.linea)} quedó en «${CONDICIONES[cond].nombre}».`);
+      if (cond === "CIP") l.paradaId = sumarParada(c.linea, MOTIVOS_CIP[l.motivo].tipo, "Automática · Comenzar Turno", l.desc).id;
+      clearD(pref + ".");
+      render();
+    };
+    if (cond === "CIP") conControlRepetida(c.linea, MOTIVOS_CIP[dget(`${pref}.motivo`)].tipo, "auto", aplicar);
+    else aplicar();
+  };
+  A.corregirOk = (el) => {
+    const c = S.corridas.find((x) => x.id === el.dataset.id);
+    const t = S.tanques.find((x) => x.n === Number(dget(`co.${c.id}.tanque`)));
+    if (!t) return;
+    tick();
+    S.corridas = S.corridas.filter((x) => x.id !== c.id);
+    nuevaCorrida(c.linea, t, c.vel);
+    S.ui.corregir = null;
+    log(`Corregiste ${nombreLinea(c.linea)}: toma ${t.sabor} · Lote ${t.lote} del Tanque ${t.n}.`, "usr");
+    log(`Quitó la copia heredada del Lote ${c.lote} (sin producción en este turno, no cuenta para la eficiencia).`);
+    clearD(`co.${c.id}.`);
+    render();
+  };
+
+  // Líneas
+  A.pararOk = (el) => {
+    const n = Number(el.dataset.n);
+    const pref = `par.${n}`;
+    const desc = dget(`${pref}.desc`).trim();
+    const a = activa(n);
+    tick();
+    const p = sumarParada(n, "POR_CLASIFICAR", "Automática · Líneas", desc);
+    a.pausa = { pid: p.id, desde: S.min, desc };
+    S.ui[`par${n}`] = null;
+    log(`Paraste ${nombreLinea(n)}: ${desc}.`, "usr");
+    log(`${nombreLinea(n)} se ve «Parada» en Líneas y en el Panel. Para continuar hay que completar la parada (tipo y minutos).`);
+    clearD(pref + ".");
+    render();
+  };
+  A.continuarParada = (el) => {
+    const n = Number(el.dataset.n);
+    if (paradaQueBloquea(n)) return;
+    const a = activa(n);
+    tick();
+    a.pausa = null;
+    log(`${nombreLinea(n)} continuó.`, "usr");
+    render();
+  };
+  A.irAParada = (el) => {
+    S.tab = "paradas";
+    S.ui.enfocar = el.dataset.id;
+    S.ui.abierta = el.dataset.id;
+    render();
+    const fila = document.getElementById(`fila-${el.dataset.id}`);
+    if (fila) fila.scrollIntoView({ block: "center" });
+  };
+  A.cipCorridaOk = (el) => {
+    const n = Number(el.dataset.n);
+    const pref = `cipc.${n}`;
+    if (dget(`${pref}.paso`) !== "2") { S.d[`${pref}.paso`] = "2"; return render(); }
+    const c = activa(n);
+    const motivo = dget(`${pref}.motivo`);
+    const loteSigue = dget(`${pref}.sigue`) === "SI";
+    conControlRepetida(n, MOTIVOS_CIP[motivo].tipo, "auto", () => {
+      tick();
+      const l = linea(n);
+      l.cond = "CIP";
+      l.motivo = motivo;
+      l.desc = dget(`${pref}.desc`).trim();
+      S.ui[`cipc${n}`] = null;
+      const p = sumarParada(n, MOTIVOS_CIP[motivo].tipo, "Automática · Líneas", l.desc);
+      l.paradaId = p.id;
+      log(`Pusiste ${nombreLinea(n)} en CIP (${MOTIVOS_CIP[motivo].label}).`, "usr");
+      if (loteSigue) {
+        c.pausa = { pid: p.id, desde: S.min, desc: l.desc || MOTIVOS_CIP[motivo].label, cip: true };
+        log(`La corrida del Lote ${c.lote} sigue abierta, en pausa: al terminar el CIP continúa con el mismo lote, sin cargar Producto Terminado a mitad del lote.`);
+      } else {
+        c.estado = "ESPERANDO_PT";
+        c.pausa = null;
+        log(`La corrida del Lote ${c.lote} quedó esperando su Producto Terminado. ${nombreLinea(n)} quedó «En CIP».`);
+      }
+      clearD(pref + ".");
+      render();
+    });
+  };
+  A.terminoCipContinuar = (el) => {
+    const n = Number(el.dataset.n);
+    if (paradaQueBloquea(n)) return;
+    const a = activa(n);
+    const l = linea(n);
+    tick();
+    a.pausa = null;
+    l.cond = "LISTA"; l.desc = ""; l.motivo = null; l.paradaId = null;
+    log(`${nombreLinea(n)}: terminó el CIP y continuó con el Lote ${a.lote}.`, "usr");
+    render();
+  };
+  A.loteNoSigue = (el) => {
+    const n = Number(el.dataset.n);
+    const a = activa(n);
+    tick();
+    a.estado = "ESPERANDO_PT";
+    a.pausa = null;
+    log(`Marcaste que el Lote ${a.lote} ya no sigue en ${nombreLinea(n)}.`, "usr");
+    log(`La corrida quedó esperando su Producto Terminado. La línea sigue «En CIP».`);
+    render();
+  };
+  A.condOk = (el) => {
+    const n = Number(el.dataset.n);
+    const pref = `cond.${n}`;
+    const cond = S.ui[`cond${n}`];
+    const l = linea(n);
+    const aplicar = () => {
+      tick();
+      l.cond = cond;
+      l.desc = dget(`${pref}.desc`).trim();
+      l.motivo = cond === "CIP" ? dget(`${pref}.motivo`) : null;
+      S.ui[`cond${n}`] = null;
+      log(`${nombreLinea(n)} pasó a «${CONDICIONES[cond].nombre}»${l.desc ? `: ${l.desc}` : ""}.`, "usr");
+      if (cond === "CIP") l.paradaId = sumarParada(n, MOTIVOS_CIP[l.motivo].tipo, "Automática · Líneas", l.desc).id;
+      clearD(pref + ".");
+      render();
+    };
+    if (cond === "CIP") conControlRepetida(n, MOTIVOS_CIP[dget(`${pref}.motivo`)].tipo, "auto", aplicar);
+    else aplicar();
+  };
+  A.terminoCip = (el) => {
+    const l = linea(Number(el.dataset.n));
+    if (paradaQueBloquea(l.n)) return;
+    tick();
+    l.cond = "LISTA"; l.desc = ""; l.motivo = null; l.paradaId = null;
+    log(`${nombreLinea(l.n)}: terminó el CIP. Quedó lista para arrancar.`, "usr");
+    render();
+  };
+  A.arrancarOk = (el) => {
+    const n = Number(el.dataset.n);
+    if (paradaQueBloquea(n)) return;
+    const t = S.tanques.find((x) => x.n === Number(dget(`arr.${n}.tanque`)));
+    if (!t) return;
+    tick();
+    nuevaCorrida(n, t, 9000);
+    linea(n).paradaId = null;
+    S.ui[`arr${n}`] = null;
+    log(`Arrancaste ${nombreLinea(n)} con ${t.sabor} · Lote ${t.lote} del Tanque ${t.n}.`, "usr");
+    clearD(`arr.${n}.`);
+    render();
+  };
+
+  // Producto Terminado
+  function ptCalculo(c) {
+    const pref = `pt.${c.id}`;
+    const pal = dnum(`${pref}.pal`) ?? 0;
+    const caj = dnum(`${pref}.caj`) ?? 0;
+    const cajas = pal * CAJAS_X_PALETA + caj;
+    const envases = cajas * ENV_X_CAJA;
+    const litros = (envases * ML) / 1000;
+    const nuevoCont = dnum(`${pref}.cont`) ?? 0;
+    const contTotal = c.contador + nuevoCont;
+    const merma = contTotal > 0 && envases > 0 ? Math.round((1 - envases / contTotal) * 1000) / 10 : null;
+    return { pal, caj, cajas, envases, litros, nuevoCont, contTotal, merma };
+  }
+  function ptFaltan(c) {
+    const pref = `pt.${c.id}`;
+    const f = [];
+    const cont = dnum(`${pref}.cont`);
+    const buenos = dnum(`${pref}.buenos`);
+    if (c.contador === 0 && !(cont > 0)) f.push("Envases de la llenadora (Contador)");
+    if (cont > 0 && (buenos === null || buenos < 0)) f.push("Envases buenos (Contador 2)");
+    if (cont > 0 && buenos !== null && buenos > cont) f.push("Los envases buenos no pueden superar a los de la llenadora");
+    if (dget(`${pref}.pal`) === "" && dget(`${pref}.caj`) === "") f.push("Paletas o Cajas sueltas (Producto Terminado)");
+    if (c.estado === "ACTIVA") {
+      const sigue = dget(`${pref}.sigue`);
+      if (!sigue) f.push("¿Qué sigue con la línea?");
+      if (sigue === "CIP" && !dget(`${pref}.motivo`)) f.push("Motivo del CIP");
+      const sinTanque = sigue === "CAMBIO_LOTE" && !tanqueSiguiente(c);
+      if ((["CAMBIO_SABOR", "SIN_PROGRAMACION"].includes(sigue) || sinTanque) && !dget(`${pref}.desc`).trim()) f.push("Descripción breve para el Panel");
+    }
+    return f;
+  }
+  A.cerrarCorrida = (el) => {
+    const c = S.corridas.find((x) => x.id === el.dataset.id);
+    const pref = `pt.${c.id}`;
+    const sigue = c.estado === "ACTIVA" ? dget(`${pref}.sigue`) : null;
+    const tipoPlus = sigue === "CAMBIO_LOTE" ? "CAMBIO_LOTE" : sigue === "CAMBIO_SABOR" ? "CAMBIO_SABOR" : sigue === "CIP" ? MOTIVOS_CIP[dget(`${pref}.motivo`)].tipo : null;
+
+    const aplicar = () => {
+      tick();
+      const k = ptCalculo(c);
+      const l = linea(c.linea);
+      const buenos = dnum(`${pref}.buenos`) ?? 0;
+      const desc = dget(`${pref}.desc`).trim();
+      c.contador += k.nuevoCont;
+      c.buenos += buenos;
+      c.pt = { pal: k.pal, caj: k.caj, litros: k.litros };
+      c.confirmada = true;
+      const tanque = S.tanques.find((t) => t.n === c.tanque && t.lote === c.lote);
+      if (tanque) tanque.litros = Math.max(0, tanque.litros - k.litros);
+      const partes = [`Guardó en un solo paso: Contador ${fmt(k.nuevoCont)} envases, ${k.pal} paletas + ${k.caj} cajas (${fmt(k.litros)} L)`];
+      let tSig = null;
+      let ligarParada = false;
+      if (sigue === "ENTREGAR") {
+        c.estado = "ENTREGADA";
+        partes.push(`${nombreLinea(c.linea)} sigue corriendo y queda entregada al próximo turno`);
+      } else {
+        c.estado = "CERRADA";
+        if (sigue === "CAMBIO_LOTE") tSig = tanqueSiguiente(c);
+        if (tSig) {
+          nuevaCorrida(c.linea, tSig, c.vel);
+          partes.push(`${nombreLinea(c.linea)} siguió sola con el Lote ${tSig.lote} del Tanque ${tSig.n}`);
+        } else if (sigue === "CAMBIO_LOTE" || sigue === "CAMBIO_SABOR") {
+          l.cond = "DETENIDA"; l.desc = desc || TIPOS[sigue].nombre; l.motivo = null;
+          ligarParada = true;
+          partes.push(`${nombreLinea(c.linea)} quedó «Parada»: no arranca hasta completar la parada`);
+        } else if (sigue === "CIP") {
+          l.cond = "CIP"; l.motivo = dget(`${pref}.motivo`); l.desc = desc;
+          ligarParada = true;
+          partes.push(`${nombreLinea(c.linea)} quedó «En CIP»`);
+        } else if (sigue === "SIN_PROGRAMACION") {
+          l.cond = "SIN_PROGRAMACION"; l.motivo = null; l.desc = desc;
+          partes.push(`${nombreLinea(c.linea)} quedó «Sin programación»`);
+        } else {
+          partes.push("La corrida quedó cerrada");
+        }
+      }
+      log(`Cerraste ${nombreLinea(c.linea)} · Lote ${c.lote} en Producto Terminado.`, "usr");
+      log(partes.join(". ") + ".");
+      let p = null;
+      if (tipoPlus) p = sumarParada(c.linea, tipoPlus, "Automática · Producto Terminado", desc);
+      if (p && ligarParada) l.paradaId = p.id;
+      S.banner = {
+        linea: c.linea,
+        lote: c.lote,
+        tanque: tanque && tanque.litros > 0 ? tanque.n : null,
+        teorico: tanque ? tanque.litros : null,
+        parada: p ? { id: p.id, nombre: TIPOS[tipoPlus].nombre, bloquea: ligarParada } : null,
+      };
+      clearD(pref + ".");
+      render();
+    };
+    if (tipoPlus) conControlRepetida(c.linea, tipoPlus, "auto", aplicar);
+    else aplicar();
+  };
+  A.medir = () => {
+    const t = S.tanques.find((x) => x.n === S.banner.tanque);
+    const v = dnum("medir.valor");
+    if (!t || v === null || v < 0) return;
+    tick(2);
+    t.litros = v;
+    if (v === 0) { t.listo = false; log(`Tanque ${t.n} medido en 0 L: el Lote ${t.lote} se cerró solo.`); }
+    else log(`Mediste el Tanque ${t.n}: quedan ${fmt(v)} L.`, "usr");
+    S.banner.tanque = null;
+    clearD("medir.");
+    render();
+  };
+  A.cerrarBanner = () => { S.banner = null; render(); };
+
+  // Registrar Paradas
+  A.registrar = () => {
+    const n = Number(dget("reg.linea") || 1);
+    const tipo = dget("reg.tipo");
+    if (!tipo) return;
+    const conHoras = dget("reg.horas") === "1";
+    const detalle = dget("reg.detalle").trim();
+    if (conHoras) {
+      const [hi, mi] = dget("reg.ini").split(":").map(Number);
+      const [hf, mf] = dget("reg.fin").split(":").map(Number);
+      let dur = hf * 60 + mf - (hi * 60 + mi);
+      if (dur < 0) dur += 24 * 60;
+      tick(2);
+      S.paradas.push({ id: uid("p"), linea: n, tipo, pendiente: false, hora: dget("reg.ini"), desde: hi * 60 + mi, origen: "Manual", detalle, min: dur, just: "" });
+      log(`Registraste «${TIPOS[tipo].nombre}» en ${nombreLinea(n)} con horas reales (${dur} min).`, "usr");
+      clearD("reg.");
+      S.d["reg.linea"] = String(n);
+      return render();
+    }
+    conControlRepetida(n, tipo, "manual", () => {
+      tick(2);
+      const p = sumarParada(n, tipo, "Manual", detalle);
+      S.ui.enfocar = p.id;
+      clearD("reg.");
+      S.d["reg.linea"] = String(n);
+      render();
+    });
+  };
+  A.completar = (el) => {
+    const p = parada(el.dataset.id);
+    const pref = `pend.${p.id}`;
+    if (faltanParaCompletar(p, pref).length) return;
+    tick(2);
+    completarParada(p, pref);
+    S.ui.abierta = null;
+    render();
+  };
+
+  // Ventana de parada repetida
+  A.dupOk = () => {
+    const m = S.ui.modal;
+    const p = parada(m.pid);
+    if (faltanParaCompletar(p, "modal").length) return;
+    completarParada(p, "modal");
+    S.ui.modal = null;
+    m.seguir();
+  };
+  A.dupError = () => {
+    const m = S.ui.modal;
+    const p = parada(m.pid);
+    log(`Marcaste «Es un error»: no se guardó el nuevo +1 de «${TIPOS[p.tipo].nombre}» en ${nombreLinea(p.linea)}.`, "usr");
+    S.ui.modal = null;
+    clearD("modal.");
+    render();
+  };
+  A.cerrarModal = () => { S.ui.modal = null; clearD("modal."); render(); };
+
+  // Finalizar turno
+  A.finalizar = () => { S.ui.modal = { k: "fin" }; render(); };
+  A.finalizarOk = () => {
+    tick(2);
+    S.finalizado = true;
+    S.ui.modal = null;
+    log("Finalizaste el turno.", "usr");
+    render();
+  };
+
+  // ---------- Piezas de vista ----------
+  function pillLinea(n) {
+    const a = activa(n);
+    const esp = esperando(n);
+    const l = linea(n);
+    if (a && a.estado === "ENTREGADA") return `<span class="pill info">Entregada</span>`;
+    if (a) return a.pausa ? (a.pausa.cip ? `<span class="pill warn">En CIP</span>` : `<span class="pill bad">Parada</span>`) : `<span class="pill ok">Corriendo</span>`;
+    if (esp.length && l.cond !== "CIP") return `<span class="pill warn">Esperando PT</span>`;
+    const c = CONDICIONES[l.cond];
+    return `<span class="pill ${c.pill}">${c.nombre}</span>`;
+  }
+  const textoMotivo = (l) => (l.cond === "CIP" && l.motivo ? MOTIVOS_CIP[l.motivo].label : "");
+
+  function opt(k, v, label, sub = "") {
+    return `<button type="button" class="opt" data-a="set" data-k="${k}" data-v="${v}" aria-pressed="${dget(k) === v}">${label}${sub ? `<small>${sub}</small>` : ""}</button>`;
+  }
+  function textarea(k, label, ph) {
+    return `<label class="field" for="f-${k}">${label}<textarea id="f-${k}" data-d="${k}" maxlength="140" placeholder="${ph}">${esc(dget(k))}</textarea></label>`;
+  }
+  function motivosCip(k) {
+    return `<div class="field">Motivo del CIP<div class="opts">${Object.entries(MOTIVOS_CIP).map(([v, m]) => opt(k, v, m.label)).join("")}</div></div>`;
+  }
+  /** Una respuesta ya dada, en una línea (reemplaza a la pregunta). */
+  const resumen = (etiqueta, valor) => `<p class="elegido"><span class="small">${etiqueta}:</span><b>${esc(valor)}</b></p>`;
+  const faltanList = (f) => (f.length ? `<ul class="missing">${f.map((x) => `<li>Falta: ${esc(x)}</li>`).join("")}</ul>` : "");
+
+  /** Buscador del catálogo: se escribe y salen pocas opciones, agrupadas por familia. */
+  function buscador(pref, filtro, n, etiqueta) {
+    // Sin tildes ni mayúsculas: "logistica" encuentra "Logística", "cambio sabor" encuentra "Cambio de Sabor".
+    const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const q = norm(dget(`${pref}.q`).trim());
+    const palabras = q.split(/\s+/).filter(Boolean);
+    const elegido = dget(`${pref}.tipo`);
+    const todos = Object.entries(TIPOS).filter(([k, t]) => filtro(k, t));
+    const hallados = todos.filter(([, t]) => {
+      const texto = norm(`${t.nombre} ${t.cod(n)} ${t.familia}`);
+      return palabras.every((w) => texto.includes(w));
+    });
+    const visibles = q ? hallados.slice(0, 8) : [];
+    const grupos = [];
+    for (const [k, t] of visibles) {
+      let g = grupos.find((x) => x.familia === t.familia);
+      if (!g) { g = { familia: t.familia, items: [] }; grupos.push(g); }
+      g.items.push([k, t]);
+    }
+    const sel = elegido ? TIPOS[elegido] : null;
+    return `<div class="picker">
+      <label class="field" for="f-${pref}-q">${etiqueta}<input id="f-${pref}-q" data-d="${pref}.q" placeholder="Busca por nombre o código: vapor, A3F, cambio…" value="${esc(dget(`${pref}.q`))}" autocomplete="off"></label>
+      ${sel ? `<p class="elegido"><span class="small">Elegido:</span><span class="mono">${esc(sel.cod(n))}</span><b>${esc(sel.nombre)}</b></p>` : ""}
+      ${q ? `<div class="pick-list">${grupos.length ? grupos.map((g) => `<p class="pick-group">${esc(g.familia)}</p>${g.items.map(([k, t]) => `<button type="button" class="pick" data-a="set" data-k="${pref}.tipo" data-v="${k}" aria-pressed="${elegido === k}"><span class="mono">${esc(t.cod(n))}</span><span>${esc(t.nombre)}</span></button>`).join("")}`).join("") : `<p class="small">Nada coincide con «${esc(q)}».</p>`}
+      ${hallados.length > visibles.length ? `<p class="small">Y ${hallados.length - visibles.length} más: escribe algo más preciso.</p>` : ""}</div>` : ""}
+    </div>`;
+  }
+
+  function vistaTanques() {
+    return `<div class="tanques">${S.tanques.map((t) => {
+      const uso = S.corridas.find((c) => (c.estado === "ACTIVA" || c.estado === "ENTREGADA") && c.tanque === t.n);
+      return `<div class="tanque"><b>Tanque ${t.n}</b><span>${t.listo ? `${esc(t.sabor)} · Lote ${t.lote}` : "Con restos 0 L"}</span><span class="small num">${t.listo ? `${fmt(t.litros)} L · ${uso ? `en uso por ${nombreLinea(uso.linea)}` : "Listo, libre"}` : "Pendiente de limpieza"}</span></div>`;
+    }).join("")}</div>`;
+  }
+  function notaBloqueo(p, accion) {
+    return `<div class="note warn"><span>Para ${accion}, completa la parada (tipo y minutos) en Registrar Paradas.</span></div>
+      <div class="actions"><button class="btn primary" data-a="irAParada" data-id="${p.id}">Ir a Registrar Paradas</button></div>`;
+  }
+
+  // ---------- Pantallas ----------
+  function vistaStatus() {
+    const pend = porRevisar();
+    let html = `<div class="intro"><h2>Comenzar Turno · líneas heredadas</h2><p>El turno nuevo copia las corridas que estaban activas. Revisa cada una: confírmala, corrígela, pásala al siguiente lote o marca que no estaba corriendo.</p></div>`;
+    html += vistaTanques();
+    if (!pend.length) html += `<div class="note ok"><b>Revisión de líneas completa.</b><span>Sigue en Líneas o en Producto Terminado.</span></div>`;
+    html += `<div class="grid3">`;
+    for (const c of pend) {
+      const t = tanqueSiguiente(c);
+      const sig = siguienteLote(c.lote);
+      html += `<div class="card"><div class="card-head"><span class="linea-tag">${nombreLinea(c.linea)}</span><span class="pill warn">Sin confirmar</span></div>
+        <dl class="kv"><div><dt>Sabor · Lote</dt><dd>${esc(c.sabor)} · ${c.lote}</dd></div><div><dt>Tanque</dt><dd>${c.tanque ? `Tanque ${c.tanque}` : "Ya no está en ningún tanque"}</dd></div><div><dt>Presentación</dt><dd>${ML} ml</dd></div><div><dt>Velocidad</dt><dd class="num">${fmt(c.vel)} env/h</dd></div></dl>`;
+      if (S.ui.noCorria === c.id) {
+        const pref = `nc.${c.id}`;
+        const cond = dget(`${pref}.cond`);
+        const f = [];
+        if (!cond) f.push("En qué quedó la línea");
+        if (cond === "CIP" && !dget(`${pref}.motivo`)) f.push("Motivo del CIP");
+        if (cond !== "CIP" && !dget(`${pref}.desc`).trim()) f.push("Descripción breve para el Panel");
+        html += `<div class="form"><p class="form-title">No estaba corriendo: ¿en qué quedó la línea?</p>
+          ${!cond ? `<div class="opts">${opt(`${pref}.cond`, "CIP", "En CIP")}${opt(`${pref}.cond`, "SIN_PROGRAMACION", "Sin programación")}${opt(`${pref}.cond`, "CAMBIO_PRESENTACION", "Cambio de Presentación")}${opt(`${pref}.cond`, "DETENIDA", "Parada")}</div>` : resumen("Quedó en", CONDICIONES[cond].nombre)}
+          ${cond === "CIP" ? (dget(`${pref}.motivo`) ? resumen("Motivo", MOTIVOS_CIP[dget(`${pref}.motivo`)].label) : motivosCip(`${pref}.motivo`)) : ""}
+          ${cond && (cond !== "CIP" || dget(`${pref}.motivo`)) ? `${textarea(`${pref}.desc`, cond === "CIP" ? "Descripción breve (opcional: ya está el motivo)" : "Descripción breve (se ve en el Panel)", "Ej.: sin programación hasta las 11:00")}
+          <p class="small">La corrida del Lote ${c.lote} se quita de este turno sin pedir Producto Terminado. El turno anterior conserva la suya.</p>
+          ${faltanList(f)}
+          <div class="actions"><button class="btn primary" data-a="noCorriaOk" data-id="${c.id}" ${f.length ? "disabled" : ""}>Confirmar</button><button class="btn ghost" data-a="cancelar" data-pref="${pref}" data-cerrar="noCorria">Cancelar</button></div>` : `<div class="actions"><button class="btn ghost" data-a="cancelar" data-pref="${pref}" data-cerrar="noCorria">Cancelar</button></div>`}</div>`;
+      } else if (S.ui.corregir === c.id) {
+        const libres = tanquesLibres();
+        html += `<div class="form"><p class="form-title">Corregir: ¿de qué tanque toma?</p>
+          <label class="field" for="f-co-${c.id}">Tanque<select id="f-co-${c.id}" data-d="co.${c.id}.tanque"><option value="">Elige un tanque Listo</option>${libres.map((t) => `<option value="${t.n}" ${dget(`co.${c.id}.tanque`) === String(t.n) ? "selected" : ""}>Tanque ${t.n} · ${esc(t.sabor)} · Lote ${t.lote}</option>`).join("")}</select></label>
+          <div class="actions"><button class="btn primary" data-a="corregirOk" data-id="${c.id}" ${dget(`co.${c.id}.tanque`) ? "" : "disabled"}>Guardar corrección</button><button class="btn ghost" data-a="ui" data-k="corregir" data-v="">Cancelar</button></div></div>`;
+      } else {
+        html += `<div class="actions">
+          <button class="btn primary" data-a="confirmar" data-id="${c.id}">Confirmar</button>
+          <button class="btn" data-a="ui" data-k="corregir" data-v="${c.id}">Corregir</button>
+          <button class="btn" data-a="continuarRevision" data-id="${c.id}" ${t ? "" : "disabled"}>Continuar al siguiente lote</button>
+          <button class="btn danger" data-a="ui" data-k="noCorria" data-v="${c.id}">No estaba corriendo</button></div>
+          <p class="small">${t ? `«Continuar» pasa al Lote ${sig} del Tanque ${t.n}. Úsalo si el Lote ${c.lote} ya se había terminado en el turno anterior.` : `«Continuar» necesita un tanque Listo con el Lote ${sig} de ${esc(c.sabor)}. No hay ninguno.`}</p>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  function vistaLineas() {
+    let html = `<div class="intro"><h2>Líneas</h2><p>Cada parada se agrega con una descripción breve, que se ve en el Panel. La línea no continúa ni arranca hasta completar esa parada en Registrar Paradas.</p></div>`;
+    html += vistaTanques();
+    html += `<div class="grid3">`;
+    for (const l of S.lineas) {
+      const n = l.n;
+      const a = activa(n);
+      const esp = esperando(n);
+      const bloqueo = paradaQueBloquea(n);
+      html += `<div class="card"><div class="card-head"><span class="linea-tag">${nombreLinea(n)}</span>${pillLinea(n)}</div>`;
+      if (a) {
+        html += `<dl class="kv"><div><dt>Sabor · Lote</dt><dd>${esc(a.sabor)} · ${a.lote}</dd></div><div><dt>Tanque</dt><dd>Tanque ${a.tanque}</dd></div><div><dt>Presentación</dt><dd>${ML} ml</dd></div><div><dt>Velocidad</dt><dd class="num">${fmt(a.vel)} env/h</dd></div></dl>`;
+      } else {
+        html += `<div>${textoMotivo(l) ? `<p class="small"><b>${esc(textoMotivo(l))}</b></p>` : ""}<p class="desc-linea">${esc(l.desc) || `<span class="small">Sin descripción.</span>`}</p></div>`;
+      }
+      if (esp.length) {
+        html += `<div class="note warn">${esp.map((c) => `<span>La corrida del Lote ${c.lote} espera su Producto Terminado.</span>`).join("")}</div>`;
+      }
+
+      if (a && a.heredada && !a.confirmada) {
+        html += `<div class="note info"><span>Heredada sin confirmar: revísala en Comenzar Turno.</span></div><div class="actions"><button class="btn" data-a="tab" data-v="status">Ir a Comenzar Turno</button></div>`;
+      } else if (a && a.estado === "ENTREGADA") {
+        html += `<p class="small">Entregada al próximo turno.</p>`;
+      } else if (a && a.pausa && a.pausa.cip) {
+        html += `<div class="note warn"><b>${esc(textoMotivo(l))}</b>${l.desc ? `<span class="desc-linea">${esc(l.desc)}</span>` : ""}<span>En CIP desde las ${hhmm(a.pausa.desde)}. El Lote ${a.lote} sigue después del CIP.</span></div>`;
+        if (bloqueo) html += notaBloqueo(bloqueo, "terminar el CIP");
+        html += `<div class="actions"><button class="btn ${bloqueo ? "" : "primary"}" data-a="terminoCipContinuar" data-n="${n}" ${bloqueo ? "disabled" : ""}>Terminó CIP: continuar el Lote ${a.lote}</button><button class="btn" data-a="loteNoSigue" data-n="${n}">El lote ya no sigue</button></div>`;
+      } else if (a && a.pausa && !S.ui[`cipc${n}`]) {
+        html += `<div class="note bad"><span class="desc-linea">${esc(a.pausa.desc)}</span><span>Parada desde las ${hhmm(a.pausa.desde)}.</span></div>`;
+        if (bloqueo) {
+          html += notaBloqueo(bloqueo, "continuar");
+        } else {
+          html += `<div class="note ok"><span>Parada completa. Ya puedes continuar.</span></div><div class="actions"><button class="btn primary" data-a="continuarParada" data-n="${n}">Continuar</button></div>`;
+        }
+        html += `<div class="actions"><button class="btn danger" data-a="ui" data-k="cipc${n}" data-v="1">Pasar a CIP</button></div>`;
+      } else if (a && S.ui[`par${n}`]) {
+        const pref = `par.${n}`;
+        const f = dget(`${pref}.desc`).trim() ? [] : ["Descripción breve"];
+        html += `<div class="form"><p class="form-title">Agregar parada</p>
+          ${textarea(`${pref}.desc`, "Descripción breve (se ve en el Panel)", "Ej.: atasco en la encajadora")}
+          <p class="small">El tipo y los minutos se ponen después, en Registrar Paradas.</p>
+          ${faltanList(f)}
+          <div class="actions"><button class="btn primary" data-a="pararOk" data-n="${n}" ${f.length ? "disabled" : ""}>Agregar parada</button><button class="btn ghost" data-a="ui" data-k="par${n}" data-v="">Cancelar</button></div></div>`;
+      } else if (a) {
+        const pref = `cipc.${n}`;
+        if (S.ui[`cipc${n}`]) {
+          const f = [];
+          if (!dget(`${pref}.motivo`)) f.push("Motivo del CIP");
+          if (!dget(`${pref}.sigue`)) f.push("Si el lote sigue después del CIP");
+          const paso2 = dget(`${pref}.paso`) === "2";
+          const sigueLote = dget(`${pref}.sigue`) === "SI";
+          const conMotivo = !!dget(`${pref}.motivo`);
+          const conSigue = !!dget(`${pref}.sigue`);
+          html += `<div class="form"><p class="form-title">Poner en CIP</p>
+            ${!conMotivo ? motivosCip(`${pref}.motivo`) : resumen("Motivo", MOTIVOS_CIP[dget(`${pref}.motivo`)].label)}
+            ${conMotivo && !conSigue ? `<div class="field">¿El Lote ${a.lote} sigue después del CIP?<div class="opts">${opt(`${pref}.sigue`, "SI", "Sí, sigue", "La corrida queda en pausa y continúa al terminar el CIP")}${opt(`${pref}.sigue`, "NO", "No, termina aquí", "La corrida queda esperando su Producto Terminado")}</div></div>` : ""}
+            ${conSigue ? resumen(`Lote ${a.lote}`, sigueLote ? "Sigue después del CIP" : "Termina aquí") : ""}
+            ${conMotivo && conSigue ? textarea(`${pref}.desc`, "Descripción breve (opcional: ya está el motivo)", "Ej.: se fue la luz a las 08:10") : ""}
+            ${paso2 ? `<div class="note bad"><span>${sigueLote ? `La línea para y queda en CIP. El Lote ${a.lote} continúa al terminar.` : `La corrida del Lote ${a.lote} se detiene y queda esperando su Producto Terminado.`} ¿Confirmas?</span></div>` : ""}
+            <div class="actions">${conMotivo && conSigue ? `<button class="btn ${paso2 ? "primary" : ""}" data-a="cipCorridaOk" data-n="${n}">${paso2 ? "Sí, poner en CIP" : "Poner en CIP"}</button>` : ""}<button class="btn ghost" data-a="cancelar" data-pref="${pref}" data-cerrar="cipc${n}">Cancelar</button></div></div>`;
+        } else {
+          html += `<div class="actions"><button class="btn" data-a="ui" data-k="par${n}" data-v="1">Agregar parada</button><button class="btn danger" data-a="ui" data-k="cipc${n}" data-v="1">CIP</button><button class="btn" data-a="tab" data-v="pt">Cerrar en Producto Terminado</button></div>`;
+        }
+      } else if (esp.length) {
+        html += `<div class="actions"><button class="btn" data-a="tab" data-v="pt">Ir a Producto Terminado</button></div>`;
+        if (bloqueo) html += notaBloqueo(bloqueo, l.cond === "CIP" ? "terminar el CIP" : "arrancar la línea");
+      } else if (S.ui[`arr${n}`]) {
+        const libres = tanquesLibres();
+        html += `<div class="form"><p class="form-title">Arrancar línea</p><label class="field" for="f-arr-${n}">Tanque<select id="f-arr-${n}" data-d="arr.${n}.tanque"><option value="">Elige un tanque Listo</option>${libres.map((t) => `<option value="${t.n}" ${dget(`arr.${n}.tanque`) === String(t.n) ? "selected" : ""}>Tanque ${t.n} · ${esc(t.sabor)} · Lote ${t.lote}</option>`).join("")}</select></label>
+          <div class="actions"><button class="btn primary" data-a="arrancarOk" data-n="${n}" ${dget(`arr.${n}.tanque`) ? "" : "disabled"}>Arrancar</button><button class="btn ghost" data-a="ui" data-k="arr${n}" data-v="">Cancelar</button></div></div>`;
+      } else if (S.ui[`cond${n}`]) {
+        const cond = S.ui[`cond${n}`];
+        const pref = `cond.${n}`;
+        const f = [];
+        if (cond === "CIP" && !dget(`${pref}.motivo`)) f.push("Motivo del CIP");
+        if (cond !== "CIP" && !dget(`${pref}.desc`).trim()) f.push("Descripción breve para el Panel");
+        const listo = cond !== "CIP" || !!dget(`${pref}.motivo`);
+        html += `<div class="form"><p class="form-title">${CONDICIONES[cond].nombre}</p>${cond === "CIP" ? (listo ? resumen("Motivo", MOTIVOS_CIP[dget(`${pref}.motivo`)].label) : motivosCip(`${pref}.motivo`)) : ""}${listo ? textarea(`${pref}.desc`, cond === "CIP" ? "Descripción breve (opcional: ya está el motivo)" : "Descripción breve (se ve en el Panel)", "Ej.: esperando programación de Mango") : ""}
+          ${listo ? faltanList(f) : ""}
+          <div class="actions">${listo ? `<button class="btn primary" data-a="condOk" data-n="${n}" ${f.length ? "disabled" : ""}>Guardar</button>` : ""}<button class="btn ghost" data-a="cancelar" data-pref="${pref}" data-cerrar="cond${n}">Cancelar</button></div></div>`;
+      } else if (l.cond === "CIP") {
+        html += bloqueo ? notaBloqueo(bloqueo, "terminar el CIP") : "";
+        html += `<div class="actions"><button class="btn ${bloqueo ? "" : "primary"}" data-a="terminoCip" data-n="${n}" ${bloqueo ? "disabled" : ""}>Terminó CIP</button></div>`;
+      } else {
+        html += bloqueo ? notaBloqueo(bloqueo, "arrancar la línea") : "";
+        html += `<div class="actions"><button class="btn ${bloqueo ? "" : "primary"}" data-a="ui" data-k="arr${n}" data-v="1" ${bloqueo ? "disabled" : ""}>Arrancar línea</button></div>
+          <div class="actions"><button class="btn" data-a="ui" data-k="cond${n}" data-v="SIN_PROGRAMACION">Sin programación</button><button class="btn" data-a="ui" data-k="cond${n}" data-v="CAMBIO_PRESENTACION">Cambio de Presentación</button><button class="btn" data-a="ui" data-k="cond${n}" data-v="DETENIDA">Parada</button><button class="btn danger" data-a="ui" data-k="cond${n}" data-v="CIP">Iniciar CIP</button></div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  function vistaBanner() {
+    const b = S.banner;
+    if (!b) return "";
+    return `<div class="banner"><div class="row-top"><p><b>${nombreLinea(b.linea)} · Lote ${b.lote} cerrada.</b></p><button class="btn ghost" data-a="cerrarBanner">Cerrar aviso</button></div>
+      ${b.parada ? `<div class="row-inline"><p>Se sumó un +1 de «${esc(b.parada.nombre)}».${b.parada.bloquea ? ` ${nombreLinea(b.linea)} no arranca hasta completarla.` : " Pon los minutos cuando termine."}</p><button class="btn" data-a="irAParada" data-id="${b.parada.id}">Ir a Registrar Paradas</button></div>` : ""}
+      ${b.tanque ? `<div class="row-inline"><label class="field" for="f-medir">Mide el Tanque ${b.tanque}: litros que quedaron (teórico: ${fmt(b.teorico)} L)<input id="f-medir" class="inp num" type="number" min="0" data-d="medir.valor" value="${esc(dget("medir.valor"))}"></label><button class="btn primary" data-a="medir">Guardar medición</button></div>` : ""}
+    </div>`;
+  }
+
+  function vistaPT() {
+    const lista = paraPT();
+    let html = `<div class="intro"><h2>Producto Terminado y Contador</h2><p>Cerrar una corrida guarda todo en un solo paso: si algo falla, no se guarda nada y el Contador no se duplica. Se exigen Contador y Producto Terminado.</p></div>`;
+    html += vistaBanner();
+    if (!lista.length) html += `<div class="note info"><span>No hay corridas pendientes de carga.</span></div>`;
+    html += `<div class="grid3">`;
+    for (const c of lista) {
+      const pref = `pt.${c.id}`;
+      html += `<div class="card"><div class="card-head"><span class="linea-tag">${nombreLinea(c.linea)}</span>${c.estado === "ESPERANDO_PT" ? `<span class="pill warn">Esperando PT</span>` : c.pausa ? `<span class="pill bad">Parada</span>` : `<span class="pill ok">Corriendo</span>`}</div>
+        <p class="small">${esc(c.sabor)} · Lote ${c.lote} · ${ML} ml · Contador acumulado: <span class="num">${fmt(c.contador)}</span> envases</p>`;
+      if (c.pausa) {
+        const b = paradaQueBloquea(c.linea);
+        if (c.pausa.cip) {
+          html += `<div class="note warn"><span>La línea está en CIP y el Lote ${c.lote} sigue después. Se cierra cuando termine el lote.</span><span>Si el lote ya no va a seguir, márcalo en Líneas («El lote ya no sigue»).</span></div><div class="actions"><button class="btn" data-a="tab" data-v="lineas">Ir a Líneas</button></div></div>`;
+          continue;
+        }
+        html += b
+          ? `<div class="note bad"><span>La línea está parada: ${esc(c.pausa.desc)}.</span><span>Primero completa la parada (tipo y minutos). Después continúa la línea o ciérrala aquí.</span></div><div class="actions"><button class="btn primary" data-a="irAParada" data-id="${b.id}">Ir a Registrar Paradas</button></div></div>`
+          : `<div class="note bad"><span>La línea está parada: ${esc(c.pausa.desc)}. La parada ya está completa: continúa la línea en Líneas para cerrar esta corrida.</span></div><div class="actions"><button class="btn" data-a="tab" data-v="lineas">Ir a Líneas</button></div></div>`;
+        continue;
+      }
+      const k = ptCalculo(c);
+      const f = ptFaltan(c);
+      const sigue = dget(`${pref}.sigue`);
+      const t = tanqueSiguiente(c);
+      html += `<div class="fields2">
+          <label class="field" for="f-${pref}-cont">Envases llenadora${c.contador > 0 ? " (opcional)" : ""}<input id="f-${pref}-cont" class="num" type="number" min="0" data-d="${pref}.cont" value="${esc(dget(`${pref}.cont`))}"></label>
+          <label class="field" for="f-${pref}-buenos">Envases buenos (Contador 2)<input id="f-${pref}-buenos" class="num" type="number" min="0" data-d="${pref}.buenos" value="${esc(dget(`${pref}.buenos`))}"></label>
+          <label class="field" for="f-${pref}-pal">Paletas<input id="f-${pref}-pal" class="num" type="number" min="0" data-d="${pref}.pal" value="${esc(dget(`${pref}.pal`))}"></label>
+          <label class="field" for="f-${pref}-caj">Cajas sueltas<input id="f-${pref}-caj" class="num" type="number" min="0" data-d="${pref}.caj" value="${esc(dget(`${pref}.caj`))}"></label>
+        </div>
+        ${k.cajas > 0 ? `<p class="small num">Total: ${fmt(k.cajas)} cajas · ${fmt(k.envases)} envases · ${fmt(k.litros)} L${k.merma !== null ? ` · Merma estimada ${k.merma} %` : ""}</p>` : ""}`;
+      if (c.estado === "ACTIVA") {
+        const NOMBRE_SIGUE = {
+          CAMBIO_LOTE: t ? `Cambio de Lote: sigue sola con el Lote ${t.lote}` : "Cambio de Lote: queda parada",
+          CAMBIO_SABOR: "Cambio de Sabor",
+          CIP: "CIP",
+          SIN_PROGRAMACION: "Sin programación",
+          ENTREGAR: "Entregar línea al próximo turno",
+        };
+        if (!sigue) {
+          html += `<div class="field">¿Qué sigue con la línea?<div class="opts">
+            ${opt(`${pref}.sigue`, "CAMBIO_LOTE", "Cambio de Lote", t ? `Sigue sola con el Lote ${t.lote} (Tanque ${t.n})` : `No hay tanque Listo con el Lote ${siguienteLote(c.lote)}: queda parada`)}
+            ${opt(`${pref}.sigue`, "CAMBIO_SABOR", "Cambio de Sabor", "Queda parada hasta arrancar el sabor nuevo")}
+            ${opt(`${pref}.sigue`, "CIP", "CIP", "Pide el motivo")}
+            ${opt(`${pref}.sigue`, "SIN_PROGRAMACION", "Sin programación")}
+            ${opt(`${pref}.sigue`, "ENTREGAR", "Entregar línea", "Sigue el próximo turno")}
+          </div></div>`;
+        } else {
+          html += `<div class="row-inline">${resumen("Qué sigue", NOMBRE_SIGUE[sigue])}${sigue === "CIP" && dget(`${pref}.motivo`) ? resumen("Motivo", MOTIVOS_CIP[dget(`${pref}.motivo`)].label) : ""}<button class="btn ghost" data-a="cancelarClaves" data-claves="${pref}.sigue,${pref}.motivo,${pref}.desc">Cancelar</button></div>`;
+        }
+        if (sigue === "CIP" && !dget(`${pref}.motivo`)) html += motivosCip(`${pref}.motivo`);
+        if (["CAMBIO_SABOR", "SIN_PROGRAMACION"].includes(sigue) || (sigue === "CIP" && dget(`${pref}.motivo`)) || (sigue === "CAMBIO_LOTE" && !t)) html += textarea(`${pref}.desc`, sigue === "CIP" ? "Descripción breve (opcional: ya está el motivo)" : "Descripción breve (se ve en el Panel)", "Ej.: cambio a Mango, falta limpiar la llenadora");
+      } else {
+        html += `<p class="small">La línea ya cambió de estado en Líneas. Carga el Producto Terminado para cerrar esta corrida.</p>`;
+      }
+      html += `${faltanList(f)}<div class="actions"><button class="btn primary" data-a="cerrarCorrida" data-id="${c.id}" ${f.length ? "disabled" : ""}>${c.estado === "ACTIVA" ? "Cerrar" : "Registrar"}</button></div></div>`;
+    }
+    html += `</div>`;
+    const cerradas = S.corridas.filter((c) => c.estado === "CERRADA" || c.estado === "ENTREGADA");
+    if (cerradas.length) {
+      html += `<details class="closed"><summary>Ver corridas cerradas (${cerradas.length})</summary><div class="list" style="margin-top:8px">${cerradas.map((c) => `<div class="row"><div class="row-top"><span class="row-title">${nombreLinea(c.linea)} · ${esc(c.sabor)} · Lote ${c.lote}</span><span class="pill ${c.estado === "ENTREGADA" ? "info" : "mute"}">${c.estado === "ENTREGADA" ? "Entregada" : "Cerrada"}</span></div><p class="small num">Contador ${fmt(c.contador)} · Buenos ${fmt(c.buenos)} · ${c.pt ? `${c.pt.pal} paletas + ${c.pt.caj} cajas (${fmt(c.pt.litros)} L)` : "—"}</p></div>`).join("")}</div></details>`;
+    }
+    return html;
+  }
+
+  function filaPendiente(p) {
+    const pref = `pend.${p.id}`;
+    const t = TIPOS[p.tipo];
+    const comp = t.completar;
+    const f = faltanParaCompletar(p, pref);
+    const tipoFinal = comp ? dget(`${pref}.tipo`) : p.tipo;
+    const tf = tipoFinal ? TIPOS[tipoFinal] : null;
+    const m = dnum(`${pref}.min`);
+    const pasaron = Math.max(1, S.min - p.desde);
+    const bloquea = lineaBloqueadaPor(p);
+    const abierta = S.ui.abierta === p.id;
+    const cabeza = `<div class="row-top"><div>
+        <p class="row-title">${nombreLinea(p.linea)} · ${esc(p.detalle || t.nombre)}</p>
+        <p class="small">${p.detalle ? `${esc(t.nombre)} · ` : ""}${p.hora}</p></div>
+        <div class="opts">${bloquea ? `<span class="pill bad">Detiene la línea</span>` : ""}${abierta ? `<button class="btn ghost" data-a="ui" data-k="abierta" data-v="">Cerrar</button>` : `<button class="btn" data-a="ui" data-k="abierta" data-v="${p.id}">Completar</button>`}</div></div>`;
+    if (!abierta) return `<div class="row" id="fila-${p.id}">${cabeza}</div>`;
+    return `<div class="row ${S.ui.enfocar === p.id ? "flash" : ""}" id="fila-${p.id}">${cabeza}
+      ${comp ? buscador(pref, FILTRO_COMPLETAR[comp], p.linea, comp === "EQUIPO" ? "Código y equipo de la falla" : "Tipo de parada") : ""}
+      <div class="row-inline">
+        <label class="field" for="f-${pref}-min">Minutos que duró${tf && tf.guia ? ` (guía ${tf.guia})` : ""}<input id="f-${pref}-min" class="num" type="number" min="1" data-d="${pref}.min" value="${esc(dget(`${pref}.min`))}"></label>
+        <button class="btn" data-a="set" data-k="${pref}.min" data-v="${pasaron}">Usar ${pasaron} min (desde el +1)</button>
+      </div>
+      ${tf && tf.guia && m > tf.guia ? `<label class="field" for="f-${pref}-just">Justificación (pasó ${m - tf.guia} min del tiempo guía)<input id="f-${pref}-just" data-d="${pref}.just" value="${esc(dget(`${pref}.just`))}"></label>` : ""}
+      ${faltanList(f)}
+      <div class="actions"><button class="btn primary" data-a="completar" data-id="${p.id}" ${f.length ? "disabled" : ""}>Guardar parada</button></div></div>`;
+  }
+
+  function vistaParadas() {
+    const pend = pendientesParadas();
+    const hechas = S.paradas.filter((p) => !p.pendiente).slice().reverse();
+    const lineaSel = Number(dget("reg.linea") || 1);
+    const conHoras = dget("reg.horas") === "1";
+    const tipo = dget("reg.tipo");
+    const faltanReg = [];
+    if (!tipo) faltanReg.push("Tipo de parada");
+    if (tipo === "OCIOSO" && !dget("reg.detalle").trim()) faltanReg.push("Detalle (obligatorio en tiempo ocioso)");
+    if (conHoras && (!dget("reg.ini") || !dget("reg.fin"))) faltanReg.push("Hora de inicio y de fin");
+
+    let html = `<div class="intro"><h2>Registrar Paradas</h2><p>La pantalla que hoy se llama «Paradas de Mantenimiento», ahora para todos.</p></div>`;
+    if (S.aviso) html += `<div class="note ok"><b>${nombreLinea(S.aviso)} ya puede continuar.</b><div class="actions"><button class="btn" data-a="tab" data-v="lineas">Volver a Líneas</button></div></div>`;
+    html += `<p class="section-title">Pendientes <span class="count">${pend.length}</span></p>`;
+    html += pend.length ? `<div class="list">${pend.map(filaPendiente).join("")}</div>` : `<div class="note ok"><span>No hay paradas sin completar.</span></div>`;
+
+    html += `<details class="closed" ${dget("reg.abierto") === "1" || tipo ? "open" : ""}><summary data-a="set" data-k="reg.abierto" data-v="${dget("reg.abierto") === "1" ? "" : "1"}">Anotar otra parada</summary><div class="card" style="margin-top:8px">
+      <div class="opts">${[1, 2, 3].map((n) => `<button type="button" class="opt" data-a="set" data-k="reg.linea" data-v="${n}" aria-pressed="${lineaSel === n}">${nombreLinea(n)}</button>`).join("")}</div>
+      ${buscador("reg", FILTRO_REGISTRO, lineaSel, "Tipo")}
+      <label class="field" for="f-reg-det">Detalle${tipo === "OCIOSO" ? "" : " (opcional)"}<input id="f-reg-det" data-d="reg.detalle" value="${esc(dget("reg.detalle"))}"></label>
+      <div class="opts">${opt("reg.horas", conHoras ? "" : "1", conHoras ? "Quitar horas" : "Ya sé la hora de inicio y fin")}</div>
+      ${conHoras ? `<div class="fields2"><label class="field" for="f-reg-ini">Inicio<input id="f-reg-ini" type="time" data-d="reg.ini" value="${esc(dget("reg.ini"))}"></label><label class="field" for="f-reg-fin">Fin<input id="f-reg-fin" type="time" data-d="reg.fin" value="${esc(dget("reg.fin"))}"></label></div>` : ""}
+      ${faltanList(faltanReg)}
+      <div class="actions"><button class="btn primary ${conHoras ? "" : "plus"}" data-a="registrar" ${faltanReg.length ? "disabled" : ""}>${conHoras ? "Guardar parada" : "+1"}</button></div>
+    </div></details>`;
+
+    const verCompletas = dget("completas.abierto") === "1";
+    html += `<details class="closed" ${verCompletas ? "open" : ""}><summary data-a="set" data-k="completas.abierto" data-v="${verCompletas ? "" : "1"}">Completas del turno (${hechas.length})</summary><div class="list" style="margin-top:8px">${hechas.map((p) => {
+      const t = TIPOS[p.tipo];
+      const desvio = t.guia ? p.min - t.guia : null;
+      return `<div class="row"><div class="row-top"><div><p class="row-title">${nombreLinea(p.linea)} · ${esc(t.nombre)}</p><p class="small"><span class="mono">${esc(t.cod(p.linea))}</span> · ${p.hora}${p.detalle ? ` · ${esc(p.detalle)}` : ""}</p></div><span class="pill mute num">${p.min} min${desvio !== null && desvio > 0 ? ` · +${desvio} vs guía` : ""}</span></div></div>`;
+    }).join("")}</div></details>`;
+    return html;
+  }
+
+  function vistaPanel() {
+    let html = `<div class="intro"><h2>Panel de Producción</h2><p>Lo que ve la planta: el estado de cada línea con la descripción que escribió el supervisor, y sus paradas del turno.</p></div><div class="grid3">`;
+    for (const l of S.lineas) {
+      const a = activa(l.n);
+      const ps = S.paradas.filter((p) => p.linea === l.n);
+      const pend = ps.filter((p) => p.pendiente).length;
+      const minutos = ps.reduce((s, p) => s + (p.min || 0), 0);
+      let estado;
+      if (a && a.pausa && a.pausa.cip) estado = `<p><b>${esc(a.sabor)}</b> · Lote ${a.lote} (sigue después del CIP)</p><p class="small"><b>${esc(textoMotivo(l))}</b></p>${l.desc ? `<p class="desc-linea">${esc(l.desc)}</p>` : ""}<p class="small">En CIP desde las ${hhmm(a.pausa.desde)}.</p>`;
+      else if (a && a.pausa) estado = `<p><b>${esc(a.sabor)}</b> · Lote ${a.lote}</p><p class="desc-linea">${esc(a.pausa.desc)}</p><p class="small">Parada desde las ${hhmm(a.pausa.desde)}.</p>`;
+      else if (a) estado = `<p><b>${esc(a.sabor)}</b> · Lote ${a.lote} · ${ML} ml</p>`;
+      else estado = `${textoMotivo(l) ? `<p class="small"><b>${esc(textoMotivo(l))}</b></p>` : ""}<p class="desc-linea">${esc(l.desc) || `<span class="small">Sin descripción</span>`}</p>`;
+      html += `<div class="card"><div class="card-head"><span class="linea-tag">${nombreLinea(l.n)}</span>${pillLinea(l.n)}</div>${estado}
+        <dl class="kv"><div><dt>Paradas del turno</dt><dd class="num">${ps.length}</dd></div><div><dt>Minutos</dt><dd class="num">${minutos}${pend ? ` <span class="small">(+${pend} sin completar)</span>` : ""}</dd></div></dl></div>`;
+    }
+    html += `</div><p class="small">Una parada sin completar cuenta 1 vez y 0 min hasta que alguien pone cuánto duró.</p>`;
+    return html;
+  }
+
+  function vistaModal() {
+    const m = S.ui.modal;
+    if (!m) return "";
+    if (m.k === "dup") {
+      const p = parada(m.pid);
+      const t = TIPOS[p.tipo];
+      const f = faltanParaCompletar(p, "modal");
+      const comp = t.completar;
+      const tf = comp ? (dget("modal.tipo") ? TIPOS[dget("modal.tipo")] : null) : t;
+      const min = dnum("modal.min");
+      return `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="dup-t"><div class="modal">
+        <h3 id="dup-t">Ya hay un «${esc(t.nombre)}» sin completar</h3>
+        <p>En ${nombreLinea(p.linea)} se sumó uno a las ${p.hora}. Antes de sumar otro, ¿cuánto tardó ese?</p>
+        ${comp ? buscador("modal", FILTRO_COMPLETAR[comp], p.linea, comp === "EQUIPO" ? "Código y equipo de la falla" : "Tipo de parada") : ""}
+        <label class="field" for="f-modal-min">Minutos que duró${tf && tf.guia ? ` (guía ${tf.guia})` : ""}<input id="f-modal-min" class="num" type="number" min="1" data-d="modal.min" value="${esc(dget("modal.min"))}"></label>
+        ${tf && tf.guia && min > tf.guia ? `<label class="field" for="f-modal-just">Justificación (pasó ${min - tf.guia} min del tiempo guía)<input id="f-modal-just" data-d="modal.just" value="${esc(dget("modal.just"))}"></label>` : ""}
+        ${faltanList(f)}
+        <div class="actions"><button class="btn primary" data-a="dupOk" ${f.length ? "disabled" : ""}>Guardar y sumar el nuevo</button>
+        ${m.contexto === "manual" ? `<button class="btn danger" data-a="dupError">Es un error (no guardar el nuevo)</button>` : `<button class="btn ghost" data-a="cerrarModal">Cancelar (no se guarda nada)</button>`}</div>
+      </div></div>`;
+    }
+    if (m.k === "fin") {
+      const b = [];
+      porRevisar().forEach((c) => b.push(`${nombreLinea(c.linea)} sigue sin confirmar (Comenzar Turno).`));
+      S.corridas.filter((c) => c.estado === "ESPERANDO_PT").forEach((c) => b.push(`${nombreLinea(c.linea)} · Lote ${c.lote} espera su Producto Terminado.`));
+      S.corridas.filter((c) => c.estado === "ACTIVA" && (c.confirmada || !c.heredada)).forEach((c) => b.push(`${nombreLinea(c.linea)} sigue activa: ciérrala o entrégala en Producto Terminado.`));
+      const pp = pendientesParadas();
+      if (pp.length) b.push(`Hay ${pp.length} parada${pp.length === 1 ? "" : "s"} sin completar en Registrar Paradas.`);
+      return `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="fin-t"><div class="modal">
+        <h3 id="fin-t">${b.length ? "Todavía no se puede finalizar" : "Finalizar turno"}</h3>
+        ${b.length ? `<ul class="missing">${b.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<p>Todo está completo. ¿Finalizar el turno T1?</p>`}
+        <div class="actions">${b.length ? "" : `<button class="btn primary" data-a="finalizarOk">Finalizar</button>`}<button class="btn ghost" data-a="cerrarModal">${b.length ? "Volver" : "Cancelar"}</button></div>
+      </div></div>`;
+    }
+    return "";
+  }
+
+  const TABS = [
+    { v: "status", label: "Comenzar Turno", count: () => porRevisar().length },
+    { v: "lineas", label: "Líneas", count: () => 0 },
+    { v: "pt", label: "Producto Terminado", count: () => paraPT().length },
+    { v: "paradas", label: "Registrar Paradas", count: () => pendientesParadas().length },
+    { v: "panel", label: "Panel", count: () => 0 },
+  ];
+
+  function render() {
+    const active = document.activeElement;
+    const focusId = active && active.id ? active.id : null;
+    const selStart = active && "selectionStart" in active ? active.selectionStart : null;
+
+    const vista = { status: vistaStatus, lineas: vistaLineas, pt: vistaPT, paradas: vistaParadas, panel: vistaPanel }[S.tab]();
+    document.getElementById("app").innerHTML = `
+      <header class="top"><div class="top-row">
+        <div class="brand"><h1>Simulador de Turno</h1><span>Aséptico · Turno T1 · 30/09/2026</span></div>
+        <span class="proto">Prototipo: datos de ejemplo</span>
+        <span class="chip-mono" title="Hora simulada: avanza con cada acción">${hhmm()}</span>
+        <button class="btn" data-a="avanzar" title="Adelanta el reloj simulado">+10 min</button>
+        <button class="btn" data-a="reiniciar">Reiniciar</button>
+        <button class="btn primary" data-a="finalizar" ${S.finalizado ? "disabled" : ""}>${S.finalizado ? "Turno finalizado" : "Finalizar turno"}</button>
+      </div>
+      <nav class="tabs" role="tablist">${TABS.map((t) => { const n = t.count(); return `<button class="tab" role="tab" data-a="tab" data-v="${t.v}" aria-selected="${S.tab === t.v}">${t.label}${n ? `<span class="count">${n}</span>` : ""}</button>`; }).join("")}</nav></header>
+      <div class="wrap">
+        <main class="main">${vista}</main>
+        <aside class="aside"><h2>Lo que va pasando</h2><ul class="log">${S.log.map((e) => `<li class="${e.k}"><time>${e.h}</time><span>${esc(e.t)}</span></li>`).join("")}</ul></aside>
+      </div>
+      ${vistaModal()}`;
+    S.ui.enfocar = null;
+
+    if (focusId) {
+      const el = document.getElementById(focusId);
+      if (el) {
+        el.focus();
+        if (selStart !== null && "setSelectionRange" in el && el.type !== "number") { try { el.setSelectionRange(selStart, selStart); } catch (e) { /* no aplica */ } }
+      }
+    }
+  }
+
+  // ---------- Eventos ----------
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-a]");
+    if (!el || el.disabled) return;
+    if (el.tagName === "SUMMARY") e.preventDefault();
+    const fn = A[el.dataset.a];
+    if (fn) fn(el);
+  });
+  let timer = null;
+  document.addEventListener("input", (e) => {
+    const el = e.target.closest("[data-d]");
+    if (!el) return;
+    S.d[el.dataset.d] = el.value;
+    // Re-dibuja para actualizar lo que falta, los totales y el buscador, sin perder el foco.
+    clearTimeout(timer);
+    timer = setTimeout(render, el.tagName === "SELECT" ? 0 : 250);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && S.ui.modal) A.cerrarModal();
+  });
+
+  S = inicial();
+  render();
+})();
+</script>
