@@ -52,27 +52,27 @@ export async function pausarLinea(
     p_turno_linea_id: corridaId,
     p_motivo: motivo ?? null,
   })
-  if (error || !data) return { ok: false, error: "No se pudo pausar la línea. Intenta de nuevo." }
+  if (error || !data) return { ok: false, error: error?.message ?? "No se pudo pausar la línea. Intenta de nuevo." }
   return { ok: true, data }
 }
 
 export async function continuarLinea(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("continuar_linea", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })
-  if (error || !data) return { ok: false, error: "No se pudo continuar la línea. Intenta de nuevo." }
+  if (error || !data) return { ok: false, error: error?.message ?? "No se pudo continuar la línea. Intenta de nuevo." }
   return { ok: true, data }
 }
 
 /** "Terminó Lote": cierra la corrida Y el tanque que la alimentaba (Fase 2: acá es donde va a exigir el PT total del tramo). */
 export async function terminarSaborLinea(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("terminar_sabor_linea", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })
-  if (error || !data) return { ok: false, error: "No se pudo terminar el sabor. Intenta de nuevo." }
+  if (error || !data) return { ok: false, error: error?.message ?? "No se pudo terminar el sabor. Intenta de nuevo." }
   return { ok: true, data }
 }
 
 /** "Terminó Línea": para la corrida SIN cerrar el tanque — a diferencia de terminarSaborLinea, que sí lo cierra. */
 export async function terminarLinea(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("terminar_linea", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })
-  if (error || !data) return { ok: false, error: "No se pudo terminar la línea. Intenta de nuevo." }
+  if (error || !data) return { ok: false, error: error?.message ?? "No se pudo terminar la línea. Intenta de nuevo." }
   return { ok: true, data }
 }
 
@@ -91,7 +91,7 @@ export async function cambiarCondicionLinea(usuario: string, turnoId: string, da
 /** El paso de revisión de Recepción para una corrida heredada activa: "así quedó, confirmo que está bien". */
 export async function confirmarEstadoLinea(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("confirmar_estado_linea", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })
-  if (error || !data) return { ok: false, error: "No se pudo confirmar el estado de la línea. Intenta de nuevo." }
+  if (error || !data) return { ok: false, error: error?.message ?? "No se pudo confirmar el estado de la línea. Intenta de nuevo." }
   return { ok: true, data }
 }
 

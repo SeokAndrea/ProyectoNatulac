@@ -21,7 +21,7 @@ export async function detenerLineaPorFalla(
     p_turno_linea_id: corridaId,
     p_motivo: motivo.trim() || null,
   })
-  if (error || !data) return { ok: false, error: "No se pudo detener la línea. Intenta de nuevo." }
+  if (error || !data) return { ok: false, error: error?.message ?? "No se pudo detener la línea. Intenta de nuevo." }
   return { ok: true, data }
 }
 
@@ -58,6 +58,6 @@ export async function entregarCorrida(usuario: string, turnoId: string, corridaI
 
 export async function actualizarJustificacionContador(contadorId: string, justificacion: string): Promise<Resultado> {
   const { error } = await supabase.rpc("actualizar_justificacion_contador", { p_contador_id: contadorId, p_justificacion: justificacion })
-  if (error) return { ok: false, error: "No se pudo guardar la justificación. Intenta de nuevo." }
+  if (error) return { ok: false, error: error?.message ?? "No se pudo guardar la justificación. Intenta de nuevo." }
   return { ok: true }
 }

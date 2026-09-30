@@ -111,7 +111,7 @@ export async function registrarProductoTerminado(
   })
 
   if (error || !data) {
-    return { ok: false, error: "No se pudo registrar Producto Terminado. Intenta de nuevo." }
+    return { ok: false, error: error?.message ?? "No se pudo registrar Producto Terminado. Intenta de nuevo." }
   }
   return { ok: true, data }
 }

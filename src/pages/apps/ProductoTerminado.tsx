@@ -214,7 +214,7 @@ export default function ProductoTerminado() {
         <EmptyState
           icon={PackageCheck}
           title="Ninguna línea usada todavía"
-          description="Activa una corrida en Preparación para poder registrar su producto terminado."
+          description="Activa una corrida en Líneas para poder registrar su producto terminado."
         />
       </AppShell>
     )
@@ -821,7 +821,7 @@ function FilaProductoTerminado({
     )
   }
 
-  // Línea parada: no se carga producto terminado hasta reanudarla (desde Preparación).
+  // Línea parada: no se carga producto terminado hasta reanudarla (desde Líneas).
   if (estaPausada && !editandoError) {
     return (
       <Card>
@@ -839,7 +839,7 @@ function FilaProductoTerminado({
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">
-            La línea está parada. Reanúdala en Preparación para poder cargar su producto terminado.
+            La línea está parada. Reanúdala en Líneas para poder cargar su producto terminado.
           </p>
           {registroExistente && (
             <div className="grid grid-cols-2 gap-3 text-sm">

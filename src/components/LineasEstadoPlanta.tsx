@@ -700,6 +700,16 @@ function LineaCard({
           </div>
         )}
 
+        {/* Tras "Continuar al siguiente lote" la corrida vieja queda esperando su PT
+            aunque la línea ya corra con otra: sin este aviso, Finalizar Turno la
+            rechaza y el supervisor no ve por qué. */}
+        {activa && corridaEsperandoPt && (
+          <p className="rounded-lg border border-warning/40 bg-warning-soft/40 px-3 py-2 text-xs text-foreground">
+            La corrida anterior{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} espera su Producto
+            Terminado. Cárgalo en Producto Terminado.
+          </p>
+        )}
+
         {/* Status (revisión de inicio): una línea heredada corriendo que
             todavía no se revisó solo ofrece Confirmar / Corregir — la base
             no deja cargar contador ni PT de una línea sin confirmar, así que
