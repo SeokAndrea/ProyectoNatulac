@@ -141,8 +141,8 @@ export function LineasEstadoPlanta({
             presentaciones={presentaciones}
             velocidades={velocidades}
             onActivar={activarLinea}
-            onPausar={pausarLinea}
-            onContinuar={continuarLinea}
+            onPausar={yRecargarParadas(pausarLinea)}
+            onContinuar={yRecargarParadas(continuarLinea)}
             onDetenerLineaPorFalla={detenerLineaPorFalla}
             onContinuarSiguienteLote={continuarSiguienteLote}
             onSeguirMismoLote={seguirMismoLote}
@@ -218,7 +218,7 @@ function LineaCard({
   const [editando, setEditando] = useState(false)
   /** Confirmación de "Arrancar línea": el resumen de qué se va a arrancar antes de mandarlo (cambio brusco → confirmar dos veces). */
   const [confirmarActivar, setConfirmarActivar] = useState(false)
-  /** "Parada Operacional": muestra el textarea del motivo (obligatorio) antes de pausar. */
+  /** "Parada": muestra el textarea de la descripción (obligatoria) antes de pausar. Suma el +1 en Registrar Paradas. */
   const [mostrarParada, setMostrarParada] = useState(false)
   /** "Detener línea": 2ª confirmación — deja la corrida esperando el PT. */
   const [confirmarDetener, setConfirmarDetener] = useState(false)
@@ -354,7 +354,7 @@ function LineaCard({
     setTanqueContinuar("")
   }
 
-  /** "Parada Operacional": pausa la corrida con un motivo obligatorio. Sigue activa, se puede Continuar o Detener línea. */
+  /** "Parada": pausa la corrida con una descripción obligatoria y suma el +1 en Registrar Paradas. Sigue activa: se continúa (con la parada completa) o se detiene. */
   async function confirmarParada() {
     if (!lineaTurno || observacionBorrador.trim() === "") return
     setEnviandoAccion(true)
@@ -543,12 +543,12 @@ function LineaCard({
   }
 
   /** Aviso cuando la parada del CIP (el +1) todavía no tiene tipo o minutos: hasta completarla no se termina el CIP. */
-  function renderParadaPendiente() {
+  function renderParadaPendiente(accion = "terminar el CIP") {
     if (!paradaQueDetiene) return null
     return (
       <div className="flex flex-col gap-1.5 rounded-md border border-warning/40 bg-warning-soft/40 p-2">
         <p className="text-xs text-foreground">
-          Para terminar el CIP, completa su parada («{paradaQueDetiene.tipoNombre}») en Registrar Paradas.
+          Para {accion}, completa la parada («{paradaQueDetiene.tipoNombre}») en Registrar Paradas: tipo y minutos.
         </p>
         <Button asChild size="sm" variant="outline" className="self-start">
           <Link to={`/paradas?parada=${paradaQueDetiene.paradaId}`}>Ir a Registrar Paradas</Link>
@@ -631,12 +631,12 @@ function LineaCard({
     )
   }
 
-  /** "Parada Operacional": pausa la corrida con un motivo OBLIGATORIO. */
+  /** "Parada": pausa la corrida con una descripción OBLIGATORIA. */
   function renderParadaOperacional() {
     return (
       <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
         <p className="text-xs text-foreground">
-          Parada Operacional — la corrida se pausa (se puede Continuar o Detener línea). Escribe el motivo.
+          Parada: la corrida se pausa y se suma un +1 en Registrar Paradas. Escribe qué pasó; el tipo y los minutos se ponen allá.
         </p>
         <Textarea
           value={observacionBorrador}
@@ -1111,9 +1111,10 @@ function LineaCard({
             </div>
           ) : pausada && lineaTurno ? (
             <div className="flex flex-col gap-2">
-              <p className="text-xs text-muted-foreground">Parada Operacional.</p>
+              <p className="text-xs text-muted-foreground">Parada.</p>
+              {renderParadaPendiente("continuar")}
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion}>
+                <Button size="sm" onClick={() => accion(onContinuar)} disabled={enviandoAccion || paradaQueDetiene !== null}>
                   {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
                   Continuar
                 </Button>
@@ -1159,7 +1160,7 @@ function LineaCard({
                   }}
                 >
                   <PauseCircle className="size-3.5" />
-                  Parada Operacional
+                  Parada
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => abrirCip(true)}>
                   <Beaker className="size-3.5" />
