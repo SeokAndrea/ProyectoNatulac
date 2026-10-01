@@ -8,6 +8,7 @@ import { textoCondicionTanque } from "@/lib/tanques"
 import { LIMITE_MERMA } from "@/lib/turno"
 import { mermaCorrida } from "@/lib/reportes"
 import { mermaEnvasesDeCorridas } from "@/lib/reportes/realidadProduccion"
+import { ICONO_CONTADOR_BUENOS, ICONO_CONTADOR_DESECHO, ICONO_CONTADOR_LLENADORA } from "@/lib/actaIconos"
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/sesionTurno"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
@@ -388,103 +389,142 @@ export async function generarActaPdf(params: {
   finTabla()
 
   // ---------------- 2.2 RESUMEN DE PRODUCCIÓN ----------------
-  // Un recuadro por sabor + lote + línea (cada línea tiene su propio contador):
-  //   Sabor || Lote · Línea
-  //   Contador 1 || Contador 2 || % Merma
-  //   Cajas producidas
-  titulo("2.2 RESUMEN DE PRODUCCIÓN")
-  y += 1.5
-  const recuadros: { sabor: string; lote: string; linea: string; corridaIds: string[] }[] = []
-  for (const g of agruparPorSaborYLote(corridas)) {
-    for (const lote of g.lotes) {
-      for (const l of lineas) {
-        const ids = lote.corridas.filter((c) => c.linea === l.codigo).map((c) => c.id)
-        if (ids.length === 0) continue
-        recuadros.push({ sabor: g.saborNombre ?? "Sin sabor", lote: lote.lote ?? "—", linea: l.nombre, corridaIds: ids })
-      }
-    }
+  // Calcado del bloque "2.2 CONTADOR DE LLENADORA" del acta real de Natulac: barra azul del título; un
+  // recuadro por sabor + lote, 3 por fila, con barra celeste "sabor", el nombre, columnas Línea 1/2/3,
+  // "CONTADORES" en vertical y un dibujito por fila (llenadora, buenos, desecho — ver actaIconos.ts).
+  // Debajo, % Merma y Cajas por línea.
+  const AZUL_TITULO: [number, number, number] = [17, 34, 238]
+  const CELESTE: [number, number, number] = [109, 158, 235]
+  const anchoUtil = anchoPagina - 2 * margenX
+  const ALTO = { barra: 4.5, nombre: 5, lineas: 4.5, icono: 8, dato: 5 }
+  const altoRecuadro = ALTO.barra + ALTO.nombre + ALTO.lineas + 3 * ALTO.icono + 2 * ALTO.dato
+  const fuente = (tamano: number, estilo: "normal" | "bold", color: number | [number, number, number] = 0) => {
+    doc.setFontSize(tamano)
+    doc.setFont("helvetica", estilo)
+    if (typeof color === "number") doc.setTextColor(color)
+    else doc.setTextColor(...color)
   }
-  if (recuadros.length === 0) {
-    autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
-      body: [["Sin producción cargada en el turno."]],
-    })
-    finTabla()
-  }
-  // Tarjetas dibujadas a mano (no autoTable), 3 por fila — compactas, se leen como un tablero.
-  const COLUMNAS = 3
-  const SEPARACION = 3
-  const anchoTarjeta = (anchoPagina - 2 * margenX - SEPARACION * (COLUMNAS - 1)) / COLUMNAS
-  const ALTO_TARJETA = 22
-  /** Recorta el texto con "…" para que entre en el ancho dado (con la fuente y el tamaño actuales). */
+  /** Recorta con "…" para que entre en el ancho (fuente y tamaño actuales). */
   const ajustar = (texto: string, ancho: number) => {
     if (doc.getTextWidth(texto) <= ancho) return texto
     let t = texto
     while (t.length > 1 && doc.getTextWidth(`${t}…`) > ancho) t = t.slice(0, -1)
     return `${t}…`
   }
-  const fuente = (tamano: number, estilo: "normal" | "bold", gris = 0) => {
-    doc.setFontSize(tamano)
-    doc.setFont("helvetica", estilo)
-    doc.setTextColor(gris)
+  /** Celda con borde, fondo opcional y texto centrado. */
+  const celda = (x: number, yc: number, w: number, h: number, texto = "", relleno?: [number, number, number]) => {
+    doc.setDrawColor(0)
+    doc.setLineWidth(0.15)
+    if (relleno) {
+      doc.setFillColor(...relleno)
+      doc.rect(x, yc, w, h, "FD")
+    } else doc.rect(x, yc, w, h, "S")
+    if (texto) doc.text(ajustar(texto, w - 1), x + w / 2, yc + h / 2, { align: "center", baseline: "middle" })
   }
+
+  if (y + 6 + altoRecuadro > 287) {
+    doc.addPage()
+    y = 16
+  }
+  fuente(8.5, "bold", 255)
+  celda(margenX, y, anchoUtil, 5, "2.2 RESUMEN DE PRODUCCIÓN", AZUL_TITULO)
+  y += 5
+
+  const recuadros = agruparPorSaborYLote(corridas).flatMap((g) =>
+    g.lotes.map((lote) => ({ sabor: g.saborNombre ?? "Sin sabor", lote: lote.lote ?? "—", corridas: lote.corridas })),
+  )
+  if (recuadros.length === 0) {
+    fuente(8, "normal")
+    celda(margenX, y, anchoUtil, 6, "Sin producción cargada en el turno.")
+    y += 6
+  }
+
+  const anchoRecuadro = anchoUtil / 3
+  const anchoVertical = 5
+  const anchoIcono = 21
+  const anchoLinea = (anchoRecuadro - anchoVertical - anchoIcono) / lineas.length
+  const iconos = [ICONO_CONTADOR_LLENADORA, ICONO_CONTADOR_BUENOS, ICONO_CONTADOR_DESECHO]
+  const numOVacio = (n: number | null) => (n === null ? "" : n.toLocaleString("es-CO"))
+
   recuadros.forEach((r, i) => {
-    const columna = i % COLUMNAS
-    if (columna === 0 && i > 0) y += ALTO_TARJETA + SEPARACION
-    if (columna === 0 && y + ALTO_TARJETA > 287) {
+    const columna = i % 3
+    if (columna === 0 && i > 0) y += altoRecuadro
+    if (columna === 0 && y + altoRecuadro > 287) {
       doc.addPage()
       y = 16
     }
-    const x = margenX + columna * (anchoTarjeta + SEPARACION)
+    const x = margenX + columna * anchoRecuadro
+    let yr = y
 
-    const contadoresRec = contadores.filter((c) => c.corridaId !== null && r.corridaIds.includes(c.corridaId))
-    const contador1 = contadoresRec.reduce((a, c) => a + c.envasesLlenadora, 0)
-    const conContador2 = contadoresRec.filter((c) => c.envasesBuenos !== null)
-    const contador2 = conContador2.reduce((a, c) => a + (c.envasesBuenos ?? 0), 0)
-    const merma = mermaEnvasesDeCorridas(r.corridaIds, contadores, productoTerminado, presentaciones).pct
-    const cajas = productoTerminado
-      .filter((p) => p.corridaId !== null && r.corridaIds.includes(p.corridaId))
-      .reduce((a, p) => a + p.paletas * (presentaciones.find((x) => x.codigo === p.presentacion)?.cajasXPaleta ?? 0) + p.cajasSueltas, 0)
-
-    // Encabezado (sabor + lote · línea) sobre fondo verde claro, y el borde redondeado.
-    doc.setFillColor(225, 245, 240)
-    doc.roundedRect(x, y, anchoTarjeta, 7.5, 1.5, 1.5, "F")
-    doc.rect(x, y + 4, anchoTarjeta, 3.5, "F")
-    doc.setDrawColor(170)
-    doc.setLineWidth(0.25)
-    doc.roundedRect(x, y, anchoTarjeta, ALTO_TARJETA, 1.5, 1.5, "S")
-    fuente(8.5, "bold")
-    doc.text(ajustar(r.sabor, anchoTarjeta - 4), x + 2, y + 3.4)
-    fuente(7, "normal", 80)
-    doc.text(ajustar(`Lote ${r.lote} · ${r.linea}`, anchoTarjeta - 4), x + 2, y + 6.5)
-
-    // Contador 1 | Contador 2 | % Merma
-    const anchoDato = (anchoTarjeta - 4) / 3
-    const datos: [string, string, boolean][] = [
-      ["Contador 1", contadoresRec.length > 0 ? contador1.toLocaleString("es-CO") : "—", false],
-      ["Contador 2", conContador2.length > 0 ? contador2.toLocaleString("es-CO") : "—", false],
-      ["% Merma", merma !== null ? `${merma}%` : "—", merma !== null && merma > LIMITE_MERMA_PCT],
-    ]
-    datos.forEach(([texto, valor, alerta], j) => {
-      const xd = x + 2 + j * anchoDato
-      fuente(6.5, "normal", 100)
-      doc.text(texto, xd, y + 10.8)
-      fuente(9.5, "bold")
-      if (alerta) doc.setTextColor(200, 30, 30)
-      doc.text(ajustar(valor, anchoDato - 1), xd, y + 14.8)
+    // Datos por línea: null = esa línea no corrió este sabor + lote (celda vacía).
+    const porLinea = lineas.map((l) => {
+      const ids = r.corridas.filter((c) => c.linea === l.codigo).map((c) => c.id)
+      if (ids.length === 0) return null
+      const conts = contadores.filter((c) => c.corridaId !== null && ids.includes(c.corridaId))
+      const c1 = conts.length > 0 ? conts.reduce((a, c) => a + c.envasesLlenadora, 0) : null
+      const conC2 = conts.filter((c) => c.envasesBuenos !== null)
+      const c2 = conC2.length > 0 ? conC2.reduce((a, c) => a + (c.envasesBuenos ?? 0), 0) : null
+      const cajas = productoTerminado
+        .filter((p) => p.corridaId !== null && ids.includes(p.corridaId))
+        .reduce((a, p) => a + p.paletas * (presentaciones.find((x) => x.codigo === p.presentacion)?.cajasXPaleta ?? 0) + p.cajasSueltas, 0)
+      return {
+        c1,
+        c2,
+        desecho: c1 !== null && c2 !== null ? c1 - c2 : null,
+        merma: mermaEnvasesDeCorridas(ids, contadores, productoTerminado, presentaciones).pct,
+        cajas,
+      }
     })
 
-    // Cajas producidas
-    doc.setDrawColor(215)
-    doc.line(x + 2, y + 16.8, x + anchoTarjeta - 2, y + 16.8)
-    fuente(7, "normal", 80)
-    doc.text("Cajas producidas", x + 2, y + 20.2)
-    fuente(9.5, "bold")
-    doc.text(cajas.toLocaleString("es-CO"), x + anchoTarjeta - 2, y + 20.2, { align: "right" })
+    // "sabor" (celeste) + nombre + lote
+    fuente(7.5, "normal", 255)
+    celda(x, yr, anchoRecuadro, ALTO.barra, "sabor", CELESTE)
+    yr += ALTO.barra
+    fuente(8, "bold")
+    celda(x, yr, anchoRecuadro, ALTO.nombre, `${r.sabor} — Lote ${r.lote}`)
+    yr += ALTO.nombre
+
+    // Encabezado Línea 1 | Línea 2 | Línea 3
+    celda(x, yr, anchoVertical + anchoIcono, ALTO.lineas)
+    fuente(7, "normal", 255)
+    lineas.forEach((l, j) => celda(x + anchoVertical + anchoIcono + j * anchoLinea, yr, anchoLinea, ALTO.lineas, l.nombre, CELESTE))
+    yr += ALTO.lineas
+
+    // CONTADORES (vertical) + 3 filas con dibujito
+    celda(x, yr, anchoVertical, 3 * ALTO.icono)
+    fuente(6.5, "normal")
+    doc.text("CONTADORES", x + anchoVertical / 2 + 1.1, yr + (3 * ALTO.icono) / 2 + doc.getTextWidth("CONTADORES") / 2, { angle: 90 })
+    const filas: ((d: NonNullable<(typeof porLinea)[number]>) => string)[] = [
+      (d) => numOVacio(d.c1),
+      (d) => numOVacio(d.c2),
+      (d) => numOVacio(d.desecho),
+    ]
+    filas.forEach((valor, f) => {
+      const yf = yr + f * ALTO.icono
+      celda(x + anchoVertical, yf, anchoIcono, ALTO.icono)
+      doc.addImage(iconos[f], "PNG", x + anchoVertical + 1, yf + 0.6, anchoIcono - 2, ALTO.icono - 1.2, undefined, "FAST")
+      fuente(8, "normal")
+      porLinea.forEach((d, j) => celda(x + anchoVertical + anchoIcono + j * anchoLinea, yf, anchoLinea, ALTO.icono, d ? valor(d) : ""))
+    })
+    yr += 3 * ALTO.icono
+
+    // % Merma y Cajas por línea
+    const extras: [string, (d: NonNullable<(typeof porLinea)[number]>) => string, boolean][] = [
+      ["% Merma", (d) => (d.merma !== null ? `${d.merma}%` : "—"), true],
+      ["Cajas", (d) => numOVacio(d.cajas), false],
+    ]
+    extras.forEach(([etiquetaFila, valor, esMerma]) => {
+      fuente(7.5, "bold")
+      celda(x, yr, anchoVertical + anchoIcono, ALTO.dato, etiquetaFila)
+      porLinea.forEach((d, j) => {
+        const alerta = esMerma && d !== null && d.merma !== null && d.merma > LIMITE_MERMA_PCT
+        fuente(8, "bold", alerta ? [200, 30, 30] : 0)
+        celda(x + anchoVertical + anchoIcono + j * anchoLinea, yr, anchoLinea, ALTO.dato, d ? valor(d) : "")
+      })
+      yr += ALTO.dato
+    })
   })
-  if (recuadros.length > 0) y += ALTO_TARJETA + 5
+  if (recuadros.length > 0) y += altoRecuadro + 5
   doc.setTextColor(0)
 
   // ---------------- PARADAS DEL TURNO (propio del sistema, no del formato original) ----------------
