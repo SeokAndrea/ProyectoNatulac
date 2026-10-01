@@ -9,6 +9,7 @@ import Lineas from "@/pages/apps/Lineas"
 import ProductoTerminado from "@/pages/apps/ProductoTerminado"
 import FinalizarTurno from "@/pages/apps/FinalizarTurno"
 import MisActas from "@/pages/apps/MisActas"
+import ResumenDia from "@/pages/apps/ResumenDia"
 import PanelProduccion from "@/pages/apps/PanelProduccion"
 import PanelParadas from "@/pages/apps/PanelParadas"
 import RegistrarParadas from "@/pages/apps/RegistrarParadas"
@@ -197,6 +198,14 @@ export default function App() {
           element={
             <ProtectedRoute app="calculadora-conteo-peso">
               <CalculadoraConteoPeso />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/resumen-dia"
+          element={
+            <ProtectedRoute app="resumen-dia">
+              <ResumenDia />
             </ProtectedRoute>
           }
         />

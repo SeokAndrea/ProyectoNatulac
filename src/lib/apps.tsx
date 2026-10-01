@@ -20,6 +20,7 @@ import {
   BookOpen,
   Droplets,
   Users,
+  ClipboardList,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
@@ -68,6 +69,8 @@ export interface AppDef {
   color?: "success" | "blue" | "purple" | "warning" | "danger"
   /** Si es true, la tarjeta solo aparece para el dueño (ver session.esDueno). */
   soloDueno?: boolean
+  /** Si es true, solo para el Super Administrador (y el dueño). */
+  soloSuperadmin?: boolean
   /** Si se define, la tarjeta solo aparece para ese username exacto (case-insensitive), sin importar rol o área — para vistas de prueba de un solo usuario. */
   usuarioPermitido?: string
   /**
@@ -166,6 +169,16 @@ export const apps: AppDef[] = [
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     resaltarConTurno: true,
     seccion: "produccion",
+  },
+  {
+    slug: "resumen-dia",
+    title: "Resumen del Día",
+    description: "Producción de la jornada: cajas por sabor y presentación, total por línea y el mensaje para copiar.",
+    href: "/resumen-dia",
+    icon: ClipboardList,
+    requiereTurno: false,
+    soloSuperadmin: true,
+    seccion: "auditoria",
   },
   {
     slug: "mis-actas",
@@ -389,6 +402,7 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (app.areasPermitidas && !(session.area && app.areasPermitidas.includes(session.area))) return false
   if (app.areasExcluidas && session.area && app.areasExcluidas.includes(session.area)) return false
   if (app.soloDueno && !session.esDueno) return false
+  if (app.soloSuperadmin && session.rol !== "SUPERADMINISTRADOR" && !session.esDueno) return false
   if (app.usuarioPermitido && session.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
   return true
 }
