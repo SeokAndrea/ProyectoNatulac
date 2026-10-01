@@ -14,9 +14,13 @@ import { misActas, urlPublicaActa, type MiActa } from "@/lib/historialTurnos"
  * solo Super Administrador / Administrador de Área). Antes el único
  * momento en que veía el link de su acta era justo al finalizar el
  * turno (FinalizarTurno.tsx) — si navegaba a otro lado, lo perdía.
+ *
+ * El Super Administrador ve las actas de todos los turnos (migración
+ * 20261097), con el supervisor y el área de cada una.
  */
 export default function MisActas() {
   const { session } = useAuth()
+  const veTodas = session?.rol === "SUPERADMINISTRADOR" || session?.esDueno === true
   const [actas, setActas] = useState<MiActa[]>([])
   const [cargando, setCargando] = useState(true)
 
@@ -29,7 +33,7 @@ export default function MisActas() {
   }, [session])
 
   return (
-    <AppShell title="Mis Actas" description="Actas de tus turnos cerrados">
+    <AppShell title="Mis Actas" description={veTodas ? "Actas de todos los turnos cerrados" : "Actas de tus turnos cerrados"}>
       <div className="mx-auto flex max-w-2xl flex-col gap-3">
         {cargando ? (
           <div className="flex justify-center py-16 text-muted-foreground">
@@ -45,7 +49,11 @@ export default function MisActas() {
                   <p className="truncate text-sm font-semibold text-foreground">
                     {a.fecha} · {nombrePorCodigo(TURNO_TIPOS, a.turnoTipo)} · {nombreGrupo(a.grupo)}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">{a.turnoCodigo}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {a.turnoCodigo}
+                    {veTodas && a.supervisorNombre ? ` · ${a.supervisorNombre}` : ""}
+                    {veTodas && a.areaNombre ? ` · ${a.areaNombre}` : ""}
+                  </p>
                 </div>
                 <Button asChild size="sm" variant="outline" className="shrink-0">
                   <a href={urlPublicaActa(a.storagePath)} target="_blank" rel="noreferrer">

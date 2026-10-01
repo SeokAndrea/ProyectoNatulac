@@ -325,6 +325,9 @@ export interface MiActa {
   fecha: string
   turnoTipo: TurnoTipoCodigo
   grupo: GrupoCodigo
+  /** Quién supervisó el turno y de qué área — para el Super Admin, que ve las actas de todos (migración 20261097). */
+  supervisorNombre: string | null
+  areaNombre: string | null
 }
 
 interface FilaMiActa {
@@ -337,9 +340,11 @@ interface FilaMiActa {
   fecha: string
   turno_tipo_codigo: string
   grupo_codigo: string
+  supervisor_nombre?: string | null
+  area_nombre?: string | null
 }
 
-/** "Mis Actas" (Home del supervisor) — solo las actas VIGENTES de SUS propios turnos, sin exigir rol. */
+/** "Mis Actas" (Home del supervisor) — las actas VIGENTES de SUS propios turnos, sin exigir rol. El Super Administrador ve las de todos (20261097). */
 export async function misActas(usuarioSesion: string): Promise<MiActa[]> {
   const { data, error } = await supabase.rpc("mis_actas", { p_usuario: usuarioSesion })
   if (error || !data) return []
@@ -353,6 +358,8 @@ export async function misActas(usuarioSesion: string): Promise<MiActa[]> {
     fecha: f.fecha,
     turnoTipo: f.turno_tipo_codigo as TurnoTipoCodigo,
     grupo: f.grupo_codigo as GrupoCodigo,
+    supervisorNombre: f.supervisor_nombre ?? null,
+    areaNombre: f.area_nombre ?? null,
   }))
 }
 

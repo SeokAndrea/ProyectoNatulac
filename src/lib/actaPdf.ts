@@ -184,7 +184,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1 },
+    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
     columnStyles: {
       0: { fillColor: AZUL_NATULAC, textColor: 255, fontStyle: "bold" },
       2: { fillColor: AZUL_NATULAC, textColor: 255, fontStyle: "bold" },
@@ -204,7 +204,7 @@ export async function generarActaPdf(params: {
     autoTable(doc, {
       startY: y + 1.5,
       theme: "grid",
-      styles: { fontSize: 8, cellPadding: 1 },
+      styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
       head: [["Responsable", "Desde", "Hasta", "Cómo"]],
       body: responsables.map((r) => [
         r.nombre,
@@ -222,7 +222,7 @@ export async function generarActaPdf(params: {
     autoTable(doc, {
       startY: y + 1.5,
       theme: "grid",
-      styles: { fontSize: 8, cellPadding: 1 },
+      styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
       head: [["Línea", "Sabor", "Lote", "Entregada"]],
       body: entregasAutomaticas.map((c) => [
         lineas.find((l) => l.codigo === c.linea)?.nombre ?? c.linea,
@@ -239,7 +239,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1 },
+    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
     head: [["Tanque", "Lote", "Cantidad / Estado"]],
     body: ([1, 2, 3] as const).map((n) => {
       const t = tanquesEncontrados?.find((x) => x.numeroTanque === n)
@@ -258,7 +258,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
-    styles: { fontSize: 7.5, cellPadding: 0.9 },
+    styles: { textColor: 0, fontSize: 7.5, cellPadding: 0.9 },
     head: [["Sabor — Lote", "Vol. preparado", "Vol. inicio turno", ...lineas.map((l) => `PT ${l.nombre}`), "Vol. final", "% Rendimiento"]],
     body:
       lotesDelTurno.length > 0
@@ -294,7 +294,7 @@ export async function generarActaPdf(params: {
     autoTable(doc, {
       startY: y + 1.5,
       theme: "grid",
-      styles: { fontSize: 8, cellPadding: 1 },
+      styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
       head: [["Hora", "Tanque", "Sabor — Lote", "Litros", "Detalle", "Quién"]],
       body: ajustesVolumen.map((a) => [
         horaNovedad(a.creadoEn),
@@ -313,7 +313,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1 },
+    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
     head: [["Tanque", "Lote", "Cantidad / Estado"]],
     body: ([1, 2, 3] as const).map((n) => {
       const t = tanques.find((x) => x.numeroTanque === n)
@@ -338,7 +338,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1 },
+    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
     head: [["Presentación — Línea", "Cajas", "Problemas de calidad", "Cajas no conforme", "Descripción / acciones"]],
     body: filasProduccion.length > 0 ? filasProduccion : [["Sin producción cargada", "—", "—", "—", "—"]],
     // "Problemas de calidad" / "Cajas no conforme" ya no tienen dato en el esquema (producto_terminado sin
@@ -365,7 +365,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1 },
+    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
     head: [["Línea", "Meta (cajas)", "Real (cajas)", "Eficiencia", "Merma"]],
     body: lineas.map((l) => {
       const e = eficiencia.porLinea.get(l.codigo)
@@ -408,7 +408,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1 },
+    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
     head: [["Sabor — Concepto", ...lineas.map((l) => l.nombre)]],
     body: filasContador.length > 0 ? filasContador : [["Sin contadores cargados", ...lineas.map(() => "—")]],
   })
@@ -438,7 +438,7 @@ export async function generarActaPdf(params: {
     autoTable(doc, {
       startY: y + 1.5,
       theme: "grid",
-      styles: { fontSize: 8, cellPadding: 1 },
+      styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
       columnStyles: { 1: { cellWidth: 20 }, 3: { cellWidth: 12, halign: "right" }, 4: { cellWidth: 28 } },
       head: [["Línea", "Código", "Parada", "Min", "Guía · desvío", "Comentario"]],
       body: filasParadas.length > 0 ? filasParadas : [["—", "—", "Sin paradas registradas en el turno.", "—", "—", "—"]],
@@ -460,7 +460,7 @@ export async function generarActaPdf(params: {
     autoTable(doc, {
       startY: y + 1.5,
       theme: "grid",
-      styles: { fontSize: 8, cellPadding: 1 },
+      styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
       head: [["Quién", "Cuándo", "Motivo"]],
       body: correcciones.map((c) => [
         c.nombre,
@@ -475,7 +475,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1 },
+    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
     columnStyles: { 0: { cellWidth: 18 } },
     body:
       novedades.length > 0
@@ -489,7 +489,7 @@ export async function generarActaPdf(params: {
   autoTable(doc, {
     startY: y + 1.5,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1 },
+    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
     columnStyles: { 0: { cellWidth: 18 } },
     head: [["Hora", "Temp. Quantum", "Agua Osmotizada", "Gasoil"]],
     body:
