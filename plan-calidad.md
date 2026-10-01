@@ -25,7 +25,8 @@ Migración `20261086090000_calidad_libera_lotes.sql`. Ensayo: `scripts/ensayo-20
    "Corregir" del tanque ya no deja poner Listo o Con Restos un lote nuevo (antes lo liberaba sin análisis).
 2. Usuarios de Calidad en el área **Calidad** (no Pruebas). Calidad cubre los 3 turnos (confirmado 2026-10-01).
 3. Rangos de Brix y acidez cargados para todos los sabores (sin rango, el análisis nunca es conforme).
-4. Encender el interruptor en un cambio de turno, con Calidad presente:
+4. Encender el interruptor en un cambio de turno, con Calidad presente: **Edición de Datos → "Calidad libera
+   los lotes (Aséptico)"** (solo lo ve el dueño; migración 20261096, queda en Auditoría). Equivale a:
    ```sql
    update areas set calidad_libera = true where codigo = 'ASEPTICO';
    ```

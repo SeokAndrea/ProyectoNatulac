@@ -237,6 +237,21 @@ export function useCalidadLibera(area: string | null): boolean | null {
   return resultado?.area === area ? resultado.valor : null
 }
 
+/** Prende / apaga "Calidad libera los lotes" en un área. Solo el dueño (migración 20261096). */
+export async function guardarCalidadLibera(
+  usuario: string,
+  area: string,
+  activo: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc("guardar_calidad_libera", {
+    p_usuario: usuario,
+    p_area_codigo: area,
+    p_activo: activo,
+  })
+  if (error) return { ok: false, error: error.message || "No se pudo cambiar el ajuste." }
+  return { ok: true }
+}
+
 /**
  * Análisis de los lotes dados, agrupados por lote (el más nuevo primero).
  * `refrescar` vuelve a pedirlos (después de registrar uno).
