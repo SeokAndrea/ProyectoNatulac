@@ -27,20 +27,19 @@ import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
  *             · 1.8 tanques entregados · 1.9 producción · 2.1 eficiencia y
  *             merma + paradas por línea.
  *   Página 2: 2.2 contadores (recuadros por sabor + lote, con los dibujitos)
- *             · 2.3 novedades · firmas.
+ *             · 2.3 novedades · firma del supervisor saliente.
  *
  * Lo que el sistema suma al formato original va dentro de las mismas
  * casillas: las paradas en los recuadros por línea de 2.1; ajustes de
  * agua/jugo, entregas automáticas, Servicios Industriales y correcciones
- * en 2.3; relevos en 1.4. Lo que el sistema no sabe (problemas de calidad,
- * cajas no conforme, nombres para las demás firmas) queda en blanco para
- * llenar a mano, como en papel.
+ * en 2.3; relevos en 1.4. 1.9 es solo el resumen de cajas (sin calidad /
+ * no conforme) y la firma es solo la del supervisor saliente (dueño, 2026-10-01).
  */
 
 const LIMITE_MERMA_PCT = LIMITE_MERMA * 100
 
-/** Colores del acta real. */
-const AZUL: [number, number, number] = [16, 36, 240]
+/** Colores del acta real (el azul, una variante más suave del original #1024F0). */
+const AZUL: [number, number, number] = [44, 82, 190]
 const CELESTE: [number, number, number] = [109, 158, 235]
 const ROJO: [number, number, number] = [200, 30, 30]
 
@@ -204,7 +203,6 @@ export async function generarActaPdf(params: {
   }
   const miles = (n: number) => Math.round(n).toLocaleString("es-CO")
   const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
-  const lineaCorta = (codigo: string) => `L${numeroLinea(codigo)}`
 
   // ---------------------------------------------------------------- franja y título
   franja()
@@ -227,7 +225,7 @@ export async function generarActaPdf(params: {
           .map((r) => `${r.nombre} (${horaCortaPlanta(r.desde, fecha)}–${r.hasta ? horaCortaPlanta(r.hasta, fecha) : "cierre"})`)
           .join(" / ")
       : supervisorNombre
-  const fila = 7
+  const fila = 6
   const etiqueta = { fondo: AZUL, negrita: true, tamano: 7.5 } as const
   const valor = { negrita: true, tamano: 8 } as const
   celda(M, y, C, fila, "1.1 Fecha:", etiqueta)
@@ -256,13 +254,13 @@ export async function generarActaPdf(params: {
       celda(x, y, 1.5 * C, 4.5, `Tanque ${n}`, { fondo: AZUL, negrita: true })
       celda(x + 1.5 * C, y, C, 4.5, "Lote", { fondo: AZUL, negrita: true })
       celda(x + 2.5 * C, y, 0.5 * C, 4.5, conProducto ? (t.lote ?? "") : "", { negrita: true, tamano: 7 })
-      celda(x, y + 4.5, C, 5.5, "Cantidad", { fondo: CELESTE, negrita: true })
-      celda(x + C, y + 4.5, 2 * C, 5.5, "Sabor", { fondo: CELESTE, negrita: true })
+      celda(x, y + 4.5, C, 4.5, "Cantidad", { fondo: CELESTE, negrita: true })
+      celda(x + C, y + 4.5, 2 * C, 4.5, "Sabor", { fondo: CELESTE, negrita: true })
       const sabor = t === null ? "Sin registrar" : conProducto ? `${t.saborNombre ?? "Sin sabor"}${t.condicion === "STANDBY" ? " (con restos)" : ""}` : NOMBRE_CONDICION[t.condicion]
-      celda(x, y + 10, C, 7, conProducto ? miles(t.volumenL ?? 0) : "0", { negrita: true, tamano: 8 })
-      celda(x + C, y + 10, 2 * C, 7, sabor, { negrita: conProducto, tamano: 8 })
+      celda(x, y + 9, C, 6, conProducto ? miles(t.volumenL ?? 0) : "0", { negrita: true, tamano: 8 })
+      celda(x + C, y + 9, 2 * C, 6, sabor, { negrita: conProducto, tamano: 8 })
     })
-    y += 17
+    y += 15
   }
   bloqueTanques("1.6 CONDICIÓN EN LA QUE RECIBEN LOS TANQUES", (n) => tanquesEncontrados?.find((t) => t.numeroTanque === n) ?? null)
 
@@ -308,7 +306,7 @@ export async function generarActaPdf(params: {
       ]
     })
     const altoFila = 5.6
-    const totalFilas = Math.max(filas.length, 5)
+    const totalFilas = Math.max(filas.length, 1)
     for (let f = 0; f < totalFilas; f++) {
       asegurar(altoFila)
       const datos = filas[f]
@@ -322,34 +320,37 @@ export async function generarActaPdf(params: {
   // ---------------------------------------------------------------- 1.9 producción
   barra("1.9 ESTADO DE LA PRODUCCIÓN/REALIZADO")
   {
+    // Resumen de las cajas hechas, a todo el ancho: Presentación | Línea | Cajas, con el total.
     const enc = { fondo: CELESTE, negrita: true, tamano: 7 } as const
-    celda(M, y, C, 4.5, "Presentación", enc)
-    celda(M + C, y, 1.5 * C, 4.5, "Cajas", enc)
-    celda(M + 2.5 * C, y, 2 * C, 4.5, "Problemas de Calidad", enc)
-    celda(M + 4.5 * C, y, 1.5 * C, 4.5, "Cantidad de cajas no conforme", { ...enc, tamano: 5 })
-    celda(M + 6 * C, y, 3 * C, 4.5, "Descripción de la no conformidad/acciones tomada", { ...enc, tamano: 6.5 })
+    celda(M, y, 3 * C, 4.5, "Presentación", enc)
+    celda(M + 3 * C, y, 3 * C, 4.5, "Línea", enc)
+    celda(M + 6 * C, y, 3 * C, 4.5, "Cajas", enc)
     y += 4.5
-    const filas: [string, string][] = []
+    const filas: [string, string, number][] = []
     for (const l of lineas) {
       for (const pres of presentaciones) {
         const items = productoTerminado.filter((p) => p.linea === l.codigo && p.presentacion === pres.codigo)
         if (items.length === 0) continue
-        const cajas = items.reduce((a, p) => a + p.paletas * pres.cajasXPaleta + p.cajasSueltas, 0)
-        filas.push([`${pres.nombre} ${lineaCorta(l.codigo)}`, miles(cajas)])
+        filas.push([pres.nombre, l.nombre, items.reduce((a, p) => a + p.paletas * pres.cajasXPaleta + p.cajasSueltas, 0)])
       }
     }
-    const altoFila = 4.2
-    const total = Math.max(filas.length, 4)
-    asegurar(total * altoFila)
-    for (let f = 0; f < total; f++) {
-      celda(M, y + f * altoFila, C, altoFila, filas[f]?.[0] ?? "", { negrita: true, tamano: 7, alinear: "left" })
-      celda(M + C, y + f * altoFila, 1.5 * C, altoFila, filas[f]?.[1] ?? "", { negrita: true, tamano: 7 })
+    const altoFila = 4.5
+    asegurar((Math.max(filas.length, 1) + 1) * altoFila)
+    if (filas.length === 0) {
+      celda(M, y, W, altoFila, "Sin producción cargada en el turno.", { tamano: 7 })
+      y += altoFila
     }
-    // Calidad / no conforme / descripción: el sistema no las guarda — casillas en blanco para llenar a mano.
-    celda(M + 2.5 * C, y, 2 * C, total * altoFila)
-    celda(M + 4.5 * C, y, 1.5 * C, total * altoFila)
-    celda(M + 6 * C, y, 3 * C, total * altoFila)
-    y += total * altoFila
+    for (const [presentacion, linea, cajas] of filas) {
+      celda(M, y, 3 * C, altoFila, presentacion, { negrita: true, tamano: 7.5 })
+      celda(M + 3 * C, y, 3 * C, altoFila, linea, { negrita: true, tamano: 7.5 })
+      celda(M + 6 * C, y, 3 * C, altoFila, miles(cajas), { negrita: true, tamano: 7.5 })
+      y += altoFila
+    }
+    if (filas.length > 1) {
+      celda(M, y, 6 * C, altoFila, "Total", { fondo: CELESTE, negrita: true, tamano: 7.5 })
+      celda(M + 6 * C, y, 3 * C, altoFila, miles(filas.reduce((a, f) => a + f[2], 0)), { negrita: true, tamano: 8 })
+      y += altoFila
+    }
   }
 
   // ---------------------------------------------------------------- 2.1 eficiencia, merma, gráfico y paradas
@@ -374,25 +375,25 @@ export async function generarActaPdf(params: {
       const e = eficiencia.porLinea.get(l.codigo)
       const merma = mermaPromedioLinea(corridas, contadores, productoTerminado, presentaciones, l.codigo)
       celda(x, y, bloque, 4.5, l.nombre, { fondo: CELESTE, negrita: true })
-      celda(x, y + 4.5, sub, 6, "Eficiencia", { fondo: CELESTE, negrita: true })
-      celda(x + sub, y + 4.5, sub, 6, "Merma", { fondo: CELESTE, negrita: true })
-      celda(x + 2 * sub, y + 4.5, sub, 6, "Cajas real / meta", { fondo: CELESTE, negrita: true, tamano: 6 })
-      celda(x, y + 10.5, sub, 7, e?.eficienciaPct != null ? `${e.eficienciaPct}%` : "--", { negrita: true, tamano: 8 })
-      celda(x + sub, y + 10.5, sub, 7, merma !== null ? `${String(merma).replace(".", ",")}%` : "--", {
+      celda(x, y + 4.5, sub, 5, "Eficiencia", { fondo: CELESTE, negrita: true })
+      celda(x + sub, y + 4.5, sub, 5, "Merma", { fondo: CELESTE, negrita: true })
+      celda(x + 2 * sub, y + 4.5, sub, 5, "Cajas real / meta", { fondo: CELESTE, negrita: true, tamano: 6 })
+      celda(x, y + 9.5, sub, 6, e?.eficienciaPct != null ? `${e.eficienciaPct}%` : "--", { negrita: true, tamano: 8 })
+      celda(x + sub, y + 9.5, sub, 6, merma !== null ? `${String(merma).replace(".", ",")}%` : "--", {
         negrita: true,
         tamano: 8,
         color: merma !== null && merma > LIMITE_MERMA_PCT ? ROJO : 0,
       })
       celda(
         x + 2 * sub,
-        y + 10.5,
+        y + 9.5,
         sub,
-        7,
+        6,
         e?.realCajas != null || e?.metaCajas != null ? `${e?.realCajas != null ? miles(e.realCajas) : "--"} / ${e?.metaCajas != null ? miles(e.metaCajas) : "--"}` : "--",
         { negrita: true, tamano: 7 },
       )
     })
-    y += 17.5
+    y += 15.5
 
     // Recuadros por línea (en el acta real van en blanco): acá, las paradas de cada línea.
     const textosParadas = lineas.map((l) => {
@@ -413,10 +414,9 @@ export async function generarActaPdf(params: {
     })
     doc.setFontSize(6.5)
     const envueltos = textosParadas.map((ls) => ls.flatMap((t) => doc.splitTextToSize(t, W / lineas.length - 3) as string[]))
-    const altoContenido = Math.max(26, 4 + Math.max(...envueltos.map((e) => e.length)) * 2.8)
-    asegurar(4.5 + altoContenido)
-    // Como el acta real: los recuadros por línea llegan hasta el final de la página 1.
-    const altoRecuadro = Math.max(altoContenido, LIMITE_Y - y - 4.5)
+    // Se ajusta a lo escrito (la línea con más texto manda).
+    const altoRecuadro = 2 + Math.max(...envueltos.map((e) => e.length)) * 2.8
+    asegurar(4.5 + altoRecuadro)
     lineas.forEach((l, i) => {
       const x = M + (i * W) / lineas.length
       celda(x, y, W / lineas.length, 4.5, `${l.nombre} · Paradas`, { fondo: CELESTE, negrita: true })
@@ -431,9 +431,7 @@ export async function generarActaPdf(params: {
     y += 4.5 + altoRecuadro
   }
 
-  // ---------------------------------------------------------------- página 2: 2.2 contadores
-  nuevaPagina()
-  barra("2.2 CONTADOR DE LLENADORA")
+  // ---------------------------------------------------------------- 2.2 contadores (sigue a continuación; pasa de página solo si no entra)
   {
     const recuadros: ({ sabor: string; lote: string; corridas: Corrida[] } | null)[] = agruparPorSaborYLote(corridas).flatMap((g) =>
       g.lotes.map((lote) => ({ sabor: g.saborNombre ?? "Sin sabor", lote: lote.lote ?? "—", corridas: lote.corridas })),
@@ -449,6 +447,8 @@ export async function generarActaPdf(params: {
     const anchoLinea = (anchoRecuadro - anchoVertical - anchoIcono) / lineas.length
     const iconos = [ICONO_CONTADOR_LLENADORA, ICONO_CONTADOR_BUENOS, ICONO_CONTADOR_DESECHO]
     const numOVacio = (n: number | null) => (n === null ? "" : miles(n))
+    asegurar(4.2 + altoRecuadro)
+    barra("2.2 CONTADOR DE LLENADORA")
 
     recuadros.forEach((r, i) => {
       const columna = i % 3
@@ -526,8 +526,65 @@ export async function generarActaPdf(params: {
     })
   }
 
+  // ---------------------------------------------------------------- justificación de mermas de envases
+  // La justificación se escribe con el contador (Producto Terminado) cuando la merma pasa del límite.
+  {
+    const filasJustificacion = agruparPorSaborYLote(corridas).flatMap((g) =>
+      g.lotes.flatMap((lote) =>
+        lineas.flatMap((l) => {
+          const ids = lote.corridas.filter((c) => c.linea === l.codigo).map((c) => c.id)
+          if (ids.length === 0) return []
+          const merma = mermaEnvasesDeCorridas(ids, contadores, productoTerminado, presentaciones).pct
+          const textos = contadores
+            .filter((c) => c.corridaId !== null && ids.includes(c.corridaId) && c.justificacion.trim() !== "")
+            .map((c) => c.justificacion.trim())
+          const pasada = merma !== null && merma > LIMITE_MERMA_PCT
+          if (!pasada && textos.length === 0) return []
+          return [
+            {
+              linea: l.nombre,
+              saborLote: `${g.saborNombre ?? "Sin sabor"} — Lote ${lote.lote ?? "—"}`,
+              merma,
+              pasada,
+              justificacion: textos.length > 0 ? textos.join(" / ") : "Sin justificación cargada.",
+            },
+          ]
+        }),
+      ),
+    )
+    if (filasJustificacion.length > 0) {
+      const enc = { fondo: CELESTE, negrita: true, tamano: 7 } as const
+      asegurar(4.2 + 4.5 + 5)
+      barra("JUSTIFICACIÓN DE MERMAS DE ENVASES")
+      celda(M, y, C, 4.5, "Línea", enc)
+      celda(M + C, y, 2 * C, 4.5, "Sabor — Lote", enc)
+      celda(M + 3 * C, y, C, 4.5, "% Merma", enc)
+      celda(M + 4 * C, y, 5 * C, 4.5, "Justificación", enc)
+      y += 4.5
+      for (const f of filasJustificacion) {
+        doc.setFontSize(7)
+        doc.setFont("helvetica", "normal")
+        const texto = doc.splitTextToSize(f.justificacion, 5 * C - 2.4) as string[]
+        const alto = Math.max(5, 2 + texto.length * 3)
+        asegurar(alto)
+        celda(M, y, C, alto, f.linea, { negrita: true, tamano: 7 })
+        celda(M + C, y, 2 * C, alto, f.saborLote, { negrita: true, tamano: 7 })
+        celda(M + 3 * C, y, C, alto, f.merma !== null ? `${String(f.merma).replace(".", ",")}%` : "--", {
+          negrita: true,
+          tamano: 7.5,
+          color: f.pasada ? ROJO : 0,
+        })
+        celda(M + 4 * C, y, 5 * C, alto)
+        doc.setFontSize(7)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(0)
+        texto.forEach((t, i) => doc.text(t, M + 4 * C + 1.2, y + alto / 2 + (i - (texto.length - 1) / 2) * 3, { baseline: "middle" }))
+        y += alto
+      }
+    }
+  }
+
   // ---------------------------------------------------------------- 2.3 novedades (+ lo que registra el sistema)
-  barra("2.3 NOVEDADES DEL TURNO")
   {
     const textos: { texto: string; negrita?: boolean }[] = novedades.map((n) => ({ texto: `${horaNovedad(n.creadoEn)}  ${n.texto}` }))
     const entregas = corridas.filter((c) => c.entregaAutomatica)
@@ -576,12 +633,10 @@ export async function generarActaPdf(params: {
     doc.setFontSize(8)
     const envueltas = textos.flatMap((t) => (t.texto ? (doc.splitTextToSize(t.texto, W - 16) as string[]) : [""]).map((l) => ({ texto: l, negrita: t.negrita })))
     const altoLinea = 3.6
-    // Como el acta real: el recuadro de novedades ocupa el espacio que queda hasta las firmas.
-    const altoFirmas = 4.5 + 10 + 4.5 + 10
-    const altoMinimo = Math.max(40, envueltas.length * altoLinea + 4)
-    const altoDisponible = LIMITE_Y - y - altoFirmas
-    if (altoMinimo > altoDisponible && y > 100) nuevaPagina()
-    const alto = Math.max(altoMinimo, Math.min(LIMITE_Y - y - altoFirmas, 120))
+    // Se ajusta a lo escrito.
+    const alto = 2.5 + envueltas.length * altoLinea
+    asegurar(4.2 + alto)
+    barra("2.3 NOVEDADES DEL TURNO")
     celda(M, y, W, alto)
     doc.setTextColor(0)
     envueltas.forEach((l, i) => {
@@ -592,25 +647,15 @@ export async function generarActaPdf(params: {
     y += alto
   }
 
-  // ---------------------------------------------------------------- firmas
-  asegurar(29)
+  // ---------------------------------------------------------------- firma
+  asegurar(14.5)
   {
     const enc = { fondo: AZUL, tamano: 7 } as const
-    celda(M, y, 2 * C, 4.5, "Supervisor Saliente", enc)
-    celda(M + 2 * C, y, 2.5 * C, 4.5, "Firma", enc)
-    celda(M + 4.5 * C, y, 2 * C, 4.5, "Supervisor Mantenimiento", enc)
-    celda(M + 6.5 * C, y, 2.5 * C, 4.5, "Firma", enc)
+    celda(M, y, 4.5 * C, 4.5, "Supervisor Saliente", enc)
+    celda(M + 4.5 * C, y, 4.5 * C, 4.5, "Firma", enc)
     y += 4.5
-    celda(M, y, 2 * C, 10, supervisorNombre, { tamano: 7.5 })
-    celda(M + 2 * C, y, 2.5 * C, 10)
-    celda(M + 4.5 * C, y, 2 * C, 10)
-    celda(M + 6.5 * C, y, 2.5 * C, 10)
-    y += 10
-    ;["Supervisor Entrante", "Firma", "Analista de Producción", "Firma", "Jefe de Producción", "Firma"].forEach((t, i) =>
-      celda(M + i * 1.5 * C, y, 1.5 * C, 4.5, t, enc),
-    )
-    y += 4.5
-    for (let i = 0; i < 6; i++) celda(M + i * 1.5 * C, y, 1.5 * C, 10)
+    celda(M, y, 4.5 * C, 10, supervisorNombre, { tamano: 7.5 })
+    celda(M + 4.5 * C, y, 4.5 * C, 10)
     y += 10
   }
 
