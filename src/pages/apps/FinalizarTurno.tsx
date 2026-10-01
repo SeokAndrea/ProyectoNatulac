@@ -21,6 +21,7 @@ import { useSesionTurno } from "@/lib/sesionTurno"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
+import { useCalidadLibera } from "@/lib/calidad"
 import { useNovedadesTurno } from "@/lib/novedades"
 import { listarLecturasServiciosIndustrialesDeTurno, type LecturaServiciosIndustriales } from "@/lib/panelProduccion"
 import { duracionMin, fmtDuracion, type Parada } from "@/lib/paradas"
@@ -49,6 +50,7 @@ export default function FinalizarTurno() {
   const pt = useProductoTerminado()
   const novedades = useNovedadesTurno()
   const { session } = useAuth()
+  const calidadLibera = useCalidadLibera(session?.area ?? null)
   const { lineas, presentaciones, velocidades } = useCatalogosLive()
   const navigate = useNavigate()
   const [finalizando, setFinalizando] = useState(false)
@@ -358,6 +360,7 @@ export default function FinalizarTurno() {
                   momento="FIN"
                   onConfirmar={() => prep.confirmarEstadoTanque(t.numeroTanque, "FIN")}
                   onGuardarEdicion={(datos) => prep.cambiarCondicionTanque({ ...datos, momento: "FIN" })}
+                  calidadLibera={calidadLibera}
                 />
               ))}
               {prep.tanques.every((t) => t.confirmadoFinEn) && (

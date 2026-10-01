@@ -25,12 +25,15 @@ export function ConfirmarEstadoTanque({
   momento,
   onConfirmar,
   onGuardarEdicion,
+  calidadLibera,
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
   momento: "INICIO" | "FIN"
   onConfirmar: () => Promise<Resultado>
   onGuardarEdicion: (datos: DatosCambiarTanque) => Promise<Resultado>
+  /** Ver TanqueEditForm: con Calidad, un lote nuevo no se pone Listo desde acá. */
+  calidadLibera?: boolean | null
 }) {
   const [editando, setEditando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
@@ -65,6 +68,7 @@ export function ConfirmarEstadoTanque({
           sabores={sabores}
           guardarTexto={guardarTexto}
           onGuardar={onGuardarEdicion}
+          calidadLibera={calidadLibera}
           onCancelar={() => setEditando(false)}
         />
       ) : (

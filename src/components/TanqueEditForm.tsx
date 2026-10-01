@@ -29,6 +29,7 @@ export function TanqueEditForm({
   onCancelar,
   guardarTexto = "Guardar",
   sinVolumen = false,
+  calidadLibera = false,
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
@@ -37,7 +38,15 @@ export function TanqueEditForm({
   guardarTexto?: string
   /** Oculta el campo Volumen para un tanque Listo/Con restos: los litros se corrigen con "Medir tanque". El volumen actual se manda sin cambios. */
   sinVolumen?: boolean
+  /**
+   * Calidad libera en el área (areas.calidad_libera): Listo / Con restos solo
+   * para el lote que el tanque ya tiene liberado, con sabor y lote fijos. Un
+   * lote nuevo se deja En Preparación y lo libera Calidad (migración 20261095).
+   */
+  calidadLibera?: boolean | null
 }) {
+  const yaLiberado = tanque.condicion === "LISTO" || tanque.condicion === "STANDBY"
+  const loteFijo = calidadLibera === true
   const [condicion, setCondicion] = useState<CondicionTanque>(tanque.condicion)
   const [saborId, setSaborId] = useState(tanque.saborId ?? "")
   const [volumenL, setVolumenL] = useState(tanque.volumenL !== null ? String(tanque.volumenL) : "")
@@ -48,6 +57,8 @@ export function TanqueEditForm({
 
   /** Listo y Standby (resto del lote) piden sabor/volumen/lote. */
   const requiereDatos = condicion === "LISTO" || condicion === "STANDBY"
+  /** Con Calidad, el sabor y el lote de un Listo / Con restos no se cambian desde acá. */
+  const datosFijos = loteFijo && requiereDatos
   /*
    * "En Preparación (no liberado)" también permite cargar la
    * preparación (sabor + tambores + lote) sin liberarla — igual que
@@ -76,10 +87,10 @@ export function TanqueEditForm({
     const resultado = await onGuardar({
       numeroTanque: tanque.numeroTanque,
       condicion,
-      saborId: requiereDatos || esPrepConDatos ? saborId : null,
+      saborId: datosFijos ? tanque.saborId : requiereDatos || esPrepConDatos ? saborId : null,
       volumenL: requiereDatos ? Number(volumenL) || (tanque.volumenL ?? 0) : null,
       tambores: esPrepConDatos ? Number(tambores) : null,
-      lote: requiereDatos || esPrepConDatos ? normalizarLote(lote) : null,
+      lote: datosFijos ? tanque.lote : requiereDatos || esPrepConDatos ? normalizarLote(lote) : null,
     })
     setGuardando(false)
     if (!resultado.ok) {
@@ -94,8 +105,8 @@ export function TanqueEditForm({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="LISTO">Listo (liberado)</SelectItem>
-          <SelectItem value="STANDBY">Con restos (resto del lote)</SelectItem>
+          {(!loteFijo || yaLiberado) && <SelectItem value="LISTO">Listo (liberado)</SelectItem>}
+          {(!loteFijo || yaLiberado) && <SelectItem value="STANDBY">Con restos (resto del lote)</SelectItem>}
           <SelectItem value="EN_PREPARACION">En Preparación (no liberado)</SelectItem>
           <SelectItem value="SUCIO">Sucio</SelectItem>
           <SelectItem value="CIP">En CIP</SelectItem>
@@ -105,7 +116,7 @@ export function TanqueEditForm({
 
       {(requiereDatos || condicion === "EN_PREPARACION") && (
         <div className="grid grid-cols-2 gap-2">
-          <Select value={saborId} onValueChange={setSaborId}>
+          <Select value={saborId} onValueChange={setSaborId} disabled={datosFijos}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Sabor" />
             </SelectTrigger>
@@ -139,7 +150,18 @@ export function TanqueEditForm({
               onChange={(e) => setVolumenL(e.target.value)}
             />
           )}
-          <Input className="col-span-2" placeholder="Lote" value={lote} onChange={(e) => setLote(e.target.value)} />
+          <Input
+            className="col-span-2"
+            placeholder="Lote"
+            value={lote}
+            onChange={(e) => setLote(e.target.value)}
+            disabled={datosFijos}
+          />
+          {datosFijos && (
+            <p className="col-span-2 text-[11px] text-muted-foreground">
+              Con Calidad, el sabor y el lote de un tanque liberado no se cambian. Un lote nuevo va En Preparación.
+            </p>
+          )}
           {condicion === "EN_PREPARACION" && (
             <p className="col-span-2 text-[11px] text-muted-foreground">
               {volumenDeTambores !== null

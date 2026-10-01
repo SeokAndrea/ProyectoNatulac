@@ -21,9 +21,11 @@ Migración `20261086090000_calidad_libera_lotes.sql`. Ensayo: `scripts/ensayo-20
 
 ## Para habilitarlo en Aséptico (cuando se decida)
 
-1. Crear los usuarios de Calidad en Personal con rol **Analista de Calidad** y área **Aséptico**.
-2. En `src/lib/apps.tsx`, tarjeta `calidad`: quitar `areasPermitidas: ["PRUEBAS"]`. Desplegar.
-3. Encender el interruptor:
+1. Aplicar `20261095090000_calidad_bloquea_editar_tanque_listo.sql`: con Calidad encendida, "Editar" /
+   "Corregir" del tanque ya no deja poner Listo o Con Restos un lote nuevo (antes lo liberaba sin análisis).
+2. Usuarios de Calidad en el área **Calidad** (no Pruebas). Calidad cubre los 3 turnos (confirmado 2026-10-01).
+3. Rangos de Brix y acidez cargados para todos los sabores (sin rango, el análisis nunca es conforme).
+4. Encender el interruptor en un cambio de turno, con Calidad presente:
    ```sql
    update areas set calidad_libera = true where codigo = 'ASEPTICO';
    ```

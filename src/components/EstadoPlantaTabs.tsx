@@ -1032,6 +1032,7 @@ function TanqueCard({
             momento="INICIO"
             onConfirmar={() => onConfirmarEstadoTanque(tanque.numeroTanque, "INICIO")}
             onGuardarEdicion={(datos) => onCambiarCondicion({ ...datos, momento: "INICIO" })}
+            calidadLibera={calidadLibera}
           />
         )}
 
@@ -1046,6 +1047,7 @@ function TanqueCard({
               tanque={tanque}
               sabores={sabores}
               sinVolumen
+              calidadLibera={calidadLibera}
               onGuardar={async (datos) => {
                 const resultado = await onCambiarCondicion(datos)
                 if (resultado.ok) setEditando(false)
