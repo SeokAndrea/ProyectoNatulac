@@ -27,7 +27,7 @@ import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
  *             · 1.8 tanques entregados · 1.9 producción · 2.1 eficiencia y
  *             merma + paradas por línea.
  *   Página 2: 2.2 contadores (recuadros por sabor + lote, con los dibujitos)
- *             · 2.3 novedades · firma del supervisor saliente.
+ *             · 2.3 novedades. La firma del supervisor va en 1.4, al lado del nombre.
  *
  * Lo que el sistema suma al formato original va dentro de las mismas
  * casillas: las paradas en los recuadros por línea de 2.1; ajustes de
@@ -234,11 +234,15 @@ export async function generarActaPdf(params: {
   celda(M + 3 * C, y, C, fila, turnoTexto, valor)
   celda(M + 4 * C, y, C, fila, "1.3 Grupo:", etiqueta)
   celda(M + 5 * C, y, C, fila, nombreGrupo(grupo), valor)
-  celda(M + 6 * C, y, C, 2 * fila, "1.5\nIdentificación:", etiqueta)
-  celda(M + 7 * C, y, 2 * C, 2 * fila, `${codigo}\n${area ? nombrePorCodigo(AREAS, area) : ""}`, { tamano: 7.5 })
-  celda(M, y + fila, C, fila, "1.4 Supervisor:", etiqueta)
-  celda(M + C, y + fila, 5 * C, fila, supervisorTexto, { ...valor, tamano: responsables.length > 1 ? 6.5 : 8 })
-  y += 2 * fila
+  // Fila del supervisor más alta: al lado va su firma (la única del acta, dueño 2026-10-01).
+  const filaFirma = 10
+  celda(M + 6 * C, y, C, fila + filaFirma, "1.5\nIdentificación:", etiqueta)
+  celda(M + 7 * C, y, 2 * C, fila + filaFirma, `${codigo}\n${area ? nombrePorCodigo(AREAS, area) : ""}`, { tamano: 7.5 })
+  celda(M, y + fila, C, filaFirma, "1.4 Supervisor:", etiqueta)
+  celda(M + C, y + fila, 2.5 * C, filaFirma, supervisorTexto, { ...valor, tamano: responsables.length > 1 ? 6.5 : 8 })
+  celda(M + 3.5 * C, y + fila, 0.7 * C, filaFirma, "Firma:", etiqueta)
+  celda(M + 4.2 * C, y + fila, 1.8 * C, filaFirma)
+  y += fila + filaFirma
 
   // ---------------------------------------------------------------- 1.6 / 1.8 tanques
   const bloqueTanques = (
@@ -645,18 +649,6 @@ export async function generarActaPdf(params: {
       doc.text(l.texto, M + 12, y + 4 + i * altoLinea)
     })
     y += alto
-  }
-
-  // ---------------------------------------------------------------- firma
-  asegurar(14.5)
-  {
-    const enc = { fondo: AZUL, tamano: 7 } as const
-    celda(M, y, 4.5 * C, 4.5, "Supervisor Saliente", enc)
-    celda(M + 4.5 * C, y, 4.5 * C, 4.5, "Firma", enc)
-    y += 4.5
-    celda(M, y, 4.5 * C, 10, supervisorNombre, { tamano: 7.5 })
-    celda(M + 4.5 * C, y, 4.5 * C, 10)
-    y += 10
   }
 
   return doc.output("blob")
