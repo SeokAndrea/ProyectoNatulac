@@ -28,7 +28,8 @@ import { puede, type Permiso } from "@/lib/permisos"
 export interface AppDef {
   slug: string
   title: string
-  description: string
+  /** Opcional: los atajos del Inicio pueden ir sin descripción. */
+  description?: string
   /** Sin href = todavía no tiene página propia (tarjeta deshabilitada, "Próximamente"). */
   href?: string
   icon: LucideIcon
@@ -211,7 +212,6 @@ export const apps: AppDef[] = [
   {
     slug: "panel-paradas",
     title: "Panel de Paradas",
-    description: "Downtime de las líneas: tiempo perdido, ocioso y desvío contra el tiempo guía por tipo.",
     href: "/panel-paradas",
     icon: RadioTower,
     requiereTurno: false,

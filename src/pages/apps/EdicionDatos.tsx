@@ -401,9 +401,11 @@ function FilaPresentacion({ presentacion, onCambio }: { presentacion: Presentaci
   const [litrosXCaja, setLitrosXCaja] = useState(String(presentacion.litrosXCaja))
   const [envasesXCaja, setEnvasesXCaja] = useState(String(presentacion.envasesXCaja))
   const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   function cancelar() {
     setEditando(false)
+    setError(null)
     setCajasXCamada(String(presentacion.cajasXCamada))
     setCantCamada(String(presentacion.cantCamada))
     setCajasXPaleta(String(presentacion.cajasXPaleta))
@@ -413,6 +415,7 @@ function FilaPresentacion({ presentacion, onCambio }: { presentacion: Presentaci
 
   async function guardar() {
     setEnviando(true)
+    setError(null)
     const ok = await editarPresentacion({
       id: presentacion.id,
       cajasXCamada: Number(cajasXCamada),
@@ -422,7 +425,10 @@ function FilaPresentacion({ presentacion, onCambio }: { presentacion: Presentaci
       envasesXCaja: Number(envasesXCaja),
     })
     setEnviando(false)
-    if (!ok) return
+    if (!ok) {
+      setError("No se guardó. Intenta de nuevo.")
+      return
+    }
     setEditando(false)
     onCambio()
   }
@@ -463,6 +469,7 @@ function FilaPresentacion({ presentacion, onCambio }: { presentacion: Presentaci
               <X className="size-3.5" />
             </Button>
           </div>
+          {error && <p className="mt-1 text-right text-xs text-destructive">{error}</p>}
         </td>
       </tr>
     )

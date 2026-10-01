@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { Beaker, CheckCircle2, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square, Undo2 } from "lucide-react"
+import { ArrowRightLeft, Beaker, CheckCircle2, Factory, Loader2, PauseCircle, PenLine, PlayCircle, Square, Undo2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -250,6 +250,8 @@ function LineaCard({
   /** "Continuar al siguiente lote" falló el auto-detect → mostrar el selector de tanque a mano. */
   const [continuarEligeTanque, setContinuarEligeTanque] = useState(false)
   const [tanqueContinuar, setTanqueContinuar] = useState<number | "">("")
+  /** "Cambiar de lote" con la corrida en marcha: confirmación antes de pasar al tanque del lote siguiente. */
+  const [confirmarCambioLote, setConfirmarCambioLote] = useState(false)
 
   const presentacionesDisponibles = presentacionesPorLineaLive(velocidades, lineaCodigo)
   const opcionesVelocidad = presentacion ? velocidadesParaLive(velocidades, lineaCodigo, presentacion) : []
@@ -352,6 +354,63 @@ function LineaCard({
     }
     setContinuarEligeTanque(false)
     setTanqueContinuar("")
+    setConfirmarCambioLote(false)
+  }
+
+  /** Selector de tanque a mano cuando "Continuar al siguiente lote" / "Cambiar de lote" no detectó solo el siguiente. */
+  function renderElegirTanqueSiguiente() {
+    return (
+      <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-2">
+        <p className="text-xs text-foreground">
+          No se detectó solo el tanque del siguiente lote. Elige cuál toma la línea:
+        </p>
+        {tanquesListos.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Ningún tanque está Listo todavía.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <Select
+              value={tanqueContinuar === "" ? "" : String(tanqueContinuar)}
+              onValueChange={(v) => setTanqueContinuar(Number(v))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Tanque" />
+              </SelectTrigger>
+              <SelectContent>
+                {tanquesListos.map((t) => (
+                  <SelectItem key={t.numeroTanque} value={String(t.numeroTanque)}>
+                    Tanque {t.numeroTanque} · {t.saborNombre ?? "Sin sabor"}
+                    {t.lote ? ` · Lote ${t.lote}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                disabled={tanqueContinuar === "" || enviandoAccion}
+                onClick={() => continuarSiguiente(Number(tanqueContinuar))}
+              >
+                {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                Continuar con ese tanque
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={enviandoAccion}
+                onClick={() => {
+                  setContinuarEligeTanque(false)
+                  setTanqueContinuar("")
+                  setConfirmarCambioLote(false)
+                  setErrorAccion(null)
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   /** "Parada": pausa la corrida con una descripción obligatoria y suma el +1 en Registrar Paradas. Sigue activa: se continúa (con la parada completa) o se detiene. */
@@ -1014,57 +1073,7 @@ function LineaCard({
                   {errorAccion}
                 </p>
               )}
-              {continuarEligeTanque && (
-                <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-2">
-                  <p className="text-xs text-foreground">
-                    No se detectó solo el tanque del siguiente lote. Elige cuál toma la línea:
-                  </p>
-                  {tanquesListos.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Ningún tanque está Listo todavía.</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <Select
-                        value={tanqueContinuar === "" ? "" : String(tanqueContinuar)}
-                        onValueChange={(v) => setTanqueContinuar(Number(v))}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Tanque" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {tanquesListos.map((t) => (
-                            <SelectItem key={t.numeroTanque} value={String(t.numeroTanque)}>
-                              Tanque {t.numeroTanque} · {t.saborNombre ?? "Sin sabor"}
-                              {t.lote ? ` · Lote ${t.lote}` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          disabled={tanqueContinuar === "" || enviandoAccion}
-                          onClick={() => continuarSiguiente(Number(tanqueContinuar))}
-                        >
-                          {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
-                          Continuar con ese tanque
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={enviandoAccion}
-                          onClick={() => {
-                            setContinuarEligeTanque(false)
-                            setTanqueContinuar("")
-                            setErrorAccion(null)
-                          }}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              {continuarEligeTanque && renderElegirTanqueSiguiente()}
             </div>
           ) : cip && cip.conCorrida && lineaTurno ? (
             renderFormCip()
@@ -1142,6 +1151,38 @@ function LineaCard({
                 </p>
               )}
             </div>
+          ) : activa && lineaTurno && confirmarCambioLote ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+              <p className="text-xs text-foreground">
+                {nombreLinea} pasa al tanque del lote siguiente. La corrida del Lote {lineaTurno.lote ?? ""} queda esperando su
+                Producto Terminado, y su tanque queda Con Restos hasta que Preparación lo resuelva. ¿Confirmas?
+              </p>
+              {!continuarEligeTanque && (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => continuarSiguiente()} disabled={enviandoAccion}>
+                    {enviandoAccion ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRightLeft className="size-3.5" />}
+                    Sí, cambiar de lote
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setConfirmarCambioLote(false)
+                      setErrorAccion(null)
+                    }}
+                    disabled={enviandoAccion}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              )}
+              {errorAccion && (
+                <p className="text-xs text-destructive" role="alert">
+                  {errorAccion}
+                </p>
+              )}
+              {continuarEligeTanque && renderElegirTanqueSiguiente()}
+            </div>
           ) : activa && lineaTurno ? (
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap gap-2">
@@ -1165,6 +1206,19 @@ function LineaCard({
                 <Button variant="outline" size="sm" onClick={() => abrirCip(true)}>
                   <Beaker className="size-3.5" />
                   CIP
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setErrorAccion(null)
+                    setContinuarEligeTanque(false)
+                    setTanqueContinuar("")
+                    setConfirmarCambioLote(true)
+                  }}
+                >
+                  <ArrowRightLeft className="size-3.5" />
+                  Cambiar de lote
                 </Button>
               </div>
               {errorAccion && (

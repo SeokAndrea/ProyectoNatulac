@@ -132,7 +132,7 @@ export default function PanelParadas() {
       })
 
   return (
-    <AppShell title="Panel de Paradas" description="Downtime por línea — OEE, paradas no programadas y top por tipo" fullWidth ocultarEstadoBanner>
+    <AppShell title="Panel de Paradas" fullWidth ocultarEstadoBanner>
       <div className="w-full">
         <PanelParadasVista
           cargarParadas={cargarParadas}

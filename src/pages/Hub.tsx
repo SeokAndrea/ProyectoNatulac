@@ -181,7 +181,9 @@ function TarjetaAtajo({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean 
       </div>
       <div className="min-w-0">
         <p className={cn("truncate text-sm font-medium", bloqueada ? "text-muted-foreground" : "text-foreground")}>{app.title}</p>
-        <p className="truncate text-xs text-muted-foreground">{!app.href ? "Próximamente" : app.description}</p>
+        {(!app.href || app.description) && (
+          <p className="truncate text-xs text-muted-foreground">{!app.href ? "Próximamente" : app.description}</p>
+        )}
       </div>
     </>
   )

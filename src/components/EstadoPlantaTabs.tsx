@@ -530,8 +530,8 @@ function TanqueCard({
           {tanque.condicion === "STANDBY" && (
             <p className="text-sm break-words text-muted-foreground">
               Resto de {tanque.saborNombre ?? "sabor sin datos"}
-              {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — el lote ya se cerró. Para usarlo:
-              Transferir o preparar encima (se suma al lote nuevo).
+              {tanque.lote ? ` · Lote ${tanque.lote}` : ""} — ninguna línea lo toma. Si quedó producto: Medir,
+              Transferir, Desvasar o preparar encima (se suma al lote nuevo). Si quedó vacío: Iniciar CIP.
             </p>
           )}
 

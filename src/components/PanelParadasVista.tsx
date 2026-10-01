@@ -15,7 +15,7 @@ import {
   NOMBRE_CLASE,
   nombreLineaParada,
   paradaAbierta,
-  porTipo,
+  porTipoPorFrecuencia,
   porTipoYLinea,
   porTipoYLineaPorFrecuencia,
   primeraDeCadaLinea,
@@ -325,9 +325,9 @@ export function PanelParadasVista({
                     <DatoLinea etiqueta="Paradas registradas" valor={propias.length} tono="text-primary" />
                   </div>
                   <div className="mt-3">
-                    <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top 3 no programadas · tiempo</h3>
+                    <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top 3 no programadas · frecuencia</h3>
                     <div className="text-danger">
-                      <RankList items={porTipo(noProgramadas, ahora).slice(0, 3)} metrica="minutos" compacto />
+                      <RankList items={porTipoPorFrecuencia(noProgramadas, ahora).slice(0, 3)} metrica="veces" compacto />
                     </div>
                   </div>
                 </div>
