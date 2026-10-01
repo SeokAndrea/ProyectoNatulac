@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase"
  * Resumen del Día (Super Administrador): cajas producidas en la jornada,
  * por sabor + presentación, total por línea y el mensaje para copiar y
  * pegar (futuro bot de Telegram). Datos: resumen_produccion_dia(),
- * migración 20261098.
+ * migraciones 20261098 (solo el nombre del sabor, sin familia: 20261098190000).
  */
 
 export interface FilaResumenDia {
@@ -69,7 +69,7 @@ export function fechaCorta(fecha: string): string {
  * El mensaje para copiar y pegar:
  *   Buenos días, producción del día 01/10/2026
  *
- *   TPA-250 cm³ Pera Clásica: 2.401 cajas
+ *   TPA-250 cm³ Pera: 2.401 cajas
  *   ...
  *
  *   Total: 7.204 cajas

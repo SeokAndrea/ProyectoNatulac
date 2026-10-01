@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { franjaDeHora, restarDias } from "@/lib/tiempoPlanta"
 import {
   cargarResumenDia,
   mensajeResumenDia,
@@ -19,7 +19,8 @@ import {
 
 /*
  * Resumen del Día (Super Administrador): la producción de la jornada de
- * Aséptico — cajas por sabor + presentación, total por línea y el mensaje
+ * Aséptico (jornada de 7:00 a 7:00: T1 + T2 + el T3 de la madrugada
+ * siguiente, por turnos.fecha) — cajas por sabor + presentación, total por línea y el mensaje
  * listo para copiar y pegar (futuro bot de Telegram). Ver src/lib/resumenDia.ts.
  */
 const AREA = "ASEPTICO"
@@ -27,7 +28,8 @@ const AREA = "ASEPTICO"
 export default function ResumenDia() {
   const { session } = useAuth()
   const { lineas } = useCatalogosLive()
-  const hoy = fechaPlanta()
+  // Jornada operativa en curso (7:00 a 7:00): de madrugada, todavía es la del día anterior.
+  const hoy = franjaDeHora().fecha
   const [fecha, setFecha] = useState(hoy)
   /** Resultado de la última consulta, con la fecha que se pidió: si no coincide con la elegida, está cargando. */
   const [resultado, setResultado] = useState<{ fecha: string; filas: FilaResumenDia[] | null; error: string | null } | null>(null)
