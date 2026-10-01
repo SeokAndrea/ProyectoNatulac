@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Eye, Loader2, Square } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Download, Loader2, Square } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
 import { EmptyState } from "@/components/EmptyState"
@@ -14,7 +14,8 @@ import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
 import { generarActaPdf } from "@/lib/actaPdf"
-import { subirYRegistrarActa, urlPublicaActa } from "@/lib/historialTurnos"
+import { subirYRegistrarActa } from "@/lib/historialTurnos"
+import { descargarArchivo, nombreArchivoActa } from "@/lib/descargarArchivo"
 import { colorSabor } from "@/lib/coloresSabor"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useSesionTurno } from "@/lib/sesionTurno"
@@ -58,7 +59,8 @@ export default function FinalizarTurno() {
   const [sabores, setSabores] = useState<Sabor[]>([])
   const [paradas, setParadas] = useState<Parada[]>([])
   const [serviciosIndustriales, setServiciosIndustriales] = useState<LecturaServiciosIndustriales[]>([])
-  const [cerrado, setCerrado] = useState<{ codigoTurno: string; actaUrl: string | null; errorActa: string | null } | null>(null)
+  /** Turno ya cerrado: el PDF del acta (si se pudo generar) queda acá para volver a descargarlo sin conexión. */
+  const [cerrado, setCerrado] = useState<{ codigoTurno: string; actaPdf: Blob | null; errorActa: string | null } | null>(null)
 
   const cargando = sesion.cargando || prep.cargando || prod.cargando || pt.cargando || novedades.cargando
 
@@ -179,10 +181,10 @@ export default function FinalizarTurno() {
       return
     }
 
-    let actaUrl: string | null = null
+    let actaPdf: Blob | null = null
     let errorActa: string | null = null
     try {
-      const blob = await generarActaPdf({
+      actaPdf = await generarActaPdf({
         ...datosParaActa,
         supervisorNombre: session.nombre || session.username,
         area: session.area,
@@ -190,18 +192,16 @@ export default function FinalizarTurno() {
         presentaciones,
         velocidades,
       })
-      const resultado = await subirYRegistrarActa(session.username, turnoId, session.area ?? "SIN_AREA", codigo, blob)
-      if (resultado.ok) {
-        actaUrl = urlPublicaActa(resultado.acta.storagePath)
-      } else {
-        errorActa = resultado.error
-      }
+      // Se descarga sola al teléfono; si el navegador la bloquea, queda el botón "Descargar acta".
+      descargarArchivo(actaPdf, nombreArchivoActa(codigo))
+      const resultado = await subirYRegistrarActa(session.username, turnoId, session.area ?? "SIN_AREA", codigo, actaPdf)
+      if (!resultado.ok) errorActa = `El acta no se pudo guardar en Mis Actas: ${resultado.error}`
     } catch {
       errorActa = "No se pudo generar el PDF del acta. Puede generarla de nuevo desde Auditoría."
     }
 
     setFinalizando(false)
-    setCerrado({ codigoTurno: codigo, actaUrl, errorActa })
+    setCerrado({ codigoTurno: codigo, actaPdf, errorActa })
   }
 
   if (cerrado) {
@@ -214,17 +214,16 @@ export default function FinalizarTurno() {
             <p className="text-sm text-muted-foreground">Turno {cerrado.codigoTurno}</p>
           </div>
 
-          {cerrado.actaUrl ? (
+          {cerrado.actaPdf && (
             <div className="flex flex-col items-center gap-1.5">
-              <Button asChild>
-                <a href={cerrado.actaUrl} target="_blank" rel="noreferrer">
-                  <Eye className="size-4" />
-                  Ver mi acta
-                </a>
+              <Button onClick={() => cerrado.actaPdf && descargarArchivo(cerrado.actaPdf, nombreArchivoActa(cerrado.codigoTurno))}>
+                <Download className="size-4" />
+                Descargar acta
               </Button>
-              <p className="text-xs text-muted-foreground">Se abre en una pestaña nueva — desde ahí puedes imprimirla.</p>
+              <p className="text-xs text-muted-foreground">El acta se descargó al teléfono. Si no la ves, toca el botón.</p>
             </div>
-          ) : (
+          )}
+          {cerrado.errorActa && (
             <p className="text-sm text-destructive" role="alert">
               {cerrado.errorActa}
             </p>

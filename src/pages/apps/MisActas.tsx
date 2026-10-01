@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth"
 import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import { misActas, urlPublicaActa, type MiActa } from "@/lib/historialTurnos"
+import { descargarDesdeUrl, nombreArchivoActa } from "@/lib/descargarArchivo"
 
 /*
  * Mis Actas: el supervisor ve y descarga las actas de SUS propios
@@ -23,6 +24,8 @@ export default function MisActas() {
   const veTodas = session?.rol === "SUPERADMINISTRADOR" || session?.esDueno === true
   const [actas, setActas] = useState<MiActa[]>([])
   const [cargando, setCargando] = useState(true)
+  /** Acta que se está bajando (para el spinner del botón). */
+  const [descargando, setDescargando] = useState<string | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -55,11 +58,19 @@ export default function MisActas() {
                     {veTodas && a.areaNombre ? ` · ${a.areaNombre}` : ""}
                   </p>
                 </div>
-                <Button asChild size="sm" variant="outline" className="shrink-0">
-                  <a href={urlPublicaActa(a.storagePath)} target="_blank" rel="noreferrer">
-                    <Download className="size-3.5" />
-                    Descargar
-                  </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={descargando === a.id}
+                  onClick={async () => {
+                    setDescargando(a.id)
+                    await descargarDesdeUrl(urlPublicaActa(a.storagePath), nombreArchivoActa(a.turnoCodigo))
+                    setDescargando(null)
+                  }}
+                >
+                  {descargando === a.id ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                  Descargar
                 </Button>
               </CardContent>
             </Card>
