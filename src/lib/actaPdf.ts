@@ -376,7 +376,12 @@ export async function generarActaPdf(params: {
         num(e?.metaCajas ?? null),
         num(e?.realCajas ?? null),
         e?.eficienciaPct != null ? `${e.eficienciaPct}%` : "—",
-        merma !== null ? `${merma}%${merma > LIMITE_MERMA_PCT ? " ⚠" : ""}` : "—",
+        // Sin "⚠": la fuente del PDF no lo tiene (salía "&"). Pasada del límite, en rojo.
+        merma !== null && merma > LIMITE_MERMA_PCT
+          ? { content: `${merma}%`, styles: { textColor: [200, 30, 30] as [number, number, number], fontStyle: "bold" as const } }
+          : merma !== null
+            ? `${merma}%`
+            : "—",
       ]
     }),
   })
@@ -408,8 +413,32 @@ export async function generarActaPdf(params: {
     })
     finTabla()
   }
-  const etiqueta = (texto: string, valor: string) => `${texto}\n${valor}`
-  for (const r of recuadros) {
+  // Tarjetas dibujadas a mano (no autoTable), 3 por fila — compactas, se leen como un tablero.
+  const COLUMNAS = 3
+  const SEPARACION = 3
+  const anchoTarjeta = (anchoPagina - 2 * margenX - SEPARACION * (COLUMNAS - 1)) / COLUMNAS
+  const ALTO_TARJETA = 22
+  /** Recorta el texto con "…" para que entre en el ancho dado (con la fuente y el tamaño actuales). */
+  const ajustar = (texto: string, ancho: number) => {
+    if (doc.getTextWidth(texto) <= ancho) return texto
+    let t = texto
+    while (t.length > 1 && doc.getTextWidth(`${t}…`) > ancho) t = t.slice(0, -1)
+    return `${t}…`
+  }
+  const fuente = (tamano: number, estilo: "normal" | "bold", gris = 0) => {
+    doc.setFontSize(tamano)
+    doc.setFont("helvetica", estilo)
+    doc.setTextColor(gris)
+  }
+  recuadros.forEach((r, i) => {
+    const columna = i % COLUMNAS
+    if (columna === 0 && i > 0) y += ALTO_TARJETA + SEPARACION
+    if (columna === 0 && y + ALTO_TARJETA > 287) {
+      doc.addPage()
+      y = 16
+    }
+    const x = margenX + columna * (anchoTarjeta + SEPARACION)
+
     const contadoresRec = contadores.filter((c) => c.corridaId !== null && r.corridaIds.includes(c.corridaId))
     const contador1 = contadoresRec.reduce((a, c) => a + c.envasesLlenadora, 0)
     const conContador2 = contadoresRec.filter((c) => c.envasesBuenos !== null)
@@ -418,31 +447,45 @@ export async function generarActaPdf(params: {
     const cajas = productoTerminado
       .filter((p) => p.corridaId !== null && r.corridaIds.includes(p.corridaId))
       .reduce((a, p) => a + p.paletas * (presentaciones.find((x) => x.codigo === p.presentacion)?.cajasXPaleta ?? 0) + p.cajasSueltas, 0)
-    autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      pageBreak: "avoid",
-      styles: { textColor: 0, fontSize: 9, cellPadding: 1.6, lineColor: 120, lineWidth: 0.2 },
-      // 6 columnas iguales: Sabor | Lote en mitades, Contador 1 | Contador 2 | % Merma en tercios.
-      columnStyles: Object.fromEntries([0, 1, 2, 3, 4, 5].map((i) => [i, { cellWidth: (anchoPagina - 2 * margenX) / 6 }])),
-      body: [
-        [
-          { content: etiqueta("Sabor", r.sabor), colSpan: 3, styles: { fontStyle: "bold", fillColor: [225, 245, 240] } },
-          { content: etiqueta("Lote", `${r.lote} · ${r.linea}`), colSpan: 3, styles: { fontStyle: "bold", fillColor: [225, 245, 240] } },
-        ],
-        [
-          { content: etiqueta("Contador 1", contadoresRec.length > 0 ? contador1.toLocaleString("es-CO") : "—"), colSpan: 2 },
-          { content: etiqueta("Contador 2", conContador2.length > 0 ? contador2.toLocaleString("es-CO") : "—"), colSpan: 2 },
-          {
-            content: etiqueta("% Merma", merma !== null ? `${merma}%${merma > LIMITE_MERMA_PCT ? " ⚠" : ""}` : "—"),
-            colSpan: 2,
-          },
-        ],
-        [{ content: `Cajas producidas: ${cajas.toLocaleString("es-CO")}`, colSpan: 6, styles: { fontStyle: "bold" } }],
-      ],
+
+    // Encabezado (sabor + lote · línea) sobre fondo verde claro, y el borde redondeado.
+    doc.setFillColor(225, 245, 240)
+    doc.roundedRect(x, y, anchoTarjeta, 7.5, 1.5, 1.5, "F")
+    doc.rect(x, y + 4, anchoTarjeta, 3.5, "F")
+    doc.setDrawColor(170)
+    doc.setLineWidth(0.25)
+    doc.roundedRect(x, y, anchoTarjeta, ALTO_TARJETA, 1.5, 1.5, "S")
+    fuente(8.5, "bold")
+    doc.text(ajustar(r.sabor, anchoTarjeta - 4), x + 2, y + 3.4)
+    fuente(7, "normal", 80)
+    doc.text(ajustar(`Lote ${r.lote} · ${r.linea}`, anchoTarjeta - 4), x + 2, y + 6.5)
+
+    // Contador 1 | Contador 2 | % Merma
+    const anchoDato = (anchoTarjeta - 4) / 3
+    const datos: [string, string, boolean][] = [
+      ["Contador 1", contadoresRec.length > 0 ? contador1.toLocaleString("es-CO") : "—", false],
+      ["Contador 2", conContador2.length > 0 ? contador2.toLocaleString("es-CO") : "—", false],
+      ["% Merma", merma !== null ? `${merma}%` : "—", merma !== null && merma > LIMITE_MERMA_PCT],
+    ]
+    datos.forEach(([texto, valor, alerta], j) => {
+      const xd = x + 2 + j * anchoDato
+      fuente(6.5, "normal", 100)
+      doc.text(texto, xd, y + 10.8)
+      fuente(9.5, "bold")
+      if (alerta) doc.setTextColor(200, 30, 30)
+      doc.text(ajustar(valor, anchoDato - 1), xd, y + 14.8)
     })
-    finTabla()
-  }
+
+    // Cajas producidas
+    doc.setDrawColor(215)
+    doc.line(x + 2, y + 16.8, x + anchoTarjeta - 2, y + 16.8)
+    fuente(7, "normal", 80)
+    doc.text("Cajas producidas", x + 2, y + 20.2)
+    fuente(9.5, "bold")
+    doc.text(cajas.toLocaleString("es-CO"), x + anchoTarjeta - 2, y + 20.2, { align: "right" })
+  })
+  if (recuadros.length > 0) y += ALTO_TARJETA + 5
+  doc.setTextColor(0)
 
   // ---------------- PARADAS DEL TURNO (propio del sistema, no del formato original) ----------------
   if (paradas) {
