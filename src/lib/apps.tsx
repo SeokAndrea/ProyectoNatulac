@@ -5,7 +5,6 @@ import {
   ClipboardCheck,
   DatabaseZap,
   History,
-  ListChecks,
   Beaker,
   Factory,
   RadioTower,
@@ -69,8 +68,6 @@ export interface AppDef {
   color?: "success" | "blue" | "purple" | "warning" | "danger"
   /** Si es true, la tarjeta solo aparece para el dueño (ver session.esDueno). */
   soloDueno?: boolean
-  /** Si es true, solo para el Super Administrador (y el dueño). */
-  soloSuperadmin?: boolean
   /** Si se define, la tarjeta solo aparece para ese username exacto (case-insensitive), sin importar rol o área — para vistas de prueba de un solo usuario. */
   usuarioPermitido?: string
   /**
@@ -173,11 +170,12 @@ export const apps: AppDef[] = [
   {
     slug: "resumen-dia",
     title: "Resumen del Día",
-    description: "Producción de la jornada: cajas por sabor y presentación, total por línea y el mensaje para copiar.",
+    description: "Producción de la jornada: cajas por sabor y presentación, total por línea, el mensaje para copiar y validar las cajas.",
     href: "/resumen-dia",
     icon: ClipboardList,
     requiereTurno: false,
-    soloSuperadmin: true,
+    // Antes había una página "Validar" aparte: ahora se valida acá, solo las cajas (dueño, 2026-10-01).
+    permiso: "VALIDAR",
     seccion: "auditoria",
   },
   {
@@ -280,17 +278,6 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     permiso: "AUDITORIA_VER",
     color: "blue",
-    seccion: "auditoria",
-  },
-  {
-    slug: "validar",
-    title: "Validar",
-    description: "Revisar y fijar los datos de producción de cada turno cerrado — lo validado alimenta los KPIs.",
-    href: "/validar",
-    icon: ListChecks,
-    requiereTurno: false,
-    permiso: "VALIDAR",
-    color: "warning",
     seccion: "auditoria",
   },
   {
@@ -402,7 +389,6 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (app.areasPermitidas && !(session.area && app.areasPermitidas.includes(session.area))) return false
   if (app.areasExcluidas && session.area && app.areasExcluidas.includes(session.area)) return false
   if (app.soloDueno && !session.esDueno) return false
-  if (app.soloSuperadmin && session.rol !== "SUPERADMINISTRADOR" && !session.esDueno) return false
   if (app.usuarioPermitido && session.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
   return true
 }

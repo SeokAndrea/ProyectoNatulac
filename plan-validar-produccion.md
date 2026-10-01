@@ -1,5 +1,9 @@
 # Plan — Módulo VALIDAR + candado de edición de Producto Terminado
 
+> **2026-10-01 (dueño): Validar se unió al Resumen del Día** (`/resumen-dia`, permiso VALIDAR) **y ahora valida solo las cajas**
+> (paletas + cajas sueltas) de cada corrida: Confirmar o Corregir. Se quitó la página Validar aparte y la edición de
+> contadores, litros, lote y mermas. Lo de abajo es la historia del módulo original.
+
 Arrancado 2026-09-03. Tres cosas relacionadas: (1) el PT del supervisor se congela 1 h después
 de cargado, (2) se oculta "producto retenido", (3) módulo nuevo VALIDAR (SUPERADMINISTRADOR) que
 fija los valores buenos que van a alimentar el dashboard de KPIs.

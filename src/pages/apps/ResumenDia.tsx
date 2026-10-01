@@ -1,27 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, Copy, Loader2 } from "lucide-react"
+import { Check, CheckCircle2, Copy, Loader2, PenLine } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { franjaDeHora, restarDias } from "@/lib/tiempoPlanta"
+import { TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
 import {
+  cajasOficiales,
+  cajasSupervisor,
   cargarResumenDia,
+  confirmarCorrida,
+  corregirCajasCorrida,
+  filasOficiales,
   mensajeResumenDia,
   nombrePresentacion,
   porSaborYPresentacion,
   totalPorLinea,
-  type FilaResumenDia,
+  type CorridaResumen,
 } from "@/lib/resumenDia"
 
 /*
- * Resumen del Día (Super Administrador): la producción de la jornada de
- * Aséptico (jornada de 7:00 a 7:00: T1 + T2 + el T3 de la madrugada
- * siguiente, por turnos.fecha) — cajas por sabor + presentación, total por línea y el mensaje
- * listo para copiar y pegar (futuro bot de Telegram). Ver src/lib/resumenDia.ts.
+ * Resumen del Día + Validar (permiso VALIDAR, Super Administrador o dueño):
+ * la producción de la jornada de Aséptico (7:00 a 7:00: T1 + T2 + el T3 de
+ * la madrugada siguiente, por turnos.fecha) — cajas por sabor +
+ * presentación, total por línea y el mensaje para copiar y pegar (futuro
+ * bot de Telegram). Debajo, Validar: cada corrida de un turno cerrado se
+ * confirma o se corrigen sus cajas; el resumen usa las cajas oficiales
+ * (la corrección si hay, si no lo del supervisor). Ver src/lib/resumenDia.ts.
  */
 const AREA = "ASEPTICO"
 
@@ -32,7 +42,9 @@ export default function ResumenDia() {
   const hoy = franjaDeHora().fecha
   const [fecha, setFecha] = useState(hoy)
   /** Resultado de la última consulta, con la fecha que se pidió: si no coincide con la elegida, está cargando. */
-  const [resultado, setResultado] = useState<{ fecha: string; filas: FilaResumenDia[] | null; error: string | null } | null>(null)
+  const [resultado, setResultado] = useState<{ fecha: string; corridas: CorridaResumen[] | null; error: string | null } | null>(null)
+  /** Sube con cada validación: vuelve a pedir el resumen sin cambiar la fecha. */
+  const [version, setVersion] = useState(0)
   const [copiado, setCopiado] = useState(false)
   const textoRef = useRef<HTMLTextAreaElement>(null)
 
@@ -41,14 +53,17 @@ export default function ResumenDia() {
     let vivo = true
     cargarResumenDia(session.username, AREA, fecha).then((r) => {
       if (!vivo) return
-      setResultado("error" in r ? { fecha, filas: null, error: r.error } : { fecha, filas: r, error: null })
+      setResultado("error" in r ? { fecha, corridas: null, error: r.error } : { fecha, corridas: r, error: null })
     })
     return () => {
       vivo = false
     }
-  }, [session, fecha])
+  }, [session, fecha, version])
   const vigente = resultado?.fecha === fecha ? resultado : null
-  const filas = vigente?.filas ?? null
+  const corridas = vigente?.corridas ?? null
+  const filas = corridas ? filasOficiales(corridas) : null
+  const validables = corridas?.filter((c) => c.turnoCerrado) ?? []
+  const validadas = validables.filter((c) => c.estado !== "PENDIENTE").length
   const error = vigente?.error ?? null
 
   // Solo las líneas físicas (LINEA_1, LINEA_2...), sin las de Pruebas.
@@ -158,9 +173,148 @@ export default function ResumenDia() {
                 <Textarea ref={textoRef} readOnly value={mensaje} rows={Math.min(16, mensaje.split("\n").length + 1)} className="font-mono text-sm" />
               </CardContent>
             </Card>
+
+            {corridas && corridas.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+                  <CardTitle>Validar</CardTitle>
+                  <Badge variant={validables.length > 0 && validadas === validables.length ? "default" : "outline"}>
+                    {validadas} de {validables.length} validadas
+                  </Badge>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Confirma las cajas de cada corrida o corrígelas. El resumen y el mensaje usan la corrección.
+                  </p>
+                  {corridas.map((c) => (
+                    <CorridaValidar key={c.turnoLineaId} corrida={c} usuario={session?.username ?? ""} onCambio={() => setVersion((v) => v + 1)} />
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </div>
     </AppShell>
+  )
+}
+
+/** Una corrida en Validar: sus cajas, el estado y Confirmar / Corregir (paletas + cajas sueltas). */
+function CorridaValidar({ corrida: c, usuario, onCambio }: { corrida: CorridaResumen; usuario: string; onCambio: () => void }) {
+  const [editando, setEditando] = useState(false)
+  const [paletas, setPaletas] = useState(String(c.paletasValidadas ?? c.paletas))
+  const [sueltas, setSueltas] = useState(String(c.cajasSueltasValidadas ?? c.cajasSueltas))
+  const [nota, setNota] = useState(c.nota ?? "")
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const supervisor = cajasSupervisor(c)
+  const oficial = cajasOficiales(c)
+  const nPaletas = Number(paletas)
+  const nSueltas = Number(sueltas)
+  const valido = paletas !== "" && sueltas !== "" && Number.isInteger(nPaletas) && Number.isInteger(nSueltas) && nPaletas >= 0 && nSueltas >= 0
+  const totalEditado = valido ? nPaletas * c.cajasXPaleta + nSueltas : null
+
+  async function ejecutar(fn: () => Promise<{ ok: true } | { ok: false; error: string }>) {
+    setEnviando(true)
+    setError(null)
+    const r = await fn()
+    setEnviando(false)
+    if (!r.ok) {
+      setError(r.error)
+      return
+    }
+    setEditando(false)
+    onCambio()
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">
+            {c.saborNombre} · {nombrePresentacion(c.volumenMl)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {nombrePorCodigo(TURNO_TIPOS, c.turnoTipo)} · {c.lineaNombre}
+            {c.lote ? ` · Lote ${c.lote}` : ""}
+          </p>
+        </div>
+        {!c.turnoCerrado ? (
+          <Badge variant="outline">Turno en curso</Badge>
+        ) : c.estado === "CONFIRMADO" ? (
+          <Badge>Confirmada</Badge>
+        ) : c.estado === "EDITADO" ? (
+          <Badge variant="secondary">Corregida</Badge>
+        ) : (
+          <Badge variant="outline">Pendiente</Badge>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+        <span className="text-muted-foreground">
+          Supervisor: <span className="num font-semibold text-foreground">{supervisor.toLocaleString("es-CO")}</span> cajas ({c.paletas} paletas +{" "}
+          {c.cajasSueltas} sueltas)
+        </span>
+        {c.estado === "EDITADO" && (
+          <span className="text-muted-foreground">
+            Oficial: <span className="num font-bold text-foreground">{oficial.toLocaleString("es-CO")}</span> cajas
+          </span>
+        )}
+      </div>
+      {c.estado !== "PENDIENTE" && c.validadoPorNombre && (
+        <p className="text-xs text-muted-foreground">
+          {c.estado === "EDITADO" ? "Corrigió" : "Confirmó"} {c.validadoPorNombre}
+          {c.nota ? ` — ${c.nota}` : ""}
+        </p>
+      )}
+
+      {c.turnoCerrado &&
+        (editando ? (
+          <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-2">
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Paletas</span>
+                <Input type="number" inputMode="numeric" min={0} value={paletas} onChange={(e) => setPaletas(e.target.value)} className="h-8 w-24" />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Cajas sueltas</span>
+                <Input type="number" inputMode="numeric" min={0} value={sueltas} onChange={(e) => setSueltas(e.target.value)} className="h-8 w-24" />
+              </label>
+              <span className="pb-1.5 text-sm text-muted-foreground">
+                = <span className="num font-semibold text-foreground">{totalEditado !== null ? totalEditado.toLocaleString("es-CO") : "—"}</span> cajas
+              </span>
+            </div>
+            <Input placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} className="h-8" />
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={!valido || enviando} onClick={() => ejecutar(() => corregirCajasCorrida(usuario, c.turnoLineaId, nPaletas, nSueltas, nota))}>
+                {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                Guardar corrección
+              </Button>
+              <Button size="sm" variant="ghost" disabled={enviando} onClick={() => setEditando(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {c.estado !== "CONFIRMADO" && (
+              <Button size="sm" variant="outline" disabled={enviando} onClick={() => ejecutar(() => confirmarCorrida(usuario, c.turnoLineaId))}>
+                {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                {c.estado === "EDITADO" ? "Volver a lo del supervisor" : "Confirmar"}
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" disabled={enviando} onClick={() => setEditando(true)}>
+              <PenLine className="size-3.5" />
+              Corregir cajas
+            </Button>
+          </div>
+        ))}
+      {error && (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }

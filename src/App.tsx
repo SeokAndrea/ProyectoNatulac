@@ -22,7 +22,6 @@ import CalculadoraFormula from "@/pages/apps/CalculadoraFormula"
 import CalculadoraConteoPeso from "@/pages/apps/CalculadoraConteoPeso"
 import Calculadoras from "@/pages/apps/Calculadoras"
 import Historial from "@/pages/apps/Historial"
-import Validar from "@/pages/apps/Validar"
 import ServiciosIndustriales from "@/pages/apps/ServiciosIndustriales"
 import RegistrosServiciosIndustriales from "@/pages/apps/RegistrosServiciosIndustriales"
 import ErroresCliente from "@/pages/apps/ErroresCliente"
@@ -214,14 +213,6 @@ export default function App() {
           element={
             <ProtectedRoute app="auditoria">
               <Historial />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/validar"
-          element={
-            <ProtectedRoute app="validar">
-              <Validar />
             </ProtectedRoute>
           }
         />

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { mensajeResumenDia, nombrePresentacion, porSaborYPresentacion, totalPorLinea, type FilaResumenDia } from "@/lib/resumenDia"
+import {
+  cajasOficiales,
+  cajasSupervisor,
+  filasOficiales,
+  mensajeResumenDia,
+  nombrePresentacion,
+  porSaborYPresentacion,
+  totalPorLinea,
+  type CorridaResumen,
+  type FilaResumenDia,
+} from "@/lib/resumenDia"
 
 const filas: FilaResumenDia[] = [
   { saborNombre: "Pera", volumenMl: 250, lineaCodigo: "LINEA_2", lineaNombre: "Línea 2", cajas: 1200 },
@@ -49,5 +59,42 @@ describe("resumen del día", () => {
 
   it("sin producción", () => {
     expect(mensajeResumenDia("2026-10-01", [])).toBe("Buenos días, producción del día 01/10/2026\n\nSin producción registrada.")
+  })
+})
+
+describe("cajas oficiales (validar)", () => {
+  const base: CorridaResumen = {
+    turnoLineaId: "tl1",
+    turnoCodigo: "A20261001_T1G2",
+    turnoTipo: "TURNO_1",
+    turnoCerrado: true,
+    lineaCodigo: "LINEA_1",
+    lineaNombre: "Línea 1",
+    saborNombre: "Pera",
+    volumenMl: 250,
+    lote: "0005",
+    cajasXPaleta: 120,
+    paletas: 10,
+    cajasSueltas: 5,
+    estado: "PENDIENTE",
+    paletasValidadas: null,
+    cajasSueltasValidadas: null,
+    nota: null,
+    validadoPorNombre: null,
+  }
+
+  it("sin validar o confirmada, cuentan las del supervisor", () => {
+    expect(cajasSupervisor(base)).toBe(1205)
+    expect(cajasOficiales(base)).toBe(1205)
+    expect(cajasOficiales({ ...base, estado: "CONFIRMADO" })).toBe(1205)
+  })
+
+  it("corregida, cuenta la corrección", () => {
+    expect(cajasOficiales({ ...base, estado: "EDITADO", paletasValidadas: 9, cajasSueltasValidadas: 60 })).toBe(1140)
+  })
+
+  it("el resumen suma las oficiales", () => {
+    const corregida = { ...base, turnoLineaId: "tl2", estado: "EDITADO" as const, paletasValidadas: 9, cajasSueltasValidadas: 60 }
+    expect(porSaborYPresentacion(filasOficiales([base, corregida]))).toEqual([{ saborNombre: "Pera", volumenMl: 250, cajas: 2345 }])
   })
 })
