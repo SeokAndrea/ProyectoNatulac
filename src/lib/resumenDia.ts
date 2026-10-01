@@ -4,120 +4,17 @@ import { supabase } from "@/lib/supabase"
  * Resumen del Día + Validar (permiso VALIDAR, Super Administrador o dueño):
  * cajas producidas en la jornada (7:00 a 7:00), por sabor + presentación,
  * total por línea y el mensaje para copiar y pegar (futuro bot de
- * Telegram). Debajo, cada corrida se valida: se confirma o se corrigen sus
- * cajas (paletas + sueltas). Lo primero que se ve es lo del supervisor; una
- * corrida corregida cuenta con la corrección. Datos: resumen_produccion_dia()
- * (migración 20261099); confirmar / corregir: confirmar_produccion() y
- * editar_produccion_validada() (20261078).
+ * Telegram). Se valida el número del DÍA: cada sabor + presentación se
+ * confirma (vale lo del supervisor) o se corrige su total de cajas. El
+ * mensaje y el total usan el número oficial; el total por línea, lo del
+ * supervisor. Datos: resumen_produccion_dia(), validacion_dia_de() y
+ * validar_dia() (migración 20261099190000).
  */
 
 type Resultado = { ok: true } | { ok: false; error: string }
 export type EstadoValidacion = "PENDIENTE" | "CONFIRMADO" | "EDITADO"
 
-/** Una corrida (turno + línea) con Producto Terminado en la jornada. */
-export interface CorridaResumen {
-  turnoLineaId: string
-  turnoCodigo: string
-  turnoTipo: string
-  /** Solo se valida con el turno cerrado. */
-  turnoCerrado: boolean
-  lineaCodigo: string
-  lineaNombre: string
-  saborNombre: string
-  volumenMl: number
-  lote: string | null
-  cajasXPaleta: number
-  /** Lo que cargó el supervisor. */
-  paletas: number
-  cajasSueltas: number
-  estado: EstadoValidacion
-  /** La corrección, si estado === "EDITADO". */
-  paletasValidadas: number | null
-  cajasSueltasValidadas: number | null
-  nota: string | null
-  validadoPorNombre: string | null
-}
-
-/** Cajas que cargó el supervisor. */
-export function cajasSupervisor(c: CorridaResumen): number {
-  return c.paletas * c.cajasXPaleta + c.cajasSueltas
-}
-
-/** Cajas que cuentan: la corrección si se editó; si no, lo del supervisor. */
-export function cajasOficiales(c: CorridaResumen): number {
-  if (c.estado !== "EDITADO") return cajasSupervisor(c)
-  return (c.paletasValidadas ?? c.paletas) * c.cajasXPaleta + (c.cajasSueltasValidadas ?? c.cajasSueltas)
-}
-
-export async function cargarResumenDia(usuario: string, area: string, fecha: string): Promise<CorridaResumen[] | { error: string }> {
-  const { data, error } = await supabase.rpc("resumen_produccion_dia", { p_usuario: usuario, p_area_codigo: area, p_fecha: fecha })
-  if (error) return { error: error.message || "No se pudo cargar el resumen del día." }
-  return (
-    (data ?? []) as {
-      turno_linea_id: string
-      turno_codigo: string
-      turno_tipo_codigo: string
-      turno_cerrado: boolean
-      linea_codigo: string
-      linea_nombre: string
-      sabor_nombre: string | null
-      presentacion_volumen_ml: number
-      lote: string | null
-      cajas_x_paleta: number
-      paletas: number
-      cajas_sueltas: number
-      estado_validacion: "CONFIRMADO" | "EDITADO" | null
-      paletas_validadas: number | null
-      cajas_sueltas_validadas: number | null
-      nota: string | null
-      validado_por_nombre: string | null
-    }[]
-  ).map((f) => ({
-    turnoLineaId: f.turno_linea_id,
-    turnoCodigo: f.turno_codigo,
-    turnoTipo: f.turno_tipo_codigo,
-    turnoCerrado: f.turno_cerrado,
-    lineaCodigo: f.linea_codigo,
-    lineaNombre: f.linea_nombre,
-    saborNombre: f.sabor_nombre ?? "Sin sabor",
-    volumenMl: f.presentacion_volumen_ml,
-    lote: f.lote,
-    cajasXPaleta: f.cajas_x_paleta,
-    paletas: f.paletas,
-    cajasSueltas: f.cajas_sueltas,
-    estado: f.estado_validacion ?? "PENDIENTE",
-    paletasValidadas: f.paletas_validadas,
-    cajasSueltasValidadas: f.cajas_sueltas_validadas,
-    nota: f.nota,
-    validadoPorNombre: f.validado_por_nombre,
-  }))
-}
-
-/** "Sí, está bien": la corrida queda validada con lo del supervisor. */
-export async function confirmarCorrida(usuario: string, turnoLineaId: string): Promise<Resultado> {
-  const { error } = await supabase.rpc("confirmar_produccion", { p_usuario: usuario, p_turno_linea_id: turnoLineaId })
-  return error ? { ok: false, error: error.message || "No se pudo confirmar." } : { ok: true }
-}
-
-/** Corrige las cajas de la corrida (paletas + sueltas), con una nota opcional. */
-export async function corregirCajasCorrida(
-  usuario: string,
-  turnoLineaId: string,
-  paletas: number,
-  cajasSueltas: number,
-  nota: string,
-): Promise<Resultado> {
-  const { error } = await supabase.rpc("editar_produccion_validada", {
-    p_usuario: usuario,
-    p_turno_linea_id: turnoLineaId,
-    p_paletas: paletas,
-    p_cajas_sueltas: cajasSueltas,
-    p_nota: nota.trim() || null,
-  })
-  return error ? { ok: false, error: error.message || "No se pudo guardar la corrección." } : { ok: true }
-}
-
-/** Lo que suma el resumen: sabor, presentación, línea y cajas (las oficiales). */
+/** Lo que cargaron los supervisores: sabor, presentación, línea y cajas. */
 export interface FilaResumenDia {
   saborNombre: string
   volumenMl: number
@@ -126,14 +23,78 @@ export interface FilaResumenDia {
   cajas: number
 }
 
-export function filasOficiales(corridas: CorridaResumen[]): FilaResumenDia[] {
-  return corridas.map((c) => ({
-    saborNombre: c.saborNombre,
-    volumenMl: c.volumenMl,
-    lineaCodigo: c.lineaCodigo,
-    lineaNombre: c.lineaNombre,
-    cajas: cajasOficiales(c),
+/** La validación guardada de un sabor + presentación del día. */
+export interface ValidacionDia {
+  saborNombre: string
+  volumenMl: number
+  estado: "CONFIRMADO" | "EDITADO"
+  /** Total corregido (solo si estado === "EDITADO"). */
+  cajas: number | null
+  nota: string | null
+  validadoPorNombre: string | null
+}
+
+export async function cargarResumenDia(
+  usuario: string,
+  area: string,
+  fecha: string,
+): Promise<{ filas: FilaResumenDia[]; validaciones: ValidacionDia[] } | { error: string }> {
+  const args = { p_usuario: usuario, p_area_codigo: area, p_fecha: fecha }
+  const [resumen, validacion] = await Promise.all([
+    supabase.rpc("resumen_produccion_dia", args),
+    supabase.rpc("validacion_dia_de", args),
+  ])
+  const error = resumen.error ?? validacion.error
+  if (error) return { error: error.message || "No se pudo cargar el resumen del día." }
+  const filas = (
+    (resumen.data ?? []) as { sabor_nombre: string | null; presentacion_volumen_ml: number; linea_codigo: string; linea_nombre: string; cajas: number }[]
+  ).map((f) => ({
+    saborNombre: f.sabor_nombre ?? "Sin sabor",
+    volumenMl: f.presentacion_volumen_ml,
+    lineaCodigo: f.linea_codigo,
+    lineaNombre: f.linea_nombre,
+    cajas: Number(f.cajas),
   }))
+  const validaciones = (
+    (validacion.data ?? []) as {
+      sabor_nombre: string
+      presentacion_volumen_ml: number
+      estado: "CONFIRMADO" | "EDITADO"
+      cajas: number | null
+      nota: string | null
+      validado_por_nombre: string | null
+    }[]
+  ).map((v) => ({
+    saborNombre: v.sabor_nombre,
+    volumenMl: v.presentacion_volumen_ml,
+    estado: v.estado,
+    cajas: v.cajas,
+    nota: v.nota,
+    validadoPorNombre: v.validado_por_nombre,
+  }))
+  return { filas, validaciones }
+}
+
+/** Confirma (cajas null: vale lo del supervisor) o corrige el total de cajas de un sabor + presentación del día. */
+export async function validarDia(
+  usuario: string,
+  area: string,
+  fecha: string,
+  saborNombre: string,
+  volumenMl: number,
+  cajas: number | null,
+  nota: string,
+): Promise<Resultado> {
+  const { error } = await supabase.rpc("validar_dia", {
+    p_usuario: usuario,
+    p_area_codigo: area,
+    p_fecha: fecha,
+    p_sabor_nombre: saborNombre,
+    p_volumen_ml: volumenMl,
+    p_cajas: cajas,
+    p_nota: nota.trim() || null,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo guardar." } : { ok: true }
 }
 
 /** "TPA-250 cm³" — 1000 y 500 ml son Tetra Brik (TBA); 330, 250 y 200 ml, Tetra Prisma (TPA), como en el acta. */
@@ -141,25 +102,63 @@ export function nombrePresentacion(volumenMl: number): string {
   return `${volumenMl >= 500 ? "TBA" : "TPA"}-${volumenMl} cm³`
 }
 
-export interface SaborPresentacion {
+/** Una fila del día: sabor + presentación, lo del supervisor, su validación y el número oficial. */
+export interface ItemDia {
   saborNombre: string
   volumenMl: number
-  cajas: number
+  /** Suma de lo que cargaron los supervisores (todas las líneas). */
+  cajasSupervisor: number
+  estado: EstadoValidacion
+  /** El que cuenta: la corrección si hay; si no, lo del supervisor. */
+  cajasOficiales: number
+  nota: string | null
+  validadoPorNombre: string | null
 }
 
-/** Suma las líneas: una fila por sabor + presentación, de más a menos cajas. */
-export function porSaborYPresentacion(filas: FilaResumenDia[]): SaborPresentacion[] {
-  const m = new Map<string, SaborPresentacion>()
+/**
+ * Una fila por sabor + presentación, de más a menos cajas oficiales. Suma
+ * las líneas y le pega su validación; una validación sin producción (ej.
+ * se corrigió un PT después) igual aparece, con 0 del supervisor.
+ */
+export function itemsDelDia(filas: FilaResumenDia[], validaciones: ValidacionDia[] = []): ItemDia[] {
+  const m = new Map<string, ItemDia>()
+  const clave = (sabor: string, volumen: number) => `${sabor}|${volumen}`
   for (const f of filas) {
-    const clave = `${f.saborNombre}|${f.volumenMl}`
-    const actual = m.get(clave) ?? { saborNombre: f.saborNombre, volumenMl: f.volumenMl, cajas: 0 }
-    actual.cajas += f.cajas
-    m.set(clave, actual)
+    const k = clave(f.saborNombre, f.volumenMl)
+    const actual = m.get(k) ?? {
+      saborNombre: f.saborNombre,
+      volumenMl: f.volumenMl,
+      cajasSupervisor: 0,
+      estado: "PENDIENTE" as EstadoValidacion,
+      cajasOficiales: 0,
+      nota: null,
+      validadoPorNombre: null,
+    }
+    actual.cajasSupervisor += f.cajas
+    m.set(k, actual)
   }
-  return [...m.values()].sort((a, b) => b.cajas - a.cajas || a.saborNombre.localeCompare(b.saborNombre) || a.volumenMl - b.volumenMl)
+  for (const v of validaciones) {
+    const k = clave(v.saborNombre, v.volumenMl)
+    const actual = m.get(k) ?? {
+      saborNombre: v.saborNombre,
+      volumenMl: v.volumenMl,
+      cajasSupervisor: 0,
+      estado: "PENDIENTE" as EstadoValidacion,
+      cajasOficiales: 0,
+      nota: null,
+      validadoPorNombre: null,
+    }
+    m.set(k, { ...actual, estado: v.estado, nota: v.nota, validadoPorNombre: v.validadoPorNombre })
+  }
+  return [...m.values()]
+    .map((i) => {
+      const v = validaciones.find((x) => x.saborNombre === i.saborNombre && x.volumenMl === i.volumenMl)
+      return { ...i, cajasOficiales: v?.estado === "EDITADO" && v.cajas !== null ? v.cajas : i.cajasSupervisor }
+    })
+    .sort((a, b) => b.cajasOficiales - a.cajasOficiales || a.saborNombre.localeCompare(b.saborNombre) || a.volumenMl - b.volumenMl)
 }
 
-/** Cajas por línea, en el orden de `lineas` (las que no produjeron, en 0). */
+/** Cajas por línea (lo del supervisor), en el orden de `lineas` (las que no produjeron, en 0). */
 export function totalPorLinea(filas: FilaResumenDia[], lineas: { codigo: string; nombre: string }[]): { codigo: string; nombre: string; cajas: number }[] {
   return lineas.map((l) => ({ ...l, cajas: filas.filter((f) => f.lineaCodigo === l.codigo).reduce((a, f) => a + f.cajas, 0) }))
 }
@@ -173,7 +172,7 @@ export function fechaCorta(fecha: string): string {
 }
 
 /**
- * El mensaje para copiar y pegar:
+ * El mensaje para copiar y pegar, con los números oficiales:
  *   Buenos días, producción del día 01/10/2026
  *
  *   TPA-250 cm³ Pera: 2.401 cajas
@@ -181,14 +180,14 @@ export function fechaCorta(fecha: string): string {
  *
  *   Total: 7.204 cajas
  */
-export function mensajeResumenDia(fecha: string, filas: FilaResumenDia[]): string {
-  const items = porSaborYPresentacion(filas)
-  if (items.length === 0) return `Buenos días, producción del día ${fechaCorta(fecha)}\n\nSin producción registrada.`
-  const total = items.reduce((a, i) => a + i.cajas, 0)
+export function mensajeResumenDia(fecha: string, items: ItemDia[]): string {
+  const conCajas = items.filter((i) => i.cajasOficiales > 0)
+  if (conCajas.length === 0) return `Buenos días, producción del día ${fechaCorta(fecha)}\n\nSin producción registrada.`
+  const total = conCajas.reduce((a, i) => a + i.cajasOficiales, 0)
   return [
     `Buenos días, producción del día ${fechaCorta(fecha)}`,
     "",
-    ...items.map((i) => `${nombrePresentacion(i.volumenMl)} ${i.saborNombre}: ${miles(i.cajas)} cajas`),
+    ...conCajas.map((i) => `${nombrePresentacion(i.volumenMl)} ${i.saborNombre}: ${miles(i.cajasOficiales)} cajas`),
     "",
     `Total: ${miles(total)} cajas`,
   ].join("\n")

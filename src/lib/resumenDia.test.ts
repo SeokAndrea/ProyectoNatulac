@@ -1,15 +1,5 @@
 import { describe, expect, it } from "vitest"
-import {
-  cajasOficiales,
-  cajasSupervisor,
-  filasOficiales,
-  mensajeResumenDia,
-  nombrePresentacion,
-  porSaborYPresentacion,
-  totalPorLinea,
-  type CorridaResumen,
-  type FilaResumenDia,
-} from "@/lib/resumenDia"
+import { itemsDelDia, mensajeResumenDia, nombrePresentacion, totalPorLinea, type FilaResumenDia, type ValidacionDia } from "@/lib/resumenDia"
 
 const filas: FilaResumenDia[] = [
   { saborNombre: "Pera", volumenMl: 250, lineaCodigo: "LINEA_2", lineaNombre: "Línea 2", cajas: 1200 },
@@ -25,15 +15,15 @@ describe("resumen del día", () => {
     expect(nombrePresentacion(1000)).toBe("TBA-1000 cm³")
   })
 
-  it("suma las líneas por sabor + presentación, de más a menos cajas", () => {
-    expect(porSaborYPresentacion(filas)).toEqual([
-      { saborNombre: "Pera", volumenMl: 330, cajas: 4803 },
-      { saborNombre: "Pera", volumenMl: 250, cajas: 2401 },
-      { saborNombre: "Durazno", volumenMl: 1000, cajas: 960 },
+  it("una fila por sabor + presentación (suma las líneas), de más a menos cajas, pendientes", () => {
+    expect(itemsDelDia(filas).map((i) => [i.saborNombre, i.volumenMl, i.cajasSupervisor, i.cajasOficiales, i.estado])).toEqual([
+      ["Pera", 330, 4803, 4803, "PENDIENTE"],
+      ["Pera", 250, 2401, 2401, "PENDIENTE"],
+      ["Durazno", 1000, 960, 960, "PENDIENTE"],
     ])
   })
 
-  it("total por línea, con las que no produjeron en 0", () => {
+  it("total por línea (lo del supervisor), con las que no produjeron en 0", () => {
     const lineas = [
       { codigo: "LINEA_1", nombre: "Línea 1" },
       { codigo: "LINEA_2", nombre: "Línea 2" },
@@ -44,7 +34,7 @@ describe("resumen del día", () => {
   })
 
   it("arma el mensaje para copiar", () => {
-    expect(mensajeResumenDia("2026-10-01", filas)).toBe(
+    expect(mensajeResumenDia("2026-10-01", itemsDelDia(filas))).toBe(
       [
         "Buenos días, producción del día 01/10/2026",
         "",
@@ -62,39 +52,28 @@ describe("resumen del día", () => {
   })
 })
 
-describe("cajas oficiales (validar)", () => {
-  const base: CorridaResumen = {
-    turnoLineaId: "tl1",
-    turnoCodigo: "A20261001_T1G2",
-    turnoTipo: "TURNO_1",
-    turnoCerrado: true,
-    lineaCodigo: "LINEA_1",
-    lineaNombre: "Línea 1",
-    saborNombre: "Pera",
-    volumenMl: 250,
-    lote: "0005",
-    cajasXPaleta: 120,
-    paletas: 10,
-    cajasSueltas: 5,
-    estado: "PENDIENTE",
-    paletasValidadas: null,
-    cajasSueltasValidadas: null,
-    nota: null,
-    validadoPorNombre: null,
-  }
+describe("validar el día", () => {
+  const validaciones: ValidacionDia[] = [
+    { saborNombre: "Pera", volumenMl: 250, estado: "EDITADO", cajas: 2380, nota: "Faltaban 21 cajas", validadoPorNombre: "Daniela" },
+    { saborNombre: "Durazno", volumenMl: 1000, estado: "CONFIRMADO", cajas: null, nota: null, validadoPorNombre: "Daniela" },
+  ]
 
-  it("sin validar o confirmada, cuentan las del supervisor", () => {
-    expect(cajasSupervisor(base)).toBe(1205)
-    expect(cajasOficiales(base)).toBe(1205)
-    expect(cajasOficiales({ ...base, estado: "CONFIRMADO" })).toBe(1205)
+  it("corregida cuenta la corrección; confirmada, lo del supervisor", () => {
+    const items = itemsDelDia(filas, validaciones)
+    const pera250 = items.find((i) => i.saborNombre === "Pera" && i.volumenMl === 250)!
+    expect([pera250.estado, pera250.cajasSupervisor, pera250.cajasOficiales]).toEqual(["EDITADO", 2401, 2380])
+    const durazno = items.find((i) => i.saborNombre === "Durazno")!
+    expect([durazno.estado, durazno.cajasOficiales]).toEqual(["CONFIRMADO", 960])
   })
 
-  it("corregida, cuenta la corrección", () => {
-    expect(cajasOficiales({ ...base, estado: "EDITADO", paletasValidadas: 9, cajasSueltasValidadas: 60 })).toBe(1140)
+  it("el mensaje usa los números oficiales", () => {
+    const mensaje = mensajeResumenDia("2026-10-01", itemsDelDia(filas, validaciones))
+    expect(mensaje).toContain("TPA-250 cm³ Pera: 2.380 cajas")
+    expect(mensaje).toContain("Total: 8.143 cajas")
   })
 
-  it("el resumen suma las oficiales", () => {
-    const corregida = { ...base, turnoLineaId: "tl2", estado: "EDITADO" as const, paletasValidadas: 9, cajasSueltasValidadas: 60 }
-    expect(porSaborYPresentacion(filasOficiales([base, corregida]))).toEqual([{ saborNombre: "Pera", volumenMl: 250, cajas: 2345 }])
+  it("una corrección sin producción del supervisor igual aparece", () => {
+    const items = itemsDelDia(filas, [{ saborNombre: "Mango", volumenMl: 200, estado: "EDITADO", cajas: 50, nota: null, validadoPorNombre: null }])
+    expect(items.find((i) => i.saborNombre === "Mango")).toMatchObject({ cajasSupervisor: 0, cajasOficiales: 50 })
   })
 })

@@ -1,7 +1,7 @@
 # Plan — Módulo VALIDAR + candado de edición de Producto Terminado
 
-> **2026-10-01 (dueño): Validar se unió al Resumen del Día** (`/resumen-dia`, permiso VALIDAR) **y ahora valida solo las cajas**
-> (paletas + cajas sueltas) de cada corrida: Confirmar o Corregir. Se quitó la página Validar aparte y la edición de
+> **2026-10-01 (dueño): Validar se unió al Resumen del Día** (`/resumen-dia`, permiso VALIDAR) **y ahora valida el número del DÍA**
+> por sabor + presentación (tabla validacion_dia, migración 20261099190000): Confirmar o Corregir el total de cajas. Se quitó la página Validar aparte y la edición de
 > contadores, litros, lote y mermas. Lo de abajo es la historia del módulo original.
 
 Arrancado 2026-09-03. Tres cosas relacionadas: (1) el PT del supervisor se congela 1 h después
