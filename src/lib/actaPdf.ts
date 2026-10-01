@@ -7,6 +7,7 @@ import { agruparPorSaborYLote } from "@/lib/agruparProduccion"
 import { textoCondicionTanque } from "@/lib/tanques"
 import { LIMITE_MERMA } from "@/lib/turno"
 import { mermaCorrida } from "@/lib/reportes"
+import { mermaEnvasesDeCorridas } from "@/lib/reportes/realidadProduccion"
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/sesionTurno"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
@@ -23,8 +24,8 @@ import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
  * pryecto/Acta de Entrega.pdf"): banner con el logo, encabezado 1.1-1.5,
  * tanques recibidos (1.6), semielaborado por lote (1.7), ajustes de
  * volumen (agua/jugo, cuando hubo), tanques entregados (1.8), estado de
- * la producción (1.9), eficiencia/merma y contador de llenadora por
- * línea (2.1/2.2), novedades del turno (2.3), lecturas de Servicios
+ * la producción (1.9), eficiencia/merma por línea (2.1), resumen de
+ * producción en recuadros por sabor/lote/línea (2.2), novedades del turno (2.3), lecturas de Servicios
  * Industriales asociadas a este turno (2.4) y firma.
  *
  * Reemplaza la versión compacta anterior. No reproduce el gráfico de
@@ -381,38 +382,67 @@ export async function generarActaPdf(params: {
   })
   finTabla()
 
-  // ---------------- 2.2 CONTADOR DE LLENADORA ----------------
-  titulo("2.2 CONTADOR DE LLENADORA")
-  const gruposSabor = agruparPorSaborYLote(corridas)
-  const filasContador: string[][] = []
-  for (const g of gruposSabor) {
-    const corridasSabor = g.lotes.flatMap((l) => l.corridas)
-    const porLinea = lineas.map((l) => {
-      const corridasLinea = corridasSabor.filter((c) => c.linea === l.codigo)
-      let llenadora = 0
-      let pt = 0
-      for (const c of corridasLinea) {
-        const m = mermaCorrida(c.id, contadores, productoTerminado, presentaciones)
-        if (m) {
-          llenadora += m.envasesLlenadora
-          pt += m.envasesProductoTerminado
-        }
+  // ---------------- 2.2 RESUMEN DE PRODUCCIÓN ----------------
+  // Un recuadro por sabor + lote + línea (cada línea tiene su propio contador):
+  //   Sabor || Lote · Línea
+  //   Contador 1 || Contador 2 || % Merma
+  //   Cajas producidas
+  titulo("2.2 RESUMEN DE PRODUCCIÓN")
+  y += 1.5
+  const recuadros: { sabor: string; lote: string; linea: string; corridaIds: string[] }[] = []
+  for (const g of agruparPorSaborYLote(corridas)) {
+    for (const lote of g.lotes) {
+      for (const l of lineas) {
+        const ids = lote.corridas.filter((c) => c.linea === l.codigo).map((c) => c.id)
+        if (ids.length === 0) continue
+        recuadros.push({ sabor: g.saborNombre ?? "Sin sabor", lote: lote.lote ?? "—", linea: l.nombre, corridaIds: ids })
       }
-      return { llenadora, pt, diferencia: llenadora - pt }
-    })
-    if (porLinea.every((p) => p.llenadora === 0 && p.pt === 0)) continue
-    filasContador.push([`${g.saborNombre ?? "Sin sabor"} — Contador (envases)`, ...porLinea.map((p) => p.llenadora.toLocaleString("es-CO"))])
-    filasContador.push([`${g.saborNombre ?? "Sin sabor"} — Producto terminado (envases)`, ...porLinea.map((p) => p.pt.toLocaleString("es-CO"))])
-    filasContador.push([`${g.saborNombre ?? "Sin sabor"} — Diferencia`, ...porLinea.map((p) => p.diferencia.toLocaleString("es-CO"))])
+    }
   }
-  autoTable(doc, {
-    startY: y + 1.5,
-    theme: "grid",
-    styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
-    head: [["Sabor — Concepto", ...lineas.map((l) => l.nombre)]],
-    body: filasContador.length > 0 ? filasContador : [["Sin contadores cargados", ...lineas.map(() => "—")]],
-  })
-  finTabla()
+  if (recuadros.length === 0) {
+    autoTable(doc, {
+      startY: y,
+      theme: "grid",
+      styles: { textColor: 0, fontSize: 8, cellPadding: 1 },
+      body: [["Sin producción cargada en el turno."]],
+    })
+    finTabla()
+  }
+  const etiqueta = (texto: string, valor: string) => `${texto}\n${valor}`
+  for (const r of recuadros) {
+    const contadoresRec = contadores.filter((c) => c.corridaId !== null && r.corridaIds.includes(c.corridaId))
+    const contador1 = contadoresRec.reduce((a, c) => a + c.envasesLlenadora, 0)
+    const conContador2 = contadoresRec.filter((c) => c.envasesBuenos !== null)
+    const contador2 = conContador2.reduce((a, c) => a + (c.envasesBuenos ?? 0), 0)
+    const merma = mermaEnvasesDeCorridas(r.corridaIds, contadores, productoTerminado, presentaciones).pct
+    const cajas = productoTerminado
+      .filter((p) => p.corridaId !== null && r.corridaIds.includes(p.corridaId))
+      .reduce((a, p) => a + p.paletas * (presentaciones.find((x) => x.codigo === p.presentacion)?.cajasXPaleta ?? 0) + p.cajasSueltas, 0)
+    autoTable(doc, {
+      startY: y,
+      theme: "grid",
+      pageBreak: "avoid",
+      styles: { textColor: 0, fontSize: 9, cellPadding: 1.6, lineColor: 120, lineWidth: 0.2 },
+      // 6 columnas iguales: Sabor | Lote en mitades, Contador 1 | Contador 2 | % Merma en tercios.
+      columnStyles: Object.fromEntries([0, 1, 2, 3, 4, 5].map((i) => [i, { cellWidth: (anchoPagina - 2 * margenX) / 6 }])),
+      body: [
+        [
+          { content: etiqueta("Sabor", r.sabor), colSpan: 3, styles: { fontStyle: "bold", fillColor: [225, 245, 240] } },
+          { content: etiqueta("Lote", `${r.lote} · ${r.linea}`), colSpan: 3, styles: { fontStyle: "bold", fillColor: [225, 245, 240] } },
+        ],
+        [
+          { content: etiqueta("Contador 1", contadoresRec.length > 0 ? contador1.toLocaleString("es-CO") : "—"), colSpan: 2 },
+          { content: etiqueta("Contador 2", conContador2.length > 0 ? contador2.toLocaleString("es-CO") : "—"), colSpan: 2 },
+          {
+            content: etiqueta("% Merma", merma !== null ? `${merma}%${merma > LIMITE_MERMA_PCT ? " ⚠" : ""}` : "—"),
+            colSpan: 2,
+          },
+        ],
+        [{ content: `Cajas producidas: ${cajas.toLocaleString("es-CO")}`, colSpan: 6, styles: { fontStyle: "bold" } }],
+      ],
+    })
+    finTabla()
+  }
 
   // ---------------- PARADAS DEL TURNO (propio del sistema, no del formato original) ----------------
   if (paradas) {
