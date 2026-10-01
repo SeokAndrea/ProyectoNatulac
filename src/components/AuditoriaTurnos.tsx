@@ -172,7 +172,7 @@ export function AuditoriaTurnos({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="TODOS">Todos los turnos</SelectItem>
-                  {TURNO_TIPOS.map((tt) => (
+                  {TURNO_TIPOS.filter((tt) => tt.codigo !== "12X12").map((tt) => (
                     <SelectItem key={tt.codigo} value={tt.codigo}>
                       {tt.nombre}
                     </SelectItem>

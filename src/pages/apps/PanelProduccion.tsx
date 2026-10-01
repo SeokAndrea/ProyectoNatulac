@@ -846,7 +846,7 @@ export default function PanelProduccion() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TURNO_TIPOS.map((t) => (
+                    {TURNO_TIPOS.filter((t) => t.codigo !== "12X12").map((t) => (
                       <SelectItem key={t.codigo} value={t.codigo}>
                         {t.nombre}
                       </SelectItem>
