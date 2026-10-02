@@ -7,6 +7,7 @@ import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { AREAS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import { turnosActivosPorArea, type TurnoActivoArea } from "@/lib/historialTurnos"
+import { puede } from "@/lib/permisos"
 
 /*
  * Franja fija debajo del header con Área, Supervisor activo y el
@@ -38,7 +39,9 @@ export function EstadoBanner() {
   const { lineas } = useCatalogosLive()
   const [turnoDeArea, setTurnoDeArea] = useState<TurnoActivoArea | null>(null)
 
-  const mirarTurnoDeArea = session?.rol !== "SUPERVISOR" && session?.area != null
+  // turnos_activos_por_area() exige AUDITORIA_VER: sin él (Calidad, Mantenimiento) daba
+  // "No tienes permiso para ver esto." en cada carga. Calidad ya ve el turno de Aséptico por turno_activo_de().
+  const mirarTurnoDeArea = session?.rol !== "SUPERVISOR" && session?.area != null && puede(session, "AUDITORIA_VER")
 
   useEffect(() => {
     if (!session || !mirarTurnoDeArea) return
