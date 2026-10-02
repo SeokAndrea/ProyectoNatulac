@@ -294,6 +294,29 @@ export default function Historial() {
                 </div>
               )}
 
+              {/* Cualquier acta se puede volver a generar con el formato actual (ej. un turno cerrado con
+                  una versión vieja de la app). Queda como versión nueva; la anterior pasa a ANULADA. */}
+              {detalle.estado === "CERRADO" &&
+                tieneActa === true &&
+                detalle.correcciones.length === 0 &&
+                !actaGeneradaUrl &&
+                (esSuperadmin || puedeCorregir) && (
+                  <div className="flex flex-col gap-1.5">
+                    <Button size="sm" variant="outline" className="self-start" disabled={generandoActa} onClick={generarActaFaltante}>
+                      {generandoActa ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
+                      Regenerar acta
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Vuelve a armar el acta con el formato actual. La anterior queda anulada.
+                    </p>
+                    {errorActa && (
+                      <p className="text-xs text-destructive" role="alert">
+                        {errorActa}
+                      </p>
+                    )}
+                  </div>
+                )}
+
               {actaGeneradaUrl && (
                 <p className="text-sm text-success">
                   Acta generada —{" "}
