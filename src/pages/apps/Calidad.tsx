@@ -474,7 +474,7 @@ function RegistrosCalidad({ version }: { version: number }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="py-1.5 pr-3 font-medium">Fecha</th>
+                  <th className="py-1.5 pr-3 font-medium">Fecha y hora</th>
                   <th className="py-1.5 pr-3 font-medium">Tanque · Lote</th>
                   <th className="py-1.5 pr-3 font-medium">Sabor</th>
                   <th className="py-1.5 pr-3 font-medium">Sensorial</th>
@@ -491,7 +491,7 @@ function RegistrosCalidad({ version }: { version: number }) {
                       {diaMesPlanta(new Date(f.creadoEn))} {horaCortaPlanta(f.creadoEn, f.creadoEn)}
                     </td>
                     <td className="py-2 pr-3 whitespace-nowrap">
-                      T{f.numeroTanque}
+                      Tanque {f.numeroTanque}
                       {f.lote ? ` · ${f.lote}` : ""}
                     </td>
                     <td className="py-2 pr-3">{f.saborNombre ?? "—"}</td>
