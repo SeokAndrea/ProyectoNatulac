@@ -12,6 +12,14 @@
  * timestamps de mutación (`activada_en`, `creado_en`, …) llegan de
  * Postgres en ISO con offset — instantes absolutos — y se MUESTRAN en
  * hora de planta.
+ *
+ * DÍA NORMAL vs. DÍA DE TURNO — elegir siempre a propósito:
+ *  - Día de turno (jornada 7:00 → 7:00): para agrupar o filtrar "por
+ *    día" (Hoy, reportes, registros). La madrugada es del turno 3 de la
+ *    fecha anterior. Front: `fechaJornadaPlanta()` / `franjaDeHora()`.
+ *    SQL: `turnos.fecha` (vía turno_id) o `turno_de_hora(ts)`.
+ *  - Día normal (calendario): solo para mostrar la fecha/hora real de un
+ *    instante o para inputs de fecha-hora. Front: `fechaPlanta()`.
  */
 export const ZONA_PLANTA = "America/Caracas"
 const OFFSET_PLANTA = "-04:00"

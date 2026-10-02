@@ -84,7 +84,7 @@ import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/ti
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
-import { fechaPlanta, horaCortaPlanta, horaPlanta, restarDias, turnoTipoActual } from "@/lib/tiempoPlanta"
+import { fechaPlanta, franjaDeHora, horaCortaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { duracionMin, listarParadas, minutosPorLinea, type Parada } from "@/lib/paradas"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { codigoDeParadaLive, useCatalogoParadas } from "@/lib/paradasCatalogo"
@@ -301,8 +301,9 @@ export default function PanelProduccion() {
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   const [cargando, setCargando] = useState(true)
   const [enVivo, setEnVivo] = useState(true)
-  const [fecha, setFecha] = useState(() => fechaPlanta())
-  const [turnoTipo, setTurnoTipo] = useState<string>(() => turnoTipoActual())
+  // Día de turno, no calendario: a las 2:00 el turno 3 en curso es el de la fecha anterior.
+  const [fecha, setFecha] = useState(() => franjaDeHora().fecha)
+  const [turnoTipo, setTurnoTipo] = useState<string>(() => franjaDeHora().tipo)
   const [buscado, setBuscado] = useState(false)
   /*
    * El turno pasado sin procesar: la merma se calcula abajo (en el

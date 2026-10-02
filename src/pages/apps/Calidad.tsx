@@ -29,7 +29,7 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import type { CondicionTanque, PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import { nombreSaborConFamilia } from "@/lib/sabores"
 import { useSesionTurno } from "@/lib/sesionTurno"
-import { diaMesPlanta, fechaPlanta, horaCortaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { diaMesPlanta, fechaJornadaPlanta, horaCortaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { cn } from "@/lib/utils"
 
 /*
@@ -432,7 +432,8 @@ function RegistrosCalidad({ version }: { version: number }) {
   const [periodo, setPeriodo] = useState<PeriodoRegistros>("HOY")
   const [cargado, setCargado] = useState<{ clave: string; filas: RegistroCalidad[] } | null>(null)
 
-  const hoy = fechaPlanta()
+  // Día de turno (7:00 → 7:00): un análisis de la madrugada es del turno 3 de la jornada anterior. Migración 20261100.
+  const hoy = fechaJornadaPlanta()
   const desde = periodo === "HOY" ? hoy : periodo === "7D" ? restarDias(hoy, 6) : `${hoy.slice(0, 8)}01`
   const clave = `${desde}|${hoy}|${version}`
 
