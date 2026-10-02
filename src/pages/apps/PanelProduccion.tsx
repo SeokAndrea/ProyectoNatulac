@@ -106,7 +106,7 @@ const REFRESCO_EN_VIVO_MS = 30 * 60 * 1000
 
 /** Pruebas y Servicios Industriales nunca tienen un turno propio — no tiene sentido elegirlas en el filtro de área del Panel. */
 const AREAS_SELECCIONABLES = AREAS.filter(
-  (a) => a.codigo !== "PRUEBAS" && a.codigo !== "SERVICIOS_INDUSTRIALES" && a.codigo !== "CALIDAD",
+  (a) => !["PRUEBAS", "SERVICIOS_INDUSTRIALES", "CALIDAD", "MANTENIMIENTO"].includes(a.codigo),
 )
 
 const HORARIOS: Record<string, { inicio: string; fin: string }> = {
@@ -349,8 +349,9 @@ export default function PanelProduccion() {
    * trata igual que al Super Administrador: elige qué área mirar,
    * arrancando siempre en ASEPTICO.
    */
-  // Calidad (también de apoyo, sin turnos propios) igual que Servicios Industriales.
-  const puedeElegirArea = !session?.area || session.area === "SERVICIOS_INDUSTRIALES" || session.area === "CALIDAD"
+  // Calidad y Mantenimiento (también de apoyo, sin turnos propios) igual que Servicios Industriales.
+  const puedeElegirArea =
+    !session?.area || ["SERVICIOS_INDUSTRIALES", "CALIDAD", "MANTENIMIENTO"].includes(session.area)
   const [areaFiltro, setAreaFiltro] = useState<AreaCodigo | "TODAS">(puedeElegirArea ? "ASEPTICO" : (session?.area ?? "ASEPTICO"))
   const areaEfectiva = puedeElegirArea ? (areaFiltro === "TODAS" ? null : areaFiltro) : (session?.area ?? null)
 
