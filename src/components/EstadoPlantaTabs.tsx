@@ -215,7 +215,7 @@ const badgeVariantCondicion: Record<CondicionTanque, "success" | "warning" | "mu
   LIMPIO: "success",
 }
 
-// nombreCondicionLinea/badgeVariantCondicionLinea se movieron a LineasEstadoPlanta.tsx (Líneas ya no vive acá).
+// nombreCondicionLinea/badgeVariantCondicionLinea se movieron a lineas/estadoLinea.ts (Líneas ya no vive acá).
 
 type Resultado = { ok: true } | { ok: false; error: string }
 

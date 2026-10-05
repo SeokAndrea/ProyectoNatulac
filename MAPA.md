@@ -51,7 +51,7 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Textos de "Comenzar Turno" | `src/pages/apps/ComenzarTurno.tsx` |
 | Textos de "Status" (Recepción: confirmar/corregir lo heredado del turno anterior) | `src/pages/apps/Status.tsx`, `src/components/EstadoPlantaTabs.tsx` (`modo="status"`) |
 | Textos de "Preparación" (iniciar/liberar/ajustar/transferir/desvasar un lote) | `src/pages/apps/Preparacion.tsx`, `src/components/EstadoPlantaTabs.tsx` (`modo="preparacion"`) |
-| Textos de "Líneas" (activar/pausar/detener una corrida) | `src/pages/apps/Lineas.tsx`, `src/components/LineasEstadoPlanta.tsx` |
+| Textos de "Líneas" (activar/pausar/detener una corrida) | `src/pages/apps/Lineas.tsx`, `src/components/LineasEstadoPlanta.tsx`, `src/components/lineas/` (un archivo por panel: `FormArrancarLinea`, `FormCipLinea`, `PanelPausada`, etc.) |
 | Textos de "Producto Terminado" | `src/pages/apps/ProductoTerminado.tsx` |
 | Textos de "Finalizar Turno" | `src/pages/apps/FinalizarTurno.tsx` |
 | Textos del Panel de Producción (tanques en vivo, líneas, merma, Resumen de Planta) | `src/pages/apps/PanelProduccion.tsx` |
