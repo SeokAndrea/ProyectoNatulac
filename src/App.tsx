@@ -27,6 +27,7 @@ import RegistrosServiciosIndustriales from "@/pages/apps/RegistrosServiciosIndus
 import ErroresCliente from "@/pages/apps/ErroresCliente"
 import PreparacionPLC from "@/pages/apps/PreparacionPLC"
 import Calidad from "@/pages/apps/Calidad"
+import InventarioDiario from "@/pages/apps/InventarioDiario"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { VersionChecker } from "@/components/VersionChecker"
 
@@ -237,6 +238,14 @@ export default function App() {
           element={
             <ProtectedRoute app="errores">
               <ErroresCliente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventario"
+          element={
+            <ProtectedRoute app="inventario">
+              <InventarioDiario />
             </ProtectedRoute>
           }
         />

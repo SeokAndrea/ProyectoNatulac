@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import {
+  Warehouse,
   PlayCircle,
   PackageCheck,
   ClipboardCheck,
@@ -130,6 +131,17 @@ export const apps: AppDef[] = [
     // Área Calidad (apoyo: ve el turno de Aséptico, migración 20261089) y Pruebas para probar. Ver plan-calidad.md.
     areasPermitidas: ["CALIDAD", "PRUEBAS"],
     color: "purple",
+    seccion: "produccion",
+  },
+  {
+    slug: "inventario",
+    title: "Inventario diario",
+    description: "Tambores y kits por sabor: lo que debería haber y el conteo de mañana y tarde.",
+    href: "/inventario",
+    icon: Warehouse,
+    requiereTurno: false,
+    // Lo ven todos los de producción; cargar pide INVENTARIO_CARGAR (ver la página). Migración 20261103.
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES", "MANTENIMIENTO", "CALIDAD"],
     seccion: "produccion",
   },
   {
