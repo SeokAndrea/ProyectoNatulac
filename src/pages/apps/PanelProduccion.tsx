@@ -1,65 +1,31 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
-import {
-  Activity,
-  AlertTriangle,
-  BarChart3,
-  Boxes,
-  Building2,
-  CalendarDays,
-  CheckCircle2,
-  ClipboardList,
-  Clock,
-  Container,
-  Droplets,
-  Fuel,
-  Gauge,
-  Grid3x3,
-  Loader2,
-  PauseCircle,
-  RadioTower,
-  ScanLine,
-  Search,
-  Target,
-  Thermometer,
-  UserRound,
-  Users,
-  Workflow,
-} from "lucide-react"
+import { Gauge, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
-import { TanqueVisual } from "@/components/TanqueVisual"
-import { CintaEstadoLinea, type EstadoCinta } from "@/components/CintaEstadoLinea"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { BannerSuperior } from "@/components/panel/BannerSuperior"
+import {
+  estadoDeLineas,
+  filasDeLineas,
+  produccionPorLineaDe,
+  programacionDelDia,
+  textoUltimaActualizacion,
+  ultimaAccionDeTurno,
+} from "@/components/panel/calculosPanel"
+import { DetalleTurno } from "@/components/panel/DetalleTurno"
+import { FiltrosPanel } from "@/components/panel/FiltrosPanel"
+import { TituloSeccion } from "@/components/panel/PanelCard"
+import { ParadaMasLarga } from "@/components/panel/ParadaMasLarga"
+import { ResumenPlanta } from "@/components/panel/resumen-planta/ResumenPlanta"
+import { SeccionLineas } from "@/components/panel/SeccionLineas"
+import { SeccionMermas } from "@/components/panel/SeccionMermas"
+import { SeccionTanques } from "@/components/panel/SeccionTanques"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
-import { AREAS, CARGOS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
-import { useCatalogosLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
+import { type AreaCodigo } from "@/lib/catalogos"
+import { useCatalogosLive } from "@/lib/catalogosLive"
 import {
-  badgeVariantPorNivel,
-  colorTextoPorNivel,
-  horasTurno,
-  MERMA_DANGER_DESDE,
-  mermaAgregada,
-  MERMA_WARN_DESDE,
-  nivelMerma,
-  obtenerEstadisticas,
-  type FilaEstadistica,
-  type NivelMerma,
-} from "@/lib/estadisticas"
-import {
-  ajustesSemielaboradoTurno,
   cargoDeUsuario,
-  GASOIL_CONSUMO_L_POR_HORA,
-  gasoilHorasDisponibles,
-  nivelGasoil,
-  type AjusteSemielaborado,
   type LecturaServiciosIndustriales,
   obtenerEstadoPlantaActual,
   obtenerLecturaServiciosIndustriales,
@@ -69,32 +35,15 @@ import {
   type ProduccionDiaItem,
 } from "@/lib/panelProduccion"
 import { type TurnoActivo } from "@/lib/turno"
-import { colorSabor } from "@/lib/coloresSabor"
-import {
-  desglosarCalculos,
-  horasTranscurridasTurno,
-  mermaEnvasesTurno,
-  mermaLineaTurno,
-  mermaSemielaboradoTurno,
-} from "@/lib/reportes"
+import { horasTranscurridasTurno, mermaEnvasesTurno, mermaSemielaboradoTurno } from "@/lib/reportes"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
-import type { DesvaseLoteRegistro, PreparacionRegistro, TanqueRecepcion, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import { useProduccion } from "@/lib/produccion/useProduccion"
-import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { useProductoTerminado } from "@/lib/productoTerminado"
-import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
-import { fechaPlanta, franjaDeHora, horaCortaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
-import { duracionMin, listarParadas, minutosPorLinea, type Parada } from "@/lib/paradas"
+import { franjaDeHora } from "@/lib/tiempoPlanta"
+import { listarParadas, minutosPorLinea, type Parada } from "@/lib/paradas"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
-import { codigoDeParadaLive, useCatalogoParadas } from "@/lib/paradasCatalogo"
-import { TopFallasPanel } from "@/components/TopFallasPanel"
-import { cn } from "@/lib/utils"
-
-/** La merma de semielaborado tiene su propia tolerancia, más estricta que la de envases — amarillo/rojo proporcionales a ese máximo, en vez de los umbrales fijos (3%/5%) de la merma de envase. */
-const MERMA_SEMIELABORADO_MAX = 1.5
-const MERMA_SEMIELABORADO_WARN = (MERMA_SEMIELABORADO_MAX * 2) / 3
-const TANK_CAPACITY = 20000
+import { useCatalogoParadas } from "@/lib/paradasCatalogo"
 
 /**
  * Cada cuánto el Panel se refresca solo cuando está EN VIVO, para que
@@ -104,194 +53,16 @@ const TANK_CAPACITY = 20000
  */
 const REFRESCO_EN_VIVO_MS = 30 * 60 * 1000
 
-/** Pruebas y Servicios Industriales nunca tienen un turno propio — no tiene sentido elegirlas en el filtro de área del Panel. */
-const AREAS_SELECCIONABLES = AREAS.filter(
-  (a) => !["PRUEBAS", "SERVICIOS_INDUSTRIALES", "CALIDAD", "MANTENIMIENTO"].includes(a.codigo),
-)
-
-const HORARIOS: Record<string, { inicio: string; fin: string }> = {
-  TURNO_1: { inicio: "07:00", fin: "15:00" },
-  TURNO_2: { inicio: "15:00", fin: "22:30" },
-  TURNO_3: { inicio: "22:30", fin: "07:00" },
-  "12X12": { inicio: "07:00", fin: "19:00" },
-}
-
-function haceDias(n: number) {
-  return restarDias(fechaPlanta(), n)
-}
-
-type EstadoLinea =
-  | "activa"
-  | "parada"
-  | "esperando_cierre"
-  | "cambio_presentacion"
-  | "cip"
-  | "sin_programacion"
-  | "detenida"
-  | "libre"
-
-interface LineaConEstado {
-  codigo: string
-  nombre: string
-  estado: EstadoLinea
-  corrida: Corrida | null
-  /** Falla u observación cargada al dejar la línea en DETENIDA — solo cuando aplica. null si no hay. */
-  observacion: string | null
-}
-
-/** Fila de la tabla "Líneas activas": estado + producción + merma, todo junto. */
-interface FilaLineaCompacta extends LineaConEstado {
-  cajas: number
-  litros: number
-  eficienciaPct: number | null
-  mermaPct: number | null
-  /** Suma de los minutos de TODAS las paradas registradas de esta línea en el turno (Módulo Paradas) — null si no tiene ninguna. */
-  minutosParada: number | null
-  /**
-   * TP = Tiempo de Producción: minutos desde que se activó la corrida
-   * (activadaEn) — null si no hay corrida activa ahora mismo. Por
-   * ahora es solo el tiempo corrido desde que arrancó; una mejora
-   * pendiente es restarle el tiempo de las paradas de `minutosParada`
-   * en vez de contar todo seguido.
-   */
-  minutosProduccion: number | null
-}
-
-/** "125 min" hasta la hora, "2h 5min" de ahí para arriba. */
-function formatDuracion(minutos: number): string {
-  if (minutos < 60) return `${minutos} min`
-  const horas = Math.floor(minutos / 60)
-  const resto = minutos % 60
-  return resto === 0 ? `${horas}h` : `${horas}h ${resto}min`
-}
-
-const ESTADO_LINEA_INFO: Record<EstadoLinea, { label: string; dot: string; ring: string }> = {
-  activa: { label: "Activa", dot: "bg-success", ring: "bg-success" },
-  parada: { label: "Parada", dot: "bg-warning", ring: "bg-warning" },
-  esperando_cierre: { label: "Esperando cierre", dot: "bg-danger", ring: "bg-danger" },
-  cambio_presentacion: { label: "Cambio de Presentación", dot: "bg-warning", ring: "bg-warning" },
-  cip: { label: "En CIP", dot: "bg-warning", ring: "bg-warning" },
-  sin_programacion: { label: "Sin programación", dot: "bg-info", ring: "bg-info" },
-  detenida: { label: "Parada", dot: "bg-danger", ring: "bg-danger" },
-  libre: { label: "Libre", dot: "bg-muted-foreground", ring: "bg-muted-foreground" },
-}
-
-/**
- * "Última actualización" real: el máximo de todos los timestamps que
- * ya traen los 3 módulos de dominio (corridas, tanques, contadores,
- * producto terminado, preparaciones) — NO cuándo esta pantalla hizo el
- * último fetch. Así no se resetea a "hace 0s" cada vez que se entra o
- * se cambia de pantalla y se vuelve; solo se mueve cuando alguien
- * realmente cargó algo.
- */
-function ultimaAccionDeTurno(
-  corridas: Corrida[],
-  tanques: TanqueRecepcion[],
-  contadores: ContadorRegistro[],
-  productoTerminado: ProductoTerminadoRegistro[],
-  preparaciones: PreparacionRegistro[],
-): Date | null {
-  const timestamps = [
-    ...corridas.map((l) => l.activadaEn),
-    ...tanques.map((t) => t.activadaEn),
-    ...contadores.map((c) => c.creadoEn),
-    ...productoTerminado.map((p) => p.creadoEn),
-    ...preparaciones.map((p) => p.creadoEn),
-  ].filter((t): t is string => Boolean(t))
-
-  if (timestamps.length === 0) return null
-  return new Date(Math.max(...timestamps.map((t) => new Date(t).getTime())))
-}
-
-/** Condición continua de la línea (sin corrida) → estado del Panel. */
-const ESTADO_POR_CONDICION: Partial<Record<LineaEstado["condicion"], EstadoLinea>> = {
-  CAMBIO_PRESENTACION: "cambio_presentacion",
-  CIP: "cip",
-  SIN_PROGRAMACION: "sin_programacion",
-  DETENIDA: "detenida",
-  // LISTA (o sin registro) → "libre".
-}
-
-/** Una fila por línea del área (catálogo completo), cruzada con la corrida actual/últimamente tocada de las corridas del módulo Producción. */
-function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[], lineasCatalogo: LineaLive[]): LineaConEstado[] {
-  return lineasCatalogo.map((lc) => {
-    const corridasLinea = corridas.filter((l) => l.linea === lc.codigo)
-    const estadoContinuo = lineasEstado.find((e) => e.linea === lc.codigo)
-    // La nota se muestra con la línea Detenida o en CIP (motivo + descripción del supervisor, migración 20261091).
-    const observacion =
-      estadoContinuo?.condicion === "DETENIDA" || estadoContinuo?.condicion === "CIP" ? estadoContinuo.observacion : null
-
-    const activa = corridasLinea.find((l) => l.activa)
-    if (activa) {
-      // Pausada por un CIP en el que el lote sigue: se ve "En CIP", con su motivo.
-      const enCip = activa.pausadaEn && estadoContinuo?.condicion === "CIP"
-      return {
-        codigo: lc.codigo,
-        nombre: lc.nombre,
-        estado: enCip ? "cip" : activa.pausadaEn ? "parada" : "activa",
-        corrida: activa,
-        observacion: enCip ? observacion : null,
-      }
-    }
-    const esperandoCierre = corridasLinea.find((l) => l.esperandoCierre)
-    if (esperandoCierre) {
-      return { codigo: lc.codigo, nombre: lc.nombre, estado: "esperando_cierre", corrida: esperandoCierre, observacion }
-    }
-    // Sin corrida: el Panel refleja la condición continua de la línea
-    // (Cambio de Presentación / CIP / Sin programación / Detenida), no
-    // solo "Libre" para todas. Ver LineasEstadoPlanta.tsx.
-    const estado: EstadoLinea = (estadoContinuo && ESTADO_POR_CONDICION[estadoContinuo.condicion]) ?? "libre"
-    return { codigo: lc.codigo, nombre: lc.nombre, estado, corrida: null, observacion }
-  })
-}
-
-interface ProduccionLinea {
-  linea: string
-  cajas: number
-  litros: number
-}
-
-/**
- * Cajas y litros de CADA línea del catálogo, para la tabla combinada del banner. La eficiencia
- * (OEE) de cada línea NO sale de acá — sale de `eficienciaDelTurno()` (src/lib/eficiencia.ts,
- * único lugar donde se calcula), por eso esta función no la toca.
- */
-function produccionPorLineaDe(
-  productoTerminado: ProductoTerminadoRegistro[],
-  lineasCatalogo: LineaLive[],
-  presentaciones: PresentacionLive[],
-): ProduccionLinea[] {
-  return lineasCatalogo.map((lc) => {
-    const productoLinea = productoTerminado.filter((p) => p.linea === lc.codigo)
-    const cajas = productoLinea.reduce((a, p) => {
-      const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
-      return a + p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
-    }, 0)
-    const litros = productoLinea.reduce((a, p) => a + p.litrosProducidos, 0)
-
-    return { linea: lc.codigo, cajas, litros }
-  })
-}
-
 /*
  * Panel de Producción: vista EN VIVO del turno en curso (banner de
  * cabecera con hora/cajas/litros/meta/supervisor, y abajo tanques,
  * líneas y merma del turno anterior) — con selector de fecha/turno
  * para ver turnos anteriores.
  *
- * Rediseño visual 2026-08: la lógica (calcularMeta, estadoDeLineas,
- * cajasPorPresentacionDe, obtener*) quedó intacta; sólo cambió la
- * presentación. Utilidades CSS nuevas (panel-banner, panel-grid,
- * shadow-panel, tank-glass, liquid-bubble, dot-ring, rise-in) viven
- * al final de src/index.css.
- *
- * "Top Fallas" sigue siendo placeholder — el catálogo de paradas
- * todavía no existe (ver resumen-diseno-dashboard-natulac.md).
- *
- * "Resumen de planta" (al final) es lo que antes vivía en Mis
- * Estadísticas: KPIs, matriz grupo × supervisor, y tablas por grupo y
- * por supervisor sobre un rango de fechas — independiente del turno
- * elegido arriba.
+ * Esta página carga los datos y arma las piezas; cada sección vive en
+ * src/components/panel/ y las cuentas en calculosPanel.ts. Utilidades
+ * CSS (panel-banner, panel-grid, shadow-panel, tank-glass,
+ * liquid-bubble, dot-ring, rise-in) viven al final de src/index.css.
  */
 export default function PanelProduccion() {
   const { session } = useAuth()
@@ -523,6 +294,7 @@ export default function PanelProduccion() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickRefresco])
 
+  // ------------------------------------------------------------ cuentas
   const horasTurnoActual = turno ? horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin) : 0
   // Meta y eficiencia con paradas (src/lib/eficiencia.ts, plan-eficiencia-meta.md): base = turno completo;
   // la meta baja con las Programadas y el Ocioso; la eficiencia en vivo es el ritmo.
@@ -548,7 +320,6 @@ export default function PanelProduccion() {
         totalEsperadas: eficiencia?.total?.metaCajas ?? 0,
       }
     : null
-  const horario = HORARIOS[turnoTipo]
   const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
   const lineasEstado = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
   const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, lineas, presentaciones) : []
@@ -562,16 +333,7 @@ export default function PanelProduccion() {
   const usarDiario = enVivo && produccionDia.length > 0
   const mermaEnvases = turno ? mermaEnvasesTurno(prod.contadores, pt.registros, presentaciones) : null
   const mermaSemielaborado = turno
-    ? mermaSemielaboradoTurno(
-        turno.id,
-        prep.preparaciones,
-        prod.corridas,
-        pt.registros,
-        prod.contadores,
-        presentaciones,
-        prep.transferencias,
-        prep.desvases,
-      )
+    ? mermaSemielaboradoTurno(turno.id, prep.preparaciones, prod.corridas, pt.registros, prod.contadores, presentaciones, prep.transferencias, prep.desvases)
     : null
   // "Turno pasado": mismas funciones, mismo `presentaciones` ya cargado
   // que el turno actual. Al correr en el render se recalculan solas
@@ -589,293 +351,64 @@ export default function PanelProduccion() {
         prepAnterior.desvases,
       )
     : null
-  /*
-   * Programación diaria: el carrusel del banner cruza el PLAN del día
-   * (módulo Programación, por sabor y en cajas) con lo HECHO (cajas de
-   * Producto Terminado del turno, agrupadas por sabor). Primero van los
-   * sabores del plan; después, cualquier sabor producido que no estaba
-   * planificado (plan = null).
-   */
-  const programacionItems = useMemo<ProgramacionItem[]>(() => {
-    // Cajas hechas por (sabor + presentación en ml). En vivo se toma el
-    // acumulado de la jornada (produccion_dia_de, ya agrupado por
-    // sabor+ml); si no, el Producto Terminado del turno cargado — que
-    // trae la presentación como string de volumen_ml en p.presentacion.
-    const hecho = new Map<string, number>()
-    const claveDe = (sabor: string, ml: number | null) => `${sabor}|${ml ?? ""}`
-    if (usarDiario) {
-      for (const p of produccionDia) {
-        const k = claveDe(p.saborNombre, p.presentacionMl)
-        hecho.set(k, (hecho.get(k) ?? 0) + p.cajas)
-      }
-    } else {
-      for (const p of pt.registros) {
-        const pres = presentaciones.find((pr) => pr.codigo === p.presentacion)
-        const cajas = p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas
-        const k = claveDe(p.saborNombre ?? "—", Number(p.presentacion) || null)
-        hecho.set(k, (hecho.get(k) ?? 0) + cajas)
-      }
-    }
-
-    const delPlan: ProgramacionItem[] = planDia.map((p) => ({
-      sabor: p.saborNombre,
-      presentacionMl: p.presentacionMl,
-      hecho: hecho.get(claveDe(p.saborNombre, p.presentacionMl)) ?? 0,
-      plan: p.cajasPlan,
-    }))
-    const clavesPlan = new Set(planDia.map((p) => claveDe(p.saborNombre, p.presentacionMl)))
-    const extra: ProgramacionItem[] = [...hecho.entries()]
-      .filter(([k]) => !clavesPlan.has(k))
-      .sort((a, b) => b[1] - a[1])
-      .map(([k, cajas]) => {
-        const [sabor, ml] = k.split("|")
-        return { sabor, presentacionMl: ml ? Number(ml) : null, hecho: cajas, plan: null }
-      })
-
-    return [...delPlan, ...extra]
-  }, [pt.registros, presentaciones, planDia, produccionDia, usarDiario])
-  /** Minutos de parada acumulados en el turno, por línea (Módulo Paradas). Las paradas vienen con la línea normalizada LINEA_1/2/3 (Pruebas usa LINEA_T#), por eso se busca por número. */
-  const minutosParadaPorLinea = new Map(minutosPorLinea(paradasTurno, ahora).map((r) => [r.linea, r.minutos]))
-  /** Una fila por línea: estado + producción + merma juntos (antes vivían en 3 lugares separados de la pantalla). */
-  const filasLineas: FilaLineaCompacta[] = lineasEstado.map((le) => {
-    // Ojo con el nombre: acá adentro "prodLinea" es la producción de ESTA
-    // línea (ver ProduccionLinea más arriba) — el hook useProduccion() del
-    // componente se llama "prod" y queda afuera de este callback.
-    const prodLinea = produccionPorLinea.find((p) => p.linea === le.codigo)
-    // Sumando TODAS las corridas de la línea en el turno, igual que el
-    // contador — así un lote recién arrancado (sin datos propios
-    // todavía) no le hace perder de vista la merma que sí lleva
-    // acumulada la línea en este turno.
-    const merma = turno ? mermaLineaTurno(prod.corridas, le.codigo, prod.contadores, pt.registros, presentaciones) : null
-    const lineaParadas = "LINEA_" + le.codigo.replace(/^LINEA_T?/, "")
-    const minutosParadaAcumulado = minutosParadaPorLinea.get(lineaParadas) ?? 0
-    const minutosProduccion =
-      le.estado === "activa" && le.corrida
-        ? Math.max(0, Math.round((ahora.getTime() - new Date(le.corrida.activadaEn).getTime()) / 60000))
-        : null
-    return {
-      ...le,
-      cajas: prodLinea?.cajas ?? 0,
-      litros: prodLinea?.litros ?? 0,
-      eficienciaPct: eficiencia?.porLinea.get(le.codigo)?.eficienciaPct ?? null,
-      mermaPct: merma?.pct ?? null,
-      minutosParada: minutosParadaAcumulado > 0 ? minutosParadaAcumulado : null,
-      minutosProduccion,
-    }
+  const programacionItems = useMemo(
+    () => programacionDelDia(planDia, produccionDia, usarDiario, pt.registros, presentaciones),
+    [pt.registros, presentaciones, planDia, produccionDia, usarDiario],
+  )
+  const filasLineas = filasDeLineas({
+    lineasEstado,
+    produccionPorLinea,
+    corridas: prod.corridas,
+    contadores: prod.contadores,
+    productoTerminado: pt.registros,
+    presentaciones,
+    eficiencia,
+    minutosParadaPorLinea: new Map(minutosPorLinea(paradasTurno, ahora).map((r) => [r.linea, r.minutos])),
+    ahora,
   })
-  /** La parada individual más larga del turno (Módulo Paradas) — null fuera de Área de Pruebas o si el turno no tuvo ninguna. */
-  const paradaMasLarga =
-    [...paradasTurno].sort((a, b) => duracionMin(b, ahora) - duracionMin(a, ahora))[0] ?? null
-  const [hh, mm, ss] = horaPlanta(ahora).split(":")
-
-  const tanquesListos = prep.tanques.filter((t) => t.condicion === "LISTO").length
-  const lineasActivas = lineasEstado.filter((l) => l.estado === "activa").length
   const ultimaAccion = turno ? ultimaAccionDeTurno(prod.corridas, prep.tanques, prod.contadores, pt.registros, prep.preparaciones) : null
-  const segundosDesdeActualizacion = ultimaAccion
-    ? Math.max(0, Math.round((ahora.getTime() - ultimaAccion.getTime()) / 1000))
-    : null
-  const textoUltimaActualizacion =
-    segundosDesdeActualizacion === null
-      ? null
-      : segundosDesdeActualizacion < 60
-        ? `hace ${segundosDesdeActualizacion}s`
-        : `hace ${Math.floor(segundosDesdeActualizacion / 60)} min`
 
+  // ------------------------------------------------------------ pantalla
   return (
     <AppShell title="Panel de Producción" description="Estado de la planta en vivo" fullWidth ocultarEstadoBanner>
       <div className="flex flex-col gap-5">
-        {/* ---------------- BANNER SUPERIOR ---------------- */}
-        <section className="panel-banner shadow-panel relative overflow-hidden rounded-2xl border border-border">
-          <div className="panel-grid pointer-events-none absolute inset-0 opacity-40" />
-
-          <div className="relative flex flex-wrap items-center gap-2.5 border-b border-border/70 px-5 py-3">
-            {turno?.estado === "ABIERTO" ? (
-              <Badge variant="success" className="gap-1.5 py-1">
-                <span className="relative flex size-1.5">
-                  <span className="dot-ring absolute inset-0 rounded-full bg-success" />
-                  <span className="relative inline-flex size-1.5 rounded-full bg-success" />
-                </span>
-                <Activity className="size-3.5" />
-                En Operación
-              </Badge>
-            ) : turno ? (
-              <Badge variant="muted" className="gap-1.5 py-1">
-                <RadioTower className="size-3.5" />
-                Turno cerrado
-              </Badge>
-            ) : (
-              <Badge variant="muted" className="gap-1.5 py-1">
-                <RadioTower className="size-3.5" />
-                {buscado ? "Sin turnos registrados" : "Cargando"}
-              </Badge>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setMostrarFiltros((v) => !v)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
-                enVivo ? "border-success/50 bg-success-soft text-success" : "border-primary/50 bg-primary/10 text-primary",
-              )}
-            >
-              {enVivo ? (
-                <>
-                  <span className="relative flex size-1.5">
-                    <span className="dot-ring absolute inset-0 rounded-full bg-success" />
-                    <span className="relative inline-flex size-1.5 rounded-full bg-success" />
-                  </span>
-                  EN VIVO
-                </>
-              ) : (
-                <>
-                  <CalendarDays className="size-3.5" />
-                  FECHA: {fecha} · {nombrePorCodigo(TURNO_TIPOS, turnoTipo)}
-                </>
-              )}
-            </button>
-
-            {textoUltimaActualizacion && <span className="text-[11px] text-muted-foreground">Última actualización {textoUltimaActualizacion}</span>}
-
-            {puedeElegirArea && (
-              <button
-                type="button"
-                onClick={() => setMostrarFiltros(true)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground"
-              >
-                <Building2 className="size-3.5" />
-                {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(AREAS, areaFiltro)}
-              </button>
-            )}
-
-            {turno && (
-              <>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
-                  <UserRound className="size-3.5 text-primary" />
-                  {turno.supervisorNombre}
-                  {supervisorCargo && (
-                    <span className="text-muted-foreground">· {nombrePorCodigo(CARGOS, supervisorCargo)}</span>
-                  )}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Turno {turno.codigo} · {nombreGrupo(turno.grupo)}
-                  {turno.estado === "CERRADO" && turno.horaFin ? ` · Cerrado ${turno.horaFin.slice(0, 5)}` : ""}
-                </span>
-              </>
-            )}
-          </div>
-
-          {turno && meta && (
-            <>
-              <div className="relative grid grid-cols-1 divide-y divide-border/70 md:grid-cols-4 md:divide-x md:divide-y-0">
-                {/* HORA */}
-                <BannerCelda icon={Clock} label="Hora" centrado>
-                  <p className="num flex items-baseline justify-center gap-1 text-4xl font-bold leading-none tracking-tight text-foreground">
-                    {hh}
-                    <span className="alert-pulse text-muted-foreground">:</span>
-                    {mm}
-                    <span className="text-lg font-semibold text-muted-foreground">:{ss}</span>
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {horario ? `Turno de ${horario.inicio} a ${horario.fin}` : "Sin horario definido"}
-                  </p>
-                </BannerCelda>
-
-                {/* PRODUCCIÓN — cajas + litros compactados en una sola celda para dejar libre la de Programación */}
-                <BannerCelda icon={Boxes} label="Producción del turno" acento centrado>
-                  <div className="flex items-stretch divide-x divide-border/70">
-                    <div className="flex flex-1 flex-col items-center px-3">
-                      <p className="num text-3xl font-bold leading-none tracking-tight text-foreground">
-                        {cajasProducidasTotal.toLocaleString("es-CO")}
-                      </p>
-                      <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Cajas</p>
-                    </div>
-                    <div className="flex flex-1 flex-col items-center px-3">
-                      <p className="num text-3xl font-bold leading-none tracking-tight text-info">
-                        {litrosProducidos.toLocaleString("es-CO")}
-                        <span className="ml-0.5 text-sm font-semibold text-info/60">L</span>
-                      </p>
-                      <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Litros</p>
-                    </div>
-                  </div>
-                </BannerCelda>
-
-                {/* PROGRAMACIÓN — carrusel de sabores del día, rota cada 2.5s (plan diario pendiente de módulo) */}
-                <BannerCelda icon={ClipboardList} label="Programación diaria" centrado>
-                  <ProgramacionCarrusel items={programacionItems} />
-                </BannerCelda>
-
-                {/* META */}
-                <BannerCelda icon={Target} label="Meta del turno" centrado>
-                  <MetaAnillo pct={meta.pctCumplimiento} ritmoPct={meta.ritmoPct} reales={meta.totalReales} esperadas={meta.totalEsperadas} />
-                </BannerCelda>
-              </div>
-            </>
-          )}
-        </section>
+        <BannerSuperior
+          turno={turno}
+          buscado={buscado}
+          enVivo={enVivo}
+          fecha={fecha}
+          turnoTipo={turnoTipo}
+          textoUltimaActualizacion={textoUltimaActualizacion(ultimaAccion, ahora)}
+          puedeElegirArea={puedeElegirArea}
+          areaFiltro={areaFiltro}
+          supervisorCargo={supervisorCargo}
+          ahora={ahora}
+          cajas={cajasProducidasTotal}
+          litros={litrosProducidos}
+          programacionItems={programacionItems}
+          meta={meta}
+          onAlternarFiltros={() => setMostrarFiltros((v) => !v)}
+          onAbrirFiltros={() => setMostrarFiltros(true)}
+        />
 
         {mostrarFiltros && (
-          <Card className="border-border bg-surface shadow-sm">
-            <CardContent className="flex flex-wrap items-end gap-3">
-              {puedeElegirArea && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-xs text-muted-foreground">Área</span>
-                  <Select value={areaFiltro} onValueChange={(v) => setAreaFiltro(v as AreaCodigo | "TODAS")}>
-                    <SelectTrigger className="w-[190px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AREAS_SELECCIONABLES.map((a) => (
-                        <SelectItem key={a.codigo} value={a.codigo}>
-                          {a.nombre}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="TODAS">Todas las áreas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2">
-                <span className="text-xs text-muted-foreground">Turno</span>
-                <Select
-                  value={turnoTipo}
-                  onValueChange={(v) => {
-                    setTurnoTipo(v)
-                    buscarFechaTipo(fecha, v)
-                  }}
-                >
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TURNO_TIPOS.filter((t) => t.codigo !== "12X12").map((t) => (
-                      <SelectItem key={t.codigo} value={t.codigo}>
-                        {t.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <span className="text-xs text-muted-foreground">Fecha</span>
-                <Input
-                  type="date"
-                  value={fecha}
-                  onChange={(e) => {
-                    setFecha(e.target.value)
-                    buscarFechaTipo(e.target.value, turnoTipo)
-                  }}
-                  className="w-[160px]"
-                />
-              </div>
-
-              <Button variant="outline" size="sm" onClick={() => cargarEnVivo()} disabled={cargando}>
-                {cargando ? <Loader2 className="size-3.5 animate-spin" /> : <RadioTower className="size-3.5" />}
-                Ver en vivo
-              </Button>
-            </CardContent>
-          </Card>
+          <FiltrosPanel
+            puedeElegirArea={puedeElegirArea}
+            areaFiltro={areaFiltro}
+            turnoTipo={turnoTipo}
+            fecha={fecha}
+            cargando={cargando}
+            onArea={setAreaFiltro}
+            onTurnoTipo={(v) => {
+              setTurnoTipo(v)
+              buscarFechaTipo(fecha, v)
+            }}
+            onFecha={(f) => {
+              setFecha(f)
+              buscarFechaTipo(f, turnoTipo)
+            }}
+            onEnVivo={() => cargarEnVivo()}
+          />
         )}
 
         {cargando || cargandoCatalogos ? (
@@ -887,9 +420,7 @@ export default function PanelProduccion() {
             icon={Gauge}
             title={enVivo ? "Todavía no se registró ningún turno" : "No hay ningún turno para esa fecha/turno"}
             description={
-              enVivo
-                ? "En cuanto un supervisor inicie el primer turno, tanques y líneas van a aparecer acá."
-                : "Prueba con otra fecha o tipo de turno."
+              enVivo ? "En cuanto un supervisor inicie el primer turno, tanques y líneas van a aparecer acá." : "Prueba con otra fecha o tipo de turno."
             }
           />
         ) : (
@@ -897,192 +428,40 @@ export default function PanelProduccion() {
             {/* ------- TANQUES (angosta, izquierda, alta) · LÍNEAS + MERMAS/PARADAS (derecha) ------- */}
             <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
               <div className="rise-in flex flex-col gap-4 xl:col-span-4">
-                <PanelCard icon={Container} titulo="Tanques" meta={`${tanquesListos}/${prep.tanques.length} listos`}>
-                  <ServiciosIndustrialesFranja lectura={servIndustriales} ahora={ahora} />
-                  <div className="grid grid-cols-3 gap-3">
-                    {prep.tanques.map((t) =>
-                      esSupervisor ? (
-                        <Link
-                          key={t.numeroTanque}
-                          to="/preparacion"
-                          className="block min-w-0 rounded-xl outline-none transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-ring"
-                          title="Ir a Preparación"
-                        >
-                          <TanqueCard tanque={t} preparaciones={prep.preparaciones} />
-                        </Link>
-                      ) : (
-                        <TanqueCard key={t.numeroTanque} tanque={t} preparaciones={prep.preparaciones} />
-                      ),
-                    )}
-                  </div>
-                </PanelCard>
-
-                <PanelCard
-                  icon={PauseCircle}
-                  titulo="Parada con mayor duración"
-                  meta={paradasTurno.length > 0 ? `${paradasTurno.length} paradas` : undefined}
-                >
-                  {paradaMasLarga ? (
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {lineas.find((l) => "LINEA_" + l.codigo.replace(/^LINEA_T?/, "") === paradaMasLarga.lineaCodigo)?.nombre ??
-                            paradaMasLarga.lineaCodigo}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {codigoDeParadaLive(paradaMasLarga) ? codigoDeParadaLive(paradaMasLarga) + " · " : ""}
-                          {paradaMasLarga.tipoNombre}
-                        </p>
-                      </div>
-                      <span className="num shrink-0 text-lg font-bold text-warning">
-                        {formatDuracion(duracionMin(paradaMasLarga, ahora))}
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Sin paradas registradas para este turno.</p>
-                  )}
-                </PanelCard>
+                <SeccionTanques
+                  tanques={prep.tanques}
+                  preparaciones={prep.preparaciones}
+                  servIndustriales={servIndustriales}
+                  ahora={ahora}
+                  conLinks={esSupervisor}
+                />
+                <ParadaMasLarga paradas={paradasTurno} lineas={lineas} ahora={ahora} />
               </div>
 
               <div className="flex flex-col gap-4 xl:col-span-8">
-                <PanelCard
-                  className="rise-in"
-                  icon={Workflow}
-                  titulo="Líneas activas"
-                  meta={`${lineasActivas}/${lineasEstado.length} en marcha`}
-                >
-                  {filasLineas.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Esta área todavía no tiene líneas cargadas.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[760px]">
-                        <div className="linea-fila-grid border-b border-border px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          <span>Línea</span>
-                          <span className="text-right">Cajas producidas</span>
-                          <span className="text-right">Litros producidos</span>
-                          <span className="text-right">Eficiencia</span>
-                          <span className="text-right">Tiempo de parada</span>
-                          <span className="text-right">Merma</span>
-                        </div>
-                        {filasLineas.map((f) =>
-                          esSupervisor ? (
-                            <Link key={f.codigo} to="/preparacion" className="block" title="Ir a Preparación y Producción">
-                              <LineaFilaCompacta fila={f} />
-                            </Link>
-                          ) : (
-                            <LineaFilaCompacta key={f.codigo} fila={f} />
-                          ),
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </PanelCard>
-
-                {/* ------- MERMA DE ENVASE · MERMA DE SEMIELABORADO ------- */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <MermaComparativaCard
-                    titulo="Merma de envase"
-                    pasado={mermaEnvasesAnterior?.pct ?? null}
-                    actual={mermaEnvases?.pct ?? null}
-                  />
-                  <MermaComparativaCard
-                    titulo="Rendimiento"
-                    pasado={mermaSemielaboradoAnterior?.pct ?? null}
-                    actual={mermaSemielaborado?.pct ?? null}
-                    dangerDesde={MERMA_SEMIELABORADO_MAX}
-                    warnDesde={MERMA_SEMIELABORADO_WARN}
-                    invertido
-                  />
-                </div>
+                <SeccionLineas filas={filasLineas} conLinks={esSupervisor} />
+                <SeccionMermas
+                  envasePasado={mermaEnvasesAnterior?.pct ?? null}
+                  envaseActual={mermaEnvases?.pct ?? null}
+                  semielaboradoPasado={mermaSemielaboradoAnterior?.pct ?? null}
+                  semielaboradoActual={mermaSemielaborado?.pct ?? null}
+                />
               </div>
             </div>
 
-            {/* ------- SECCIONES SECUNDARIAS ------- */}
-            <div className="flex flex-col gap-3">
-              <TituloSeccion>Detalle del turno</TituloSeccion>
-
-              <SeccionColapsable
-                titulo="Meta por línea"
-                descripcion="Meta del turno completo (velocidad elegida × tiempo disponible), avance y ritmo, por línea. Las paradas Programadas y el Ocioso bajan la meta; las No programadas bajan el ritmo."
-              >
-                {!eficiencia || eficiencia.porLinea.size === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {eficiencia === null || turno?.turnoTipo === "12X12"
-                      ? "Sin cálculo para este tipo de turno."
-                      : "Ninguna línea en uso este turno."}
-                  </p>
-                ) : (
-                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {[...eficiencia.porLinea.entries()].map(([codigo, m]) => {
-                      const avance = m.avancePct ?? 0
-                      const barra = Math.max(0, Math.min(100, avance))
-                      const nivel = m.eficienciaPct ?? avance
-                      const horas = (min: number) => (min / 60).toLocaleString("es-CO", { maximumFractionDigits: 1 })
-                      return (
-                        <div key={codigo} className="rounded-xl border border-border bg-background/60 p-3">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              {nombrePorCodigo(lineas, codigo)}
-                            </span>
-                            <span className="num text-xs font-semibold text-foreground">{m.avancePct !== null ? m.avancePct + "%" : "—"}</span>
-                          </div>
-                          <p className="num mt-1 text-2xl font-bold leading-none">
-                            {(m.realCajas ?? 0).toLocaleString("es-CO")}
-                            <span className="text-sm font-medium text-muted-foreground">
-                              {" "}
-                              / {(m.metaCajas ?? 0).toLocaleString("es-CO")}
-                            </span>
-                          </p>
-                          <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                            <div
-                              className={cn(
-                                "h-full rounded-full transition-[width] duration-700",
-                                nivel >= 90 ? "bg-success" : nivel >= 60 ? "bg-warning" : "bg-danger",
-                              )}
-                              style={{ width: `${barra}%` }}
-                            />
-                          </div>
-                          <p className="mt-2 text-[11px] text-muted-foreground">
-                            Disponible {horas(m.disponibleMin)} h · Ritmo {m.eficienciaPct !== null ? m.eficienciaPct + "%" : "—"}
-                            {m.disponibilidadPct !== null ? " · Disponibilidad " + m.disponibilidadPct + "%" : ""}
-                          </p>
-                          {m.paradasExcedenTiempo && (
-                            <p className="mt-1 text-[11px] text-warning">Las paradas cargadas suman más que el tiempo del turno: revísalas.</p>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </SeccionColapsable>
-
-              <SeccionColapsable
-                titulo="Top Fallas — paradas por línea"
-                descripcion="Downtime del turno por clase (programada / no programada / ociosa) y por línea."
-              >
-                <TopFallasPanel paradas={paradasTurno} lineas={lineas} />
-              </SeccionColapsable>
-
-              {(areaEfectiva === "PRUEBAS" || areaEfectiva === "ASEPTICO") && (
-                <SeccionColapsable
-                  titulo="Desglose de cálculo"
-                  descripcion="Números crudos detrás de cada merma y meta — envases, litros y cajas que alimentan cada porcentaje del turno."
-                >
-                  <DesgloseCalculosPanel
-                    turnoId={turno.id}
-                    horaInicio={turno.horaInicio}
-                    estado={turno.estado}
-                    horaFin={turno.horaFin}
-                    preparaciones={prep.preparaciones}
-                    corridas={prod.corridas}
-                    productoTerminado={pt.registros}
-                    contadores={prod.contadores}
-                    transferencias={prep.transferencias}
-                    desvases={prep.desvases}
-                  />
-                </SeccionColapsable>
-              )}
-            </div>
+            <DetalleTurno
+              turno={turno}
+              areaEfectiva={areaEfectiva}
+              eficiencia={eficiencia}
+              lineas={lineas}
+              paradas={paradasTurno}
+              preparaciones={prep.preparaciones}
+              corridas={prod.corridas}
+              productoTerminado={pt.registros}
+              contadores={prod.contadores}
+              transferencias={prep.transferencias}
+              desvases={prep.desvases}
+            />
           </>
         )}
 
@@ -1094,1018 +473,5 @@ export default function PanelProduccion() {
         </div>
       </div>
     </AppShell>
-  )
-}
-
-/* ============================ PIEZAS DE UI ============================ */
-
-function TituloSeccion({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{children}</h2>
-      <span className="h-px flex-1 bg-border" />
-    </div>
-  )
-}
-
-interface ProgramacionItem {
-  sabor: string
-  /** Presentación en ml — null si es un sabor producido sin presentación identificable. */
-  presentacionMl: number | null
-  /** Cajas ya producidas (real). */
-  hecho: number
-  /** Objetivo del día en cajas — null si se produjo un sabor+presentación que no estaba en el plan. */
-  plan: number | null
-}
-
-/**
- * Carrusel del banner: rota los renglones del plan del día cada 2.5s,
- * mostrando "SABOR · 1000 ml  hecho / plan" (plan del módulo
- * Programación; hecho del Producto Terminado del turno).
- */
-function ProgramacionCarrusel({ items }: { items: ProgramacionItem[] }) {
-  const [idx, setIdx] = useState(0)
-
-  useEffect(() => {
-    if (items.length <= 1) return
-    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 2500)
-    return () => clearInterval(t)
-  }, [items.length])
-
-  if (items.length === 0) {
-    return (
-      <div>
-        <p className="text-lg font-bold uppercase tracking-[0.14em] text-muted-foreground">Por programar</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">Sin programación cargada para hoy</p>
-      </div>
-    )
-  }
-
-  const activo = idx % items.length
-  const item = items[activo]
-
-  return (
-    <div>
-      <div key={activo} className="carrusel-slide">
-        <p className="truncate text-sm font-semibold uppercase tracking-wide text-primary">
-          {item.sabor}
-          {item.presentacionMl !== null && (
-            <span className="font-medium text-muted-foreground"> · {item.presentacionMl} ml</span>
-          )}
-        </p>
-        <p className="num mt-0.5 text-2xl font-bold leading-none tracking-tight text-foreground">
-          {item.hecho.toLocaleString("es-CO")}
-          <span className="text-base font-semibold text-muted-foreground">
-            {" / "}
-            {item.plan !== null ? item.plan.toLocaleString("es-CO") : "—"}
-          </span>
-        </p>
-      </div>
-      {items.length > 1 && (
-        <div className="mt-2 flex justify-center gap-1">
-          {items.map((it, i) => (
-            <span
-              key={it.sabor}
-              className={cn("size-1 rounded-full transition-colors", i === activo ? "bg-primary" : "bg-border")}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function BannerCelda({
-  icon: Icon,
-  label,
-  acento,
-  centrado,
-  children,
-}: {
-  icon: typeof Clock
-  label: string
-  acento?: boolean
-  centrado?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <div className={cn("px-4 py-3", acento && "bg-background/40", centrado && "text-center")}>
-      <div
-        className={cn(
-          "flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground",
-          centrado && "justify-center",
-        )}
-      >
-        <Icon className="size-3 text-primary" />
-        {label}
-      </div>
-      <div className="mt-1.5">{children}</div>
-    </div>
-  )
-}
-
-/** Anillo de cumplimiento — conic-gradient sobre tokens del tema. */
-function MetaAnillo({ pct, ritmoPct, reales, esperadas }: { pct: number | null; ritmoPct: number | null; reales: number; esperadas: number }) {
-  if (pct === null) {
-    return (
-      <div>
-        <p className="num text-2xl font-bold leading-none tracking-tight text-muted-foreground">—</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">Ninguna línea en uso.</p>
-      </div>
-    )
-  }
-
-  // El anillo muestra el AVANCE hacia la meta del turno; el color lo da el RITMO (eficiencia en vivo),
-  // porque a mitad de turno el avance es bajo aunque todo vaya bien.
-  const clamped = Math.max(0, Math.min(100, pct))
-  const nivel = ritmoPct ?? pct
-  const color = nivel >= 90 ? "var(--success)" : nivel >= 60 ? "var(--warning)" : "var(--danger)"
-
-  return (
-    <div className="flex items-center justify-center gap-2.5">
-      <div
-        className="relative grid size-11 shrink-0 place-items-center rounded-full transition-all duration-700"
-        style={{ background: `conic-gradient(${color} ${clamped * 3.6}deg, color-mix(in oklab, var(--muted) 90%, transparent) 0deg)` }}
-      >
-        <div className="grid size-8 place-items-center rounded-full bg-background">
-          <span className="num text-[11px] font-bold" style={{ color }}>
-            {pct}%
-          </span>
-        </div>
-      </div>
-      <div className="min-w-0">
-        <p className="num text-lg font-bold leading-none">
-          {reales.toLocaleString("es-CO")}
-          <span className="text-xs font-medium text-muted-foreground"> / {esperadas.toLocaleString("es-CO")}</span>
-        </p>
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Cajas reales vs. meta del turno{ritmoPct !== null ? " · ritmo " + ritmoPct + "%" : ""}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function PanelCard({
-  icon: Icon,
-  titulo,
-  meta,
-  descripcion,
-  className,
-  children,
-}: {
-  icon: typeof Clock
-  titulo: string
-  meta?: string
-  descripcion?: string
-  className?: string
-  children: React.ReactNode
-}) {
-  return (
-    <Card className={cn("shadow-panel gap-0 overflow-hidden border-border py-0", className)}>
-      <div className="flex items-start justify-between gap-2 border-b border-border/70 bg-surface px-4 py-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            <Icon className="size-4 text-primary" />
-            {titulo}
-          </p>
-          {descripcion && <p className="mt-1 truncate text-xs text-muted-foreground/80">{descripcion}</p>}
-        </div>
-        {meta && (
-          <span className="num shrink-0 rounded-full border border-border bg-background/70 px-2 py-0.5 text-[11px] font-semibold text-foreground">
-            {meta}
-          </span>
-        )}
-      </div>
-      <div className="p-4">{children}</div>
-    </Card>
-  )
-}
-
-/** "hace Ns" / "hace N min" / "hace N h", mismo criterio que ultimaAccion más arriba en este archivo. */
-function tiempoRelativo(fechaIso: string, ahora: Date): string {
-  const segundos = Math.max(0, Math.round((ahora.getTime() - new Date(fechaIso).getTime()) / 1000))
-  if (segundos < 60) return `hace ${segundos}s`
-  const minutos = Math.floor(segundos / 60)
-  if (minutos < 60) return `hace ${minutos} min`
-  return `hace ${Math.floor(minutos / 60)} h`
-}
-
-/**
- * Semáforo de Gasoil: banner a todo el ancho de la tarjeta de Tanques
- * (feedback 2026-09-25: la versión chica en la franja "no se entendía
- * sola"). Rojo hasta 12 h de autonomía, amarillo 13-20 h, verde de ahí
- * para arriba - ver umbrales en panelProduccion.ts.
- */
-function BannerGasoil({ litros }: { litros: number }) {
-  const horas = gasoilHorasDisponibles(litros)
-  const nivel = nivelGasoil(horas)
-
-  return (
-    <div
-      className={cn(
-        "mb-3 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold",
-        nivel === "danger"
-          ? "border-danger/40 bg-danger-soft text-danger-foreground"
-          : nivel === "warn"
-            ? "border-warning/40 bg-warning-soft text-warning-foreground"
-            : "border-success/40 bg-success-soft text-success-foreground",
-      )}
-    >
-      <Fuel className="size-4 shrink-0" />
-      {horas.toLocaleString("es-CO", { maximumFractionDigits: 1 })} horas de autonomía de gasoil
-      <span className="font-normal opacity-70">
-        · <span className="font-semibold">{litros.toLocaleString("es-CO")} L</span> a {GASOIL_CONSUMO_L_POR_HORA} L/h
-      </span>
-    </div>
-  )
-}
-
-/**
- * Servicios Industriales: Temperatura del Quantum / Agua Osmotizada —
- * franja angosta arriba de la grilla de Tanques (adentro del mismo
- * PanelCard, no una tarjeta propia — ver feedback del 2026-09-04:
- * "es muy grande"). Meramente informativo, no alimenta ningún cálculo
- * de merma ni de otro tipo. SOLO LECTURA acá — lo carga otro usuario
- * (Servicios Industriales) desde su propia pantalla, todavía sin
- * construir; este componente no tiene forma de editar.
- */
-function ServiciosIndustrialesFranja({ lectura, ahora }: { lectura: LecturaServiciosIndustriales | null; ahora: Date }) {
-  return (
-    <>
-      {lectura?.gasoil !== null && lectura?.gasoil !== undefined && <BannerGasoil litros={lectura.gasoil} />}
-      <div className="mb-3 flex items-center justify-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-2.5 py-1.5 text-xs">
-        <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-0.5">
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Thermometer className="size-4 animate-pulse text-warning" />
-            Quantum:{" "}
-            <span className="num font-bold text-foreground">
-              {lectura?.temperaturaQuantum !== null && lectura?.temperaturaQuantum !== undefined ? `${lectura.temperaturaQuantum}°C` : "—"}
-            </span>
-          </span>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Droplets className="size-4 animate-pulse text-info" />
-            Agua Osmotizada:{" "}
-            <span className="num font-bold text-foreground">
-              {lectura?.aguaOsmotizada !== null && lectura?.aguaOsmotizada !== undefined ? `${lectura.aguaOsmotizada.toLocaleString("es-CO")} L` : "—"}
-            </span>
-          </span>
-          {lectura && (
-            <span className="text-[11px] text-muted-foreground/70">
-              {tiempoRelativo(lectura.actualizadoEn, ahora)}
-              {lectura.actualizadoPorNombre ? ` · ${lectura.actualizadoPorNombre}` : ""}
-            </span>
-          )}
-        </div>
-      </div>
-    </>
-  )
-}
-
-/** Fila compacta de "Líneas activas": estado + producción + merma en una sola línea — reemplaza a la fila alta de antes + la tablita aparte del banner. */
-function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
-  const info = ESTADO_LINEA_INFO[fila.estado]
-  const nivelEficiencia: NivelMerma | null =
-    fila.eficienciaPct === null ? null : fila.eficienciaPct >= 90 ? "ok" : fila.eficienciaPct >= 60 ? "warn" : "danger"
-  const nivelMermaFila = fila.mermaPct === null ? null : nivelMerma(fila.mermaPct)
-  const colorPor = colorTextoPorNivel
-
-  return (
-    <div className="linea-fila-grid border-b border-border/60 px-2 py-2.5 text-sm transition-colors last:border-b-0 hover:bg-muted/40">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <span className="relative flex size-2.5 shrink-0 items-center justify-center">
-          {fila.estado === "activa" && <span className={cn("dot-ring absolute size-2.5 rounded-full", info.ring)} />}
-          <span className={cn("relative size-2.5 rounded-full", info.dot)} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground">
-            {fila.nombre}
-            {fila.corrida ? ` - ${fila.corrida.presentacion} ml` : ""}
-          </p>
-          {fila.corrida?.saborNombre && <p className="truncate text-xs text-muted-foreground">{fila.corrida.saborNombre}</p>}
-          <p className="truncate text-xs text-muted-foreground">
-            {info.label}
-            {fila.minutosProduccion !== null ? ` - TP: ${formatDuracion(fila.minutosProduccion)}` : ""}
-          </p>
-          {fila.observacion && (
-            <p className="mt-1 flex items-start gap-1 text-xs leading-snug text-danger">
-              <AlertTriangle className="mt-0.5 size-3 shrink-0" />
-              <span>{fila.observacion}</span>
-            </p>
-          )}
-        </div>
-        <MiniCinta fila={fila} alertaMerma={nivelMermaFila === "danger"} />
-      </div>
-      <p className="num text-right font-semibold text-foreground">{fila.cajas.toLocaleString("es-CO")}</p>
-      <p className="num text-right font-semibold text-foreground">{fila.litros.toLocaleString("es-CO")} L</p>
-      <p className={cn("num text-right font-semibold", colorPor(nivelEficiencia))}>
-        {fila.eficienciaPct !== null ? `${fila.eficienciaPct}%` : "—"}
-      </p>
-      <p className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning" : "italic text-muted-foreground/60")}>
-        {fila.minutosParada !== null ? formatDuracion(fila.minutosParada) : "—"}
-      </p>
-      <p className={cn("num text-right font-semibold", colorPor(nivelMermaFila))}>
-        {fila.mermaPct !== null ? `${fila.mermaPct.toFixed(2)}%` : "—"}
-      </p>
-    </div>
-  )
-}
-
-/**
- * Cinta pixel art chiquita a la derecha del nombre de la línea (misma que
- * Líneas — ver CintaEstadoLinea). En los estados sin escena (libre, sin
- * programación, cambio de presentación, esperando cierre) no se dibuja
- * nada: queda solo el texto.
- */
-const CINTA_POR_ESTADO: Partial<Record<EstadoLinea, EstadoCinta>> = {
-  activa: "corriendo",
-  parada: "parada",
-  detenida: "detenida",
-  cip: "cip",
-}
-
-function MiniCinta({ fila, alertaMerma }: { fila: FilaLineaCompacta; alertaMerma: boolean }) {
-  const estado = CINTA_POR_ESTADO[fila.estado]
-  if (!estado) return null
-  return (
-    <CintaEstadoLinea
-      estado={estado}
-      saborNombre={fila.corrida?.saborNombre}
-      presentacion={fila.corrida?.presentacion}
-      alertaMerma={alertaMerma}
-      className="w-36 shrink-0"
-    />
-  )
-}
-
-function TanqueCard({
-  tanque,
-  preparaciones,
-}: {
-  tanque: TanqueRecepcion
-  preparaciones: PreparacionRegistro[]
-}) {
-  const ultimaPrep = preparaciones
-    .filter((p) => p.numeroTanque === tanque.numeroTanque)
-    .sort((a, b) => b.creadoEn.localeCompare(a.creadoEn))[0]
-
-  const enPreparacion = tanque.condicion === "EN_PREPARACION"
-  const listo = tanque.condicion === "LISTO"
-  const standby = tanque.condicion === "STANDBY"
-  const tieneLiquido = listo || standby
-  const color = colorSabor(
-    tanque.condicion === "SUCIO"
-      ? tanque.ultimoSaborNombre
-      : enPreparacion
-        ? (ultimaPrep?.saborNombre ?? null)
-        : tieneLiquido
-          ? tanque.saborNombre
-          : null,
-  )
-
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background/60 transition-shadow duration-300",
-        listo ? "border-border hover:shadow-panel" : standby ? "border-secondary/50" : enPreparacion ? "border-warning/40" : "border-border",
-      )}
-    >
-      <TanqueVisual
-        numeroTanque={tanque.numeroTanque}
-        condicion={tanque.condicion}
-        volumenL={tanque.volumenL}
-        volumenInicialL={tanque.volumenInicialL}
-        color={color}
-        capacidad={TANK_CAPACITY}
-      />
-
-      {/* Pie del tanque */}
-      <div className="flex min-w-0 flex-col gap-1 border-t border-border/70 px-2.5 py-2">
-        {tieneLiquido ? (
-          <>
-            <p className="num truncate text-base font-bold leading-none">
-              {(tanque.volumenL ?? 0).toLocaleString("es-CO")}
-              <span className="text-[11px] font-medium text-muted-foreground"> L</span>
-            </p>
-            {(tanque.volumenL ?? 0) > TANK_CAPACITY && (
-              <span className="w-fit max-w-full truncate rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
-                En espera de corte
-              </span>
-            )}
-            <span
-              className="w-fit max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-background"
-              style={{ backgroundColor: color }}
-            >
-              {tanque.saborNombre ?? "Sabor"}
-            </span>
-            {tanque.lote && (
-              <p className="truncate text-[10px] text-muted-foreground">
-                {standby ? "Resto del lote " : "Lote "}
-                {tanque.lote}
-              </p>
-            )}
-          </>
-        ) : enPreparacion ? (
-          <>
-            <Badge variant="warning" className="w-fit">
-              En Preparación
-            </Badge>
-            <p className="truncate text-[10px] text-muted-foreground">
-              {ultimaPrep
-                ? `${ultimaPrep.tambores}t · ${ultimaPrep.saborNombre ?? "Sin sabor"}${tanque.lote ? ` · Lote ${tanque.lote}` : ""}`
-                : "Sin registrar aún."}
-            </p>
-          </>
-        ) : (
-          <p className="text-[11px] text-muted-foreground">
-            {tanque.condicion === "SUCIO"
-              ? "Pendiente de limpieza."
-              : tanque.condicion === "CIP"
-                ? `Proceso de limpieza${tanque.cipIniciadoEn ? ` desde las ${horaCortaPlanta(tanque.cipIniciadoEn, tanque.cipIniciadoEn)}` : ""}.`
-                : "Disponible para llenar."}
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/**
- * Comparativo Turno pasado vs. Turno actual para una merma — se usa
- * dos veces (envase y semielaborado). Las dos columnas salen de las
- * MISMAS funciones (mermaEnvasesTurno()/mermaSemielaboradoTurno() en
- * src/lib/panelProduccion.ts), corridas en el render: "actual" sobre
- * `turno`, "pasado" sobre `turnoAnterior` (obtenerTurnoAnterior()).
- * Cada columna se colorea según su propio nivel de tolerancia.
- */
-function MermaComparativaCard({
-  titulo,
-  pasado,
-  actual,
-  dangerDesde = MERMA_DANGER_DESDE,
-  warnDesde = MERMA_WARN_DESDE,
-  invertido = false,
-}: {
-  titulo: string
-  pasado: number | null
-  actual: number | null
-  dangerDesde?: number
-  warnDesde?: number
-  /** Si es true, se muestra el rendimiento (100 - merma) en vez de la merma — los umbrales siguen siendo tolerancia de MERMA, no de rendimiento. */
-  invertido?: boolean
-}) {
-  const nivelActual = actual === null ? null : nivelMerma(actual, dangerDesde, warnDesde)
-
-  return (
-    <Card
-      className={cn(
-        "shadow-panel gap-0 overflow-hidden border py-0",
-        nivelActual === "danger" ? "border-danger/45" : nivelActual === "warn" ? "border-warning/40" : "border-border",
-      )}
-    >
-      <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-surface px-4 py-3">
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <ScanLine className="size-4 text-primary" />
-          {titulo}
-        </p>
-        <Badge variant="muted">{invertido ? `Mín. ${Math.round((100 - dangerDesde) * 100) / 100}%` : `Máx. ${dangerDesde}%`}</Badge>
-      </div>
-
-      <div className="grid grid-cols-2 divide-x divide-border/70">
-        <MermaBloque titulo="Turno pasado" pct={pasado} dangerDesde={dangerDesde} warnDesde={warnDesde} invertido={invertido} />
-        <MermaBloque titulo="Turno actual" pct={actual} dangerDesde={dangerDesde} warnDesde={warnDesde} invertido={invertido} />
-      </div>
-
-      {nivelActual === "danger" && !invertido && (
-        <p className="flex items-center gap-1 border-t border-border/70 px-3 py-2 text-[11px] font-medium text-danger">
-          <AlertTriangle className="size-3" />
-          El turno actual está fuera de tolerancia.
-        </p>
-      )}
-    </Card>
-  )
-}
-
-function MermaBloque({
-  titulo,
-  pct,
-  dangerDesde = MERMA_DANGER_DESDE,
-  warnDesde = MERMA_WARN_DESDE,
-  invertido = false,
-}: {
-  titulo: string
-  pct: number | null
-  dangerDesde?: number
-  warnDesde?: number
-  invertido?: boolean
-}) {
-  const nivel = pct === null ? null : nivelMerma(pct, dangerDesde, warnDesde)
-  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : undefined
-  const valorMostrado = pct === null ? null : invertido ? Math.round((100 - pct) * 100) / 100 : pct
-  return (
-    <div className="min-w-0 px-3 py-5 text-center">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
-      <p className={cn("num mt-2 truncate text-3xl font-bold leading-none", color)}>
-        {valorMostrado !== null ? `${valorMostrado}%` : "—"}
-      </p>
-    </div>
-  )
-}
-
-/* ===================== DESGLOSE DE CÁLCULO (ÁREA DE PRUEBAS) ===================== */
-
-/**
- * Los mismos números que verifica src/lib/reportes/pruebas.test.ts, pero
- * sobre el turno que se está viendo: envases de llenadora vs. Producto
- * Terminado por corrida, litros consumidos vs. producidos, cajas reales
- * vs. esperadas. Se muestra en Aséptico y en el Área de Pruebas (ver la
- * condición sobre areaEfectiva en el render del Panel).
- */
-function DesgloseCalculosPanel({
-  turnoId,
-  horaInicio,
-  estado,
-  horaFin,
-  preparaciones,
-  corridas,
-  productoTerminado,
-  contadores,
-  transferencias,
-  desvases,
-}: {
-  turnoId: string
-  horaInicio: string
-  estado: "ABIERTO" | "CERRADO"
-  horaFin: string | null
-  preparaciones: PreparacionRegistro[]
-  corridas: Corrida[]
-  productoTerminado: ProductoTerminadoRegistro[]
-  contadores: ContadorRegistro[]
-  transferencias: TransferenciaRegistro[]
-  desvases: DesvaseLoteRegistro[]
-}) {
-  const { lineas, presentaciones, cargando } = useCatalogosLive()
-  const d = desglosarCalculos(
-    turnoId,
-    horaInicio,
-    estado,
-    horaFin,
-    preparaciones,
-    corridas,
-    productoTerminado,
-    contadores,
-    presentaciones,
-    transferencias,
-    desvases,
-  )
-  const [ajustes, setAjustes] = useState<AjusteSemielaborado[]>([])
-
-  useEffect(() => {
-    let vivo = true
-    ajustesSemielaboradoTurno(turnoId).then((a) => {
-      if (vivo) setAjustes(a)
-    })
-    return () => {
-      vivo = false
-    }
-  }, [turnoId])
-
-  const totalAjuste = ajustes.reduce((a, x) => a + x.diferencia, 0)
-
-  const fmt = (n: number | null, suf = "") => (n === null ? "—" : `${n.toLocaleString("es-CO")}${suf}`)
-  const fmtSigno = (n: number, suf = "") =>
-    `${n > 0 ? "+" : ""}${Math.round(n).toLocaleString("es-CO")}${suf}`
-
-  if (cargando) {
-    return <p className="text-sm text-muted-foreground">Cargando catálogos…</p>
-  }
-
-  return (
-    <div className="flex flex-col gap-4 text-sm">
-      <p className="text-xs text-muted-foreground">
-        Horas transcurridas del turno:{" "}
-        <span className="num font-semibold text-foreground">{d.horasTranscurridas}</span>{" "}
-        {estado === "CERRADO" ? "(hasta la hora de cierre)" : "(hasta ahora)"}
-      </p>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-border text-left uppercase tracking-wide text-muted-foreground">
-              <th className="py-1.5 pr-3 font-semibold">Corrida</th>
-              <th className="py-1.5 pr-3 font-semibold">Lote</th>
-              <th className="py-1.5 pr-3 text-right font-semibold">Env. llenadora</th>
-              <th className="py-1.5 pr-3 text-right font-semibold">Env. prod. term.</th>
-              <th className="py-1.5 pr-3 text-right font-semibold">Merma envase</th>
-              <th className="py-1.5 pr-3 text-right font-semibold">Cajas reales</th>
-              <th className="py-1.5 pr-3 text-right font-semibold">Cajas esperadas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {d.porCorrida.map((c) => (
-              <tr key={c.corridaId} className="border-b border-border/60">
-                <td className="py-1.5 pr-3">
-                  {nombrePorCodigo(lineas, c.linea)}
-                  {c.presentacionMl ? <span className="text-muted-foreground"> · {c.presentacionMl} ml</span> : null}
-                  {!c.activa ? <span className="text-muted-foreground"> · finalizada</span> : null}
-                </td>
-                <td className="py-1.5 pr-3">{c.lote ?? "—"}</td>
-                <td className="num py-1.5 pr-3 text-right">{fmt(c.envasesLlenadora)}</td>
-                <td className="num py-1.5 pr-3 text-right">{fmt(c.envasesProductoTerminado)}</td>
-                <td className="num py-1.5 pr-3 text-right">{fmt(c.mermaEnvasePct, " %")}</td>
-                <td className="num py-1.5 pr-3 text-right">{fmt(c.cajasReales)}</td>
-                <td className="num py-1.5 pr-3 text-right">{fmt(c.cajasEsperadas)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        <DesgloseDato
-          etiqueta="Merma de envase — turno"
-          valor={fmt(d.mermaEnvaseTurnoPct, " %")}
-          formula="1 − (Σ envases prod. term. ÷ Σ envases llenadora)"
-        />
-        <DesgloseDato
-          etiqueta="Consumo de semielaborado del turno"
-          valor={fmt(d.volumenInicial, " L")}
-          formula="Σ (volumen del lote al inicio del turno − al final)"
-        />
-        <DesgloseDato
-          etiqueta="Litros de Producto Terminado del turno"
-          valor={fmt(d.litrosProducidos, " L")}
-          formula="Σ litros de Producto Terminado de todas las corridas del turno"
-        />
-        <DesgloseDato
-          etiqueta="Rendimiento del semielaborado"
-          valor={
-            d.rendimientoTurnoPct === null
-              ? "—"
-              : `${Math.round((100 - d.rendimientoTurnoPct) * 100) / 100} %`
-          }
-          formula="litros de Producto Terminado del turno ÷ consumo del turno"
-        />
-        <DesgloseDato
-          etiqueta="Merma de semielaborado"
-          valor={d.rendimientoTurnoPct === null ? "—" : fmt(d.rendimientoTurnoPct, " %")}
-          formula="1 − (Producto Terminado del turno ÷ consumo del turno)"
-        />
-        {ajustes.length > 0 && (
-          <DesgloseDato
-            etiqueta="Ajuste teórico vs. real"
-            valor={fmtSigno(totalAjuste, " L")}
-            formula="correcciones manuales de volumen de lote (negativo = litros que faltaron)"
-          />
-        )}
-        <DesgloseDato
-          etiqueta="Cajas reales / esperadas"
-          valor={`${fmt(d.cajasRealesTotal)} / ${fmt(d.cajasEsperadasTotal)}`}
-          formula="corridas activas: velocidad ÷ envases por caja × horas"
-        />
-        <DesgloseDato
-          etiqueta="Cumplimiento de meta"
-          valor={fmt(d.cumplimientoTurnoPct, " %")}
-          formula="cajas reales ÷ cajas esperadas"
-        />
-      </div>
-
-      {ajustes.length > 0 && (
-        <div className="rounded-xl border border-border bg-background/60 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Correcciones de volumen (teórico → real)
-          </p>
-          <ul className="mt-1.5 flex flex-col gap-1 text-xs">
-            {ajustes.map((a, i) => (
-              <li key={i} className="text-foreground">
-                {a.sabor}
-                {a.lote ? ` · Lote ${a.lote}` : ""}: {Math.round(a.volumenTeorico).toLocaleString("es-CO")} L →{" "}
-                {Math.round(a.volumenReal).toLocaleString("es-CO")} L{" "}
-                <span className={a.diferencia < 0 ? "text-danger" : "text-muted-foreground"}>
-                  ({fmtSigno(a.diferencia, " L")})
-                </span>
-                <span className="text-muted-foreground">
-                  {" · "}
-                  {a.usuarioNombre ?? "—"} ·{" "}
-                  {new Date(a.creadoEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DesgloseDato({ etiqueta, valor, formula }: { etiqueta: string; valor: string; formula: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-background/60 p-3">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{etiqueta}</p>
-      <p className="num mt-1 text-xl font-bold leading-none text-foreground">{valor}</p>
-      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{formula}</p>
-    </div>
-  )
-}
-
-
-/* ============================ RESUMEN DE PLANTA ============================ */
-
-function ResumenPlanta({ areaCodigo }: { areaCodigo: AreaCodigo | null }) {
-  const [fechaDesde, setFechaDesde] = useState(() => haceDias(30))
-  const [fechaHasta, setFechaHasta] = useState("")
-  const [filas, setFilas] = useState<FilaEstadistica[]>([])
-  const [cargando, setCargando] = useState(true)
-
-  async function buscar() {
-    setCargando(true)
-    const lista = await obtenerEstadisticas({ fechaDesde, fechaHasta, areaCodigo })
-    setFilas(lista)
-    setCargando(false)
-  }
-
-  useEffect(() => {
-    buscar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [areaCodigo])
-
-  const mermaProm = mermaAgregada(filas)
-  const horasTotales = filas.reduce((acc, f) => acc + (horasTurno(f) ?? 0), 0)
-  const litrosTotales = filas.reduce((acc, f) => acc + f.litrosProducidos, 0)
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-3">
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Desde</span>
-          <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="w-40" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Hasta</span>
-          <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="w-40" />
-        </div>
-        <Button variant="outline" size="sm" onClick={buscar} disabled={cargando}>
-          {cargando ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
-          Buscar
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          Incluye turnos en curso{areaCodigo ? "" : " — todas las áreas (sin Pruebas)"}.
-        </span>
-      </div>
-
-      {cargando ? (
-        <div className="flex justify-center py-8 text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
-        </div>
-      ) : filas.length === 0 ? (
-        <EmptyState icon={BarChart3} title="Sin datos" description="No hay turnos en ese rango de fechas." />
-      ) : (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <EstadisticaMerma titulo="Merma real" pct={mermaProm} />
-            <EstadisticaTile icon={Clock} label="Horas de producción" valor={`${Math.round(horasTotales)} h`} />
-            <EstadisticaTile icon={Droplets} label="Litros producidos" valor={litrosTotales.toLocaleString("es-CO")} />
-          </div>
-
-          <MatrizGrupoSupervisor filas={filas} />
-
-          <div className="grid gap-4 xl:grid-cols-2">
-            <TablaPorGrupo filas={filas} />
-            <TablaPorSupervisor filas={filas} />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function EstadisticaTile({ icon: Icon, label, valor }: { icon: typeof Clock; label: string; valor: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-background/60 p-3.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Icon className="size-3.5 text-primary" />
-        {label}
-      </div>
-      <p className="num mt-2 text-3xl font-bold leading-none">{valor}</p>
-    </div>
-  )
-}
-
-function EstadisticaMerma({ titulo, pct }: { titulo: string; pct: number | null }) {
-  const nivel = pct === null ? null : nivelMerma(pct)
-  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : "text-success"
-  return (
-    <div
-      className={cn(
-        "rounded-xl border p-3.5",
-        nivel === "danger"
-          ? "border-danger/35 bg-danger-soft"
-          : nivel === "warn"
-            ? "border-warning/35 bg-warning-soft"
-            : "border-border bg-background/60",
-      )}
-    >
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Gauge className="size-3.5 text-primary" />
-        {titulo}
-      </div>
-      <p className={cn("num mt-2 text-3xl font-bold leading-none", nivel !== null && color)}>{pct !== null ? `${pct}%` : "—"}</p>
-      {nivel === "danger" && (
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-danger">
-          <AlertTriangle className="size-3" /> Fuera de tolerancia
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** Matriz supervisor × grupo: litros producidos, con intensidad de color según el máximo de la matriz. */
-function MatrizGrupoSupervisor({ filas }: { filas: FilaEstadistica[] }) {
-  const grupos = [...new Set(filas.map((f) => f.grupo))].sort((a, b) =>
-    nombreGrupo(a).localeCompare(nombreGrupo(b)),
-  )
-
-  const supervisores = [...new Set(filas.map((f) => f.supervisorUsuario))]
-    .map((usuario) => {
-      const filasSup = filas.filter((f) => f.supervisorUsuario === usuario)
-      return {
-        usuario,
-        nombre: filasSup[0]?.supervisorNombre ?? usuario,
-        total: filasSup.reduce((a, f) => a + f.litrosProducidos, 0),
-        porGrupo: Object.fromEntries(
-          grupos.map((g) => [g, filasSup.filter((f) => f.grupo === g).reduce((a, f) => a + f.litrosProducidos, 0)]),
-        ) as Record<string, number>,
-      }
-    })
-    .sort((a, b) => b.total - a.total)
-
-  const maxCelda = Math.max(1, ...supervisores.flatMap((s) => grupos.map((g) => s.porGrupo[g] ?? 0)))
-
-  return (
-    <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
-      <div className="border-b border-border/70 bg-surface px-4 py-3">
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <Grid3x3 className="size-4 text-primary" />
-          Matriz supervisor × grupo
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground/80">Litros producidos por cruce; más intenso = más volumen.</p>
-      </div>
-
-      <div className="overflow-x-auto p-4">
-        <table className="w-full min-w-[520px] border-separate border-spacing-1">
-          <thead>
-            <tr>
-              <th className="w-40 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Supervisor
-              </th>
-              {grupos.map((g) => (
-                <th key={g} className="text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {nombreGrupo(g)}
-                </th>
-              ))}
-              <th className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {supervisores.map((s) => (
-              <tr key={s.usuario}>
-                <td className="truncate pr-2 text-sm font-medium text-foreground">{s.nombre}</td>
-                {grupos.map((g) => {
-                  const v = s.porGrupo[g] ?? 0
-                  const intensidad = Math.round((v / maxCelda) * 100)
-                  return (
-                    <td key={g} className="p-0">
-                      <div
-                        className="num grid h-10 place-items-center rounded-lg border border-border/60 text-xs font-semibold text-foreground transition-colors duration-300"
-                        style={{
-                          backgroundColor: `color-mix(in oklab, var(--primary) ${Math.round(intensidad * 0.55)}%, var(--background))`,
-                        }}
-                        title={`${s.nombre} · ${nombreGrupo(g)}: ${v.toLocaleString("es-CO")} L`}
-                      >
-                        {v > 0 ? v.toLocaleString("es-CO") : "·"}
-                      </div>
-                    </td>
-                  )
-                })}
-                <td className="num pl-2 text-right text-sm font-bold text-foreground">{s.total.toLocaleString("es-CO")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  )
-}
-
-function TablaPorGrupo({ filas }: { filas: FilaEstadistica[] }) {
-  const grupos = [...new Set(filas.map((f) => f.grupo))]
-    .map((grupo) => {
-      const filasGrupo = filas.filter((f) => f.grupo === grupo)
-      return {
-        grupo,
-        merma: mermaAgregada(filasGrupo) ?? 0,
-        litros: filasGrupo.reduce((a, f) => a + f.litrosProducidos, 0),
-        horas: filasGrupo.reduce((a, f) => a + (horasTurno(f) ?? 0), 0),
-      }
-    })
-    .sort((a, b) => nombreGrupo(a.grupo).localeCompare(nombreGrupo(b.grupo)))
-
-  return (
-    <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
-      <div className="border-b border-border/70 bg-surface px-4 py-3">
-        <CardTitle className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <Users className="size-4 text-primary" />
-          Por Grupo
-        </CardTitle>
-        <CardDescription className="mt-1 text-xs">Litros, horas y merma real por grupo de turno.</CardDescription>
-      </div>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-[11px] uppercase tracking-wide">Grupo</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Litros</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Horas</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Merma real</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {grupos.map((g) => (
-              <TableRow key={g.grupo}>
-                <TableCell className="font-medium">{nombreGrupo(g.grupo)}</TableCell>
-                <TableCell className="num text-right">{g.litros.toLocaleString("es-CO")}</TableCell>
-                <TableCell className="num text-right">{Math.round(g.horas)} h</TableCell>
-                <TableCell className="text-right">
-                  <Badge variant={badgeVariantPorNivel[nivelMerma(g.merma)]}>{g.merma.toFixed(1)}%</Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  )
-}
-
-function TablaPorSupervisor({ filas }: { filas: FilaEstadistica[] }) {
-  const supervisores = [...new Set(filas.map((f) => f.supervisorUsuario))]
-    .map((usuario) => {
-      const filasSup = filas.filter((f) => f.supervisorUsuario === usuario)
-      return {
-        usuario,
-        nombre: filasSup[0]?.supervisorNombre ?? usuario,
-        merma: mermaAgregada(filasSup) ?? 0,
-        litros: filasSup.reduce((a, f) => a + f.litrosProducidos, 0),
-      }
-    })
-    .sort((a, b) => b.litros - a.litros)
-
-  const maxLitros = Math.max(1, ...supervisores.map((s) => s.litros))
-
-  return (
-    <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
-      <div className="border-b border-border/70 bg-surface px-4 py-3">
-        <CardTitle className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <UserRound className="size-4 text-primary" />
-          Por Supervisor
-        </CardTitle>
-        <CardDescription className="mt-1 text-xs">Litros producidos y merma real por supervisor.</CardDescription>
-      </div>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-[11px] uppercase tracking-wide">Supervisor</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Litros</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Merma real</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {supervisores.map((s) => (
-              <TableRow key={s.usuario}>
-                <TableCell className="font-medium">{s.nombre}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary transition-[width] duration-700"
-                        style={{ width: `${(s.litros / maxLitros) * 100}%` }}
-                      />
-                    </div>
-                    <span className="num text-xs font-semibold">{s.litros.toLocaleString("es-CO")}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Badge variant={badgeVariantPorNivel[nivelMerma(s.merma)]}>
-                    {s.merma <= MERMA_WARN_DESDE && <CheckCircle2 className="size-3" />}
-                    {s.merma.toFixed(1)}%
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
   )
 }

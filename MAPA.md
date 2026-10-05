@@ -54,7 +54,7 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Textos de "Líneas" (activar/pausar/detener una corrida) | `src/pages/apps/Lineas.tsx`, `src/components/LineasEstadoPlanta.tsx`, `src/components/lineas/` (un archivo por panel: `FormArrancarLinea`, `FormCipLinea`, `PanelPausada`, etc.) |
 | Textos de "Producto Terminado" | `src/pages/apps/ProductoTerminado.tsx` |
 | Textos de "Finalizar Turno" | `src/pages/apps/FinalizarTurno.tsx` |
-| Textos del Panel de Producción (tanques en vivo, líneas, merma, Resumen de Planta) | `src/pages/apps/PanelProduccion.tsx` |
+| Textos del Panel de Producción (tanques en vivo, líneas, merma, Resumen de Planta) | `src/pages/apps/PanelProduccion.tsx` (arma la página) y `src/components/panel/` (una pieza por sección: `BannerSuperior`, `SeccionTanques`, `SeccionLineas`, `SeccionMermas`, `DetalleTurno`, `resumen-planta/`…; cuentas en `calculosPanel.ts`) |
 | Textos de "Registrar Paradas" (pantalla única, +1 pendiente) / "Panel de Paradas" | `src/pages/apps/RegistrarParadas.tsx`, `src/components/BuscadorTipoParada.tsx`, `src/pages/apps/PanelParadas.tsx`, `src/components/PanelParadasVista.tsx` |
 | Textos de "Programación" | `src/pages/apps/Programacion.tsx` |
 | Textos de "Servicios Industriales" | `src/pages/apps/ServiciosIndustriales.tsx` |
