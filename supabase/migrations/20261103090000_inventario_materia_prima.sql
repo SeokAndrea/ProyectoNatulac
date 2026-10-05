@@ -275,7 +275,8 @@ grant execute on function historial_inventario_mp(text, uuid, integer, text) to 
 -- ------------------------------------------------------------
 -- 8. Auditoría: trigger genérico + resumen legible del conteo.
 --    auditar_cambio() re-emitido (última versión: 20261102) con el caso
---    de inventario_mp_conteos.
+--    de inventario_mp_conteos, y arreglado: el resumen se cortaba a 63
+--    bytes porque el CASE terminaba en tg_table_name (tipo name).
 -- ------------------------------------------------------------
 
 create or replace function auditar_cambio()
@@ -374,7 +375,9 @@ begin
       || ' · contado ' || coalesce(v_row->>'contado', '?')
       || coalesce(' · llegó ' || nullif(v_row->>'llego', '0'), '')
       || coalesce(' · diferencia ' || (v_row->>'diferencia'), '')
-    else tg_table_name
+    -- ::text: sin esto el CASE entero toma el tipo `name` de tg_table_name y
+    -- recorta el resumen a 63 bytes (pasaba con los resúmenes largos).
+    else tg_table_name::text
   end;
 
   insert into auditoria (usuario_id, usuario, accion, entidad, entidad_id, pagina, resumen, antes, despues)
