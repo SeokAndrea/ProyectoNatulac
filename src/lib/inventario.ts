@@ -136,3 +136,16 @@ export async function historialInventario(
     usuarioNombre: m.usuario_nombre,
   }))
 }
+
+/** Lo que la pantalla necesita del inventario. Real (Supabase) o de muestra (ver inventarioDemo.ts). */
+export interface InventarioApi {
+  listar: (usuario: string, area: AreaInventario | null) => Promise<FilaInventario[]>
+  registrar: (usuario: string, conteos: ConteoInventario[], area: AreaInventario | null) => Promise<Resultado>
+  historial: (usuario: string, saborId: string, area: AreaInventario | null) => Promise<MovimientoInventario[]>
+}
+
+export const inventarioReal: InventarioApi = {
+  listar: (usuario, area) => listarInventario(usuario, area),
+  registrar: (usuario, conteos, area) => registrarInventario(usuario, conteos, area),
+  historial: (usuario, saborId, area) => historialInventario(usuario, saborId, area),
+}

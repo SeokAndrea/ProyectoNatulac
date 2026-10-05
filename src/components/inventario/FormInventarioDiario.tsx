@@ -3,7 +3,7 @@ import { Check, Loader2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MensajeError } from "@/components/MensajeError"
-import { registrarInventario, type AreaInventario, type FilaInventario } from "@/lib/inventario"
+import type { AreaInventario, FilaInventario, InventarioApi } from "@/lib/inventario"
 import { useAccion } from "@/lib/useAccion"
 import { cn } from "@/lib/utils"
 import {
@@ -22,12 +22,14 @@ import {
  * guardan las filas con conteo escrito; las vacías quedan como estaban.
  */
 export function FormInventarioDiario({
+  api,
   usuario,
   area,
   filas,
   onGuardado,
   onCancelar,
 }: {
+  api: InventarioApi
   usuario: string
   area: AreaInventario | null
   filas: FilaInventario[]
@@ -45,7 +47,7 @@ export function FormInventarioDiario({
 
   async function guardar() {
     if (conteos.length === 0 || hayErrores) return
-    if (await ejecutar(() => registrarInventario(usuario, conteos, area))) onGuardado()
+    if (await ejecutar(() => api.registrar(usuario, conteos, area))) onGuardado()
   }
 
   return (

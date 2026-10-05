@@ -1,22 +1,32 @@
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
-import { historialInventario, type AreaInventario, type FilaInventario, type MovimientoInventario } from "@/lib/inventario"
+import type { AreaInventario, FilaInventario, InventarioApi, MovimientoInventario } from "@/lib/inventario"
 import { cn } from "@/lib/utils"
 import { cantidadConUnidad, fechaHoraCorta, textoDiferencia } from "./calculosInventario"
 
 /** Últimos 7 días de un sabor: conteos (con su diferencia) y cada preparación que descontó. */
-export function HistorialSabor({ usuario, area, fila }: { usuario: string; area: AreaInventario | null; fila: FilaInventario }) {
+export function HistorialSabor({
+  api,
+  usuario,
+  area,
+  fila,
+}: {
+  api: InventarioApi
+  usuario: string
+  area: AreaInventario | null
+  fila: FilaInventario
+}) {
   const [movimientos, setMovimientos] = useState<MovimientoInventario[] | null>(null)
 
   useEffect(() => {
     let vivo = true
-    historialInventario(usuario, fila.saborId, area).then((m) => {
+    api.historial(usuario, fila.saborId, area).then((m) => {
       if (vivo) setMovimientos(m)
     })
     return () => {
       vivo = false
     }
-  }, [usuario, fila.saborId, area])
+  }, [api, usuario, fila.saborId, area])
 
   if (movimientos === null) {
     return (

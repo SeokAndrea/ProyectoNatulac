@@ -19,9 +19,11 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ session: sesion.actual }) }))
 
 const api = { listar: vi.fn(), registrar: vi.fn(), historial: vi.fn() }
 vi.mock("@/lib/inventario", () => ({
-  listarInventario: (...a: unknown[]) => api.listar(...a),
-  registrarInventario: (...a: unknown[]) => api.registrar(...a),
-  historialInventario: (...a: unknown[]) => api.historial(...a),
+  inventarioReal: {
+    listar: (...a: unknown[]) => api.listar(...a),
+    registrar: (...a: unknown[]) => api.registrar(...a),
+    historial: (...a: unknown[]) => api.historial(...a),
+  },
 }))
 
 const fila = (over: Partial<FilaInventario>): FilaInventario => ({
@@ -58,9 +60,9 @@ beforeEach(() => {
   api.historial.mockReset().mockResolvedValue([])
 })
 
-const renderPagina = () =>
+const renderPagina = (ruta = "/inventario") =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[ruta]}>
       <InventarioDiario />
     </MemoryRouter>,
   )
@@ -186,5 +188,24 @@ describe("Inventario diario — contar", () => {
     await u.click(screen.getByRole("button", { name: "Cancelar" }))
     expect(api.registrar).not.toHaveBeenCalled()
     expect(screen.getByText("Debería haber")).toBeInTheDocument()
+  })
+})
+
+describe("Inventario diario — modo de muestra (?demo=1)", () => {
+  it("usa datos inventados, deja contar y no llama a la base", async () => {
+    const u = userEvent.setup()
+    sesion.actual = SIN_PERMISO
+    renderPagina("/inventario?demo=1")
+    expect(await screen.findByText(/Modo de muestra/)).toBeInTheDocument()
+    expect(await screen.findByText("Durazno")).toBeInTheDocument()
+    expect(filaDe("Durazno").getByText("28")).toBeInTheDocument()
+    await u.click(screen.getByRole("button", { name: /Hacer inventario diario/ }))
+    await u.type(screen.getByLabelText("Llegó de Durazno"), "10")
+    await u.type(screen.getByLabelText("Contado de Durazno"), "37")
+    expect(filaDe("Durazno").getByText("Falta 1 tambor")).toBeInTheDocument()
+    await u.click(screen.getByRole("button", { name: /Guardar inventario \(1\)/ }))
+    expect(await screen.findByText("37")).toBeInTheDocument()
+    expect(api.listar).not.toHaveBeenCalled()
+    expect(api.registrar).not.toHaveBeenCalled()
   })
 })

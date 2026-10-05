@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { ClipboardCheck, Loader2, Search, Warehouse } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
@@ -7,7 +8,8 @@ import { TablaSaldos } from "@/components/inventario/TablaSaldos"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth"
-import { listarInventario, type AreaInventario, type FilaInventario } from "@/lib/inventario"
+import { inventarioReal, type AreaInventario, type FilaInventario } from "@/lib/inventario"
+import { inventarioDemo } from "@/lib/inventarioDemo"
 import { puede } from "@/lib/permisos"
 import { cn } from "@/lib/utils"
 
@@ -17,11 +19,17 @@ import { cn } from "@/lib/utils"
  * preparaciones desde entonces. La analista (o un jefe / supervisor) hace
  * el Inventario diario mañana y tarde: confirma o corrige y anota lo que
  * llegó. Migración 20261103.
+ *
+ * ?demo=1: modo de muestra con datos inventados en memoria (inventarioDemo.ts),
+ * para ver la pantalla sin la migración aplicada. No guarda nada.
  */
 export default function InventarioDiario() {
   const { session } = useAuth()
   const usuario = session?.username ?? ""
-  const puedeCargar = puede(session ?? null, "INVENTARIO_CARGAR")
+  const demo = useSearchParams()[0].get("demo") === "1"
+  const api = demo ? inventarioDemo : inventarioReal
+  // En la muestra se puede contar aunque la base todavía no conozca el permiso nuevo.
+  const puedeCargar = demo || puede(session ?? null, "INVENTARIO_CARGAR")
   /** El Super Administrador elige el área (para probar en Pruebas); el resto ve la suya. */
   const eligeArea = session?.rol === "SUPERADMINISTRADOR"
   const [area, setArea] = useState<AreaInventario>("ASEPTICO")
@@ -33,13 +41,13 @@ export default function InventarioDiario() {
 
   useEffect(() => {
     let vivo = true
-    listarInventario(usuario, areaPedida).then((f) => {
+    api.listar(usuario, areaPedida).then((f) => {
       if (vivo) setFilas(f)
     })
     return () => {
       vivo = false
     }
-  }, [usuario, areaPedida, version])
+  }, [api, usuario, areaPedida, version])
 
   const texto = busqueda.trim().toLowerCase()
   const visibles = (filas ?? []).filter((f) => texto === "" || f.saborNombre.toLowerCase().includes(texto))
@@ -48,6 +56,11 @@ export default function InventarioDiario() {
   return (
     <AppShell title="Inventario diario" description="Materia prima: tambores y kits por sabor">
       <div className="flex flex-col gap-3">
+        {demo && (
+          <p className="rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-sm text-info">
+            Modo de muestra: datos inventados para ver la pantalla. No se guarda nada y se borra al recargar.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           {eligeArea && (
             <div className="flex rounded-lg border border-border p-0.5">
@@ -94,6 +107,7 @@ export default function InventarioDiario() {
           <EmptyState icon={Warehouse} title="Sin sabores" description="No hay sabores activos para llevar inventario." />
         ) : contando ? (
           <FormInventarioDiario
+            api={api}
             usuario={usuario}
             area={areaPedida}
             filas={visibles}
@@ -104,7 +118,7 @@ export default function InventarioDiario() {
             onCancelar={() => setContando(false)}
           />
         ) : (
-          <TablaSaldos usuario={usuario} area={areaPedida} filas={visibles} />
+          <TablaSaldos api={api} usuario={usuario} area={areaPedida} filas={visibles} />
         )}
       </div>
     </AppShell>

@@ -1,12 +1,22 @@
 import { Fragment, useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
-import type { AreaInventario, FilaInventario } from "@/lib/inventario"
+import type { AreaInventario, FilaInventario, InventarioApi } from "@/lib/inventario"
 import { cn } from "@/lib/utils"
 import { cantidadConUnidad, fechaHoraCorta, textoDiferencia } from "./calculosInventario"
 import { HistorialSabor } from "./HistorialSabor"
 
 /** Saldo de cada sabor: cuánto debería haber, cuándo se contó y cuánto consumieron las preparaciones desde entonces. Un clic abre su historial. */
-export function TablaSaldos({ usuario, area, filas }: { usuario: string; area: AreaInventario | null; filas: FilaInventario[] }) {
+export function TablaSaldos({
+  api,
+  usuario,
+  area,
+  filas,
+}: {
+  api: InventarioApi
+  usuario: string
+  area: AreaInventario | null
+  filas: FilaInventario[]
+}) {
   const [abierto, setAbierto] = useState<string | null>(null)
 
   return (
@@ -59,7 +69,7 @@ export function TablaSaldos({ usuario, area, filas }: { usuario: string; area: A
                 {esteAbierto && (
                   <tr className="border-b border-border/60 bg-muted/20">
                     <td colSpan={4} className="px-4 py-2">
-                      <HistorialSabor usuario={usuario} area={area} fila={f} />
+                      <HistorialSabor api={api} usuario={usuario} area={area} fila={f} />
                     </td>
                   </tr>
                 )}
