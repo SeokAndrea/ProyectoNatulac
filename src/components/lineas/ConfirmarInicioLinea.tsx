@@ -1,9 +1,9 @@
 import { CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Corrida } from "@/lib/produccion/tipos"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 /**
  * Status (revisión de inicio): una línea heredada corriendo que todavía no

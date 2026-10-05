@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida } from "@/lib/produccion/tipos"
 import { ElegirTanqueSiguiente } from "./ElegirTanqueSiguiente"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useContinuarSiguiente } from "./useAccion"
+import { useContinuarSiguiente } from "./useContinuarSiguiente"
 
 /** "Cambiar de lote" con la corrida en marcha: confirmación antes de pasar al tanque del lote siguiente. */
 export function PanelCambioLote({

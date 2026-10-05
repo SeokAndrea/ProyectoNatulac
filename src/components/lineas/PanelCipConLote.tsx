@@ -3,9 +3,9 @@ import { Loader2, PlayCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Corrida, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
 import { AvisoParadaPendiente, DescripcionCip } from "./EstadoCipLinea"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 /** CIP con el lote en pausa: al terminar el CIP la misma corrida sigue. O el lote ya no sigue y queda esperando su PT. */
 export function PanelCipConLote({

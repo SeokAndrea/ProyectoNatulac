@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import type { LineaCodigo } from "@/lib/catalogos"
 import { MOTIVOS_CIP, type Corrida, type MotivoCip } from "@/lib/produccion/tipos"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 const nombreMotivo = (m: MotivoCip) => MOTIVOS_CIP.find((x) => x.codigo === m)?.nombre ?? m
 

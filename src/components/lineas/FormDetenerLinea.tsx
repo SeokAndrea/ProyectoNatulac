@@ -3,9 +3,9 @@ import { Loader2, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import type { Corrida } from "@/lib/produccion/tipos"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 /** "Detener línea": 2ª confirmación. La corrida queda Esperando PT (se cierra al cargar el Producto Terminado) y la línea Detenida con el motivo. */
 export function FormDetenerLinea({

@@ -1,4 +1,4 @@
-/** Error de una acción de la tarjeta de línea. No pinta nada si no hay error. */
+/** Error de la última acción de un panel (tarjetas de línea y de tanque). No pinta nada si no hay error. */
 export function MensajeError({ error }: { error: string | null }) {
   if (!error) return null
   return (

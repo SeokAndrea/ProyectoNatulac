@@ -2,9 +2,9 @@ import { Beaker, Loader2, PlayCircle, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Corrida, ParadaQueDetiene } from "@/lib/produccion/tipos"
 import { AvisoParadaPendiente } from "./EstadoCipLinea"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 /** Corrida en pausa por una Parada: Continuar (cuando la parada esté completa), Pasar a CIP o Detener. */
 export function PanelPausada({

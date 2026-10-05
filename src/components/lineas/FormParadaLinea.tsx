@@ -2,9 +2,9 @@ import { useState } from "react"
 import { Loader2, PauseCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 /**
  * "Parada": pausa la corrida con una descripción OBLIGATORIA y suma el +1

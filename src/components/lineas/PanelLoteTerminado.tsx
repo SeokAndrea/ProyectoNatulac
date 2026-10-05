@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida } from "@/lib/produccion/tipos"
 import { ElegirTanqueSiguiente } from "./ElegirTanqueSiguiente"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useContinuarSiguiente } from "./useAccion"
+import { useContinuarSiguiente } from "./useContinuarSiguiente"
 
 /** Se marcó que terminó el lote de la corrida: ¿sigue con el mismo, pasa al siguiente o se detiene la línea? */
 export function PanelLoteTerminado({

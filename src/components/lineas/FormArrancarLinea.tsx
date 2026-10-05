@@ -7,9 +7,9 @@ import { presentacionesPorLineaLive, velocidadesParaLive, type PresentacionLive,
 import { obtenerUltimaConfiguracionLinea } from "@/lib/lineas"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida } from "@/lib/produccion/tipos"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 /**
  * Formulario de Activar/Cambiar corrida — compartido entre Preparación

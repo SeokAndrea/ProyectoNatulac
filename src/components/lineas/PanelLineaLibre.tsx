@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button"
 import type { LineaCodigo } from "@/lib/catalogos"
 import type { CondicionLinea, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
 import { EstadoCipLinea } from "./EstadoCipLinea"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 /**
  * Línea sin corrida: Arrancar línea + su condición (Sin programación /

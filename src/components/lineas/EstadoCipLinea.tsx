@@ -4,9 +4,9 @@ import { CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
-import { MensajeError } from "./MensajeError"
+import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
-import { useAccion } from "./useAccion"
+import { useAccion } from "@/lib/useAccion"
 
 /** "Motivo. En CIP desde las HH:MM." (+ lo que se agregue al final). */
 export function DescripcionCip({ lineaEstado, children }: { lineaEstado: LineaEstado | null; children?: ReactNode }) {
