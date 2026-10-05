@@ -27,10 +27,8 @@ import {
   listarTurnosHistorial,
   obtenerTurnoDetalle,
   subirYRegistrarActa,
-  turnosActivosPorArea,
   urlPublicaActa,
   type Acta,
-  type TurnoActivoArea,
   type TurnoHistorial,
   type TurnoResumen,
 } from "@/lib/historialTurnos"
@@ -58,7 +56,6 @@ export default function Historial() {
   const esSuperadmin = session?.rol === "SUPERADMINISTRADOR"
   const puedeCorregir = puede(session, "TURNO_CORREGIR")
 
-  const [turnosActivos, setTurnosActivos] = useState<TurnoActivoArea[]>([])
   const [rango, setRango] = useState<RangoFecha>(() => rangoDePreset("HOY", ""))
   const [turnos, setTurnos] = useState<TurnoAuditoria[]>([])
   const [actasPorTurno, setActasPorTurno] = useState<Map<string, Acta>>(new Map())
@@ -84,12 +81,6 @@ export default function Historial() {
    * sabor -> familia es para la columna `familia` del CSV. */
   const [familiaPorSabor, setFamiliaPorSabor] = useState<Map<string, string>>(new Map())
   const [exportando, setExportando] = useState(false)
-
-  useEffect(() => {
-    if (!session) return
-    turnosActivosPorArea(session.username).then(setTurnosActivos)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.username])
 
   useEffect(() => {
     if (!puedeAuditar) return
@@ -223,7 +214,7 @@ export default function Historial() {
 
   if (seleccionado) {
     return (
-      <AppShell title="Auditoría" description={`Turno ${detalle?.codigo ?? seleccionado.codigo}`} ocultarEstadoBanner>
+      <AppShell title="Auditoría" description={`Turno ${detalle?.codigo ?? seleccionado.codigo}`}>
         <div className="mx-auto flex max-w-2xl flex-col gap-4">
           <Button variant="ghost" size="sm" className="self-start" onClick={volver}>
             <ChevronLeft className="size-4" />
@@ -371,26 +362,8 @@ export default function Historial() {
   }
 
   return (
-    <AppShell title="Auditoría" description="Qué hizo cada supervisor, turno por turno" ocultarEstadoBanner>
+    <AppShell title="Auditoría" description="Qué hizo cada supervisor, turno por turno">
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        {turnosActivos.length > 0 && (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {turnosActivos.map((t) => (
-              <div
-                key={t.areaCodigo}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
-              >
-                <span className="font-medium text-foreground">{t.areaNombre}</span>
-                {t.turnoId ? (
-                  <Badge variant="success">Turno Activo · {t.supervisorNombre}</Badge>
-                ) : (
-                  <Badge variant="muted">Sin turno activo</Badge>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
         <AuditoriaTurnos
           turnos={turnos}
           lineas={lineas}
