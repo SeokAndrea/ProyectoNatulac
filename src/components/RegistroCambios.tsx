@@ -19,6 +19,7 @@ const VARIANTE: Record<string, "success" | "warning" | "danger" | "muted" | "sec
   EDITAR: "warning",
   DESACTIVAR: "muted",
   RESET_PASSWORD: "secondary",
+  PRIMER_INGRESO: "success",
   ELIMINAR: "danger",
 }
 
