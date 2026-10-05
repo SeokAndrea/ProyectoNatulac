@@ -38,7 +38,7 @@ export default function ResumenDia() {
   const { lineas } = useCatalogosLive()
   // Jornada operativa en curso (7:00 a 7:00): de madrugada, todavía es la del día anterior.
   const hoy = franjaDeHora().fecha
-  const [fecha, setFecha] = useState(hoy)
+  const [fecha, setFecha] = useState(() => restarDias(hoy, 1))
   /** Resultado de la última consulta, con la fecha que se pidió: si no coincide con la elegida, está cargando. */
   const [resultado, setResultado] = useState<{
     fecha: string
