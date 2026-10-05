@@ -223,7 +223,7 @@ export default function Historial() {
 
   if (seleccionado) {
     return (
-      <AppShell title="Auditoría" description={`Turno ${detalle?.codigo ?? seleccionado.codigo}`}>
+      <AppShell title="Auditoría" description={`Turno ${detalle?.codigo ?? seleccionado.codigo}`} ocultarEstadoBanner>
         <div className="mx-auto flex max-w-2xl flex-col gap-4">
           <Button variant="ghost" size="sm" className="self-start" onClick={volver}>
             <ChevronLeft className="size-4" />
@@ -371,7 +371,7 @@ export default function Historial() {
   }
 
   return (
-    <AppShell title="Auditoría" description="Qué hizo cada supervisor, turno por turno">
+    <AppShell title="Auditoría" description="Qué hizo cada supervisor, turno por turno" ocultarEstadoBanner>
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {turnosActivos.length > 0 && (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
