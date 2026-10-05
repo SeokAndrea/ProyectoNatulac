@@ -53,6 +53,59 @@ const ahoraPlanta = () => `${fechaPlanta()}T${horaPlanta().slice(0, 5)}`
 const conSegundos = (v: string) => (v.length === 16 ? `${v}:00` : v)
 /** 'YYYY-MM-DDTHH:MM:SS' → '21/09 14:05'. */
 const corta = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}`
+/** Minutos entre dos campos 'YYYY-MM-DDTHH:MM'. null si alguno no es válido. */
+function minutosEntre(inicio: string, fin: string): number | null {
+  const ms = new Date(conSegundos(fin)).getTime() - new Date(conSegundos(inicio)).getTime()
+  return Number.isNaN(ms) ? null : Math.round(ms / 60000)
+}
+/** Campo 'YYYY-MM-DDTHH:MM' + minutos → 'YYYY-MM-DDTHH:MM' (mismo reloj que el campo). */
+function sumarMinutos(v: string, min: number): string {
+  const d = new Date(new Date(conSegundos(v)).getTime() + min * 60000)
+  const dd = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}T${dd(d.getHours())}:${dd(d.getMinutes())}`
+}
+
+/**
+ * Hora de fin con atajo: se puede poner la hora, o solo los minutos y la
+ * hora de fin sale sola (inicio + minutos). Los minutos siempre muestran
+ * fin − inicio, así que si cambian la hora a mano se ven al día.
+ */
+function CampoFin({
+  etiqueta,
+  inicio,
+  fin,
+  onFin,
+}: {
+  etiqueta: string
+  inicio: string
+  fin: string
+  onFin: (v: string) => void
+}) {
+  const min = inicio && fin ? minutosEntre(inicio, fin) : null
+  return (
+    <div className="flex items-end gap-2">
+      <label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
+        {etiqueta}
+        <Input type="datetime-local" value={fin} onChange={(e) => onFin(e.target.value)} className="h-9" />
+      </label>
+      <label className="flex w-24 flex-col gap-1 text-xs text-muted-foreground">
+        o minutos
+        <Input
+          type="number"
+          min={1}
+          value={min ?? ""}
+          disabled={!inicio}
+          onChange={(e) => {
+            const n = Number(e.target.value)
+            if (e.target.value === "" || !Number.isFinite(n) || n < 0) return onFin("")
+            onFin(sumarMinutos(inicio, n))
+          }}
+          className="h-9"
+        />
+      </label>
+    </div>
+  )
+}
 
 export default function RegistrarParadas() {
   const { session } = useAuth()
@@ -305,7 +358,7 @@ function FormCompletar({
   const guia = tipoFinal?.clase === "PROGRAMADA" ? tipoFinal.tiempoGuiaMin : null
   const nMin = conHoras
     ? inicio && fin
-      ? Math.round((new Date(conSegundos(fin)).getTime() - new Date(conSegundos(inicio)).getTime()) / 60000)
+      ? minutosEntre(inicio, fin)
       : null
     : minutos === ""
       ? null
@@ -364,10 +417,7 @@ function FormCompletar({
             Inicio
             <Input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} className="h-9" />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            Fin
-            <Input type="datetime-local" value={fin} onChange={(e) => setFin(e.target.value)} className="h-9" />
-          </label>
+          <CampoFin etiqueta="Fin" inicio={inicio} fin={fin} onFin={setFin} />
         </div>
       ) : (
         <div className="flex flex-wrap items-end gap-2">
@@ -558,10 +608,7 @@ function FormNuevaParada({
             Inicio
             <Input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} className="h-9" />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            Fin (vacío = en curso)
-            <Input type="datetime-local" value={fin} onChange={(e) => setFin(e.target.value)} className="h-9" />
-          </label>
+          <CampoFin etiqueta="Fin (vacío = en curso)" inicio={inicio} fin={fin} onFin={setFin} />
         </div>
       )}
       <button
