@@ -3,14 +3,17 @@ import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Loader2 } from "lu
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CintaLinea, type EstadoLineaVista } from "@/components/CintaLinea"
+import type { ParadaActualLinea } from "@/components/lineas/tipos"
 import { cn } from "@/lib/utils"
 import type { OeePeriodo } from "@/lib/eficiencia"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { type TurnoTipoCodigo } from "@/lib/catalogos"
 import {
   agruparPorDia,
+  duracionMin,
   fmtDuracion,
   LINEAS_PARADAS,
+  MIN_PARADA_LARGA,
   minutosPorClaseSinSolape,
   NOMBRE_CLASE,
   nombreLineaParada,
@@ -73,6 +76,8 @@ export interface EstadoLineaEnVivo {
   lote: string | null
   /** Código de presentación de la corrida activa ("1000", "500"...) — para dibujar el envase correcto en la cinta. */
   presentacion?: string | null
+  /** Parada en curso de la línea (tipo, inicio ISO, comentario): va bajo la cinta. */
+  paradaActual?: ParadaActualLinea | null
 }
 
 /** Carga el OEE por línea (clave LINEA_1/2/3) del período y turno elegidos — ver cargarOeePeriodo (src/lib/eficienciaPeriodo.ts). */
@@ -261,11 +266,12 @@ export function PanelParadasVista({
         </div>
       ) : (
         <>
-        {/* ---- Hero: ranking + líneas (en vivo + sus números) ----
-             Ya no hay columna de KPIs globales: OEE, minutos no
-             programados y paradas registradas van DENTRO de cada línea. */}
-        <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-[300px_repeat(3,340px)] lg:justify-center">
-          <div className="flex flex-col gap-3">
+        {/* ---- Hero: líneas (en vivo + sus números) y, a la derecha, el ranking ----
+             Lo en vivo va primero (jefe, 2026-10-06). Ya no hay columna de KPIs
+             globales: OEE, minutos no programados y paradas registradas van
+             DENTRO de cada línea. */}
+        <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-[repeat(3,340px)_300px] lg:justify-center">
+          <div className="order-last flex flex-col gap-3">
             <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <div className="mb-1 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">Vista</h2>
@@ -288,6 +294,8 @@ export function PanelParadasVista({
             // Sin solape con las demás paradas de la línea (supervisor y Mantenimiento cargando la misma falla).
             const minutosNoProgramados = minutosPorClaseSinSolape(propias, ahora).NO_PROGRAMADA
             const enVivo = estadoLineas?.find((e) => e.lineaCodigo === l.codigo)
+            const paradaActual = enVivo?.estado === "PARADA" ? (enVivo.paradaActual ?? null) : null
+            const minutosParada = paradaActual ? duracionMin({ inicio: paradaActual.inicio, fin: null }, ahora) : null
             return (
               <div key={l.codigo} className="flex min-w-0 flex-col gap-3">
                 <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
@@ -313,12 +321,14 @@ export function PanelParadasVista({
                       saborNombre={enVivo.saborNombre}
                       lote={enVivo.lote}
                       presentacion={enVivo.presentacion}
+                      paradaLarga={minutosParada !== null && minutosParada >= MIN_PARADA_LARGA}
                     />
                   ) : (
                     <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
                       <Loader2 className="size-4 animate-spin" />
                     </div>
                   )}
+                  {paradaActual && minutosParada !== null && <FranjaParada parada={paradaActual} minutos={minutosParada} />}
                   <OeeLinea oee={oee === undefined ? "cargando" : (oee.get(l.codigo) ?? null)} />
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <DatoLinea etiqueta="Min. no programados" valor={minutosNoProgramados} tono="text-danger" />
@@ -343,6 +353,29 @@ export function PanelParadasVista({
           <AlertTriangle className="size-4 shrink-0" />
           {abiertas === 1 ? "Hay 1 parada en curso" : `Hay ${abiertas} paradas en curso`} en el rango filtrado.
         </div>
+      )}
+    </div>
+  )
+}
+
+/** Bajo la cinta: la parada en curso de la línea ("Tipo · 12 min") y su comentario, en poco espacio. */
+function FranjaParada({ parada, minutos }: { parada: ParadaActualLinea; minutos: number }) {
+  const larga = minutos >= MIN_PARADA_LARGA
+  return (
+    <div
+      className={cn(
+        "mt-2 rounded-lg border px-2.5 py-1.5 text-xs",
+        larga ? "border-danger/40 bg-danger/5" : "border-warning/40 bg-warning-soft/30",
+      )}
+    >
+      <p className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate font-semibold text-foreground">{parada.tipoNombre}</span>
+        <span className={cn("num shrink-0 font-bold", larga ? "text-danger" : "text-warning")}>{fmtDuracion(minutos)}</span>
+      </p>
+      {parada.nota && (
+        <p className="truncate text-muted-foreground" title={parada.nota}>
+          {parada.nota}
+        </p>
       )}
     </div>
   )

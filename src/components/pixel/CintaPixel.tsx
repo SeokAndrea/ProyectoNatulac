@@ -60,6 +60,7 @@ export function CintaPixel({
   separacion = 26,
   modo = "produccion",
   alertaMerma = false,
+  baliza = false,
   conEnvases = true,
   className,
 }: {
@@ -72,6 +73,8 @@ export function CintaPixel({
   separacion?: number
   modo?: ModoCinta
   alertaMerma?: boolean
+  /** Baliza roja girando (ej. parada de más de 15 min en el Panel de Paradas), en cualquier modo. */
+  baliza?: boolean
   conEnvases?: boolean
   className?: string
 }) {
@@ -102,7 +105,7 @@ export function CintaPixel({
     const cintaQuieta = pausada || modo === "reparacion"
     const paso = modo === "cip" ? VELOCIDADES.lenta : pasoPorCuadro
     // CIP y reparación tienen movimiento propio aunque la cinta no avance
-    const hayMovimiento = !sinMovimiento && (!cintaQuieta || modo !== "produccion" || alertaMerma)
+    const hayMovimiento = !sinMovimiento && (!cintaQuieta || modo !== "produccion" || alertaMerma || baliza)
 
     // Dibuja UN cuadro de la animación
     function dibujarCuadro() {
@@ -116,6 +119,8 @@ export function CintaPixel({
       if (modo === "reparacion") dibujarReparacion(ctx, cuadro, alto)
       if (alertaMerma && modo === "produccion") {
         dibujarTachoFrente(ctx, alto)
+        dibujarBaliza(ctx, cuadro)
+      } else if (baliza) {
         dibujarBaliza(ctx, cuadro)
       }
     }
@@ -133,7 +138,7 @@ export function CintaPixel({
 
     // Cuando el componente se quita de la pantalla, paramos la animación
     return () => cancelAnimationFrame(idAnimacion)
-  }, [presentacion, familia, sabor, velocidad, pausada, conPatas, separacion, alto, modo, alertaMerma, conEnvases])
+  }, [presentacion, familia, sabor, velocidad, pausada, conPatas, separacion, alto, modo, alertaMerma, baliza, conEnvases])
 
   return (
     <canvas

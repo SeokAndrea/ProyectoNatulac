@@ -340,6 +340,9 @@ export function desvioMin(p: Parada, ahora?: Date): number | null {
   return duracionMin(p, ahora) - p.tiempoGuiaMin
 }
 
+/** Desde cuántos minutos una parada en curso cambia la animación de la cinta (solo indicador, no es un aviso). */
+export const MIN_PARADA_LARGA = 15
+
 export function fmtDuracion(min: number): string {
   if (min < 1) return "< 1 min"
   if (min < 60) return `${min} min`

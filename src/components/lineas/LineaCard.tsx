@@ -16,6 +16,7 @@ import { aspectoLinea } from "./estadoLinea"
 import { FormArrancarLinea } from "./FormArrancarLinea"
 import { FormCipLinea } from "./FormCipLinea"
 import { FormDetenerLinea } from "./FormDetenerLinea"
+import { FormParadaConTipo } from "./FormParadaConTipo"
 import { FormParadaLinea } from "./FormParadaLinea"
 import { PanelCambioLote } from "./PanelCambioLote"
 import { PanelCipConLote } from "./PanelCipConLote"
@@ -24,7 +25,7 @@ import { PanelEsperandoPt } from "./PanelEsperandoPt"
 import { PanelLineaLibre } from "./PanelLineaLibre"
 import { PanelLoteTerminado } from "./PanelLoteTerminado"
 import { PanelPausada } from "./PanelPausada"
-import type { AccionesLinea } from "./tipos"
+import type { AccionesLinea, ParadaActualLinea } from "./tipos"
 
 /** Formulario/confirmación abierto en la tarjeta. Uno a la vez; al terminar bien (o Cancelar) se cierra. */
 type Panel = "arrancar" | "parada" | "detener" | "cipConCorrida" | "cipSinCorrida" | "cambioLote" | null
@@ -46,6 +47,7 @@ export function LineaCard({
   presentaciones,
   velocidades,
   paradaQueDetiene,
+  paradaActual = null,
   acciones,
 }: {
   lineaCodigo: LineaCodigo
@@ -62,6 +64,8 @@ export function LineaCard({
   velocidades: VelocidadLive[]
   /** Parada (+1) sin completar que tiene detenida a esta línea (la del CIP). */
   paradaQueDetiene: ParadaQueDetiene | null
+  /** Parada con tipo, en curso, que tiene en pausa a la línea (por ahora solo la demo /paradas-demo). */
+  paradaActual?: ParadaActualLinea | null
   acciones: AccionesLinea
 }) {
   const [panel, setPanel] = useState<Panel>(null)
@@ -106,7 +110,13 @@ export function LineaCard({
     }
 
     if (lineaTurno) {
-      if (panel === "parada") return <FormParadaLinea corridaId={lineaTurno.id} pausar={acciones.pausar} onCerrar={cerrar} />
+      if (panel === "parada") {
+        return acciones.parar ? (
+          <FormParadaConTipo corrida={lineaTurno} areaCodigo={areaCodigo} parar={acciones.parar} onCerrar={cerrar} />
+        ) : (
+          <FormParadaLinea corridaId={lineaTurno.id} pausar={acciones.pausar} onCerrar={cerrar} />
+        )
+      }
       if (panel === "detener") return <FormDetenerLinea corrida={lineaTurno} detener={acciones.detener} onCerrar={cerrar} />
       if (lineaTurno.loteTerminado != null) {
         return (
@@ -134,6 +144,7 @@ export function LineaCard({
           <PanelPausada
             corrida={lineaTurno}
             paradaQueDetiene={paradaQueDetiene}
+            paradaActual={paradaActual}
             continuar={acciones.continuar}
             onCip={() => setPanel("cipConCorrida")}
             onDetener={() => setPanel("detener")}

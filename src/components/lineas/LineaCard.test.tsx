@@ -7,6 +7,7 @@ import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { CondicionLinea, Corrida, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
+import type { ParadaActualLinea } from "@/components/lineas/tipos"
 
 /*
  * Tarjeta de una línea (página Líneas y revisión de Status): qué se ve en
@@ -25,6 +26,17 @@ vi.mock("@/components/LineaVisual", () => ({
 const ultimaConfiguracion = vi.fn()
 vi.mock("@/lib/lineas", () => ({
   obtenerUltimaConfiguracionLinea: (...args: unknown[]) => ultimaConfiguracion(...args),
+}))
+// Catálogo chico para la Parada con tipo: uno del supervisor y uno de Mantenimiento (no se ofrece).
+vi.mock("@/lib/paradasCatalogo", () => ({
+  useTiposActivos: () => [
+    { codigo: "CAMBIO_SABOR", nombre: "Cambio de Sabor", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 25, prefijoPlanilla: "PP", secuenciaPlanilla: null },
+    { codigo: "FALLA_GENERADOR_440V", nombre: "Falla en Generador 440V", clase: "NO_PROGRAMADA", familia: "SUMINISTRO", tiempoGuiaMin: null, prefijoPlanilla: "S", secuenciaPlanilla: 5 },
+  ],
+}))
+vi.mock("@/lib/paradasEquipos", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/paradasEquipos")>()),
+  useEquiposParadas: () => [],
 }))
 
 beforeAll(() => {
@@ -108,6 +120,7 @@ interface Escenario {
   corridaEsperandoPt?: Corrida | null
   lineaEstado?: LineaEstado | null
   paradaQueDetiene?: ParadaQueDetiene | null
+  paradaActual?: ParadaActualLinea | null
   tanquesListos?: TanqueRecepcion[]
 }
 
@@ -130,7 +143,7 @@ function crearAcciones() {
 type Acciones = ReturnType<typeof crearAcciones>
 
 /** Única parte que depende de cómo LineaCard recibe sus props. */
-function renderCard(e: Escenario = {}, acciones: Acciones = crearAcciones()) {
+function renderCard(e: Escenario = {}, acciones: Acciones | (Acciones & { parar: ReturnType<typeof vi.fn> }) = crearAcciones()) {
   render(
     <MemoryRouter>
       <LineaCard
@@ -145,6 +158,7 @@ function renderCard(e: Escenario = {}, acciones: Acciones = crearAcciones()) {
         presentaciones={PRESENTACIONES}
         velocidades={VELOCIDADES}
         paradaQueDetiene={e.paradaQueDetiene ?? null}
+        paradaActual={e.paradaActual ?? null}
         acciones={acciones}
       />
     </MemoryRouter>,
@@ -630,5 +644,47 @@ describe("LineaCard — arrancar línea", () => {
     await u.click(boton("Arrancar línea"))
     await u.click(boton("Cancelar"))
     boton("Sin programación")
+  })
+})
+
+describe("LineaCard — Parada con tipo del catálogo (demo /paradas-demo)", () => {
+  const conParar = () => ({ ...crearAcciones(), parar: vi.fn().mockResolvedValue(OK) })
+
+  it("pide tipo y comentario; manda los minutos de antes si los ponen", async () => {
+    const u = userEvent.setup()
+    const a = conParar()
+    renderCard({ lineaTurno: corrida() }, a)
+    await u.click(boton("Parada"))
+    expect(boton("Confirmar parada")).toBeDisabled()
+    await u.type(screen.getByPlaceholderText(/Busca por nombre/), "cambio")
+    await u.click(screen.getByRole("button", { name: /Cambio de Sabor/ }))
+    await u.type(screen.getByPlaceholderText(/Qué pasó/), "Cambio a Pera")
+    await u.type(screen.getByLabelText("Paró hace"), "5")
+    await u.click(boton("Confirmar parada"))
+    expect(a.parar).toHaveBeenCalledWith("c1", { tipoCodigo: "CAMBIO_SABOR", tipoNombre: "Cambio de Sabor", nota: "Cambio a Pera", minutosAntes: 5 })
+    expect(a.pausar).not.toHaveBeenCalled()
+  })
+
+  it("no ofrece los tipos que registra Mantenimiento", async () => {
+    const u = userEvent.setup()
+    renderCard({ lineaTurno: corrida() }, conParar())
+    await u.click(boton("Parada"))
+    await u.type(screen.getByPlaceholderText(/Busca por nombre/), "generador")
+    expect(screen.getByText("Ningún tipo del catálogo coincide.")).toBeInTheDocument()
+  })
+
+  it("en pausa muestra la parada en curso y Continuar manda los minutos corregidos", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({
+      lineaTurno: corrida({ pausadaEn: new Date(Date.now() - 20 * 60000).toISOString() }),
+      lineaEstado: estado("LISTA"),
+      paradaActual: { tipoNombre: "Cambio de Sabor", inicio: new Date(Date.now() - 20 * 60000).toISOString(), nota: "Cambio a Pera" },
+    })
+    expect(screen.getByText("Cambio de Sabor")).toBeInTheDocument()
+    expect(screen.getByText("Cambio a Pera")).toBeInTheDocument()
+    expect(screen.getByText(/hace 20 min/)).toBeInTheDocument()
+    await u.type(screen.getByRole("spinbutton"), "18")
+    await u.click(boton("Continuar"))
+    expect(a.continuar).toHaveBeenCalledWith("c1", 18)
   })
 })

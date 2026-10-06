@@ -41,6 +41,7 @@ export function CintaLinea({
   saborNombre,
   lote,
   presentacion = null,
+  paradaLarga = false,
 }: {
   numeroLinea: number
   estado: EstadoLineaVista
@@ -48,8 +49,11 @@ export function CintaLinea({
   lote: string | null
   /** Código de presentación de la corrida ("1000", "500"...). Si no llega, se dibuja el de 1 litro. */
   presentacion?: string | null
+  /** Parada en curso hace más de 15 min: baliza roja y rótulo en rojo (solo indicador, no es un aviso). */
+  paradaLarga?: boolean
 }) {
-  const meta = META[estado]
+  const larga = paradaLarga && estado === "PARADA"
+  const meta = larga ? { ...META.PARADA, etiqueta: "Parada +15 min", tono: "text-danger" } : META[estado]
   const Icon = meta.icono
   const conCajas = estado === "CORRIENDO" || estado === "PARADA"
   const color = colorSabor(saborNombre)
@@ -57,12 +61,12 @@ export function CintaLinea({
   const escenaPixel = estado === "CIP" || estado === "DETENIDA"
 
   return (
-    <div className="relative h-28 overflow-hidden rounded-xl border border-border bg-muted/30">
+    <div className={cn("relative h-28 overflow-hidden rounded-xl border bg-muted/30", larga ? "border-danger/60 bg-danger/5" : "border-border")}>
       <span className="absolute left-2 top-1.5 z-20 rounded-md border border-border bg-background/85 px-1.5 py-0.5 text-[10px] font-bold text-foreground">
         L{numeroLinea}
       </span>
       <span className={cn("absolute right-2 top-1.5 z-20 flex items-center gap-1.5 text-[10px] font-semibold", meta.tono)}>
-        <span className={cn("size-1.5 rounded-full bg-current", estado === "CORRIENDO" && "alert-pulse")} />
+        <span className={cn("size-1.5 rounded-full bg-current", (estado === "CORRIENDO" || larga) && "alert-pulse")} />
         {meta.etiqueta}
       </span>
 
@@ -91,12 +95,13 @@ export function CintaLinea({
             familia={jugoPixel.familia}
             sabor={jugoPixel.sabor}
             modo={estado === "PARADA" ? "reparacion" : "produccion"}
+            baliza={larga}
             conPatas={false}
             separacion={18}
           />
         </div>
       ) : conCajas ? (
-        <div className={cn("absolute inset-0", estado === "PARADA" && "opacity-25")}>
+        <div className={cn("absolute inset-0", estado === "PARADA" && "opacity-25", larga && "animate-pulse")}>
           {Array.from({ length: CANT_CAJAS }).map((_, i) => (
             <div
               key={i}
@@ -105,7 +110,12 @@ export function CintaLinea({
             />
           ))}
           {estado === "PARADA" && (
-            <span className="absolute bottom-1.5 right-1.5 z-20 grid size-5 place-items-center rounded-full border border-warning/40 bg-background/90 text-warning">
+            <span
+              className={cn(
+                "absolute bottom-1.5 right-1.5 z-20 grid size-5 place-items-center rounded-full border bg-background/90",
+                larga ? "border-danger/60 text-danger" : "border-warning/40 text-warning",
+              )}
+            >
               <PauseCircle className="size-3" aria-hidden="true" />
             </span>
           )}

@@ -20,6 +20,7 @@ import {
   Droplets,
   Users,
   ClipboardList,
+  Timer,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
@@ -319,6 +320,17 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     usuarioPermitido: "arondon",
     atajo: true,
+  },
+  {
+    slug: "paradas-demo",
+    title: "Paradas en vivo (demo)",
+    description: "Muestra de Parada con tipo desde Líneas y el Panel de Paradas en vivo. No guarda nada.",
+    href: "/paradas-demo",
+    icon: Timer,
+    requiereTurno: false,
+    permiso: "EDICION_DATOS",
+    color: "warning",
+    seccion: "base-datos",
   },
   {
     slug: "errores",

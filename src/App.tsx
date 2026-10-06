@@ -25,6 +25,7 @@ import Historial from "@/pages/apps/Historial"
 import ServiciosIndustriales from "@/pages/apps/ServiciosIndustriales"
 import RegistrosServiciosIndustriales from "@/pages/apps/RegistrosServiciosIndustriales"
 import ErroresCliente from "@/pages/apps/ErroresCliente"
+import ParadasDemo from "@/pages/apps/ParadasDemo"
 import PreparacionPLC from "@/pages/apps/PreparacionPLC"
 import Calidad from "@/pages/apps/Calidad"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
@@ -253,6 +254,14 @@ export default function App() {
           element={
             <ProtectedRoute app="preparacion-plc">
               <PreparacionPLC />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/paradas-demo"
+          element={
+            <ProtectedRoute app="paradas-demo">
+              <ParadasDemo />
             </ProtectedRoute>
           }
         />
