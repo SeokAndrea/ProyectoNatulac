@@ -192,3 +192,24 @@ export function mensajeResumenDia(fecha: string, items: ItemDia[]): string {
     `Total: ${miles(total)} cajas`,
   ].join("\n")
 }
+
+/**
+ * Pasar las cajas de una fila a otra presentación (ej. se cargó como 250 y
+ * era 200): la fila de origen queda en 0 y el destino suma esas cajas a lo
+ * que ya tenía. Solo el número oficial del día; los datos del turno no se
+ * tocan. Devuelve las dos validaciones a guardar, en orden.
+ */
+export function pasosCambioPresentacion(
+  items: ItemDia[],
+  item: ItemDia,
+  volumenDestino: number,
+  cajas: number,
+  nota: string,
+): { volumenMl: number; cajas: number; nota: string }[] {
+  const destino = items.find((i) => i.saborNombre === item.saborNombre && i.volumenMl === volumenDestino)
+  const extra = nota.trim() ? ` ${nota.trim()}` : ""
+  return [
+    { volumenMl: item.volumenMl, cajas: 0, nota: `Pasó a ${volumenDestino} ml.${extra}` },
+    { volumenMl: volumenDestino, cajas: (destino?.cajasOficiales ?? 0) + cajas, nota: `Incluye ${cajas} cajas de ${item.volumenMl} ml.${extra}` },
+  ]
+}

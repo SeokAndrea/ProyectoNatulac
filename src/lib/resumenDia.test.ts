@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { itemsDelDia, mensajeResumenDia, nombrePresentacion, totalPorLinea, type FilaResumenDia, type ValidacionDia } from "@/lib/resumenDia"
+import { itemsDelDia, mensajeResumenDia, nombrePresentacion, pasosCambioPresentacion, totalPorLinea, type FilaResumenDia, type ValidacionDia } from "@/lib/resumenDia"
 
 const filas: FilaResumenDia[] = [
   { saborNombre: "Pera", volumenMl: 250, lineaCodigo: "LINEA_2", lineaNombre: "Línea 2", cajas: 1200 },
@@ -75,5 +75,22 @@ describe("validar el día", () => {
   it("una corrección sin producción del supervisor igual aparece", () => {
     const items = itemsDelDia(filas, [{ saborNombre: "Mango", volumenMl: 200, estado: "EDITADO", cajas: 50, nota: null, validadoPorNombre: null }])
     expect(items.find((i) => i.saborNombre === "Mango")).toMatchObject({ cajasSupervisor: 0, cajasOficiales: 50 })
+  })
+})
+
+describe("cambiar la presentación de una fila", () => {
+  it("250 → 200 sin fila de 200: deja 250 en 0 y crea 200 con esas cajas", () => {
+    const items = itemsDelDia(filas)
+    const pera250 = items.find((i) => i.saborNombre === "Pera" && i.volumenMl === 250)!
+    expect(pasosCambioPresentacion(items, pera250, 200, 2401, "")).toEqual([
+      { volumenMl: 250, cajas: 0, nota: "Pasó a 200 ml." },
+      { volumenMl: 200, cajas: 2401, nota: "Incluye 2401 cajas de 250 ml." },
+    ])
+  })
+  it("si el destino ya tenía cajas, las suma y agrega la nota", () => {
+    const items = itemsDelDia(filas)
+    const pera250 = items.find((i) => i.saborNombre === "Pera" && i.volumenMl === 250)!
+    const pasos = pasosCambioPresentacion(items, pera250, 330, 100, "Se activó mal")
+    expect(pasos[1]).toEqual({ volumenMl: 330, cajas: 4903, nota: "Incluye 100 cajas de 250 ml. Se activó mal" })
   })
 })

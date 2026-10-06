@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, CheckCircle2, Copy, Loader2, PenLine } from "lucide-react"
+import { Check, Copy, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
+import { ItemValidar } from "@/components/resumen-dia/ItemValidar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,11 +14,10 @@ import {
   cargarResumenDia,
   itemsDelDia,
   mensajeResumenDia,
-  nombrePresentacion,
+  pasosCambioPresentacion,
   totalPorLinea,
   validarDia,
   type FilaResumenDia,
-  type ItemDia,
   type ValidacionDia,
 } from "@/lib/resumenDia"
 
@@ -35,7 +35,7 @@ const miles = (n: number) => n.toLocaleString("es-CO")
 
 export default function ResumenDia() {
   const { session } = useAuth()
-  const { lineas } = useCatalogosLive()
+  const { lineas, presentaciones } = useCatalogosLive()
   // Jornada operativa en curso (7:00 a 7:00): de madrugada, todavía es la del día anterior.
   const hoy = franjaDeHora().fecha
   const [fecha, setFecha] = useState(() => restarDias(hoy, 1))
@@ -72,6 +72,9 @@ export default function ResumenDia() {
   const totalOficial = items.reduce((a, i) => a + i.cajasOficiales, 0)
   const validadas = items.filter((i) => i.estado !== "PENDIENTE").length
   const mensaje = datos ? mensajeResumenDia(fecha, items) : ""
+  const volumenes = presentaciones.filter((p) => p.activo).map((p) => p.volumenMl)
+  const validar = (saborNombre: string, volumenMl: number, cajas: number | null, nota: string) =>
+    validarDia(session?.username ?? "", AREA, fecha, saborNombre, volumenMl, cajas, nota)
 
   async function copiar() {
     try {
@@ -129,7 +132,16 @@ export default function ResumenDia() {
                       <ItemValidar
                         key={`${i.saborNombre}|${i.volumenMl}`}
                         item={i}
-                        guardar={(cajas, nota) => validarDia(session?.username ?? "", AREA, fecha, i.saborNombre, i.volumenMl, cajas, nota)}
+                        volumenes={volumenes}
+                        guardar={(cajas, nota) => validar(i.saborNombre, i.volumenMl, cajas, nota)}
+                        moverA={async (volumenMl, cajas, nota) => {
+                          // Se cargó en una presentación y era otra: esta fila queda en 0 y el destino suma las cajas.
+                          for (const paso of pasosCambioPresentacion(items, i, volumenMl, cajas, nota)) {
+                            const r = await validar(i.saborNombre, paso.volumenMl, paso.cajas, paso.nota)
+                            if (!r.ok) return r
+                          }
+                          return { ok: true }
+                        }}
                         onCambio={() => setVersion((v) => v + 1)}
                       />
                     ))}
@@ -173,116 +185,5 @@ export default function ResumenDia() {
         )}
       </div>
     </AppShell>
-  )
-}
-
-/** Un sabor + presentación del día: sus cajas, el estado y Confirmar / Corregir el total. */
-function ItemValidar({
-  item: i,
-  guardar,
-  onCambio,
-}: {
-  item: ItemDia
-  guardar: (cajas: number | null, nota: string) => Promise<{ ok: true } | { ok: false; error: string }>
-  onCambio: () => void
-}) {
-  const [editando, setEditando] = useState(false)
-  const [cajas, setCajas] = useState(String(i.cajasOficiales))
-  const [nota, setNota] = useState(i.nota ?? "")
-  const [enviando, setEnviando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const nCajas = Number(cajas)
-  const valido = cajas !== "" && Number.isInteger(nCajas) && nCajas >= 0
-
-  async function ejecutar(cajasNuevas: number | null, notaNueva: string) {
-    setEnviando(true)
-    setError(null)
-    const r = await guardar(cajasNuevas, notaNueva)
-    setEnviando(false)
-    if (!r.ok) {
-      setError(r.error)
-      return
-    }
-    setEditando(false)
-    onCambio()
-  }
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{i.saborNombre}</p>
-          <p className="text-xs text-muted-foreground">{nombrePresentacion(i.volumenMl)}</p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="num text-base font-bold text-foreground">{miles(i.cajasOficiales)} cajas</span>
-          {i.estado === "CONFIRMADO" ? (
-            <Badge>Confirmado</Badge>
-          ) : i.estado === "EDITADO" ? (
-            <Badge variant="secondary">Corregido</Badge>
-          ) : (
-            <Badge variant="outline">Pendiente</Badge>
-          )}
-        </div>
-      </div>
-
-      {i.estado === "EDITADO" && (
-        <p className="text-xs text-muted-foreground">
-          Supervisor: <span className="num">{miles(i.cajasSupervisor)}</span> cajas
-        </p>
-      )}
-      {i.estado !== "PENDIENTE" && i.validadoPorNombre && (
-        <p className="text-xs text-muted-foreground">
-          {i.estado === "EDITADO" ? "Corrigió" : "Confirmó"} {i.validadoPorNombre}
-          {i.nota ? ` — ${i.nota}` : ""}
-        </p>
-      )}
-
-      {editando ? (
-        <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Total de cajas</span>
-            <Input type="number" inputMode="numeric" min={0} value={cajas} onChange={(e) => setCajas(e.target.value)} className="h-8 w-32" />
-          </label>
-          <Input placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} className="h-8" />
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={!valido || enviando} onClick={() => ejecutar(nCajas, nota)}>
-              {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-              Guardar corrección
-            </Button>
-            <Button size="sm" variant="ghost" disabled={enviando} onClick={() => setEditando(false)}>
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {i.estado !== "CONFIRMADO" && (
-            <Button size="sm" variant="outline" disabled={enviando} onClick={() => ejecutar(null, "")}>
-              {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-              {i.estado === "EDITADO" ? "Volver a lo del supervisor" : "Confirmar"}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={enviando}
-            onClick={() => {
-              setCajas(String(i.cajasOficiales))
-              setNota(i.nota ?? "")
-              setEditando(true)
-            }}
-          >
-            <PenLine className="size-3.5" />
-            Corregir
-          </Button>
-        </div>
-      )}
-      {error && (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
   )
 }
