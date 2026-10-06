@@ -100,14 +100,11 @@ export function mermaSemielaboradoTurno(
     desvases,
   )
 
-  const pctCrudo = pctRendimiento(consumo, producido)
-
   return {
-    // Nunca por debajo de 0 (rendimiento > 100 %). Con el guardrail de
-    // calcularConsumoYProducido, un negativo residual solo puede venir de
-    // ruido de medición sub-margen: se muestra como 0 (sin pérdida
-    // medible), no como un número imposible.
-    pct: pctCrudo !== null && pctCrudo < 0 ? 0 : pctCrudo,
+    // Puede salir negativa (rendimiento > 100 %): se muestra tal cual (dueña,
+    // 2026-10-06). Los lotes con PT muy por encima de lo preparado ya quedan
+    // fuera por el guardrail de calcularConsumoYProducido (MARGEN_REDONDEO).
+    pct: pctRendimiento(consumo, producido),
     consumo,
     litrosProducidos: producido,
     litrosConsumidos: consumo,

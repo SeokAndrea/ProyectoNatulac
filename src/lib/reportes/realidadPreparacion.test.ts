@@ -174,9 +174,9 @@ describe("calcularConsumoYProducido — preparar encima / transferir", () => {
 })
 
 describe("mermaSemielaboradoTurno — nunca por encima de 100 %", () => {
-  it("un negativo residual sub-margen se muestra como 0 (rendimiento 100 %)", () => {
+  it("PT sobre el tramo dentro del margen: merma negativa (rendimiento > 100 %), tal cual", () => {
     // tramo 16240, PT 16620: dentro del margen de redondeo (no queda
-    // fuera), pero 1 − 16620/16240 < 0. Debe salir 0, no negativo.
+    // fuera); 1 − 16620/16240 = −2,34 % → rendimiento 102,34 %.
     const semi = mermaSemielaboradoTurno(
       TURNO,
       [lote({ volumenAlIniciarTurnoL: 16240, volumenPreparadoL: 16240, volumenActualL: 0 })],
@@ -185,7 +185,7 @@ describe("mermaSemielaboradoTurno — nunca por encima de 100 %", () => {
       SIN_CONTADORES,
       [],
     )
-    expect(semi.pct).toBe(0)
+    expect(semi.pct).toBe(-2.34)
   })
 
   it("merma positiva pasa sin cambios", () => {
