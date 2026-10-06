@@ -7,7 +7,7 @@ import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { CondicionLinea, Corrida, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
-import type { ParadaActualLinea } from "@/components/lineas/tipos"
+import type { AccionesLinea, ParadaActualLinea } from "@/components/lineas/tipos"
 
 /*
  * Tarjeta de una línea (página Líneas y revisión de Status): qué se ve en
@@ -143,7 +143,7 @@ function crearAcciones() {
 type Acciones = ReturnType<typeof crearAcciones>
 
 /** Única parte que depende de cómo LineaCard recibe sus props. */
-function renderCard(e: Escenario = {}, acciones: Acciones | (Acciones & { parar: ReturnType<typeof vi.fn> }) = crearAcciones()) {
+function renderCard<A extends Acciones>(e: Escenario = {}, acciones: A = crearAcciones() as A): A {
   render(
     <MemoryRouter>
       <LineaCard
@@ -648,7 +648,7 @@ describe("LineaCard — arrancar línea", () => {
 })
 
 describe("LineaCard — Parada con tipo del catálogo (demo /paradas-demo)", () => {
-  const conParar = () => ({ ...crearAcciones(), parar: vi.fn().mockResolvedValue(OK) })
+  const conParar = () => ({ ...crearAcciones(), parar: vi.fn<NonNullable<AccionesLinea["parar"]>>().mockResolvedValue(OK) })
 
   it("pide tipo y comentario; manda los minutos de antes si los ponen", async () => {
     const u = userEvent.setup()
