@@ -259,7 +259,7 @@ export async function generarActaPdf(params: {
       celda(x + 1.5 * C, y, C, 4.5, "Lote", { fondo: AZUL, negrita: true })
       celda(x + 2.5 * C, y, 0.5 * C, 4.5, conProducto ? (t.lote ?? "") : "", { negrita: true, tamano: 7 })
       celda(x, y + 4.5, C, 4.5, "Cantidad", { fondo: CELESTE, negrita: true })
-      celda(x + C, y + 4.5, 2 * C, 4.5, "Sabor", { fondo: CELESTE, negrita: true })
+      celda(x + C, y + 4.5, 2 * C, 4.5, "Sabor / Status", { fondo: CELESTE, negrita: true })
       const sabor = t === null ? "Sin registrar" : conProducto ? `${t.saborNombre ?? "Sin sabor"}${t.condicion === "STANDBY" ? " (con restos)" : ""}` : NOMBRE_CONDICION[t.condicion]
       celda(x, y + 9, C, 6, conProducto ? miles(t.volumenL ?? 0) : "0", { negrita: true, tamano: 8 })
       celda(x + C, y + 9, 2 * C, 6, sabor, { negrita: conProducto, tamano: 8 })
@@ -271,12 +271,12 @@ export async function generarActaPdf(params: {
   // ---------------------------------------------------------------- 1.7 semielaborado
   barra("1.7 SEGUIMIENTO DEL SEMIELABORADO")
   {
-    // Sabor 1 · Merma 0.5 · Vol. inicial 1 · Vol. preparado 1.5 · Comparativo por línea 3 · Vol. final 1.5 · % Rend. 0.5 (= 9)
+    // Sabor y tanque 1 · Merma 0.5 · Vol. inicial 1 · Vol. preparado 1.5 · Comparativo por línea 3 · Vol. final 1.5 · % Rend. 0.5 (= 9)
     const anchos = [C, 0.5 * C, C, 1.5 * C, ...lineas.map(() => (3 * C) / lineas.length), 1.5 * C, 0.5 * C]
     const xs = anchos.reduce<number[]>((acc, _w, i) => [...acc, i === 0 ? M : acc[i - 1] + anchos[i - 1]], [])
     const h1 = 4.2
     const enc = { fondo: CELESTE, negrita: true, tamano: 7 } as const
-    celda(xs[0], y, anchos[0], 2 * h1, "Sabor", enc)
+    celda(xs[0], y, anchos[0], 2 * h1, "Sabor\nTanque", enc)
     celda(xs[1], y, anchos[1], 2 * h1, "Merma\nSemielab.", { ...enc, tamano: 4.5 })
     celda(xs[2], y, anchos[2], 2 * h1, "Volumen Inicial\n(Visor)", { ...enc, tamano: 6.5 })
     celda(xs[3], y, anchos[3], 2 * h1, "Volumen Preparado", enc)
@@ -300,7 +300,7 @@ export async function generarActaPdf(params: {
       const envasado = ptPorLinea.reduce((a, b) => a + b, 0)
       const rendimiento = consumo > 0 ? Math.round((envasado / consumo) * 1000) / 10 : null
       return [
-        `${lote.saborNombre ?? "Sin sabor"}\nLote ${lote.lote ?? "—"}`,
+        `${lote.saborNombre ?? "Sin sabor"}\nLote ${lote.lote ?? "—"} · Tanque ${lote.numeroTanque}`,
         consumo > 0 ? miles(consumo - envasado) : "--",
         miles(inicio),
         miles(lote.volumenPreparadoL ?? 0),
