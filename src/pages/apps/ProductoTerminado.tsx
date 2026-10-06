@@ -39,9 +39,10 @@ export default function ProductoTerminado() {
   /*
    * Ventana de gracia (30 min, ver TurnoGraciaPT en sesionTurno.tsx):
    * si el turno propio ya cerró pero sigue dentro de la gracia, esta
-   * página se usa igual — pero SOLO para Producto Terminado (soloPT
-   * más abajo apaga Contador y Terminar/Entregar línea en
-   * FilaProductoTerminado). Evita que un supervisor ansioso que
+   * página se usa igual — para Contador y Producto Terminado (soloPT
+   * más abajo apaga Terminar/Entregar línea en FilaProductoTerminado; el
+   * contador se deja para que la merma y el acta salgan bien, dueña
+   * 2026-10-06). Evita que un supervisor ansioso que
    * finalizó el turno le tape a otro la carga de su PT. Modo corrección
    * (superadmin, ?turnoId=) tiene la misma restricción soloPT — el
    * guard nuevo en el servidor solo cubre registrar_producto_terminado,
@@ -202,15 +203,15 @@ export default function ProductoTerminado() {
         {enGraciaPT && (
           <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
             <AlertTriangle className="size-4 shrink-0" />
-            Este turno ya se cerró — quedan unos minutos para terminar de cargar el Producto Terminado (Paletas / Cajas
-            sueltas). Contador y Terminar/Entregar línea ya no se pueden tocar acá.
+            Este turno ya se cerró: quedan unos minutos para terminar de cargar contadores y Producto Terminado. Terminar o
+            entregar la línea ya no se puede. Si el acta ya salió, se regenera desde Auditoría.
           </p>
         )}
         {enModoCorreccion && (
           <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
             <AlertTriangle className="size-4 shrink-0" />
-            En modo corrección solo se puede cargar Producto Terminado acá — Contador y Terminar/Entregar línea no
-            están disponibles para un turno ya cerrado.
+            En modo corrección se cargan contadores y Producto Terminado. Terminar o entregar la línea no está disponible
+            para un turno ya cerrado.
           </p>
         )}
         {pendientes.length === 0 && cerradas.length > 0 && (

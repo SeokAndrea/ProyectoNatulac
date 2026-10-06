@@ -30,7 +30,6 @@ export function FormCargaPT({
   contadorActual,
   contadorBuenosActual,
   registro,
-  soloPT,
   modoCorreccion,
   puedeElegirProximoEstado,
   acciones,
@@ -45,8 +44,6 @@ export function FormCargaPT({
   /** Suma de Contador 2 (envases buenos) de esta corrida. */
   contadorBuenosActual: number
   registro: ProductoTerminadoRegistro | null
-  /** Turno cerrado (gracia o corrección): solo Paletas/Cajas sueltas — sin Contador ni Terminar/Entregar línea. */
-  soloPT: boolean
   /** Corrigiendo una corrida ya cerrada ("Editar un error"). */
   modoCorreccion: boolean
   /** Sigue corriendo y todavía no se decidió su próximo estado. */
@@ -72,7 +69,7 @@ export function FormCargaPT({
   const nCajasSueltas = Number(cajasSueltas) || 0
   const nuevoContador = envasesLlenadora === "" ? 0 : Number(envasesLlenadora)
   const nuevoContadorBuenos = envasesBuenos === "" ? null : Number(envasesBuenos)
-  const hayContadorNuevo = !soloPT && envasesLlenadora !== "" && nuevoContador > 0
+  const hayContadorNuevo = envasesLlenadora !== "" && nuevoContador > 0
   const hayProducto = (paletas !== "" || cajasSueltas !== "") && nPaletas >= 0 && nCajasSueltas >= 0
   /** El Contador 2 (envases buenos) es OBLIGATORIO junto con el contador de la llenadora, y no puede superarlo. */
   const buenosValido =
@@ -143,42 +140,36 @@ export function FormCargaPT({
       />
       <CardContent className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
-          {soloPT ? (
-            <CampoSabor sabor={corrida.saborNombre} />
-          ) : (
-            <>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor={`contador-${corrida.id}`}>Envases llenadora (Contador)</Label>
-                <Input
-                  id={`contador-${corrida.id}`}
-                  type="number"
-                  min={0}
-                  placeholder="Sumar al contador"
-                  value={envasesLlenadora}
-                  onChange={(e) => setEnvasesLlenadora(e.target.value)}
-                />
-                <Label htmlFor={`contador-buenos-${corrida.id}`}>Envases buenos (Contador 2)</Label>
-                <Input
-                  id={`contador-buenos-${corrida.id}`}
-                  type="number"
-                  min={0}
-                  placeholder="Envases buenos"
-                  value={envasesBuenos}
-                  onChange={(e) => setEnvasesBuenos(e.target.value)}
-                  aria-invalid={hayContadorNuevo && !buenosValido}
-                />
-                {previa.textoBuenos && <p className="text-xs text-muted-foreground">{previa.textoBuenos}</p>}
-                {hayContadorNuevo && !buenosValido && (
-                  <p className="text-xs text-destructive" role="alert">
-                    {envasesBuenos === ""
-                      ? "El Contador 2 (envases buenos) es obligatorio junto con el contador de la llenadora."
-                      : "Los envases buenos no pueden superar el total de la llenadora."}
-                  </p>
-                )}
-              </div>
-              <CampoSabor sabor={corrida.saborNombre} />
-            </>
-          )}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={`contador-${corrida.id}`}>Envases llenadora (Contador)</Label>
+            <Input
+              id={`contador-${corrida.id}`}
+              type="number"
+              min={0}
+              placeholder="Sumar al contador"
+              value={envasesLlenadora}
+              onChange={(e) => setEnvasesLlenadora(e.target.value)}
+            />
+            <Label htmlFor={`contador-buenos-${corrida.id}`}>Envases buenos (Contador 2)</Label>
+            <Input
+              id={`contador-buenos-${corrida.id}`}
+              type="number"
+              min={0}
+              placeholder="Envases buenos"
+              value={envasesBuenos}
+              onChange={(e) => setEnvasesBuenos(e.target.value)}
+              aria-invalid={hayContadorNuevo && !buenosValido}
+            />
+            {previa.textoBuenos && <p className="text-xs text-muted-foreground">{previa.textoBuenos}</p>}
+            {hayContadorNuevo && !buenosValido && (
+              <p className="text-xs text-destructive" role="alert">
+                {envasesBuenos === ""
+                  ? "El Contador 2 (envases buenos) es obligatorio junto con el contador de la llenadora."
+                  : "Los envases buenos no pueden superar el total de la llenadora."}
+              </p>
+            )}
+          </div>
+          <CampoSabor sabor={corrida.saborNombre} />
           <div className="flex flex-col gap-2">
             <Label htmlFor={`paletas-${corrida.id}`}>Paletas</Label>
             <Input id={`paletas-${corrida.id}`} type="number" min={0} placeholder="Paletas" value={paletas} onChange={(e) => setPaletas(e.target.value)} />

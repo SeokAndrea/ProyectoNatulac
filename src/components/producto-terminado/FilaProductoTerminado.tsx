@@ -39,7 +39,7 @@ export function FilaProductoTerminado({
   preparaciones: PreparacionRegistro[]
   registro: ProductoTerminadoRegistro | null
   acciones: AccionesPT
-  /** Turno cerrado, dentro de la ventana de gracia (ver TurnoGraciaPT en sesionTurno.tsx) o en corrección: solo Paletas/Cajas sueltas. */
+  /** Turno cerrado, dentro de la ventana de gracia (ver TurnoGraciaPT en sesionTurno.tsx) o en corrección: contador y PT, sin Terminar/Entregar línea. */
   soloPT?: boolean
 }) {
   const [editandoError, setEditandoError] = useState(false)
@@ -91,7 +91,6 @@ export function FilaProductoTerminado({
       contadorActual={contadorActual}
       contadorBuenosActual={contadorBuenosActual}
       registro={registro}
-      soloPT={soloPT}
       modoCorreccion={estaCerrada && editandoError}
       puedeElegirProximoEstado={!soloPT && corrida.activa && corrida.entregadaEn === null}
       acciones={acciones}

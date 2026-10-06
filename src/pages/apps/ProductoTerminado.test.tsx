@@ -471,7 +471,7 @@ describe("Producto Terminado — otros estados de la corrida", () => {
 })
 
 describe("Producto Terminado — turno ya cerrado", () => {
-  it("en la gracia de 30 min: solo PT, sin contador ni cerrar", async () => {
+  it("en la gracia de 30 min: contador y PT, sin cerrar la línea", async () => {
     const u = userEvent.setup()
     sesion.turnoId = null
     sesion.turnoGraciaPT = { turnoId: "t-0", codigo: "T1-0510" }
@@ -480,7 +480,7 @@ describe("Producto Terminado — turno ya cerrado", () => {
     expect(screen.getByTestId("descripcion")).toHaveTextContent("Turno T1-0510 — ya cerrado")
     expect(screen.getByText(/Este turno ya se cerró/)).toBeInTheDocument()
     const t = tarjeta("Línea 1")
-    expect(t.queryByPlaceholderText("Sumar al contador")).not.toBeInTheDocument()
+    expect(t.getByPlaceholderText("Sumar al contador")).toBeInTheDocument()
     expect(t.queryByText("¿Qué pasa con esta línea?")).not.toBeInTheDocument()
     await escribir(u, t, "Paletas", "11")
     await u.click(t.getByRole("button", { name: "Registrar" }))
@@ -500,13 +500,13 @@ describe("Producto Terminado — turno ya cerrado", () => {
     expect(pedidoCon.produccion.at(-1)).toBe("t-1")
   })
 
-  it("modo corrección: banner y solo PT", () => {
+  it("modo corrección: banner, contador y PT", () => {
     Object.assign(correccion, { turnoIdEfectivo: "t-9", enModoCorreccion: true, turnoCorregido: { codigo: "T3-0410" } })
     renderPagina()
     expect(pedidoCon.produccion.at(-1)).toBe("t-9")
     expect(screen.getByTestId("banner-correccion")).toHaveTextContent("T3-0410")
     expect(screen.getByTestId("descripcion")).toHaveTextContent("Turno T3-0410 (corrección)")
-    expect(screen.getByText(/En modo corrección solo se puede cargar Producto Terminado/)).toBeInTheDocument()
-    expect(tarjeta("Línea 1").queryByPlaceholderText("Sumar al contador")).not.toBeInTheDocument()
+    expect(screen.getByText(/En modo corrección se cargan contadores y Producto Terminado/)).toBeInTheDocument()
+    expect(tarjeta("Línea 1").getByPlaceholderText("Sumar al contador")).toBeInTheDocument()
   })
 })
