@@ -427,14 +427,12 @@ describe("Producto Terminado — otros estados de la corrida", () => {
     expect(screen.queryByText(/Medir Tanque/)).not.toBeInTheDocument()
   })
 
-  it("parada: no deja cargar hasta reanudar, salvo «Editar un error»", async () => {
-    const u = userEvent.setup()
+  it("parada: avisa pero deja cargar el PT y entregarla (corte de turno sin reanudar)", () => {
     renderPagina()
+    expect(screen.getByText(/Línea 2 está parada \(o en CIP\) desde las/)).toBeInTheDocument()
     const t = tarjeta("Línea 2")
-    expect(t.getByText(/La línea está parada/)).toBeInTheDocument()
-    expect(t.queryByPlaceholderText("Paletas")).not.toBeInTheDocument()
-    await u.click(t.getByRole("button", { name: "Editar un error" }))
-    expect(tarjeta("Línea 2").getByPlaceholderText("Paletas")).toBeInTheDocument()
+    expect(t.getByPlaceholderText("Paletas")).toBeInTheDocument()
+    expect(t.getByRole("button", { name: /Entregar línea/ })).toBeInTheDocument()
   })
 
   it("cerrada (entregada): solo lectura; «Editar un error» corrige y Cancelar vuelve", async () => {

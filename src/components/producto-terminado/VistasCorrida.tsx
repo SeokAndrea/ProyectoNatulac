@@ -7,48 +7,6 @@ import type { Corrida } from "@/lib/produccion/tipos"
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import { CabeceraFila } from "./CabeceraFila"
 
-/** Línea parada: no se carga producto terminado hasta reanudarla (desde Líneas). */
-export function VistaCorridaPausada({
-  corrida,
-  nombreLinea,
-  presentacionNombre,
-  registro,
-  onEditar,
-}: {
-  corrida: Corrida
-  nombreLinea: string
-  presentacionNombre: string
-  registro: ProductoTerminadoRegistro | null
-  onEditar: () => void
-}) {
-  return (
-    <Card>
-      <CabeceraFila nombreLinea={nombreLinea} lote={corrida.lote} derecha={<Badge variant="warning">Parada</Badge>} descripcion={presentacionNombre} />
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">La línea está parada. Reanúdala en Líneas para poder cargar su producto terminado.</p>
-        {registro && (
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground">Paletas · Cajas sueltas</p>
-              <p className="font-medium text-foreground">
-                {registro.paletas} · {registro.cajasSueltas}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Litros producidos</p>
-              <p className="font-medium text-foreground">{(registro.litrosProducidos ?? 0).toLocaleString("es-CO")} L</p>
-            </div>
-          </div>
-        )}
-        <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={onEditar}>
-          <PenLine className="size-3.5" />
-          Editar un error
-        </Button>
-      </CardContent>
-    </Card>
-  )
-}
-
 /** Ya cerrada (Terminó Corrida o Entregada): solo lectura. Sin PT todavía (ej. entregada sola en el cambio de turno) se ofrece cargarlo; con PT, corregirlo. */
 export function VistaCorridaCerrada({
   corrida,
