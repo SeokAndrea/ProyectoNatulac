@@ -300,7 +300,7 @@ export async function generarActaPdf(params: {
       const envasado = ptPorLinea.reduce((a, b) => a + b, 0)
       const rendimiento = consumo > 0 ? Math.round((envasado / consumo) * 1000) / 10 : null
       return [
-        `${lote.saborNombre ?? "Sin sabor"}\nLote ${lote.lote ?? "—"} · Tanque ${lote.numeroTanque}`,
+        `${lote.saborNombre ?? "Sin sabor"}\nLote ${lote.lote ?? "—"} · TQ${lote.numeroTanque}`,
         consumo > 0 ? miles(consumo - envasado) : "--",
         miles(inicio),
         miles(lote.volumenPreparadoL ?? 0),
