@@ -26,6 +26,12 @@ describe("duracionBaseTurnoMin", () => {
     expect(duracionBaseTurnoMin("12X12")).toBe(720)
     expect(duracionBaseTurnoMin("OTRO")).toBeNull()
   })
+  it("12x12: el T2 se parte a las 19:00 → día 4 h, noche 3,5 h; T1 y T3 igual", () => {
+    expect(duracionBaseTurnoMin("TURNO_2", { esquema: "12x12", horaInicio: "15:00:05" })).toBe(240)
+    expect(duracionBaseTurnoMin("TURNO_2", { esquema: "12x12", horaInicio: "19:01:00" })).toBe(210)
+    expect(duracionBaseTurnoMin("TURNO_2", { esquema: "3x8", horaInicio: "15:00:00" })).toBe(450)
+    expect(duracionBaseTurnoMin("TURNO_1", { esquema: "12x12", horaInicio: "07:00:00" })).toBe(480)
+  })
 })
 
 describe("calcularEficiencia — ejemplo del plan", () => {

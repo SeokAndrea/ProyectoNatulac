@@ -8,7 +8,7 @@ import {
   obtenerLecturaServiciosIndustriales,
   obtenerProduccionDia,
   obtenerTurnoAnterior,
-  obtenerTurnoDeFechaTipo,
+  obtenerTurnosDeFechaTipo,
   type ProduccionDiaItem,
 } from "@/lib/panelProduccion"
 import { listarParadas, type Parada } from "@/lib/paradas"
@@ -38,6 +38,8 @@ const REFRESCO_EN_VIVO_MS = 30 * 60 * 1000
 export function usePanelTurno() {
   const { session } = useAuth()
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
+  /** Turnos de la fecha y tipo elegidos. En 12x12 el T2 se parte a las 19:00 y vienen dos (se elige con ElegirTramoTurno). */
+  const [tramos, setTramos] = useState<TurnoActivo[]>([])
   const [cargando, setCargando] = useState(true)
   const [enVivo, setEnVivo] = useState(true)
   // Día de turno, no calendario: a las 2:00 el turno 3 en curso es el de la fecha anterior.
@@ -217,6 +219,7 @@ export function usePanelTurno() {
   async function cargarEnVivo(silencioso = false) {
     if (!silencioso) setCargando(true)
     const t = await obtenerEstadoPlantaActual(areaEfectiva)
+    setTramos([])
     if (t) {
       setTurno(t)
       setFecha(t.fecha)
@@ -234,7 +237,9 @@ export function usePanelTurno() {
   async function buscarFechaTipo(f: string, tt: string) {
     setCargando(true)
     setEnVivo(false)
-    const t = await obtenerTurnoDeFechaTipo(f, tt, areaEfectiva)
+    const lista = await obtenerTurnosDeFechaTipo(f, tt, areaEfectiva)
+    const t = lista.at(-1) ?? null
+    setTramos(lista)
     setTurno(t)
     await cargarTurnoAnterior(t?.id ?? null)
     setBuscado(true)
@@ -261,6 +266,7 @@ export function usePanelTurno() {
 
   return {
     turno,
+    tramos,
     turnoAnterior,
     cargando,
     buscado,
@@ -294,5 +300,12 @@ export function usePanelTurno() {
       buscarFechaTipo(f, turnoTipo)
     },
     verEnVivo: () => cargarEnVivo(),
+    /** 12x12: ver el otro T2 de la misma fecha (día 15:00–19:00 / noche 19:00–22:30). */
+    async elegirTramo(id: string) {
+      const t = tramos.find((x) => x.id === id)
+      if (!t || t.id === turno?.id) return
+      setTurno(t)
+      await cargarTurnoAnterior(t.id)
+    },
   }
 }

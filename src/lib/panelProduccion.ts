@@ -186,6 +186,24 @@ export async function obtenerTurnoDeFechaTipo(fecha: string, turnoTipo: string, 
   return mapearTurno(data as FilaTurno)
 }
 
+/**
+ * Todos los turnos de una fecha y tipo, por hora de inicio. En 12x12 el T2 se
+ * parte a las 19:00 y hay dos (migración 20261106). Si esa migración todavía
+ * no está aplicada, cae a obtenerTurnoDeFechaTipo (uno solo).
+ */
+export async function obtenerTurnosDeFechaTipo(fecha: string, turnoTipo: string, areaCodigo: string | null): Promise<TurnoActivo[]> {
+  const { data, error } = await supabase.rpc("turnos_de_fecha_tipo", {
+    p_fecha: fecha,
+    p_turno_tipo: turnoTipo,
+    p_area_codigo: areaCodigo,
+  })
+  if (error || !Array.isArray(data)) {
+    const uno = await obtenerTurnoDeFechaTipo(fecha, turnoTipo, areaCodigo)
+    return uno ? [uno] : []
+  }
+  return (data as FilaTurno[]).map(mapearTurno)
+}
+
 /*
  * Meta: cajas que DEBERÍAN haber salido de cada línea activa, según
  * la velocidad elegida en Comenzar Turno y las horas transcurridas

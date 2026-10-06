@@ -43,7 +43,7 @@ export interface TurnoGraciaPT {
   codigo: string
 }
 
-/** Quién estuvo a cargo del turno y desde/hasta cuándo (relevos, ej. 12x12 a las 19:00). Ver migración 20261080090000. */
+/** Quién estuvo a cargo del turno y desde/hasta cuándo (asumir, relevos). Ver migración 20261080090000. */
 export interface ResponsableTurno {
   usuario: string
   nombre: string

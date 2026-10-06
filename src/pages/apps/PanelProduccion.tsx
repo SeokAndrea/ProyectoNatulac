@@ -13,6 +13,7 @@ import {
   ultimaAccionDeTurno,
 } from "@/components/panel/calculosPanel"
 import { DetalleTurno } from "@/components/panel/DetalleTurno"
+import { ElegirTramoTurno } from "@/components/panel/ElegirTramoTurno"
 import { FiltrosPanel } from "@/components/panel/FiltrosPanel"
 import { TituloSeccion } from "@/components/panel/PanelCard"
 import { ParadaMasLarga } from "@/components/panel/ParadaMasLarga"
@@ -48,6 +49,7 @@ export default function PanelProduccion() {
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const {
     turno,
+    tramos,
     turnoAnterior,
     cargando,
     buscado,
@@ -73,6 +75,7 @@ export default function PanelProduccion() {
     elegirTurnoTipo,
     elegirFecha,
     verEnVivo,
+    elegirTramo,
   } = usePanelTurno()
 
   // ------------------------------------------------------------ cuentas
@@ -82,6 +85,8 @@ export default function PanelProduccion() {
   const eficiencia = turno
     ? eficienciaDelTurno({
         turnoTipo: turno.turnoTipo,
+        esquema: turno.esquema,
+        horaInicio: turno.horaInicio,
         estado: turno.estado,
         horasTranscurridas: horasTurnoActual,
         corridas: prod.corridas,
@@ -185,6 +190,8 @@ export default function PanelProduccion() {
             onEnVivo={verEnVivo}
           />
         )}
+
+        {!enVivo && <ElegirTramoTurno tramos={tramos} turnoId={turno?.id} onElegir={elegirTramo} />}
 
         {cargando || cargandoCatalogos ? (
           <div className="flex justify-center py-16 text-muted-foreground">

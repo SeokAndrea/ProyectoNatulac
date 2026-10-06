@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { AREAS, CARGOS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import { horaPlanta } from "@/lib/tiempoPlanta"
 import type { TurnoActivo } from "@/lib/turno"
+import { tramoT2 } from "@/lib/turno12x12"
 import { cn } from "@/lib/utils"
 import { HORARIOS, type ProgramacionItem } from "./calculosPanel"
 import { ProgramacionCarrusel } from "./ProgramacionCarrusel"
@@ -56,7 +57,9 @@ export function BannerSuperior({
   onAbrirFiltros: () => void
 }) {
   const [hh, mm, ss] = horaPlanta(ahora).split(":")
-  const horario = HORARIOS[turnoTipo]
+  // 12x12: el T2 se parte a las 19:00 (15:00–19:00 / 19:00–22:30).
+  const tramo = tramoT2(turno?.esquema, turno?.turnoTipo, turno?.horaInicio)
+  const horario = tramo ? { inicio: tramo.desde, fin: tramo.hasta } : HORARIOS[turnoTipo]
 
   return (
     <section className="panel-banner shadow-panel relative overflow-hidden rounded-2xl border border-border">

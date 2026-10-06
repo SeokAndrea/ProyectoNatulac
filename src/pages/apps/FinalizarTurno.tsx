@@ -172,6 +172,7 @@ export default function FinalizarTurno() {
       serviciosIndustriales,
       responsables: sesion.responsables,
       esquema: sesion.esquema ?? undefined,
+      horaInicio: sesion.horaInicio,
     }
     const resultadoCierre = await sesion.finalizarTurno()
     if (!resultadoCierre.ok) {

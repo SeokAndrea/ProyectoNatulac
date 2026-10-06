@@ -1,5 +1,6 @@
 import type { GrupoCodigo, LineaCodigo, PresentacionCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import type { PresentacionLive } from "@/lib/catalogosLive"
+import type { EsquemaTurnos } from "@/lib/sesionTurno"
 
 /**
  * Una corrida de línea: presentación + velocidad + el lote que
@@ -245,6 +246,8 @@ export interface TurnoActivo {
   horaFin: string | null
   /** true si lo cerró el job automático de cierre por vencimiento (cerrar_turnos_vencidos), no el supervisor. */
   cierreAutomatico: boolean
+  /** "12x12" o "3x8" (turno_json). Con horaInicio distingue el T2 del día y el de la noche. */
+  esquema?: EsquemaTurnos
   turnoTipo: TurnoTipoCodigo
   grupo: GrupoCodigo
   supervisorUsuario: string
@@ -379,6 +382,7 @@ export interface FilaTurno {
   fecha_fin: string | null
   hora_fin: string | null
   cierre_automatico: boolean
+  esquema?: EsquemaTurnos
   tanques_encontrados: FilaTanqueEncontrado[] | null
   turno_tipo_codigo: string
   grupo_codigo: string
@@ -414,6 +418,7 @@ export function mapearTurno(fila: FilaTurno): TurnoActivo {
     fechaFin: fila.fecha_fin,
     horaFin: fila.hora_fin,
     cierreAutomatico: fila.cierre_automatico,
+    esquema: fila.esquema,
     tanquesEncontrados:
       fila.tanques_encontrados?.map((t) => ({
         numeroTanque: t.numero_tanque as 1 | 2 | 3,

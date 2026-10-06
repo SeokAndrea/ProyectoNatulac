@@ -15,6 +15,7 @@ import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { duracionMin, fmtDesvio, type Parada } from "@/lib/paradas"
 import type { NovedadTurno } from "@/lib/novedades"
 import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
+import { tramoT2 } from "@/lib/turno12x12"
 
 /*
  * Acta de Entrega de Turno en PDF (jsPDF), CALCADA del acta real de Natulac
@@ -94,6 +95,8 @@ export async function generarActaPdf(params: {
   /** Quién estuvo a cargo y cuándo. Con más de uno (relevo, ej. 12x12) se listan en 1.4. */
   responsables?: ResponsableTurno[]
   esquema?: EsquemaTurnos
+  /** Hora real de inicio del turno ("HH:MM[:SS]"). En 12x12 distingue el T2 del día y el de la noche. */
+  horaInicio?: string | null
   /** Correcciones abiertas después del cierre. Van al final de 2.3. */
   correcciones?: { nombre: string; motivo: string; creadaEn: string }[]
   area: AreaCodigo | null
@@ -119,6 +122,7 @@ export async function generarActaPdf(params: {
     supervisorNombre,
     responsables = [],
     esquema,
+    horaInicio = null,
     correcciones = [],
     area,
     lineas,
@@ -218,7 +222,9 @@ export async function generarActaPdf(params: {
 
   // ---------------------------------------------------------------- 1.1–1.5 encabezado
   const [anio, mes, dia] = fecha.split("-")
-  const turnoTexto = `${nombrePorCodigo(TURNO_TIPOS, turnoTipo)}${esquema === "12x12" ? " · 12x12" : ""}`
+  // 12x12: el T2 se parte a las 19:00 (src/lib/turno12x12.ts); se dice cuál de los dos es.
+  const tramo = tramoT2(esquema, turnoTipo, horaInicio)
+  const turnoTexto = `${nombrePorCodigo(TURNO_TIPOS, turnoTipo)}${esquema === "12x12" ? " · 12x12" : ""}${tramo ? `\n${tramo.desde}–${tramo.hasta}` : ""}`
   const supervisorTexto =
     responsables.length > 1
       ? responsables
@@ -231,7 +237,7 @@ export async function generarActaPdf(params: {
   celda(M, y, C, fila, "1.1 Fecha:", etiqueta)
   celda(M + C, y, C, fila, `${dia}/${mes}/${anio}`, valor)
   celda(M + 2 * C, y, C, fila, "1.2 Turno:", etiqueta)
-  celda(M + 3 * C, y, C, fila, turnoTexto, valor)
+  celda(M + 3 * C, y, C, fila, turnoTexto, tramo ? { ...valor, tamano: 6.5 } : valor)
   celda(M + 4 * C, y, C, fila, "1.3 Grupo:", etiqueta)
   celda(M + 5 * C, y, C, fila, nombreGrupo(grupo), valor)
   // Fila del supervisor más alta: al lado va su firma (la única del acta, dueño 2026-10-01).
@@ -363,6 +369,8 @@ export async function generarActaPdf(params: {
     // Meta y eficiencia con paradas (src/lib/eficiencia.ts). El acta se genera con el turno ya cerrado.
     const eficiencia = eficienciaDelTurno({
       turnoTipo,
+      esquema,
+      horaInicio,
       estado: "CERRADO",
       horasTranscurridas: 0,
       corridas,

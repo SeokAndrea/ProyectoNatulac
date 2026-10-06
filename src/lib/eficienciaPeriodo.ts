@@ -11,9 +11,9 @@ import { restarDias } from "@/lib/tiempoPlanta"
  * OEE de cada línea en un PERÍODO (Ayer / 7 días / Este mes) para el Panel
  * de Paradas. Mismo cálculo que el Panel de Producción y el Acta
  * (eficienciaDelTurno, src/lib/eficiencia.ts), turno por turno, y después
- * se juntan con oeeDePeriodo(). Sin RPC nueva: por cada día × tipo de turno
- * se pide turno_de_fecha_tipo (ya trae corridas y contadores, es
- * turno_json) y, si el turno existe, sus paradas con listar_paradas
+ * se juntan con oeeDePeriodo(). Por cada día × tipo de turno se piden
+ * turnos_de_fecha_tipo (todos: en 12x12 hay dos T2, migración 20261106; ya
+ * traen corridas y contadores, es turno_json) y, si el turno existe, sus paradas con listar_paradas
  * filtrando por turno — igual que el Panel de Producción, así las de
  * Mantenimiento vienen recortadas a la ventana del turno. "Este mes" son
  * hasta ~120 consultas: se hacen de a CONSULTAS_A_LA_VEZ.
@@ -29,6 +29,7 @@ interface FilaTurnoOee {
   hora_fin: string | null
   estado: "ABIERTO" | "CERRADO"
   turno_tipo_codigo: string
+  esquema?: string
   lineas: FilaCorrida[]
   contadores: FilaContador[]
 }
@@ -63,9 +64,13 @@ async function enTandas<T>(tareas: (() => Promise<T>)[], n: number): Promise<T[]
   return resultados
 }
 
-async function turnoDe(fecha: string, turnoTipo: string, area: string | null): Promise<FilaTurnoOee | null> {
-  const { data, error } = await supabase.rpc("turno_de_fecha_tipo", { p_fecha: fecha, p_turno_tipo: turnoTipo, p_area_codigo: area })
-  return error || !data ? null : (data as FilaTurnoOee)
+async function turnosDe(fecha: string, turnoTipo: string, area: string | null): Promise<FilaTurnoOee[]> {
+  const params = { p_fecha: fecha, p_turno_tipo: turnoTipo, p_area_codigo: area }
+  const { data, error } = await supabase.rpc("turnos_de_fecha_tipo", params)
+  if (!error && Array.isArray(data)) return data as FilaTurnoOee[]
+  // Sin la migración 20261106 todavía: uno solo.
+  const uno = await supabase.rpc("turno_de_fecha_tipo", params)
+  return uno.error || !uno.data ? [] : [uno.data as FilaTurnoOee]
 }
 
 /** OEE por línea (clave LINEA_1/2/3) del período. Una línea sin producción en el período no aparece. */
@@ -74,8 +79,8 @@ export async function cargarOeePeriodo(f: FiltroOeePeriodo): Promise<Map<string,
   for (let d = f.desde; d <= f.hasta; d = restarDias(d, -1)) dias.push(d)
   const tipos = f.turnoTipo === "TODOS" ? TIPOS_TURNO : [f.turnoTipo]
 
-  const busquedas = dias.flatMap((dia) => tipos.map((tipo) => () => turnoDe(dia, tipo, f.area)))
-  const encontrados = (await enTandas(busquedas, CONSULTAS_A_LA_VEZ)).filter((t): t is FilaTurnoOee => t !== null)
+  const busquedas = dias.flatMap((dia) => tipos.map((tipo) => () => turnosDe(dia, tipo, f.area)))
+  const encontrados = (await enTandas(busquedas, CONSULTAS_A_LA_VEZ)).flat()
   const turnos = [...new Map(encontrados.map((t) => [t.id, t])).values()]
 
   const ahora = new Date()
@@ -84,6 +89,8 @@ export async function cargarOeePeriodo(f: FiltroOeePeriodo): Promise<Map<string,
       const paradas = await listarParadas({ desde: t.fecha, hasta: t.fecha, turnoId: t.id })
       return eficienciaDelTurno({
         turnoTipo: t.turno_tipo_codigo,
+        esquema: t.esquema,
+        horaInicio: t.hora_inicio,
         estado: t.estado,
         horasTranscurridas: horasTranscurridasTurno(t.hora_inicio, t.estado, t.hora_fin),
         corridas: t.lineas.map(mapearCorrida),

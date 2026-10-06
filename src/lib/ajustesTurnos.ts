@@ -4,9 +4,10 @@ import { supabase } from "@/lib/supabase"
 
 /*
  * Ajustes de turnos por área (migración 20261080090000):
- *   - esquema 3x8 / 12x12 (permiso ESQUEMA_TURNOS). En 12x12 el turno 2
- *     lleva relevo de responsable a las 19:00. Se aplica al turno abierto y a
- *     los siguientes (migración 20261085).
+ *   - esquema 3x8 / 12x12 (permiso ESQUEMA_TURNOS). En 12x12 el turno 2 se
+ *     parte a las 19:00: se cierra el del día y se abre el de la noche
+ *     (migración 20261106). Se aplica al turno abierto y a los siguientes
+ *     (migración 20261085).
  *   - respaldo automático (solo el dueño): si nadie hace el relevo, el cron
  *     abre el turno nuevo sin responsable 30 min después de su inicio.
  */

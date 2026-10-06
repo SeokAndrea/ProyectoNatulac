@@ -170,6 +170,7 @@ export default function Historial() {
         paradas,
         responsables: detalle.responsables,
         esquema: detalle.esquema,
+        horaInicio: detalle.horaInicio,
         correcciones: detalle.correcciones,
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,

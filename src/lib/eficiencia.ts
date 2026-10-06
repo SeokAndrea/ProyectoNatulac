@@ -1,6 +1,7 @@
 import { minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
+import { tramoT2 } from "@/lib/turno12x12"
 
 /*
  * Meta y eficiencia de línea con paradas — plan-eficiencia-meta.md.
@@ -35,8 +36,16 @@ import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 /** Duración base de cada turno, en minutos (dueño, 2026-09-21; el 12x12 = 12 h, dueño 2026-09-28). */
 const DURACION_TURNO_MIN: Record<string, number> = { TURNO_1: 8 * 60, TURNO_2: 7.5 * 60, TURNO_3: 8.5 * 60, "12X12": 12 * 60 }
 
-/** Minutos base del turno, o null si el tipo es desconocido. */
-export function duracionBaseTurnoMin(turnoTipo: string | null | undefined): number | null {
+/**
+ * Minutos base del turno, o null si el tipo es desconocido. En 12x12 el T2 se
+ * parte a las 19:00 (src/lib/turno12x12.ts): el del día dura 4 h y el de la noche 3,5 h.
+ */
+export function duracionBaseTurnoMin(
+  turnoTipo: string | null | undefined,
+  turno?: { esquema?: string | null; horaInicio?: string | null },
+): number | null {
+  const tramo = tramoT2(turno?.esquema, turnoTipo, turno?.horaInicio)
+  if (tramo) return tramo.minutos
   return turnoTipo ? (DURACION_TURNO_MIN[turnoTipo] ?? null) : null
 }
 
@@ -152,6 +161,9 @@ export function velocidadMaximaDeLinea(corridasLinea: Corrida[], contadores: Con
 
 export interface EntradaTurno {
   turnoTipo: string
+  /** Con horaInicio, distingue el T2 del día y el de la noche en 12x12. */
+  esquema?: string | null
+  horaInicio?: string | null
   estado: "ABIERTO" | "CERRADO"
   /** Horas transcurridas desde el inicio del turno (solo importa con el turno abierto). */
   horasTranscurridas: number
@@ -180,7 +192,7 @@ export interface EficienciaTurno {
  */
 export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
   const vacio: EficienciaTurno = { porLinea: new Map(), total: null }
-  const turnoMin = duracionBaseTurnoMin(t.turnoTipo)
+  const turnoMin = duracionBaseTurnoMin(t.turnoTipo, t)
   if (turnoMin === null) return vacio
 
   const transcurridoMin = t.estado === "CERRADO" ? turnoMin : t.horasTranscurridas * 60

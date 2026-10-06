@@ -121,6 +121,10 @@ vi.mock("@/lib/panelProduccion", async (importOriginal) => ({
   obtenerEstadoPlantaActual: (...a: unknown[]) => api.estadoPlantaActual(...a),
   obtenerTurnoAnterior: (...a: unknown[]) => api.turnoAnterior(...a),
   obtenerTurnoDeFechaTipo: (...a: unknown[]) => api.turnoDeFechaTipo(...a),
+  obtenerTurnosDeFechaTipo: async (...a: unknown[]) => {
+    const t = await api.turnoDeFechaTipo(...a)
+    return t ? [t] : []
+  },
   obtenerLecturaServiciosIndustriales: (...a: unknown[]) => api.serviciosIndustriales(...a),
   obtenerProduccionDia: (...a: unknown[]) => api.produccionDia(...a),
   cargoDeUsuario: (...a: unknown[]) => api.cargo(...a),

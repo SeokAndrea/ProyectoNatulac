@@ -24,6 +24,7 @@ import { useProduccion } from "@/lib/produccion/useProduccion"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useSesionTurno, type ResponsableTurno } from "@/lib/sesionTurno"
 import { franjaDeHora, franjaParaIniciar, horaCortaPlanta, horaDelDiaPlanta } from "@/lib/tiempoPlanta"
+import { HORA_OFRECER_T2_NOCHE, esT2DelDia } from "@/lib/turno12x12"
 
 const fechaHoy = new Date().toLocaleDateString("es-CO", {
   weekday: "long",
@@ -32,7 +33,7 @@ const fechaHoy = new Date().toLocaleDateString("es-CO", {
   year: "numeric",
 })
 
-/** Turnos que se inician a mano. El 12x12 ya no es un turno aparte: se trabaja como T1/T2/T3 con relevo (ver AjustesDeTurnos). */
+/** Turnos que se inician a mano. El 12x12 ya no es un turno aparte: se trabaja como T1/T2/T3 (ver AjustesDeTurnos). */
 const TURNOS_NORMALES = TURNO_TIPOS.filter((t) => t.codigo !== "12X12")
 
 /*
@@ -41,7 +42,7 @@ const TURNOS_NORMALES = TURNO_TIPOS.filter((t) => t.codigo !== "12X12")
  *   - Si el respaldo abrió el turno solo ("Sin responsable"), se ASUME: se
  *     elige el grupo y se queda como responsable.
  *   - Si el turno abierto tiene otro responsable, se puede tomar el RELEVO
- *     (ej. 12x12: a las 19:00 el supervisor de la noche releva al del día).
+ *     (en 12x12 el T2 del día no se releva: se comienza el T2 de la noche).
  *   - Arriba, en una línea, los interruptores del área: 12x12 y respaldo automático.
  * Cualquiera con permiso puede cargar datos en el turno abierto aunque no lo
  * haya asumido; todo queda firmado por usuario.
@@ -91,12 +92,20 @@ export default function ComenzarTurno() {
     const actual = franjaDeHora()
     const esElObjetivo = sesion.fecha === objetivo.fecha && sesion.turnoTipo === objetivo.tipo
     const esElActual = sesion.fecha === actual.fecha && sesion.turnoTipo === actual.tipo
+    // 12x12: el T2 del día no se releva; desde las 18:00 se cierra y se comienza el T2 de la noche.
+    const t2Noche = esT2DelDia(sesion.esquema, sesion.turnoTipo, sesion.horaInicio) && horaDelDiaPlanta() >= HORA_OFRECER_T2_NOCHE
     return (
       <AppShell title="Comenzar Turno" description={`Turno ${sesion.codigo}`}>
         <div className="mx-auto flex max-w-lg flex-col gap-4">
           <AjustesDeTurnos area={area} />
-          {!esElObjetivo && <ComenzarTurnoDeAhora area={area} objetivo={objetivo} terminado={!esElActual} />}
-          {(esElObjetivo || esElActual) && <AsumirTurno />}
+          {t2Noche ? (
+            <ComenzarTurnoDeAhora area={area} objetivo={{ tipo: "TURNO_2", fecha: sesion.fecha! }} terminado={false} noche />
+          ) : (
+            <>
+              {!esElObjetivo && <ComenzarTurnoDeAhora area={area} objetivo={objetivo} terminado={!esElActual} />}
+              {(esElObjetivo || esElActual) && <AsumirTurno />}
+            </>
+          )}
         </div>
       </AppShell>
     )
@@ -178,8 +187,8 @@ function TurnoYaEnCurso() {
 
 /*
  * Turno abierto que no es mío: o lo abrió el respaldo sin responsable
- * (se asume), o está a cargo de otra persona (se toma el relevo). En 12x12,
- * el relevo del turno 2 a las 19:00 se sugiere solo.
+ * (se asume), o está a cargo de otra persona (se toma el relevo). El T2 del
+ * día de 12x12 no pasa por acá desde las 18:00: se comienza el de la noche.
  */
 function AsumirTurno() {
   const sesion = useSesionTurno()
@@ -198,7 +207,6 @@ function AsumirTurno() {
 
   const puedeAsumir = puede(session, "TURNO_ASUMIR")
   const esRelevo = !sesion.sinResponsable
-  const relevo12x12 = esRelevo && sesion.esquema === "12x12" && sesion.turnoTipo === "TURNO_2" && horaDelDiaPlanta() >= 19
   const valido = !sesion.grupoPendiente || grupo !== ""
 
   async function asumir() {
@@ -231,12 +239,6 @@ function AsumirTurno() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ListaResponsables responsables={sesion.responsables} fecha={sesion.fecha} />
-
-        {relevo12x12 && (
-          <p className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
-            Esquema 12x12: desde las 19:00 el turno pasa al supervisor de la noche. Si eres tú, toma el relevo.
-          </p>
-        )}
 
         {sesion.grupoPendiente && (
           <div className="flex flex-col gap-2">
@@ -332,16 +334,19 @@ function SelectorGrupo({
  * que quedó abierto y son las 7:20) o falta 1 h o menos para el cambio. Se
  * comienza el de ahora: el servidor cierra el abierto entregando las
  * corridas activas y el nuevo las hereda (migración 20261087). Cierra el
- * turno de otra persona: pide un segundo clic.
+ * turno de otra persona: pide un segundo clic. `noche`: 12x12, el T2 del día
+ * se cierra y se comienza el T2 de la noche (migración 20261106).
  */
 function ComenzarTurnoDeAhora({
   area,
   objetivo,
   terminado,
+  noche = false,
 }: {
   area: AreaCodigo
   objetivo: { tipo: TurnoTipoCodigo; fecha: string }
   terminado: boolean
+  noche?: boolean
 }) {
   const sesion = useSesionTurno()
   const { session } = useAuth()
@@ -355,7 +360,7 @@ function ComenzarTurnoDeAhora({
     if (grupoRotacion) setGrupo((g) => g || grupoRotacion)
   }, [grupoRotacion])
 
-  const nombreObjetivo = nombrePorCodigo(TURNO_TIPOS, objetivo.tipo)
+  const nombreObjetivo = `${nombrePorCodigo(TURNO_TIPOS, objetivo.tipo)}${noche ? " (noche)" : ""}`
   const nombreAbierto = nombrePorCodigo(TURNO_TIPOS, sesion.turnoTipo!)
   const [, mesAbierto, diaAbierto] = (sesion.fecha ?? "").split("-")
 
@@ -380,13 +385,26 @@ function ComenzarTurnoDeAhora({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{terminado ? `El turno ${sesion.codigo} ya terminó` : `¿Vienes para el ${nombreObjetivo}?`}</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          {terminado ? `El turno ${sesion.codigo} ya terminó` : `¿Vienes para el ${nombreObjetivo}?`}
+          {noche && <Badge variant="outline">12x12</Badge>}
+        </CardTitle>
         <CardDescription>
-          {terminado
-            ? `Es el ${nombreAbierto} del ${diaAbierto}/${mesAbierto}${sesion.sinResponsable ? ", sin responsable" : `, a cargo de ${sesion.supervisorNombre}`}. `
-            : "Falta poco para el cambio de turno. "}
-          Al comenzar el {nombreObjetivo}, el {sesion.codigo} se cierra y el nuevo sigue con los tanques y las líneas como
-          están.{!terminado && " Si sigues en el turno de ahora, asúmelo abajo."}
+          {noche ? (
+            <>
+              A las 19:00 el Turno 2 del día se cierra con su acta y el supervisor de la noche comienza otro.
+              {!sesion.sinResponsable && ` Lo ideal es que ${sesion.supervisorNombre} lo finalice primero; si no, su acta queda pendiente.`}{" "}
+              El nuevo sigue con los tanques y las líneas como están.
+            </>
+          ) : (
+            <>
+              {terminado
+                ? `Es el ${nombreAbierto} del ${diaAbierto}/${mesAbierto}${sesion.sinResponsable ? ", sin responsable" : `, a cargo de ${sesion.supervisorNombre}`}. `
+                : "Falta poco para el cambio de turno. "}
+              Al comenzar el {nombreObjetivo}, el {sesion.codigo} se cierra y el nuevo sigue con los tanques y las líneas como
+              están.{!terminado && " Si sigues en el turno de ahora, asúmelo abajo."}
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -555,8 +573,8 @@ function FormularioNuevoTurno({
 
 /*
  * Interruptores del área, en una sola línea y solo para quien puede usarlos:
- *   - 12x12 (ESQUEMA_TURNOS): encendido = dos supervisores (7–19 y 19–7), con
- *     relevo a las 19:00 dentro del turno 2. Se aplica al turno abierto y a
+ *   - 12x12 (ESQUEMA_TURNOS): encendido = dos supervisores (7–19 y 19–7). A las
+ *     19:00 se cierra el T2 del día y se abre el de la noche. Se aplica al turno abierto y a
  *     los siguientes (migración 20261085).
  *   - Respaldo automático (solo el dueño).
  */
@@ -595,7 +613,7 @@ function AjustesDeTurnos({ area }: { area: AreaCodigo }) {
       {puedeEsquema && (
         <label
           className="flex cursor-pointer items-center gap-2"
-          title="Dos supervisores: 7:00 a 19:00 y 19:00 a 7:00. Se guarda como turnos 1, 2 y 3, con relevo a las 19:00."
+          title="Dos supervisores: 7:00 a 19:00 y 19:00 a 7:00. Se guarda como turnos 1, 2 y 3; a las 19:00 se cierra el Turno 2 y el de la noche abre otro."
         >
           <Switch
             checked={es12x12}
@@ -603,7 +621,7 @@ function AjustesDeTurnos({ area }: { area: AreaCodigo }) {
             onCheckedChange={(v) => cambiar(() => guardarEsquemaTurnos(session.username, area, v ? "12x12" : "3x8"))}
           />
           <span className="font-medium text-foreground">12x12</span>
-          <span className="text-xs text-muted-foreground">{es12x12 ? "Encendido · relevo a las 19:00" : "Apagado"}</span>
+          <span className="text-xs text-muted-foreground">{es12x12 ? "Encendido · Turno 2 se parte a las 19:00" : "Apagado"}</span>
         </label>
       )}
       {esDueno && (
