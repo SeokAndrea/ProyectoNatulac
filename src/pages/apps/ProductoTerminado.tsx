@@ -12,6 +12,8 @@ import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
+import { AvisoActa } from "@/components/producto-terminado/AvisoActa"
+import { useActaAlDia } from "@/components/producto-terminado/useActaAlDia"
 
 /*
  * Producto Terminado: una lista con TODA línea que se usó en el turno
@@ -59,6 +61,8 @@ export default function ProductoTerminado() {
       ? sesion.turnoGraciaPT!.turnoId
       : sesion.turnoId
   const soloPT = enGraciaPT || enModoCorreccion
+  // Turno propio ya cerrado: al cargar contador o PT el acta se rearma sola (migración 20261107).
+  const acta = useActaAlDia(enGraciaPT ? turnoIdEfectivo : null)
   const {
     corridas,
     contadores,
@@ -144,10 +148,10 @@ export default function ProductoTerminado() {
         <span className="flex-1 text-muted-foreground">
           {verTurnoAnterior
             ? `Estás cargando el turno anterior (${sesion.turnoGraciaPT!.codigo}).`
-            : `El turno anterior (${sesion.turnoGraciaPT!.codigo}) cerró hace menos de 30 min y todavía acepta su Producto Terminado.`}
+            : `El turno anterior (${sesion.turnoGraciaPT!.codigo}) ya cerró y todavía acepta contadores y Producto Terminado.`}
         </span>
         <Button size="sm" variant="outline" onClick={() => setVerTurnoAnterior((v) => !v)}>
-          {verTurnoAnterior ? "Volver al turno en curso" : "Cargar PT del turno anterior"}
+          {verTurnoAnterior ? "Volver al turno en curso" : "Cargar en el turno anterior"}
         </Button>
       </div>
     ) : null
@@ -174,8 +178,8 @@ export default function ProductoTerminado() {
     lineas,
     presentaciones,
     acciones: {
-      registrarProducto: registrarProductoTerminadoYRefrescarTanque,
-      registrarContador,
+      registrarProducto: enGraciaPT ? acta.conActa(registrarProductoTerminadoYRefrescarTanque) : registrarProductoTerminadoYRefrescarTanque,
+      registrarContador: enGraciaPT ? acta.conActa(registrarContador) : registrarContador,
       entregarCorrida,
       terminarSabor: terminarSaborLinea,
       medirTanque,
@@ -203,10 +207,11 @@ export default function ProductoTerminado() {
         {enGraciaPT && (
           <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
             <AlertTriangle className="size-4 shrink-0" />
-            Este turno ya se cerró: quedan unos minutos para terminar de cargar contadores y Producto Terminado. Terminar o
-            entregar la línea ya no se puede. Si el acta ya salió, se regenera desde Auditoría.
+            Este turno ya se cerró. Puedes cargar contadores y Producto Terminado; al guardar, el acta se vuelve a generar
+            sola. Terminar o entregar la línea ya no se puede.
           </p>
         )}
+        {enGraciaPT && <AvisoActa estado={acta.estado} />}
         {enModoCorreccion && (
           <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
             <AlertTriangle className="size-4 shrink-0" />

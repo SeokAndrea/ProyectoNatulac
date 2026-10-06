@@ -2,10 +2,8 @@ import { useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { generarActaPdf } from "@/lib/actaPdf"
-import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
-import { miTurnoDetalle, misTurnosSinActa, subirYRegistrarActa } from "@/lib/historialTurnos"
-import { listarLecturasServiciosIndustrialesDeTurno } from "@/lib/panelProduccion"
+import { misTurnosSinActa } from "@/lib/historialTurnos"
+import { regenerarActaDeMiTurno } from "@/lib/regenerarActa"
 
 /**
  * Si el cron cerró alguno de tus turnos solo (abandonado — ver
@@ -32,40 +30,8 @@ export function useGenerarActasPendientes(): void {
 
     misTurnosSinActa(session.username).then(async (pendientes) => {
       for (const { turnoId } of pendientes) {
-        const turno = await miTurnoDetalle(session.username, turnoId)
-        if (!turno) continue
-        const serviciosIndustriales = await listarLecturasServiciosIndustrialesDeTurno(turnoId)
-        const paradas = await cargarParadasDelTurno(turnoId)
-        try {
-          const blob = await generarActaPdf({
-            codigo: turno.codigo,
-            fecha: turno.fecha,
-            turnoTipo: turno.turnoTipo,
-            grupo: turno.grupo,
-            tanquesEncontrados: turno.tanquesEncontrados,
-            tanques: turno.tanques,
-            preparaciones: turno.preparaciones,
-            corridas: turno.corridas,
-            contadores: turno.contadores,
-            productoTerminado: turno.productoTerminado,
-            novedades: turno.novedades,
-            ajustesVolumen: turno.ajustesVolumen,
-            paradas,
-            serviciosIndustriales,
-            responsables: turno.responsables,
-            esquema: turno.esquema,
-            horaInicio: turno.horaInicio,
-            correcciones: turno.correcciones,
-            supervisorNombre: session.nombre || session.username,
-            area: session.area,
-            lineas,
-            presentaciones,
-            velocidades,
-          })
-          await subirYRegistrarActa(session.username, turnoId, session.area ?? "SIN_AREA", turno.codigo, blob)
-        } catch {
-          // Sin acá no se pierde nada: mis_turnos_sin_acta() lo vuelve a traer en la próxima visita mientras no tenga acta VIGENTE.
-        }
+        // Si falla no se pierde nada: mis_turnos_sin_acta() lo vuelve a traer en la próxima visita mientras no tenga acta VIGENTE.
+        await regenerarActaDeMiTurno(session, turnoId, { lineas, presentaciones, velocidades })
       }
     })
   }, [session, lineas, presentaciones, velocidades])

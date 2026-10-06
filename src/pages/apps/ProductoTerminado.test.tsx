@@ -55,6 +55,20 @@ const LINEAS = [
 const PRESENTACIONES = [
   { id: "p1000", codigo: "1000", nombre: "1 L", volumenMl: 1000, cajasXCamada: 10, cantCamada: 10, cajasXPaleta: 100, litrosXCaja: 12, envasesXCaja: 12 },
 ] as unknown as PresentacionLive[]
+// El acta que se rearma sola (turno cerrado): acá solo se cuenta cuándo se pide.
+const actaPedida = vi.fn()
+vi.mock("@/components/producto-terminado/useActaAlDia", () => ({
+  useActaAlDia: (turnoId: string | null) => ({
+    estado: "quieta",
+    conActa:
+      <A extends unknown[], R extends { ok: boolean }>(fn: (...a: A) => Promise<R>) =>
+      async (...a: A) => {
+        const r = await fn(...a)
+        if (r.ok) actaPedida(turnoId)
+        return r
+      },
+  }),
+}))
 vi.mock("@/lib/catalogosLive", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/catalogosLive")>()),
   useCatalogosLive: () => ({ lineas: LINEAS, presentaciones: PRESENTACIONES, velocidades: [], cargando: false }),
@@ -485,6 +499,7 @@ describe("Producto Terminado — turno ya cerrado", () => {
     await escribir(u, t, "Paletas", "11")
     await u.click(t.getByRole("button", { name: "Registrar" }))
     await waitFor(() => expect(orden[0]).toContain('"paletas":11'))
+    expect(actaPedida).toHaveBeenCalledWith("t-0")
     expect(html(container)).toMatchSnapshot()
   })
 
@@ -493,7 +508,7 @@ describe("Producto Terminado — turno ya cerrado", () => {
     sesion.turnoGraciaPT = { turnoId: "t-0", codigo: "T1-0510" }
     renderPagina()
     expect(pedidoCon.produccion.at(-1)).toBe("t-1")
-    await u.click(screen.getByRole("button", { name: "Cargar PT del turno anterior" }))
+    await u.click(screen.getByRole("button", { name: "Cargar en el turno anterior" }))
     expect(pedidoCon.produccion.at(-1)).toBe("t-0")
     expect(screen.getByText("Estás cargando el turno anterior (T1-0510).")).toBeInTheDocument()
     await u.click(screen.getByRole("button", { name: "Volver al turno en curso" }))
