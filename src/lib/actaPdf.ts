@@ -10,7 +10,7 @@ import { FRANJA_ACTA, ICONO_CONTADOR_BUENOS, ICONO_CONTADOR_DESECHO, ICONO_CONTA
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/sesionTurno"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
-import type { CondicionTanque, TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro } from "@/lib/preparacion/tipos"
+import type { CondicionTanque, TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { duracionMin, fmtDesvio, type Parada } from "@/lib/paradas"
 import type { NovedadTurno } from "@/lib/novedades"
@@ -87,6 +87,8 @@ export async function generarActaPdf(params: {
   productoTerminado: ProductoTerminadoRegistro[]
   novedades: NovedadTurno[]
   ajustesVolumen: AjusteVolumenRegistro[]
+  /** Transferencias entre tanques del turno: en 1.7 el lote que se mudó dice "Transferido a Tanque N". */
+  transferencias?: TransferenciaRegistro[]
   /** Paradas registradas en este turno (ver cargarParadasDelTurno). Van en los recuadros por línea de 2.1. */
   paradas?: Parada[]
   /** Lecturas de Servicios Industriales con turno_id = este turno (ver migración 20261057). Van en 2.3. */
@@ -117,6 +119,7 @@ export async function generarActaPdf(params: {
     productoTerminado,
     novedades,
     ajustesVolumen,
+    transferencias = [],
     paradas = [],
     serviciosIndustriales = [],
     supervisorNombre,
@@ -293,6 +296,18 @@ export async function generarActaPdf(params: {
     celda(xs[iFinal + 1], y, anchos[iFinal + 1], 2 * h1, "%\nRend.", { ...enc, tamano: 6 })
     y += 2 * h1
 
+    /** "Transferido a Tanque 3" (en otra línea) si de este lote salió una transferencia; el tanque es el del lote que la recibió. */
+    const transferidoA = (loteId: string) => {
+      const tanquesDestino = [
+        ...new Set(
+          transferencias
+            .filter((t) => t.loteIdOrigen === loteId)
+            .map((t) => preparaciones.find((p) => p.id === t.loteIdDestino)?.numeroTanque)
+            .filter((n): n is 1 | 2 | 3 => n != null),
+        ),
+      ]
+      return tanquesDestino.length > 0 ? `\nTransferido a Tanque ${tanquesDestino.join(" y ")}` : ""
+    }
     const loteIdsCorridos = new Set(corridas.map((c) => c.loteId).filter((id): id is string => id !== null))
     const lotesDelTurno = preparaciones.filter((p) => loteIdsCorridos.has(p.id))
     const filas = lotesDelTurno.map((lote) => {
@@ -306,7 +321,7 @@ export async function generarActaPdf(params: {
       const envasado = ptPorLinea.reduce((a, b) => a + b, 0)
       const rendimiento = consumo > 0 ? Math.round((envasado / consumo) * 1000) / 10 : null
       return [
-        `${lote.saborNombre ?? "Sin sabor"}\nLote ${lote.lote ?? "—"} · TQ${lote.numeroTanque}`,
+        `${lote.saborNombre ?? "Sin sabor"}\nLote ${lote.lote ?? "—"} · TQ${lote.numeroTanque}${transferidoA(lote.id)}`,
         consumo > 0 ? miles(consumo - envasado) : "--",
         miles(inicio),
         miles(lote.volumenPreparadoL ?? 0),
@@ -315,11 +330,12 @@ export async function generarActaPdf(params: {
         rendimiento !== null ? String(rendimiento).replace(".", ",") : "--",
       ]
     })
-    const altoFila = 5.6
     const totalFilas = Math.max(filas.length, 1)
     for (let f = 0; f < totalFilas; f++) {
-      asegurar(altoFila)
       const datos = filas[f]
+      // La fila de un lote transferido lleva una línea más en la primera columna.
+      const altoFila = datos && datos[0].split("\n").length > 2 ? 7.6 : 5.6
+      asegurar(altoFila)
       anchos.forEach((w, i) => celda(xs[i], y, w, altoFila, datos ? datos[i] : "", { negrita: true, tamano: i === 0 ? 6 : 7 }))
       y += altoFila
     }

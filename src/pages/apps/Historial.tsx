@@ -167,6 +167,7 @@ export default function Historial() {
         productoTerminado: detalle.productoTerminado,
         novedades: detalle.novedades,
         ajustesVolumen: detalle.ajustesVolumen,
+        transferencias: detalle.transferencias,
         paradas,
         responsables: detalle.responsables,
         esquema: detalle.esquema,

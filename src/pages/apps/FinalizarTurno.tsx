@@ -168,6 +168,7 @@ export default function FinalizarTurno() {
       productoTerminado: pt.registros,
       novedades: novedades.novedades,
       ajustesVolumen: prep.ajustesVolumen,
+      transferencias: prep.transferencias,
       paradas,
       serviciosIndustriales,
       responsables: sesion.responsables,
