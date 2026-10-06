@@ -11,21 +11,25 @@ import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
  * duración completa del turno. Las paradas PROGRAMADAS y el TIEMPO OCIOSO
  * reducen el tiempo disponible (no castigan); las NO PROGRAMADAS son lo que
  * hace perder eficiencia. La Meta usa la velocidad ELEGIDA (el compromiso del
- * supervisor al activar la línea); la Eficiencia (Ritmo) es el OEE de
- * verdad — Disponibilidad × Rendimiento, los dos contra la velocidad MÁXIMA
- * del catálogo para esa línea y presentación, nunca la elegida. Calidad = 1
- * siempre: el rechazo de envase acá es tan raro que no se mide aparte. Se
- * calcula por línea y turno, en general (no por corrida): las paradas no se
- * ligan a una corrida.
+ * supervisor al activar la línea).
+ *
+ * Eficiencia (dueña, 2026-10-06): es de TIEMPO, no de envases. Arranca en
+ * 100 % y baja solo con las no programadas que se van cargando; el tiempo
+ * que nadie explicó no castiga. Ej.: T1 480 min, 30 de Descanso y 45 de una
+ * falla → (450 − 45) ÷ 450 = 90 %.
+ *
+ * El OEE (Disponibilidad × Rendimiento, contra la velocidad MÁXIMA del
+ * catálogo) sigue aparte para el Panel de Paradas (oeeDePeriodo). Calidad = 1.
+ * Se calcula por línea y turno, en general (no por corrida): las paradas no
+ * se ligan a una corrida.
  *
  *   Disponible      = Turno − Programadas − Ocioso
+ *   Operativo       = Disponible − No programadas
+ *   Eficiencia      = Operativo ÷ Disponible (turno completo, con lo cargado hasta ahora)
  *   Meta            = velocidad ELEGIDA × Disponible
- *   Disponibilidad  = Operativo ÷ Disponible, hasta ahora
- *   Rendimiento     = Real ÷ (velocidad MÁXIMA × Operativo hasta ahora)
- *   Eficiencia(OEE) = Real ÷ (velocidad MÁXIMA × Disponible hasta ahora) = Disponibilidad × Rendimiento
  *   Avance          = Real ÷ Meta del turno
- *
- * Al cierre del turno, «hasta ahora» es el turno completo.
+ *   Disponibilidad  = Operativo ÷ Disponible, hasta ahora (OEE)
+ *   Rendimiento     = Real ÷ (velocidad MÁXIMA × Operativo hasta ahora) (OEE)
  */
 
 /** Duración base de cada turno, en minutos (dueño, 2026-09-21; el 12x12 = 12 h, dueño 2026-09-28). */
@@ -72,7 +76,7 @@ export interface ResultadoEficiencia {
   realCajas: number | null
   /** Real ÷ Meta del turno (velocidad ELEGIDA), 0–100+. null si no hay meta. */
   avancePct: number | null
-  /** OEE en vivo: Real ÷ (velocidad MÁXIMA × disponible hasta ahora) = Disponibilidad × Rendimiento (Calidad = 1). null si no se puede calcular. */
+  /** Eficiencia de tiempo: Operativo ÷ Disponible del turno completo. 100 % sin no programadas. null sin tiempo disponible. */
   eficienciaPct: number | null
   /** Disponibilidad (OEE): Operativo ÷ Disponible, hasta ahora. */
   disponibilidadPct: number | null
@@ -110,7 +114,7 @@ export function calcularEficiencia(e: EntradaEficiencia): ResultadoEficiencia {
     realEnvases: e.realEnvases,
     realCajas: e.envasesPorCaja && e.envasesPorCaja > 0 ? Math.round(e.realEnvases / e.envasesPorCaja) : null,
     avancePct: pct(e.realEnvases, metaEnvases),
-    eficienciaPct: pct(e.realEnvases, esperadoAhora),
+    eficienciaPct: pct(operativoMin, disponibleMin),
     disponibilidadPct: pct(operativoAhoraMin, disponibleAhoraMin),
     rendimientoPct: pct(e.realEnvases, rendimientoBase),
     paradasExcedenTiempo: programadaYocioso + e.minutosNoProgramada > transcurrido + 1,
@@ -182,7 +186,7 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
   const transcurridoMin = t.estado === "CERRADO" ? turnoMin : t.horasTranscurridas * 60
   const ahora = t.ahora ?? new Date()
   const porLinea = new Map<string, ResultadoEficiencia>()
-  const acumulado = { real: 0, meta: 0, esperado: 0, metaCajas: 0, realCajas: 0, disponibleAhora: 0, operativoAhora: 0, cajasConocidas: true, excede: false }
+  const acumulado = { real: 0, meta: 0, esperado: 0, metaCajas: 0, realCajas: 0, disponible: 0, operativo: 0, disponibleAhora: 0, operativoAhora: 0, cajasConocidas: true, excede: false }
 
   for (const codigo of t.lineas) {
     const corridasLinea = t.corridas.filter((c) => c.linea === codigo)
@@ -242,6 +246,8 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
 
     acumulado.real += r.realEnvases
     acumulado.meta += r.metaEnvases
+    acumulado.disponible += r.disponibleMin
+    acumulado.operativo += r.operativoMin
     acumulado.disponibleAhora += r.disponibleAhoraMin
     acumulado.operativoAhora += r.operativoAhoraMin
     acumulado.excede = acumulado.excede || r.paradasExcedenTiempo
@@ -255,8 +261,8 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
 
   if (porLinea.size === 0) return vacio
   const total: ResultadoEficiencia = {
-    disponibleMin: 0,
-    operativoMin: 0,
+    disponibleMin: acumulado.disponible,
+    operativoMin: acumulado.operativo,
     disponibleAhoraMin: acumulado.disponibleAhora,
     operativoAhoraMin: acumulado.operativoAhora,
     metaEnvases: acumulado.meta,
@@ -265,7 +271,7 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     realEnvases: acumulado.real,
     realCajas: acumulado.cajasConocidas ? acumulado.realCajas : null,
     avancePct: pct(acumulado.real, acumulado.meta),
-    eficienciaPct: pct(acumulado.real, acumulado.esperado),
+    eficienciaPct: pct(acumulado.operativo, acumulado.disponible),
     disponibilidadPct: pct(acumulado.operativoAhora, acumulado.disponibleAhora),
     rendimientoPct: null,
     paradasExcedenTiempo: acumulado.excede,

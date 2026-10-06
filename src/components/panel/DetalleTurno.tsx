@@ -43,7 +43,7 @@ export function DetalleTurno({
 
       <SeccionColapsable
         titulo="Meta por línea"
-        descripcion="Meta del turno completo (velocidad elegida × tiempo disponible), avance y ritmo, por línea. Las paradas Programadas y el Ocioso bajan la meta; las No programadas bajan el ritmo."
+        descripcion="Meta del turno completo (velocidad elegida × tiempo disponible), avance y eficiencia, por línea. Las paradas Programadas y el Ocioso bajan la meta; las No programadas bajan la eficiencia."
       >
         <MetaPorLinea eficiencia={eficiencia} turnoTipo={turno.turnoTipo} lineas={lineas} />
       </SeccionColapsable>

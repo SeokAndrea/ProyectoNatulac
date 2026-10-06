@@ -225,7 +225,7 @@ function MetaAnillo({ pct, ritmoPct, reales, esperadas }: { pct: number | null; 
     )
   }
 
-  // El anillo muestra el AVANCE hacia la meta del turno; el color lo da el RITMO (eficiencia en vivo),
+  // El anillo muestra el AVANCE hacia la meta del turno; el color lo da la EFICIENCIA (de tiempo),
   // porque a mitad de turno el avance es bajo aunque todo vaya bien.
   const clamped = Math.max(0, Math.min(100, pct))
   const nivel = ritmoPct ?? pct
@@ -249,7 +249,7 @@ function MetaAnillo({ pct, ritmoPct, reales, esperadas }: { pct: number | null; 
           <span className="text-xs font-medium text-muted-foreground"> / {esperadas.toLocaleString("es-CO")}</span>
         </p>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Cajas reales vs. meta del turno{ritmoPct !== null ? " · ritmo " + ritmoPct + "%" : ""}
+          Cajas reales vs. meta del turno{ritmoPct !== null ? " · eficiencia " + ritmoPct + "%" : ""}
         </p>
       </div>
     </div>

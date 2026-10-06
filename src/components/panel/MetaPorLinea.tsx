@@ -3,7 +3,7 @@ import type { LineaLive } from "@/lib/catalogosLive"
 import type { EficienciaTurno } from "@/lib/eficiencia"
 import { cn } from "@/lib/utils"
 
-/** "Meta por línea": cajas reales / meta, avance, ritmo y disponibilidad de cada línea del turno. */
+/** "Meta por línea": cajas reales / meta, avance y eficiencia de cada línea del turno. */
 export function MetaPorLinea({
   eficiencia,
   turnoTipo,
@@ -47,8 +47,7 @@ export function MetaPorLinea({
               />
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Disponible {horas(m.disponibleMin)} h · Ritmo {m.eficienciaPct !== null ? m.eficienciaPct + "%" : "—"}
-              {m.disponibilidadPct !== null ? " · Disponibilidad " + m.disponibilidadPct + "%" : ""}
+              Disponible {horas(m.disponibleMin)} h · Eficiencia {m.eficienciaPct !== null ? m.eficienciaPct + "%" : "—"}
             </p>
             {m.paradasExcedenTiempo && (
               <p className="mt-1 text-[11px] text-warning">Las paradas cargadas suman más que el tiempo del turno: revísalas.</p>

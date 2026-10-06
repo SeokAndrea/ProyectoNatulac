@@ -39,14 +39,19 @@ describe("calcularEficiencia — ejemplo del plan", () => {
     expect(r.metaCajas).toBe(2250)
     expect(r.realCajas).toBe(1800)
   })
-  it("eficiencia 80 %, disponibilidad 83 %, rendimiento 96 %", () => {
-    expect(r.eficienciaPct).toBe(80)
+  it("eficiencia 83 % (operativo ÷ disponible), disponibilidad 83 %, rendimiento 96 %", () => {
+    expect(r.eficienciaPct).toBe(83)
     expect(r.disponibilidadPct).toBe(83)
     expect(r.rendimientoPct).toBe(96)
     expect(r.avancePct).toBe(80)
   })
-  it("al cierre el ritmo es igual a Real ÷ Meta", () => {
-    expect(r.eficienciaPct).toBe(r.avancePct)
+  it("la eficiencia es de tiempo: no depende de los envases contados", () => {
+    expect(calcularEficiencia({ ...BASE, realEnvases: 0 }).eficienciaPct).toBe(83)
+  })
+  it("ejemplo de la dueña: T1 480 min, 30 de Descanso y 45 de falla → 90 %", () => {
+    const r = calcularEficiencia({ ...BASE, minutosProgramada: 30, minutosOcioso: 0, minutosNoProgramada: 45 })
+    expect(r.disponibleMin).toBe(450)
+    expect(r.eficienciaPct).toBe(90)
   })
   it("una parada programada u ociosa no baja la eficiencia, solo la meta", () => {
     const sinNoProg = calcularEficiencia({ ...BASE, minutosNoProgramada: 0, realEnvases: 54000 })
@@ -59,9 +64,9 @@ describe("calcularEficiencia — ejemplo del plan", () => {
   })
 })
 
-describe("calcularEficiencia — OEE: la Meta usa la elegida, la Eficiencia usa la MÁXIMA", () => {
+describe("calcularEficiencia — la Meta usa la elegida, el Rendimiento (OEE) usa la MÁXIMA", () => {
   // Elegida 6.000 env/h (75 % de la máxima de 8.000) — el supervisor la cumple al 100 % (avance),
-  // pero la Eficiencia (OEE real) tiene que reflejar que la máquina da más de lo que se pidió.
+  // el Rendimiento (OEE del Panel de Paradas) refleja que la máquina da más; la Eficiencia (tiempo) no.
   const entrada = {
     turnoMin: 480,
     transcurridoMin: 480,
@@ -78,13 +83,14 @@ describe("calcularEficiencia — OEE: la Meta usa la elegida, la Eficiencia usa 
     expect(r.metaEnvases).toBe(48000)
     expect(r.avancePct).toBe(100)
   })
-  it("la eficiencia (OEE, contra la máxima) da 75 %, no 100 %", () => {
-    expect(r.eficienciaPct).toBe(75)
+  it("el rendimiento (contra la máxima) da 75 %; la eficiencia, sin paradas, 100 %", () => {
     expect(r.rendimientoPct).toBe(75)
+    expect(r.eficienciaPct).toBe(100)
   })
-  it("sin velocidad máxima no inventa la eficiencia, aunque haya elegida (para la meta)", () => {
+  it("sin velocidad máxima no inventa el rendimiento; la eficiencia no la necesita", () => {
     const sinMaxima = calcularEficiencia({ ...entrada, velocidadMaximaEnvasesHora: null })
-    expect(sinMaxima.eficienciaPct).toBeNull()
+    expect(sinMaxima.rendimientoPct).toBeNull()
+    expect(sinMaxima.eficienciaPct).toBe(100)
     expect(sinMaxima.avancePct).toBe(100)
   })
 })
@@ -122,8 +128,7 @@ describe("calcularEficiencia — en vivo (ritmo)", () => {
     expect(r.eficienciaPct).toBe(100)
     expect(r.metaEnvases).toBe(63000)
   })
-  it("sin velocidad o sin tiempo disponible no inventa porcentajes", () => {
-    expect(calcularEficiencia({ ...BASE, velocidadMaximaEnvasesHora: null }).eficienciaPct).toBeNull()
+  it("sin tiempo disponible no inventa porcentajes", () => {
     expect(calcularEficiencia({ ...BASE, minutosProgramada: 480, minutosOcioso: 0 }).eficienciaPct).toBeNull()
   })
   it("avisa si las paradas suman más que el tiempo transcurrido", () => {
@@ -205,7 +210,8 @@ describe("eficienciaDelTurno", () => {
       paradas: [parada("LINEA_2", "PROGRAMADA", 90), parada("LINEA_2", "OCIOSO", 30, 90), parada("LINEA_2", "NO_PROGRAMADA", 60, 120)],
     })
     expect([...r.porLinea.keys()]).toEqual(["LINEA_2"])
-    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(80)
+    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(83)
+    expect(r.total?.eficienciaPct).toBe(83)
     expect(r.total?.metaCajas).toBe(2250)
     expect(r.total?.realCajas).toBe(1800)
   })
@@ -303,7 +309,7 @@ describe("eficienciaDelTurno", () => {
     expect(r.porLinea.get("LINEA_1")?.avancePct).toBe(38)
   })
 
-  it("elegida 6.000 con máxima 8.000 en el catálogo: avance al 100 % pero eficiencia (OEE) al 75 %", () => {
+  it("elegida 6.000 con máxima 8.000 en el catálogo: avance y eficiencia al 100 %, rendimiento al 75 %", () => {
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_1", 6000)],
@@ -312,7 +318,20 @@ describe("eficienciaDelTurno", () => {
       paradas: [],
     })
     expect(r.porLinea.get("LINEA_1")?.avancePct).toBe(100)
-    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(75)
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
+    expect(r.porLinea.get("LINEA_1")?.rendimientoPct).toBe(75)
+  })
+
+  it("dos líneas: el total suma minutos, no promedia porcentajes", () => {
+    // L1 sin paradas (480/480), L2 con 96 min de falla (384/480) → 864/960 = 90 %
+    const r = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("a", "LINEA_1", 9000), corrida("b", "LINEA_2", 9000)],
+      contadores: [],
+      paradas: [parada("LINEA_2", "NO_PROGRAMADA", 96)],
+    })
+    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(80)
+    expect(r.total?.eficienciaPct).toBe(90)
   })
 })
 
