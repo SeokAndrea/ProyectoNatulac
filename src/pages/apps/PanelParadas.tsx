@@ -39,14 +39,15 @@ import type { TurnoActivo } from "@/lib/turno"
 
 /** Traduce corrida/lineasEstado (Producción, real) al estado visual de la cinta. Mismo criterio que LineaVisual.tsx / FinalizarTurno.tsx. */
 function estadoLineaVista(lineaCodigo: string, corridas: Corrida[], lineasEstado: LineaEstado[]): EstadoLineaVista {
+  const estado = lineasEstado.find((le) => le.linea === lineaCodigo)
+  // En CIP con el lote que sigue, la corrida queda activa: igual se ve el CIP, no "corriendo".
+  if (estado?.condicion === "CIP") return "CIP"
   const corrida = corridas.find((c) => c.linea === lineaCodigo && c.activa)
   if (corrida) {
     if (corrida.loteTerminado != null) return "TERMINO"
     if (corrida.pausadaEn != null) return "PARADA"
     return "CORRIENDO"
   }
-  const estado = lineasEstado.find((le) => le.linea === lineaCodigo)
-  if (estado?.condicion === "CIP") return "CIP"
   if (estado?.condicion === "CAMBIO_PRESENTACION") return "CAMBIO"
   if (estado?.condicion === "DETENIDA") return "DETENIDA"
   return "LIBRE"
