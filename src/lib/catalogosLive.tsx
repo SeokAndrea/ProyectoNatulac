@@ -47,7 +47,10 @@ export interface VelocidadLive {
 }
 
 interface CatalogosContextValue {
+  /** Las líneas del área de la sesión. Sin área fija (Super Admin): todas menos las de Pruebas. */
   lineas: LineaLive[]
+  /** Todas, incluidas las de Pruebas: solo para Edición de Datos. */
+  lineasTodas: LineaLive[]
   presentaciones: PresentacionLive[]
   velocidades: VelocidadLive[]
   cargando: boolean
@@ -60,6 +63,7 @@ interface FilaLinea {
   linea_id: string
   codigo: string
   nombre: string
+  area_codigo: string
   activo: boolean
 }
 
@@ -86,7 +90,9 @@ interface FilaVelocidad {
 
 export function CatalogosProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth()
-  const [lineas, setLineas] = useState<LineaLive[]>([])
+  const [lineasTodas, setLineasTodas] = useState<LineaLive[]>([])
+  /** Área de cada línea (para sacar las de Pruebas cuando la sesión no tiene área). */
+  const [areaDeLinea, setAreaDeLinea] = useState<Record<string, string>>({})
   const [presentaciones, setPresentaciones] = useState<PresentacionLive[]>([])
   const [velocidades, setVelocidades] = useState<VelocidadLive[]>([])
   const [cargando, setCargando] = useState(true)
@@ -113,8 +119,10 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
       supabase.rpc("listar_velocidades"),
     ])
 
-    setLineas(
-      ((lineasRes.data ?? []) as FilaLinea[]).map((f) => ({
+    const filasLineas = (lineasRes.data ?? []) as FilaLinea[]
+    setAreaDeLinea(Object.fromEntries(filasLineas.map((f) => [f.linea_id, f.area_codigo])))
+    setLineasTodas(
+      filasLineas.map((f) => ({
         id: f.linea_id,
         codigo: f.codigo as LineaCodigo,
         nombre: f.nombre,
@@ -149,13 +157,18 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
     setCargando(false)
   }
 
+  // Sin área fija (Super Admin, o un usuario sin área) listar_lineas trae TODAS, también las de
+  // Pruebas (L-T1/T2/T3): en Líneas, Finalizar Turno, el acta y los paneles salían mezcladas con las
+  // de Aséptico (Javier, 2026-10-06). Las pantallas de producción no las ven; Edición de Datos usa lineasTodas.
+  const lineas = session?.area === "PRUEBAS" ? lineasTodas : lineasTodas.filter((l) => areaDeLinea[l.id] !== "PRUEBAS")
+
   useEffect(() => {
     recargar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.area])
 
   return (
-    <CatalogosContext.Provider value={{ lineas, presentaciones, velocidades, cargando, recargar }}>
+    <CatalogosContext.Provider value={{ lineas, lineasTodas, presentaciones, velocidades, cargando, recargar }}>
       {children}
     </CatalogosContext.Provider>
   )

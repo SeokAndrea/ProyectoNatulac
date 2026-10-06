@@ -650,7 +650,7 @@ function FormularioNuevaPresentacion({ onCancelar, onAgregado }: { onCancelar: (
 }
 
 function VelocidadesTab() {
-  const { lineas, velocidades, presentaciones, cargando, recargar } = useCatalogosLive()
+  const { lineasTodas: lineas, velocidades, presentaciones, cargando, recargar } = useCatalogosLive()
 
   if (cargando) {
     return (
@@ -903,7 +903,7 @@ function FormularioNuevaVelocidad({
 }
 
 function LineasTab() {
-  const { lineas, cargando, recargar } = useCatalogosLive()
+  const { lineasTodas: lineas, cargando, recargar } = useCatalogosLive()
 
   if (cargando) {
     return (
