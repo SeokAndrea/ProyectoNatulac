@@ -87,7 +87,7 @@ export async function generarActaPdf(params: {
   productoTerminado: ProductoTerminadoRegistro[]
   novedades: NovedadTurno[]
   ajustesVolumen: AjusteVolumenRegistro[]
-  /** Transferencias entre tanques del turno: en 1.7 el lote que se mudó dice "Transferido a Tanque N". */
+  /** Transferencias entre tanques del turno: en 1.7 el lote que se mudó dice "Transferido a TQn". */
   transferencias?: TransferenciaRegistro[]
   /** Paradas registradas en este turno (ver cargarParadasDelTurno). Van en los recuadros por línea de 2.1. */
   paradas?: Parada[]
@@ -280,23 +280,24 @@ export async function generarActaPdf(params: {
   // ---------------------------------------------------------------- 1.7 semielaborado
   barra("1.7 SEGUIMIENTO DEL SEMIELABORADO")
   {
-    // Sabor y tanque 1 · Merma 0.5 · Vol. inicial 1 · Vol. preparado 1.5 · Comparativo por línea 3 · Vol. final 1.5 · % Rend. 0.5 (= 9)
-    const anchos = [C, 0.5 * C, C, 1.5 * C, ...lineas.map(() => (3 * C) / lineas.length), 1.5 * C, 0.5 * C]
+    // Sabor y tanque 2 (entra "Lote 3 · TQ2 — Transferido a TQ3" en una línea) · Merma 0.5 · Vol. inicial 1 ·
+    // Vol. preparado 1 · Comparativo por línea 3 · Vol. final 1 · % Rend. 0.5 (= 9)
+    const anchos = [2 * C, 0.5 * C, C, C, ...lineas.map(() => (3 * C) / lineas.length), C, 0.5 * C]
     const xs = anchos.reduce<number[]>((acc, _w, i) => [...acc, i === 0 ? M : acc[i - 1] + anchos[i - 1]], [])
     const h1 = 4.2
     const enc = { fondo: CELESTE, negrita: true, tamano: 7 } as const
-    celda(xs[0], y, anchos[0], 2 * h1, "Sabor\nTanque", enc)
+    celda(xs[0], y, anchos[0], 2 * h1, "Sabor / Tanque", enc)
     celda(xs[1], y, anchos[1], 2 * h1, "Merma\nSemielab.", { ...enc, tamano: 4.5 })
     celda(xs[2], y, anchos[2], 2 * h1, "Volumen Inicial\n(Visor)", { ...enc, tamano: 6.5 })
-    celda(xs[3], y, anchos[3], 2 * h1, "Volumen Preparado", enc)
+    celda(xs[3], y, anchos[3], 2 * h1, "Volumen\nPreparado", { ...enc, tamano: 6.5 })
     celda(xs[4], y, 3 * C, h1, "Comparativo Vol. Vs Contadores por Línea (Parcial)", { ...enc, tamano: 6.5 })
     lineas.forEach((l, i) => celda(xs[4 + i], y + h1, anchos[4 + i], h1, l.nombre, { ...enc, tamano: 6.5 }))
     const iFinal = 4 + lineas.length
-    celda(xs[iFinal], y, anchos[iFinal], 2 * h1, "Volumen Final (Envasado)", { ...enc, tamano: 6.5 })
+    celda(xs[iFinal], y, anchos[iFinal], 2 * h1, "Volumen Final\n(Envasado)", { ...enc, tamano: 6.5 })
     celda(xs[iFinal + 1], y, anchos[iFinal + 1], 2 * h1, "%\nRend.", { ...enc, tamano: 6 })
     y += 2 * h1
 
-    /** "Transferido a Tanque 3" (en otra línea) si de este lote salió una transferencia; el tanque es el del lote que la recibió. */
+    /** " — Transferido a TQ3" (en la misma línea del lote) si de este lote salió una transferencia; el tanque es el del lote que la recibió. */
     const transferidoA = (loteId: string) => {
       const tanquesDestino = [
         ...new Set(
@@ -306,7 +307,7 @@ export async function generarActaPdf(params: {
             .filter((n): n is 1 | 2 | 3 => n != null),
         ),
       ]
-      return tanquesDestino.length > 0 ? `\nTransferido a Tanque ${tanquesDestino.join(" y ")}` : ""
+      return tanquesDestino.length > 0 ? ` — Transferido a ${tanquesDestino.map((n) => `TQ${n}`).join(" y ")}` : ""
     }
     const loteIdsCorridos = new Set(corridas.map((c) => c.loteId).filter((id): id is string => id !== null))
     const lotesDelTurno = preparaciones.filter((p) => loteIdsCorridos.has(p.id))
@@ -331,10 +332,9 @@ export async function generarActaPdf(params: {
       ]
     })
     const totalFilas = Math.max(filas.length, 1)
+    const altoFila = 5.6
     for (let f = 0; f < totalFilas; f++) {
       const datos = filas[f]
-      // La fila de un lote transferido lleva una línea más en la primera columna.
-      const altoFila = datos && datos[0].split("\n").length > 2 ? 7.6 : 5.6
       asegurar(altoFila)
       anchos.forEach((w, i) => celda(xs[i], y, w, altoFila, datos ? datos[i] : "", { negrita: true, tamano: i === 0 ? 6 : 7 }))
       y += altoFila
