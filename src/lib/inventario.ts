@@ -1,69 +1,80 @@
 import { supabase } from "@/lib/supabase"
-import { unidadPreparacion } from "@/lib/sabores"
 
 /*
- * Inventario diario de materia prima (etapa 1: tambores y kits por
- * sabor) — migración 20261103. Saldo = último conteo − tambores/kits de
- * las preparaciones creadas después; la analista confirma o corrige en
- * el Inventario diario (mañana y tarde) y anota lo que llegó.
+ * Inventario diario (migración 20261103): "Inventario de la mañana" /
+ * "de la tarde", en dos secciones — Materia prima (pulpa y kits por
+ * sabor) y Material de empaque (lista fija). Solo la pulpa se descuenta
+ * sola: saldo = último conteo − tambores de las preparaciones creadas
+ * después. Kits y empaque quedan con lo último que se contó.
  */
 
 type Resultado = { ok: true } | { ok: false; error: string }
 
 export type AreaInventario = "ASEPTICO" | "PRUEBAS"
+export type Momento = "MANANA" | "TARDE"
+export type TipoItem = "PULPA" | "KITS" | "EMPAQUE"
 
-export interface FilaInventario {
+export interface ItemInventario {
   areaCodigo: AreaInventario
-  saborId: string
-  saborNombre: string
-  familiaNombre: string
-  saborActivo: boolean
-  unidad: "tambores" | "kits"
-  /** null = el sabor nunca se contó en esta área. */
+  seccion: "MATERIA_PRIMA" | "EMPAQUE"
+  /** 'PULPA:<sabor>' | 'KITS:<sabor>' | 'EMPAQUE:<codigo>'. */
+  item: string
+  tipo: TipoItem
+  saborId: string | null
+  empaqueCodigo: string | null
+  /** Sabor (con su familia) o item de empaque. */
+  nombre: string
+  /** "tambores", "kits", "cajas", "unidades", "rollos". */
+  unidad: string
+  /** null = nunca se contó en esta área. */
   ultimoEn: string | null
   ultimoPor: string | null
+  ultimoMomento: Momento | null
   ultimoContado: number | null
-  ultimoLlego: number | null
-  /** contado − (sistema + llegó) del último conteo: negativo = faltante. null en el primer conteo. */
+  /** Solo pulpa: contado − lo que esperaba el sistema (negativo = faltante). */
   ultimaDiferencia: number | null
-  /** Tambores/kits de las preparaciones creadas después del último conteo. */
+  /** Solo pulpa: tambores de las preparaciones creadas después del último conteo. */
   consumido: number | null
   preparaciones: number | null
   /** Lo que debería haber ahora. null si nunca se contó. */
   saldo: number | null
 }
 
-interface FilaRpc {
+interface ItemRpc {
   area_codigo: AreaInventario
-  sabor_id: string
-  sabor_nombre: string
-  sabor_base: string
-  familia_nombre: string
-  sabor_activo: boolean
+  seccion: "MATERIA_PRIMA" | "EMPAQUE"
+  item: string
+  tipo: TipoItem
+  sabor_id: string | null
+  empaque_codigo: string | null
+  nombre: string
+  unidad: string
   ultimo_en: string | null
   ultimo_por: string | null
+  ultimo_momento: Momento | null
   ultimo_contado: number | null
-  ultimo_llego: number | null
   ultima_diferencia: number | null
   consumido: number | null
   preparaciones: number | null
   saldo: number | null
 }
 
-export async function listarInventario(usuario: string, area: AreaInventario | null): Promise<FilaInventario[]> {
-  const { data, error } = await supabase.rpc("listar_inventario_mp", { p_usuario: usuario, p_area_codigo: area })
+async function listarInventario(usuario: string, area: AreaInventario | null): Promise<ItemInventario[]> {
+  const { data, error } = await supabase.rpc("listar_inventario", { p_usuario: usuario, p_area_codigo: area })
   if (error || !data) return []
-  return (data as FilaRpc[]).map((f) => ({
+  return (data as ItemRpc[]).map((f) => ({
     areaCodigo: f.area_codigo,
+    seccion: f.seccion,
+    item: f.item,
+    tipo: f.tipo,
     saborId: f.sabor_id,
-    saborNombre: f.sabor_nombre,
-    familiaNombre: f.familia_nombre,
-    saborActivo: f.sabor_activo,
-    unidad: unidadPreparacion(`${f.sabor_base} ${f.familia_nombre}`),
+    empaqueCodigo: f.empaque_codigo,
+    nombre: f.nombre,
+    unidad: f.unidad,
     ultimoEn: f.ultimo_en,
     ultimoPor: f.ultimo_por,
+    ultimoMomento: f.ultimo_momento,
     ultimoContado: f.ultimo_contado,
-    ultimoLlego: f.ultimo_llego,
     ultimaDiferencia: f.ultima_diferencia,
     consumido: f.consumido,
     preparaciones: f.preparaciones,
@@ -72,65 +83,95 @@ export async function listarInventario(usuario: string, area: AreaInventario | n
 }
 
 export interface ConteoInventario {
-  saborId: string
+  tipo: TipoItem
+  saborId: string | null
+  empaqueCodigo: string | null
   contado: number
-  llego: number
 }
 
-/** Guarda el Inventario diario: un conteo por sabor, todo junto. */
-export async function registrarInventario(usuario: string, conteos: ConteoInventario[], area: AreaInventario | null): Promise<Resultado> {
-  const { error } = await supabase.rpc("registrar_inventario_mp", {
+async function registrarInventario(
+  usuario: string,
+  momento: Momento,
+  conteos: ConteoInventario[],
+  area: AreaInventario | null,
+): Promise<Resultado> {
+  const { error } = await supabase.rpc("registrar_inventario", {
     p_usuario: usuario,
-    p_items: conteos.map((c) => ({ sabor_id: c.saborId, contado: c.contado, llego: c.llego })),
+    p_momento: momento,
+    p_items: conteos.map((c) => ({ tipo: c.tipo, sabor_id: c.saborId, empaque_codigo: c.empaqueCodigo, contado: c.contado })),
     p_area_codigo: area,
   })
   if (error) return { ok: false, error: error.message || "No se pudo guardar el inventario. Intenta de nuevo." }
   return { ok: true }
 }
 
-export interface MovimientoInventario {
-  tipo: "CONTEO" | "CONSUMO"
+/** Un inventario ya hecho (de la mañana o de la tarde). */
+export interface InventarioHecho {
+  id: string
+  momento: Momento
   en: string
-  /** CONTEO: lo contado. CONSUMO: tambores/kits de la preparación. */
+  usuarioNombre: string | null
+  items: number
+  faltantes: number
+  sobrantes: number
+}
+
+async function listarInventarios(usuario: string, area: AreaInventario | null): Promise<InventarioHecho[]> {
+  const { data, error } = await supabase.rpc("listar_inventarios", { p_usuario: usuario, p_dias: 7, p_area_codigo: area })
+  if (error || !data) return []
+  return (
+    data as { id: string; momento: Momento; en: string; usuario_nombre: string | null; items: number; faltantes: number; sobrantes: number }[]
+  ).map((i) => ({
+    id: i.id,
+    momento: i.momento,
+    en: i.en,
+    usuarioNombre: i.usuario_nombre,
+    items: i.items,
+    faltantes: i.faltantes,
+    sobrantes: i.sobrantes,
+  }))
+}
+
+export interface MovimientoInventario {
+  movimiento: "CONTEO" | "CONSUMO"
+  en: string
+  momento: Momento | null
+  /** CONTEO: lo contado. CONSUMO: tambores de la preparación. */
   cantidad: number
   sistema: number | null
-  llego: number | null
   diferencia: number | null
   /** CONSUMO: "Lote 0003 · Turno T1-0510 · Tanque 2". */
   detalle: string | null
   usuarioNombre: string | null
 }
 
-export async function historialInventario(
-  usuario: string,
-  saborId: string,
-  area: AreaInventario | null,
-  dias = 7,
-): Promise<MovimientoInventario[]> {
-  const { data, error } = await supabase.rpc("historial_inventario_mp", {
+async function historialInventario(usuario: string, item: ItemInventario, area: AreaInventario | null): Promise<MovimientoInventario[]> {
+  const { data, error } = await supabase.rpc("historial_inventario", {
     p_usuario: usuario,
-    p_sabor_id: saborId,
-    p_dias: dias,
+    p_tipo: item.tipo,
+    p_sabor_id: item.saborId,
+    p_empaque_codigo: item.empaqueCodigo,
+    p_dias: 7,
     p_area_codigo: area,
   })
   if (error || !data) return []
   return (
     data as {
-      tipo: "CONTEO" | "CONSUMO"
+      movimiento: "CONTEO" | "CONSUMO"
       en: string
+      momento: Momento | null
       cantidad: number
       sistema: number | null
-      llego: number | null
       diferencia: number | null
       detalle: string | null
       usuario_nombre: string | null
     }[]
   ).map((m) => ({
-    tipo: m.tipo,
+    movimiento: m.movimiento,
     en: m.en,
+    momento: m.momento,
     cantidad: m.cantidad,
     sistema: m.sistema,
-    llego: m.llego,
     diferencia: m.diferencia,
     detalle: m.detalle,
     usuarioNombre: m.usuario_nombre,
@@ -139,13 +180,15 @@ export async function historialInventario(
 
 /** Lo que la pantalla necesita del inventario. Real (Supabase) o de muestra (ver inventarioDemo.ts). */
 export interface InventarioApi {
-  listar: (usuario: string, area: AreaInventario | null) => Promise<FilaInventario[]>
-  registrar: (usuario: string, conteos: ConteoInventario[], area: AreaInventario | null) => Promise<Resultado>
-  historial: (usuario: string, saborId: string, area: AreaInventario | null) => Promise<MovimientoInventario[]>
+  listar: (usuario: string, area: AreaInventario | null) => Promise<ItemInventario[]>
+  inventarios: (usuario: string, area: AreaInventario | null) => Promise<InventarioHecho[]>
+  registrar: (usuario: string, momento: Momento, conteos: ConteoInventario[], area: AreaInventario | null) => Promise<Resultado>
+  historial: (usuario: string, item: ItemInventario, area: AreaInventario | null) => Promise<MovimientoInventario[]>
 }
 
 export const inventarioReal: InventarioApi = {
-  listar: (usuario, area) => listarInventario(usuario, area),
-  registrar: (usuario, conteos, area) => registrarInventario(usuario, conteos, area),
-  historial: (usuario, saborId, area) => historialInventario(usuario, saborId, area),
+  listar: listarInventario,
+  inventarios: listarInventarios,
+  registrar: registrarInventario,
+  historial: historialInventario,
 }

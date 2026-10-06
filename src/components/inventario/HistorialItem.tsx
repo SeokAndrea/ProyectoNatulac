@@ -1,32 +1,32 @@
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
-import type { AreaInventario, FilaInventario, InventarioApi, MovimientoInventario } from "@/lib/inventario"
+import type { AreaInventario, InventarioApi, ItemInventario, MovimientoInventario } from "@/lib/inventario"
 import { cn } from "@/lib/utils"
-import { cantidadConUnidad, fechaHoraCorta, textoDiferencia } from "./calculosInventario"
+import { cantidadConUnidad, fechaHoraCorta, NOMBRE_MOMENTO, textoDiferencia } from "./calculosInventario"
 
-/** Últimos 7 días de un sabor: conteos (con su diferencia) y cada preparación que descontó. */
-export function HistorialSabor({
+/** Últimos 7 días de un item: sus conteos y (pulpa) cada preparación que descontó. */
+export function HistorialItem({
   api,
   usuario,
   area,
-  fila,
+  item,
 }: {
   api: InventarioApi
   usuario: string
   area: AreaInventario | null
-  fila: FilaInventario
+  item: ItemInventario
 }) {
   const [movimientos, setMovimientos] = useState<MovimientoInventario[] | null>(null)
 
   useEffect(() => {
     let vivo = true
-    api.historial(usuario, fila.saborId, area).then((m) => {
+    api.historial(usuario, item, area).then((m) => {
       if (vivo) setMovimientos(m)
     })
     return () => {
       vivo = false
     }
-  }, [api, usuario, fila.saborId, area])
+  }, [api, usuario, item, area])
 
   if (movimientos === null) {
     return (
@@ -43,19 +43,17 @@ export function HistorialSabor({
       {movimientos.map((m, i) => (
         <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5">
           <span className="text-muted-foreground">{fechaHoraCorta(m.en)}</span>
-          {m.tipo === "CONSUMO" ? (
+          {m.movimiento === "CONSUMO" ? (
             <span className="flex-1 text-foreground">
-              Preparación: −{cantidadConUnidad(m.cantidad, fila.unidad)}
+              Preparación: −{cantidadConUnidad(m.cantidad, item.unidad)}
               {m.detalle ? <span className="text-muted-foreground"> · {m.detalle}</span> : null}
             </span>
           ) : (
             <span className="flex-1 font-medium text-foreground">
-              Conteo: {cantidadConUnidad(m.cantidad, fila.unidad)}
-              {m.llego ? <span className="font-normal text-muted-foreground"> · llegaron {m.llego}</span> : null}
+              Inventario de la {m.momento ? NOMBRE_MOMENTO[m.momento] : "—"}: {cantidadConUnidad(m.cantidad, item.unidad)}
               {m.diferencia !== null && (
-                <span className={cn("font-normal", m.diferencia === 0 ? "text-success" : "text-warning")}> · {textoDiferencia(m.diferencia, fila.unidad)}</span>
+                <span className={cn("font-normal", m.diferencia === 0 ? "text-success" : "text-warning")}> · {textoDiferencia(m.diferencia, item.unidad)}</span>
               )}
-              {m.sistema === null && <span className="font-normal text-muted-foreground"> · conteo inicial</span>}
             </span>
           )}
           <span className="text-muted-foreground">{m.usuarioNombre ?? "—"}</span>

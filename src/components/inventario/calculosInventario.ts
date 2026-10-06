@@ -1,72 +1,110 @@
-import type { ConteoInventario, FilaInventario } from "@/lib/inventario"
+import type { ConteoInventario, ItemInventario, Momento } from "@/lib/inventario"
 import { diaMesPlanta, horaCortaPlanta } from "@/lib/tiempoPlanta"
 
 /*
  * Cuentas del Inventario diario — funciones puras. El servidor vuelve a
- * calcular "lo que esperaba el sistema" al guardar (por si cambió algo
- * entre que se abrió la pantalla y se guardó); estas son para mostrarlo
- * mientras se escribe.
+ * calcular lo que esperaba el sistema al guardar; estas son para
+ * mostrarlo mientras se escribe.
  */
 
-/** Lo que una fila del Inventario diario tiene escrito (texto de los inputs). */
-export interface BorradorFila {
-  llego: string
-  contado: string
+export const NOMBRE_MOMENTO: Record<Momento, string> = { MANANA: "mañana", TARDE: "tarde" }
+
+/** Pulpa y kits de un sabor, juntos. */
+export interface SaborInventario {
+  saborId: string
+  nombre: string
+  pulpa: ItemInventario
+  kits: ItemInventario
 }
 
-export const BORRADOR_VACIO: BorradorFila = { llego: "", contado: "" }
+export function saboresDe(items: ItemInventario[]): SaborInventario[] {
+  const porSabor = new Map<string, Partial<SaborInventario>>()
+  for (const it of items) {
+    if (it.seccion !== "MATERIA_PRIMA" || !it.saborId) continue
+    const s = porSabor.get(it.saborId) ?? { saborId: it.saborId, nombre: it.nombre }
+    if (it.tipo === "PULPA") s.pulpa = it
+    if (it.tipo === "KITS") s.kits = it
+    porSabor.set(it.saborId, s)
+  }
+  return [...porSabor.values()].filter((s): s is SaborInventario => !!s.pulpa && !!s.kits)
+}
+
+export const empaqueDe = (items: ItemInventario[]) => items.filter((it) => it.seccion === "EMPAQUE")
+
+// ------------------------------------------------------------ borrador del formulario
+
+/** Fila de Materia prima: el sabor elegido de la lista, pulpa y kits contados (texto de los inputs). */
+export interface FilaMateriaPrima {
+  clave: number
+  saborId: string
+  pulpa: string
+  kits: string
+}
+
+/** Fila de Material de empaque: el item elegido de la lista y lo contado. */
+export interface FilaEmpaque {
+  clave: number
+  codigo: string
+  cantidad: string
+}
 
 const entero = (v: string): number | null => {
   if (v.trim() === "") return null
   const n = Number(v)
   return Number.isInteger(n) && n >= 0 ? n : NaN
 }
+const mal = (v: string) => Number.isNaN(entero(v))
 
-/** Lo que debería haber al contar: saldo del sistema + lo que llegó. null si nunca se contó (primer conteo). */
-export function esperado(fila: FilaInventario, borrador: BorradorFila): number | null {
-  if (fila.saldo === null) return null
-  const llego = entero(borrador.llego)
-  return fila.saldo + (llego !== null && !Number.isNaN(llego) ? llego : 0)
-}
-
-/** contado − esperado: negativo = faltante, positivo = sobrante. null si no se escribió el conteo o es el primero. */
-export function diferenciaDe(fila: FilaInventario, borrador: BorradorFila): number | null {
-  const contado = entero(borrador.contado)
-  const esp = esperado(fila, borrador)
-  if (contado === null || Number.isNaN(contado) || esp === null) return null
-  return contado - esp
-}
-
-/** Problema con lo escrito en la fila, o null si está bien (o vacía). */
-export function errorDeFila(borrador: BorradorFila): string | null {
-  const llego = entero(borrador.llego)
-  const contado = entero(borrador.contado)
-  if (Number.isNaN(llego) || Number.isNaN(contado)) return "Usa números enteros, sin negativos."
-  if (llego !== null && contado === null) return "Falta lo contado."
+export function errorFilaMateriaPrima(f: FilaMateriaPrima): string | null {
+  if (mal(f.pulpa) || mal(f.kits)) return "Usa números enteros, sin negativos."
+  const hayNumeros = entero(f.pulpa) !== null || entero(f.kits) !== null
+  if (!f.saborId && hayNumeros) return "Elige el sabor."
+  if (f.saborId && !hayNumeros) return "Escribe la pulpa o los kits."
   return null
 }
 
-/** Las filas con conteo escrito y sin errores, listas para guardar. */
-export function conteosParaGuardar(filas: FilaInventario[], borradores: Record<string, BorradorFila>): ConteoInventario[] {
-  return filas.flatMap((f) => {
-    const b = borradores[f.saborId]
-    if (!b || errorDeFila(b) !== null) return []
-    const contado = entero(b.contado)
-    if (contado === null || Number.isNaN(contado)) return []
-    const llego = entero(b.llego)
-    return [{ saborId: f.saborId, contado, llego: llego ?? 0 }]
-  })
+export function errorFilaEmpaque(f: FilaEmpaque): string | null {
+  if (mal(f.cantidad)) return "Usa números enteros, sin negativos."
+  if (!f.codigo && entero(f.cantidad) !== null) return "Elige el material."
+  if (f.codigo && entero(f.cantidad) === null) return "Escribe la cantidad."
+  return null
 }
 
-const SINGULAR: Record<FilaInventario["unidad"], string> = { tambores: "tambor", kits: "kit" }
+/** Lo que se manda al guardar: las filas completas y sin errores. */
+export function conteosDelBorrador(materiaPrima: FilaMateriaPrima[], empaque: FilaEmpaque[]): ConteoInventario[] {
+  const conteos: ConteoInventario[] = []
+  for (const f of materiaPrima) {
+    if (!f.saborId || errorFilaMateriaPrima(f) !== null) continue
+    const pulpa = entero(f.pulpa)
+    const kits = entero(f.kits)
+    if (pulpa !== null) conteos.push({ tipo: "PULPA", saborId: f.saborId, empaqueCodigo: null, contado: pulpa })
+    if (kits !== null) conteos.push({ tipo: "KITS", saborId: f.saborId, empaqueCodigo: null, contado: kits })
+  }
+  for (const f of empaque) {
+    if (!f.codigo || errorFilaEmpaque(f) !== null) continue
+    conteos.push({ tipo: "EMPAQUE", saborId: null, empaqueCodigo: f.codigo, contado: entero(f.cantidad)! })
+  }
+  return conteos
+}
+
+/** Pulpa: lo contado − lo que espera el sistema. null si no se escribió o es el primer conteo. */
+export function diferenciaPulpa(pulpa: ItemInventario, texto: string): number | null {
+  const contado = entero(texto)
+  if (contado === null || Number.isNaN(contado) || pulpa.saldo === null) return null
+  return contado - pulpa.saldo
+}
+
+// ------------------------------------------------------------ textos
+
+const SINGULAR: Record<string, string> = { tambores: "tambor", kits: "kit", cajas: "caja", unidades: "unidad", rollos: "rollo" }
 
 /** "2 tambores" / "1 kit". */
-export function cantidadConUnidad(n: number, unidad: FilaInventario["unidad"]): string {
-  return `${n.toLocaleString("es-CO")} ${Math.abs(n) === 1 ? SINGULAR[unidad] : unidad}`
+export function cantidadConUnidad(n: number, unidad: string): string {
+  return `${n.toLocaleString("es-CO")} ${Math.abs(n) === 1 ? (SINGULAR[unidad] ?? unidad) : unidad}`
 }
 
-/** "Faltan 2 tambores" / "Sobra 1 kit" / "Cuadra". */
-export function textoDiferencia(diferencia: number, unidad: FilaInventario["unidad"]): string {
+/** "Faltan 2 tambores" / "Sobra 1 tambor" / "Cuadra". */
+export function textoDiferencia(diferencia: number, unidad: string): string {
   if (diferencia === 0) return "Cuadra"
   const n = Math.abs(diferencia)
   const verbo = diferencia < 0 ? (n === 1 ? "Falta" : "Faltan") : n === 1 ? "Sobra" : "Sobran"

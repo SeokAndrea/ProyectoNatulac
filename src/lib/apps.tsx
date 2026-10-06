@@ -136,7 +136,7 @@ export const apps: AppDef[] = [
   {
     slug: "inventario",
     title: "Inventario diario",
-    description: "Tambores y kits por sabor: lo que debería haber y el conteo de mañana y tarde.",
+    description: "Materia prima y material de empaque: inventario de la mañana y de la tarde.",
     href: "/inventario",
     icon: Warehouse,
     requiereTurno: false,
