@@ -183,21 +183,24 @@ export default function FinalizarTurno() {
 
     let actaPdf: Blob | null = null
     let errorActa: string | null = null
-    try {
-      actaPdf = await generarActaPdf({
-        ...datosParaActa,
-        supervisorNombre: session.nombre || session.username,
-        area: session.area,
-        lineas,
-        presentaciones,
-        velocidades,
-      })
-      // Se descarga sola al teléfono; si el navegador la bloquea, queda el botón "Descargar acta".
-      descargarArchivo(actaPdf, nombreArchivoActa(codigo))
-      const resultado = await subirYRegistrarActa(session.username, turnoId, session.area ?? "SIN_AREA", codigo, actaPdf)
-      if (!resultado.ok) errorActa = `El acta no se pudo guardar en Mis Actas: ${resultado.error}`
-    } catch {
-      errorActa = "No se pudo generar el PDF del acta. Puede generarla de nuevo desde Auditoría."
+    // Pruebas no genera acta (tampoco sale en Mis Actas, migración 20261105).
+    if (!esPruebas) {
+      try {
+        actaPdf = await generarActaPdf({
+          ...datosParaActa,
+          supervisorNombre: session.nombre || session.username,
+          area: session.area,
+          lineas,
+          presentaciones,
+          velocidades,
+        })
+        // Se descarga sola al teléfono; si el navegador la bloquea, queda el botón "Descargar acta".
+        descargarArchivo(actaPdf, nombreArchivoActa(codigo))
+        const resultado = await subirYRegistrarActa(session.username, turnoId, session.area ?? "SIN_AREA", codigo, actaPdf)
+        if (!resultado.ok) errorActa = `El acta no se pudo guardar en Mis Actas: ${resultado.error}`
+      } catch {
+        errorActa = "No se pudo generar el PDF del acta. Puede generarla de nuevo desde Auditoría."
+      }
     }
 
     setFinalizando(false)
