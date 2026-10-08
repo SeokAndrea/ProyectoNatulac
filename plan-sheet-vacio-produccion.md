@@ -16,7 +16,15 @@ Creado 2026-10-08 (dueño). Tres frentes, en este orden de trabajo: 3 → 2 → 
   nada en la app. Red de seguridad: dos paradas que se pisan en la misma línea cuentan una vez.
 - Mantenimiento deja de registrar en Registrar Paradas (`/paradas`); sigue viendo los paneles.
 
-**Falta:** link del Sheet (publicado como CSV o «cualquiera con el enlace»), pestaña de reportes.
+**Programado (2026-10-08, migración 20261108490000, `src/lib/sheetMantenimiento.ts`).** Sheet compartido «cualquiera con
+el enlace», pestaña ÁREAS (gviz responde con CORS: el navegador lo lee directo). Botón en Registrar Paradas y en el
+Panel de Paradas. Fechas: si inicio + DOWNTIME no cuadra con el cierre, manda la que no está en el futuro (17 de
+1.122 reportes). Equivalencias en Catálogo de Paradas → «Equivalencias de Mantenimiento»: con el Sheet de hoy, 810
+reportes quedan con tipo específico, 192 con la falla general del equipo y 120 sin tipo (A3 sin subsistema, ALMIX,
+FLEX…) para clasificar una vez.
+
+**Ojo:** el archivo entero es público, incluida la pestaña USUARIOS (correos). Mejor publicar solo ÁREAS o mover
+USUARIOS a otro archivo. 5 reportes viejos (abril/junio) traen DOWNTIME de ~24 h por error de tipeo.
 
 ## 2. Tanques de Aséptico que usa Vacío
 

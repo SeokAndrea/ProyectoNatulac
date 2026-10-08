@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom"
 import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
+import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
 import { ahoraPlanta, CampoFin, conSegundos, FormCompletarParada } from "@/components/paradas/FormCompletarParada"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -128,6 +129,8 @@ export default function RegistrarParadas() {
   return (
     <AppShell title="Registrar Paradas" description="Paradas de las líneas: se suman como +1 y después se pone cuánto duraron">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+        {areaParadas === "ASEPTICO" && <ActualizarDesdeSheet usuario={usuario} onListo={cargar} />}
+
         {error && (
           <p className="text-sm text-danger-foreground" role="alert">
             {error}

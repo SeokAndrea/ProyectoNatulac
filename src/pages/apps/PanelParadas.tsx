@@ -7,6 +7,8 @@ import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
+import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
+import { puede } from "@/lib/permisos"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
 import { cargarOeePeriodo } from "@/lib/eficienciaPeriodo"
 import type { TurnoActivo } from "@/lib/turno"
@@ -75,10 +77,14 @@ export default function PanelParadas() {
   // Aséptico y Pruebas ven solo lo suyo; el resto (superadmin, Mantenimiento…) ve producción, nunca Pruebas.
   const areaParadas = area === "ASEPTICO" || area === "PRUEBAS" ? area : null
   // Solo las paradas del período elegido en la vista (antes se traía todo el historial).
+  // Sube al actualizar desde el Sheet de Mantenimiento: la vista vuelve a pedir las paradas.
+  const [versionParadas, setVersionParadas] = useState(0)
   const cargarParadas = useCallback<CargarParadas>(
     ({ desde, hasta }) => listarParadas({ desde, hasta, area: areaParadas }),
-    [areaParadas],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [areaParadas, versionParadas],
   )
+  const puedeActualizarSheet = areaParadas !== "PRUEBAS" && (puede(session, "PARADAS_REGISTRAR") || session?.area === "MANTENIMIENTO")
 
   // OEE por línea del período elegido en la vista — mismo cálculo que el
   // Panel de Producción, turno por turno (src/lib/eficienciaPeriodo.ts).
@@ -135,6 +141,11 @@ export default function PanelParadas() {
   return (
     <AppShell title="Panel de Paradas" fullWidth ocultarEstadoBanner>
       <div className="w-full">
+        {puedeActualizarSheet && (
+          <div className="mx-auto mb-3 max-w-3xl">
+            <ActualizarDesdeSheet usuario={session?.username ?? ""} onListo={() => setVersionParadas((v) => v + 1)} />
+          </div>
+        )}
         <PanelParadasVista
           cargarParadas={cargarParadas}
           estadoLineas={estadoLineas}

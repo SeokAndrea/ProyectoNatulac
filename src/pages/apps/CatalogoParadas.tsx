@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react"
 import { ChevronDown, ChevronRight, Pencil, Plus } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { CatalogoEquipos } from "@/components/CatalogoEquipos"
+import { EquivalenciasMantenimiento } from "@/components/paradas/EquivalenciasMantenimiento"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -81,7 +82,7 @@ export default function CatalogoParadas() {
   const [equipoFiltro, setEquipoFiltro] = useState("")
   const [verInactivos, setVerInactivos] = useState(false)
   const [edicion, setEdicion] = useState<{ tipo: TipoParadaEditable; original?: string } | null>(null)
-  const [pestana, setPestana] = useState<"TIPOS" | "EQUIPOS">("TIPOS")
+  const [pestana, setPestana] = useState<"TIPOS" | "EQUIPOS" | "MANTENIMIENTO">("TIPOS")
   const [cerrados, setCerrados] = useState<Set<string>>(new Set())
 
   const filas = useMemo(() => {
@@ -123,9 +124,14 @@ export default function CatalogoParadas() {
           <Button size="sm" variant={pestana === "EQUIPOS" ? "default" : "outline"} onClick={() => setPestana("EQUIPOS")}>
             Equipos (mecánicas)
           </Button>
+          <Button size="sm" variant={pestana === "MANTENIMIENTO" ? "default" : "outline"} onClick={() => setPestana("MANTENIMIENTO")}>
+            Equivalencias de Mantenimiento
+          </Button>
         </div>
 
-        {pestana === "EQUIPOS" ? (
+        {pestana === "MANTENIMIENTO" ? (
+          <EquivalenciasMantenimiento usuario={usuario} />
+        ) : pestana === "EQUIPOS" ? (
           <CatalogoEquipos usuario={usuario} />
         ) : (
         <>

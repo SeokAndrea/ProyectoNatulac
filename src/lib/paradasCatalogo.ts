@@ -66,6 +66,12 @@ export async function recargarCatalogo(): Promise<void> {
   avisar()
 }
 
+/** El catálogo (activos e inactivos) fuera de un componente; lo carga si todavía no está. */
+export async function catalogoParadas(): Promise<TipoParadaEditable[]> {
+  if (cache === null) await recargarCatalogo()
+  return cache ?? []
+}
+
 const suscribir = (f: () => void) => {
   oyentes.add(f)
   return () => oyentes.delete(f)
