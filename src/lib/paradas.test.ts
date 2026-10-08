@@ -67,7 +67,7 @@ describe("desvío contra el tiempo guía", () => {
   it("fmtDesvio", () => {
     expect(fmtDesvio(0)).toBe("en guía")
     expect(fmtDesvio(18)).toBe("+18 min")
-    expect(fmtDesvio(-90)).toBe("−1 h 30 min")
+    expect(fmtDesvio(-90)).toBe("-1 h 30 min")
   })
 })
 
