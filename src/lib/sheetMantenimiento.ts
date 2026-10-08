@@ -266,6 +266,41 @@ export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<R
   return { ok: true, datos: { nuevas: d.nuevas, actualizadas: d.actualizadas, sinCambios: d.sin_cambios, omitidas: d.omitidas, corregidas } }
 }
 
+/** El enlace del Sheet guardado (Edición de Datos), o null. */
+export async function obtenerEnlaceSheet(): Promise<string | null> {
+  const { data } = await supabase.rpc("obtener_configuracion", { p_clave: "sheet_mantenimiento_url" })
+  return typeof data === "string" && data.trim() ? data : null
+}
+
+/** Guarda el enlace (solo el dueño, guardar_configuracion). */
+export async function guardarEnlaceSheet(usuario: string, enlace: string): Promise<Resultado<null>> {
+  if (!urlCsvDelSheet(enlace)) return { ok: false, error: "El enlace tiene que ser de un Google Sheet (https://docs.google.com/spreadsheets/…)." }
+  const { error } = await supabase.rpc("guardar_configuracion", {
+    p_usuario: usuario,
+    p_clave: "sheet_mantenimiento_url",
+    p_valor: enlace.trim(),
+    p_pagina: "Edición de Datos",
+  })
+  return error ? { ok: false, error: error.message || "No se pudo guardar el enlace." } : { ok: true, datos: null }
+}
+
+/** Lee el Sheet sin guardar nada: cuántos reportes de Aséptico trae. Para probar el enlace. */
+export async function probarEnlaceSheet(enlace: string): Promise<Resultado<{ reportes: number; enCurso: number }>> {
+  const url = urlCsvDelSheet(enlace)
+  if (!url) return { ok: false, error: "El enlace tiene que ser de un Google Sheet." }
+  try {
+    const r = await fetch(url)
+    const csv = await r.text()
+    if (!r.ok || csv.trimStart().startsWith("<")) {
+      return { ok: false, error: "No se pudo leer: el Sheet tiene que estar compartido con «cualquiera con el enlace» y tener la pestaña ÁREAS." }
+    }
+    const { filas } = filasDelSheet(csv, [], `${fechaPlanta()}T${horaPlanta()}`)
+    return { ok: true, datos: { reportes: filas.length, enCurso: filas.filter((f) => !f.fin).length } }
+  } catch {
+    return { ok: false, error: "No se pudo leer el Sheet." }
+  }
+}
+
 /** Fecha y hora de la última actualización (ISO), o null. */
 export async function ultimaActualizacionSheet(): Promise<string | null> {
   const { data } = await supabase.rpc("obtener_configuracion", { p_clave: "sheet_mantenimiento_ultima_sync" })

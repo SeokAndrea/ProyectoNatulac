@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth"
 import { guardarCalidadLibera, useCalidadLibera } from "@/lib/calidad"
 import { PersonalPanel } from "@/components/PersonalPanel"
+import { EnlaceSheetMantenimiento } from "@/components/edicion-datos/EnlaceSheetMantenimiento"
 import { useCatalogosLive, type LineaLive, type PresentacionLive, type VelocidadLive } from "@/lib/catalogosLive"
 import type { LineaCodigo, PresentacionCodigo } from "@/lib/catalogos"
 import {
@@ -53,6 +54,7 @@ export default function EdicionDatos() {
   return (
     <AppShell title="Edición de Datos" description="Catálogos generales de la planta, editables desde acá">
       {session?.esDueno && <InterruptorCalidad usuario={session.username} />}
+      {session?.esDueno && <EnlaceSheetMantenimiento usuario={session.username} />}
       <Tabs defaultValue="sabores">
         <TabsList>
           <TabsTrigger value="sabores">Sabores</TabsTrigger>
