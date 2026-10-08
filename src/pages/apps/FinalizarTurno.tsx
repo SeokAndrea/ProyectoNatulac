@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { AlertTriangle, ClipboardCheck, Loader2 } from "lucide-react"
+import { AlertTriangle, ClipboardCheck, Eye, Loader2, X } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { ConfirmarEstadoTanque } from "@/components/ConfirmarEstadoTanque"
+import { VisorActa } from "@/components/acta/VisorActa"
 import { EmptyState } from "@/components/EmptyState"
 import { NovedadesTurno } from "@/components/NovedadesTurno"
 import { AntesDeCerrar, type PuntoCierre } from "@/components/finalizar-turno/AntesDeCerrar"
@@ -59,6 +60,10 @@ export default function FinalizarTurno() {
   const [sabores, setSabores] = useState<Sabor[]>([])
   const [paradas, setParadas] = useState<Parada[]>([])
   const [serviciosIndustriales, setServiciosIndustriales] = useState<LecturaServiciosIndustriales[]>([])
+  /** Acta previa (borrador) con los datos de ahora; no se guarda. */
+  const [previa, setPrevia] = useState<Blob | null>(null)
+  const [generandoPrevia, setGenerandoPrevia] = useState(false)
+  const [errorPrevia, setErrorPrevia] = useState<string | null>(null)
   /** Turno ya cerrado: el acta queda en pantalla. */
   const [cerrado, setCerrado] = useState<{ codigoTurno: string; actaPdf: Blob | null; errorActa: string | null } | null>(null)
 
@@ -192,18 +197,11 @@ export default function FinalizarTurno() {
     return c ? Number(c.presentacion) : null
   }
 
-  async function handleFinalizar() {
-    if (faltan.length > 0 || !puedeFinalizar) return
-    if (!session || !sesion.turnoId || !sesion.codigo || !sesion.fecha || !sesion.turnoTipo || !sesion.grupo) return
-    setFinalizando(true)
-    setErrorFinalizar(null)
-
-    // Se guarda todo ANTES de cerrar — sesion.finalizarTurno() limpia la
-    // identidad del turno, y con turnoId en null los hooks se vacían solos.
-    const turnoId = sesion.turnoId
-    const codigo = sesion.codigo
-    const datosParaActa = {
-      codigo,
+  /** Todo lo que lleva el acta, con los datos de ahora. null si falta la identidad del turno. */
+  function datosDelActa() {
+    if (!session || !sesion.codigo || !sesion.fecha || !sesion.turnoTipo || !sesion.grupo) return null
+    return {
+      codigo: sesion.codigo,
       fecha: sesion.fecha,
       turnoTipo: sesion.turnoTipo,
       grupo: sesion.grupo,
@@ -221,7 +219,37 @@ export default function FinalizarTurno() {
       responsables: sesion.responsables,
       esquema: sesion.esquema ?? undefined,
       horaInicio: sesion.horaInicio,
+      supervisorNombre: session.nombre || session.username,
+      area: session.area,
+      lineas,
+      presentaciones,
+      velocidades,
     }
+  }
+
+  async function verActaPrevia() {
+    const datos = datosDelActa()
+    if (!datos) return
+    setGenerandoPrevia(true)
+    setErrorPrevia(null)
+    try {
+      setPrevia(await generarActaPdf(datos))
+    } catch {
+      setErrorPrevia("No se pudo armar el acta previa.")
+    }
+    setGenerandoPrevia(false)
+  }
+
+  async function handleFinalizar() {
+    if (faltan.length > 0 || !puedeFinalizar) return
+    // Se guarda todo ANTES de cerrar — sesion.finalizarTurno() limpia la
+    // identidad del turno, y con turnoId en null los hooks se vacían solos.
+    const datosParaActa = datosDelActa()
+    if (!session || !sesion.turnoId || !datosParaActa) return
+    setFinalizando(true)
+    setErrorFinalizar(null)
+    const turnoId = sesion.turnoId
+    const codigo = datosParaActa.codigo
     const resultadoCierre = await sesion.finalizarTurno()
     if (!resultadoCierre.ok) {
       setFinalizando(false)
@@ -234,14 +262,7 @@ export default function FinalizarTurno() {
     // Pruebas no genera acta (tampoco sale en Mis Actas, migración 20261105).
     if (!esPruebas) {
       try {
-        actaPdf = await generarActaPdf({
-          ...datosParaActa,
-          supervisorNombre: session.nombre || session.username,
-          area: session.area,
-          lineas,
-          presentaciones,
-          velocidades,
-        })
+        actaPdf = await generarActaPdf(datosParaActa)
         const resultado = await subirYRegistrarActa(session.username, turnoId, session.area ?? "SIN_AREA", codigo, actaPdf)
         if (!resultado.ok) errorActa = `El acta no se pudo guardar en Mis Actas: ${resultado.error}`
       } catch {
@@ -375,6 +396,49 @@ export default function FinalizarTurno() {
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+            <div>
+              <CardTitle className="text-base">Acta previa</CardTitle>
+              <p className="text-sm text-muted-foreground">Cómo va quedando el acta con lo cargado hasta ahora. No se guarda.</p>
+            </div>
+            {previa ? (
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={verActaPrevia} disabled={generandoPrevia}>
+                  {generandoPrevia ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />}
+                  Actualizar
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setPrevia(null)}>
+                  <X className="size-3.5" />
+                  Cerrar
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" onClick={verActaPrevia} disabled={generandoPrevia}>
+                {generandoPrevia ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />}
+                Ver acta previa
+              </Button>
+            )}
+          </CardHeader>
+          {(previa || errorPrevia) && (
+            <CardContent className="flex flex-col gap-2">
+              {errorPrevia && (
+                <p className="text-sm text-destructive" role="alert">
+                  {errorPrevia}
+                </p>
+              )}
+              {previa && (
+                <>
+                  <p className="rounded-md bg-warning-soft px-3 py-2 text-xs text-warning-foreground">
+                    Borrador: el turno sigue abierto. El acta final se genera al finalizar.
+                  </p>
+                  <VisorActa fuente={previa} codigoTurno={`${sesion.codigo ?? "turno"}-borrador`} />
+                </>
+              )}
+            </CardContent>
+          )}
+        </Card>
 
         {errorFinalizar && (
           <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive" role="alert">

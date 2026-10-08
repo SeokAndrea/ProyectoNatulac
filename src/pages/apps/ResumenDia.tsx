@@ -151,7 +151,7 @@ export default function ResumenDia() {
                   <CajasPorSabor filas={cajasPorSaborYTurno(items, diario.porTurno, diario.turnos)} etiquetas={diario.turnos.map((t) => t.etiqueta)} />
                   <LineasDelDia lineas={lineasDelDia(lineasPlanta, diario.turnos, diario.porTurno, diario.paradas, presentaciones)} />
                   <ParadasDelDia paradas={paradasQueMasQuitaron(diario.paradas)} nombreLinea={nombreLinea} />
-                  <NovedadesDelDia turnos={diario.turnos} />
+                  {!esAnalista && <NovedadesDelDia turnos={diario.turnos} />}
                 </div>
                 {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(diario.turnos)} />}
                 {esAnalista && <ContadoresDelDia filas={contadoresDelDia(diario.turnos, presentaciones)} nombreLinea={nombreLinea} />}
