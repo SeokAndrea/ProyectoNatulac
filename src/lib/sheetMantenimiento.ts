@@ -259,7 +259,7 @@ export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<R
     return { ok: false, error: "No se pudo leer el Sheet de Mantenimiento. Revisa que siga compartido con el enlace." }
   }
   if (csv.trimStart().startsWith("<")) return { ok: false, error: "El Sheet no está compartido: pide que lo compartan con «cualquiera con el enlace»." }
-  const { filas, corregidas } = filasDelSheet(csv, await catalogoParadas(), `${fechaPlanta()}T${horaPlanta()}`)
+  const { filas, corregidas } = filasDelSheet(csv, (await catalogoParadas()).filter((t) => t.activo), `${fechaPlanta()}T${horaPlanta()}`)
   const { data, error } = await supabase.rpc("sincronizar_paradas_mantenimiento", { p_usuario: usuario, p_filas: filas })
   if (error) return { ok: false, error: error.message || "No se pudieron guardar las paradas." }
   const d = data as { nuevas: number; actualizadas: number; sin_cambios: number; omitidas: number }
