@@ -154,7 +154,11 @@ export default function ResumenDia() {
                   {!esAnalista && <NovedadesDelDia turnos={diario.turnos} />}
                 </div>
                 {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(diario.turnos)} />}
-                {esAnalista && <ContadoresDelDia filas={contadoresDelDia(diario.turnos, presentaciones)} nombreLinea={nombreLinea} />}
+                {esAnalista && <ContadoresDelDia
+                    filas={contadoresDelDia(diario.turnos, presentaciones)}
+                    nombreLinea={nombreLinea}
+                    supervisorDe={(etiqueta) => diario.turnos.find((t) => t.etiqueta === etiqueta)?.turno.supervisorNombre ?? null}
+                  />}
               </>
             )}
             {esAnalista && vigente.dia && diario && (
