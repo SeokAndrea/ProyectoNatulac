@@ -95,7 +95,7 @@ export function PanelParadasVista({
   estadoLineas?: EstadoLineaEnVivo[]
   cargarOee: CargarOee
 }) {
-  const [periodo, setPeriodo] = useState<PeriodoCodigo>("7D")
+  const [periodo, setPeriodo] = useState<PeriodoCodigo>("HOY")
   const [clase, setClase] = useState<ClaseParada | "TODAS">("TODAS")
   const [linea, setLinea] = useState("TODAS")
   const [turno, setTurno] = useState<TurnoTipoCodigo | "TODOS">("TODOS")
