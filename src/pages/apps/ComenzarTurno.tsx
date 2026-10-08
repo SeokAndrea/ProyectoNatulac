@@ -405,9 +405,8 @@ function ComenzarTurnoDeAhora({
             </>
           ) : temprano ? (
             <>
-              Si llegaste antes para el {nombreObjetivo} ({TURNO_TIPOS.find((t) => t.codigo === objetivo.tipo)?.horario}), puedes
-              comenzarlo ya: el {sesion.codigo} se cierra y el nuevo sigue con los tanques y las líneas como están. Si tomas el
-              relevo de arriba, al llegar la hora el {nombreObjetivo} se abre a tu nombre.
+              Comiénzalo ya y el {sesion.codigo} se cierra. Si tomas el relevo de arriba, el {nombreObjetivo} se abre a tu
+              nombre a su hora ({TURNO_TIPOS.find((t) => t.codigo === objetivo.tipo)?.horario}).
             </>
           ) : (
             <>
