@@ -65,6 +65,18 @@ export function mermaPromedioLinea(
   return Math.round((mermas.reduce((a, m) => a + m.pct, 0) / mermas.length) * 100) / 100
 }
 
+/**
+ * Rendimiento de la línea en el turno (dueña, 2026-10-08): en el tiempo que
+ * SÍ corrió, cuánto sacó contra lo que debía a la velocidad elegida.
+ *   Rendimiento = Real ÷ (velocidad elegida × Operativo) = Avance ÷ Eficiencia
+ * (la Meta es velocidad × Disponible y la Eficiencia es Operativo ÷ Disponible).
+ * null si falta la meta, lo real o la línea no tuvo tiempo operativo.
+ */
+export function rendimientoActa(e: { realCajas?: number | null; metaCajas?: number | null; eficienciaPct?: number | null } | undefined): number | null {
+  if (!e || e.realCajas == null || !e.metaCajas || !e.eficienciaPct) return null
+  return Math.round((e.realCajas / e.metaCajas / (e.eficienciaPct / 100)) * 100)
+}
+
 const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
 const recortar = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
 
@@ -453,8 +465,8 @@ export async function generarActaPdf(params: {
       const propias = paradas
         .filter((p) => numeroLinea(p.lineaCodigo) === numeroLinea(l.codigo))
         .sort((a, b) => a.inicio.localeCompare(b.inicio))
-      const efic = eficiencia.porLinea.get(l.codigo)?.eficienciaPct
-      if (propias.length === 0) return ["Sin paradas registradas.", ...(efic != null ? [`Total: 0 min · Eficiencia ${efic}%`] : [])]
+      const rend = rendimientoActa(eficiencia.porLinea.get(l.codigo))
+      if (propias.length === 0) return ["Sin paradas registradas.", ...(rend != null ? [`Total: 0 min · Rendimiento ${rend}%`] : [])]
       const total = propias.reduce((a, p) => a + duracionMin(p), 0)
       return [
         ...propias.map((p) => {
@@ -463,7 +475,7 @@ export async function generarActaPdf(params: {
           // Sin el tiempo guía (dueña, 2026-10-08).
           return `• ${horaNovedad(p.inicio)} ${p.tipoNombre}: ${min} min${nota ? ` — ${nota}` : ""}`
         }),
-        `Total: ${total} min${efic != null ? ` · Eficiencia ${efic}%` : ""}`,
+        `Total: ${total} min${rend != null ? ` · Rendimiento ${rend}%` : ""}`,
       ]
     })
     doc.setFontSize(6.5)

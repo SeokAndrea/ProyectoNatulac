@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { generarActaPdf, notaParadaActa } from "@/lib/actaPdf"
+import { generarActaPdf, notaParadaActa, rendimientoActa } from "@/lib/actaPdf"
 import { LINEAS_DEMO, PRESENTACIONES_DEMO, contador, corrida, prep, pt, tanque } from "@/lib/auditoriaDemoFixture"
 
 const VELOCIDADES_DEMO = (["LINEA_1", "LINEA_2", "LINEA_3"] as const).map((linea, i) => ({
@@ -166,5 +166,13 @@ describe("paradas en el acta", () => {
     const larga = notaParadaActa({ nota: `Mantenimiento — ${"x".repeat(200)}`, tipoNombre: "Mantenimiento · Sin equipo", origen: "SHEET", justificacionDesvio: null })
     expect(larga?.length).toBe(90)
     expect(larga?.endsWith("…")).toBe(true)
+  })
+})
+
+describe("rendimiento en el acta", () => {
+  it("Avance ÷ Eficiencia (Línea 1 del T1 del 08/10: 2.221 de 3.983 cajas con 81 % → 69 %)", () => {
+    expect(rendimientoActa({ realCajas: 2221, metaCajas: 3983, eficienciaPct: 81 })).toBe(69)
+    expect(rendimientoActa({ realCajas: 2221, metaCajas: null, eficienciaPct: 81 })).toBeNull()
+    expect(rendimientoActa(undefined)).toBeNull()
   })
 })
