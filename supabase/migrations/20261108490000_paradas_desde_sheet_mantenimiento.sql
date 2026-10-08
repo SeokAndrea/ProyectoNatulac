@@ -21,6 +21,35 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
+-- 0. Ajustes de la app (clave → valor). 20261070 había borrado la tabla y
+--    obtener_configuracion() al dejar el Sheet; vuelven. guardar_configuracion()
+--    ya existe (20261079, solo el dueño).
+-- ------------------------------------------------------------
+create table if not exists configuracion_app (
+  clave text primary key,
+  valor text,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references usuarios (id)
+);
+alter table configuracion_app enable row level security;
+
+create or replace function obtener_configuracion(p_clave text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+stable
+as $$
+begin
+  if p_clave not in ('sheet_mantenimiento_url', 'sheet_mantenimiento_ultima_sync') then
+    raise exception 'Ajuste desconocido.';
+  end if;
+  return (select valor from configuracion_app where clave = p_clave);
+end;
+$$;
+grant execute on function obtener_configuracion(text) to anon, authenticated;
+
+-- ------------------------------------------------------------
 -- 1. Lo que vino del Sheet, para volver a asignar el tipo
 -- ------------------------------------------------------------
 alter table paradas add column if not exists mtto_equipo text;
