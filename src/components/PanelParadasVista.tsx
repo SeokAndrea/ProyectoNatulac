@@ -3,6 +3,7 @@ import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Loader2 } from "lu
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CintaLinea, type EstadoLineaVista } from "@/components/CintaLinea"
+import { DetalleParadas } from "@/components/paradas/DetalleParadas"
 import { cn } from "@/lib/utils"
 import type { OeePeriodo } from "@/lib/eficiencia"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
@@ -335,6 +336,7 @@ export function PanelParadasVista({
             )
           })}
         </div>
+        <DetalleParadas paradas={filtradas} ahora={ahora} />
         </>
       )}
 
