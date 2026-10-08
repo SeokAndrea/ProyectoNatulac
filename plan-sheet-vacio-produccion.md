@@ -57,5 +57,6 @@ acta (se descarga sola al teléfono y hay que buscarla).
 - Mensaje (ya en la app, 3f2c0ec / 322ed1a): por sabor y de 1000 a 200; los clásicos (Pera, Manzana, Durazno, Mango)
   llevan «Néctar de» y la Naranja es «Naranjada».
 
-**Por decidir:** el Coctel (también es clásico) ¿lleva «Néctar de»? Y la Pera Jugosa se suma con la Clásica porque el
-resumen agrupa por nombre: ¿se produce Jugosa en Aséptico?
+- La analista además ve **Cajas por grupo** (el grupo de cada turno).
+- El Coctel va solo (sin «Néctar de»). La Pera Jucosa es aparte de la Pera clásica (20261108290000: un nombre que se
+  repite en otra familia lleva la familia al lado).
