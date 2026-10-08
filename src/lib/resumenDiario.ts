@@ -209,3 +209,53 @@ export function cajasPorGrupo(turnos: TurnoDelDia[]): GrupoDelDia[] {
   }
   return [...m.values()].sort((a, b) => a.grupo.localeCompare(b.grupo))
 }
+
+export interface ContadorDelDia {
+  corridaId: string
+  turno: string
+  lineaCodigo: string
+  sabor: string
+  lote: string | null
+  volumenMl: number
+  /** Contador de la llenadora. */
+  llenadora: number
+  /** Contador 2 (envases buenos), si se cargó. */
+  buenos: number | null
+  cajas: number
+  /** Envases de las cajas (cajas × envases por caja). */
+  empacados: number
+  /** 1 − empacados ÷ llenadora; null si falta el contador o el PT. */
+  mermaPct: number | null
+  justificacion: string | null
+}
+
+/** Para la analista: cada corrida del día con su contador, sus cajas y su merma de envase (como el 2.2 del acta). */
+export function contadoresDelDia(turnos: TurnoDelDia[], presentaciones: PresentacionLive[]): ContadorDelDia[] {
+  const filas: ContadorDelDia[] = []
+  for (const { turno, etiqueta } of turnos) {
+    for (const c of turno.lineas) {
+      const contadores = turno.contadores.filter((x) => x.turnoLineaId === c.id)
+      const pts = turno.productoTerminado.filter((p) => p.turnoLineaId === c.id)
+      if (contadores.length === 0 && pts.length === 0) continue
+      const pres = presentaciones.find((p) => p.codigo === c.presentacion)
+      const llenadora = contadores.reduce((a, x) => a + x.envasesLlenadora, 0)
+      const cajas = pts.reduce((a, p) => a + p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas, 0)
+      const empacados = cajas * (pres?.envasesXCaja ?? 0)
+      filas.push({
+        corridaId: c.id,
+        turno: etiqueta,
+        lineaCodigo: c.linea,
+        sabor: c.saborNombre ?? "Sin sabor",
+        lote: c.lote,
+        volumenMl: Number(c.presentacion),
+        llenadora,
+        buenos: contadores.some((x) => x.envasesBuenos != null) ? contadores.reduce((a, x) => a + (x.envasesBuenos ?? 0), 0) : null,
+        cajas,
+        empacados,
+        mermaPct: llenadora > 0 && pts.length > 0 ? pctRendimiento(llenadora, empacados) : null,
+        justificacion: contadores.map((x) => x.justificacion?.trim()).filter(Boolean).join(" · ") || null,
+      })
+    }
+  }
+  return filas
+}

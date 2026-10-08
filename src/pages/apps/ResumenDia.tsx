@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell"
 import { ActasDelDia } from "@/components/resumen-dia/ActasDelDia"
 import { CajasPorGrupo } from "@/components/resumen-dia/CajasPorGrupo"
 import { CajasPorSabor } from "@/components/resumen-dia/CajasPorSabor"
+import { ContadoresDelDia } from "@/components/resumen-dia/ContadoresDelDia"
 import { LineasDelDia } from "@/components/resumen-dia/LineasDelDia"
 import { MensajeWhatsApp } from "@/components/resumen-dia/MensajeWhatsApp"
 import { NovedadesDelDia } from "@/components/resumen-dia/NovedadesDelDia"
@@ -30,6 +31,7 @@ import {
   cajasPorGrupo,
   cajasPorSaborYTurno,
   cargarResumenDiario,
+  contadoresDelDia,
   lineasDelDia,
   paradasQueMasQuitaron,
   type DatosResumenDiario,
@@ -152,6 +154,7 @@ export default function ResumenDia() {
                   <NovedadesDelDia turnos={diario.turnos} />
                 </div>
                 {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(diario.turnos)} />}
+                {esAnalista && <ContadoresDelDia filas={contadoresDelDia(diario.turnos, presentaciones)} nombreLinea={nombreLinea} />}
               </>
             )}
             {esAnalista && vigente.dia && diario && (

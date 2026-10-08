@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { Parada } from "@/lib/paradas"
 import type { ItemDia } from "@/lib/resumenDia"
-import { cajasPorGrupo, cajasPorSaborYTurno, etiquetar, lineasDelDia, paradasQueMasQuitaron, type FilaPorTurno, type TurnoDelDia } from "@/lib/resumenDiario"
+import { cajasPorGrupo, cajasPorSaborYTurno, contadoresDelDia, etiquetar, lineasDelDia, paradasQueMasQuitaron, type FilaPorTurno, type TurnoDelDia } from "@/lib/resumenDiario"
 import type { TurnoActivo } from "@/lib/turno"
 
 /** Datos reales del lunes 06/10 (actas A20261006_T1G2 y A20261006_T3G3_2), reducidos a la Línea 2. */
@@ -44,6 +44,14 @@ describe("resumen diario", () => {
     const [l2] = lineasDelDia([{ codigo: "LINEA_2", nombre: "Línea 2" }], TURNOS, POR_TURNO, [], PRESENTACIONES)
     // 718 cajas × 24 = 17.232 empacados contra 25.933 de la llenadora.
     expect(l2).toMatchObject({ cajas: 718, mermaPct: 33.55, paradasMin: 0 })
+  })
+
+  it("contadores del día: la misma merma que el 2.2 del acta (Línea 2 del 06/10)", () => {
+    expect(contadoresDelDia([del(T1, "T1", 438)], PRESENTACIONES).map((c) => [c.volumenMl, c.llenadora, c.cajas, c.empacados, c.mermaPct])).toEqual([
+      [250, 2121, 18, 432, 79.63],
+      [200, 8214, 300, 7200, 12.34],
+      [200, 11046, 120, 2880, 73.93],
+    ])
   })
 
   it("una corrida sin PT no cuenta como merma", () => {
