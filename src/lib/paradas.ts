@@ -351,7 +351,7 @@ export function fmtDuracion(min: number): string {
 /** "+18 min" / "−5 min" / "en guía". */
 export function fmtDesvio(min: number): string {
   if (min === 0) return "en guía"
-  const signo = min > 0 ? "+" : "−"
+  const signo = min > 0 ? "+" : "-"
   return `${signo}${fmtDuracion(Math.abs(min))}`
 }
 

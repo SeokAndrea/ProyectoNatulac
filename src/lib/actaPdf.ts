@@ -12,7 +12,7 @@ import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/se
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
 import type { CondicionTanque, TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
-import { duracionMin, fmtDesvio, type Parada } from "@/lib/paradas"
+import { duracionMin, type Parada } from "@/lib/paradas"
 import type { NovedadTurno } from "@/lib/novedades"
 import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
 import { tramoT2 } from "@/lib/turno12x12"
@@ -63,6 +63,37 @@ export function mermaPromedioLinea(
     .filter((m): m is NonNullable<typeof m> => m !== null)
   if (mermas.length === 0) return null
   return Math.round((mermas.reduce((a, m) => a + m.pct, 0) / mermas.length) * 100) / 100
+}
+
+/** " (guía 10 min)" y, si se pasó, " (guía 10 min, +5 min)". Solo ASCII: la letra del PDF no tiene el "−" tipográfico. */
+export function guiaParadaActa(min: number, guia: number | null): string {
+  if (guia == null) return ""
+  return min > guia ? ` (guía ${guia} min, +${min - guia} min)` : ` (guía ${guia} min)`
+}
+
+const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
+const recortar = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
+
+/**
+ * La nota de una parada en el acta: sin repetir el nombre del tipo ("Cambio
+ * de Lote — CAMBIO DE LOTE") y, si viene del Sheet de Mantenimiento, solo lo
+ * que escribieron (sin "Mantenimiento —" ni el código del final, que ya va
+ * en el nombre), recortado para que entre en el recuadro.
+ */
+export function notaParadaActa(p: Pick<Parada, "nota" | "tipoNombre" | "origen" | "justificacionDesvio">): string | null {
+  let nota = (p.nota ?? "").trim()
+  if (p.origen === "SHEET") {
+    nota = nota
+      .replace(/^Mantenimiento\s*—\s*/, "")
+      .replace(/\s*—\s*[^—]*·[^—]*$/, "")
+      .replace(/^Mantenimiento$/, "")
+      .trim()
+  }
+  if (nota && (sinAcentos(nota) === sinAcentos(p.tipoNombre) || sinAcentos(p.tipoNombre).endsWith(sinAcentos(nota)))) nota = ""
+  const partes = [nota ? recortar(nota, 90) : null, p.justificacionDesvio ? `Justif.: ${recortar(p.justificacionDesvio.trim(), 90)}` : null].filter(
+    (x): x is string => !!x,
+  )
+  return partes.length > 0 ? partes.join(" — ") : null
 }
 
 const NOMBRE_CONDICION: Record<CondicionTanque, string> = {
@@ -428,20 +459,26 @@ export async function generarActaPdf(params: {
       const propias = paradas
         .filter((p) => numeroLinea(p.lineaCodigo) === numeroLinea(l.codigo))
         .sort((a, b) => a.inicio.localeCompare(b.inicio))
-      if (propias.length === 0) return ["Sin paradas registradas."]
+      const efic = eficiencia.porLinea.get(l.codigo)?.eficienciaPct
+      if (propias.length === 0) return ["Sin paradas registradas.", ...(efic != null ? [`Total: 0 min · Eficiencia ${efic}%`] : [])]
       const total = propias.reduce((a, p) => a + duracionMin(p), 0)
       return [
         ...propias.map((p) => {
           const min = duracionMin(p)
-          const guia = p.tiempoGuiaMin != null ? ` (guía ${p.tiempoGuiaMin}, ${fmtDesvio(min - p.tiempoGuiaMin)})` : ""
-          const nota = [p.nota, p.justificacionDesvio ? `Justif.: ${p.justificacionDesvio}` : null].filter(Boolean).join(" — ")
-          return `• ${horaNovedad(p.inicio)} ${p.tipoNombre}: ${min} min${guia}${nota ? ` — ${nota}` : ""}`
+          const nota = notaParadaActa(p)
+          return `• ${horaNovedad(p.inicio)} ${p.tipoNombre}: ${min} min${guiaParadaActa(min, p.tiempoGuiaMin)}${nota ? ` — ${nota}` : ""}`
         }),
-        `Total: ${total} min`,
+        `Total: ${total} min${efic != null ? ` · Eficiencia ${efic}%` : ""}`,
       ]
     })
     doc.setFontSize(6.5)
-    const envueltos = textosParadas.map((ls) => ls.flatMap((t) => doc.splitTextToSize(t, W / lineas.length - 3) as string[]))
+    // El "Total" va en negrita: se corta midiendo en negrita para que no se salga del recuadro.
+    const envueltos = textosParadas.map((ls) =>
+      ls.flatMap((t) => {
+        doc.setFont("helvetica", t.startsWith("Total:") ? "bold" : "normal")
+        return doc.splitTextToSize(t, W / lineas.length - 3) as string[]
+      }),
+    )
     // Se ajusta a lo escrito (la línea con más texto manda).
     const altoRecuadro = 2 + Math.max(...envueltos.map((e) => e.length)) * 2.8
     asegurar(4.5 + altoRecuadro)
