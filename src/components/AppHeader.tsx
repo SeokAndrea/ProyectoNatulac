@@ -4,6 +4,7 @@ import { LogOut, Monitor, Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { EstadoBanner } from "@/components/EstadoBanner"
+import { FranjaVerComo } from "@/components/VerComo"
 import { useAuth } from "@/lib/auth"
 import { useTema, type Tema } from "@/lib/tema"
 
@@ -52,6 +53,7 @@ export function AppHeader({
 
   return (
     <div className="sticky top-0 z-20 bg-background/95 backdrop-blur print:hidden">
+      <FranjaVerComo />
       <div className="border-b border-border/70">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
           {left}

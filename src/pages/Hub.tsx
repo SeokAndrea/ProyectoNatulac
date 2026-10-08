@@ -1,8 +1,11 @@
+import { useState } from "react"
 import { Link } from "react-router-dom"
 import { Lock } from "lucide-react"
 import { AppCard } from "@/components/AppCard"
 import { AppHeader } from "@/components/AppHeader"
 import { Logo } from "@/components/Logo"
+import { SelectorVerComo } from "@/components/VerComo"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useGenerarActasPendientes } from "@/lib/actasPendientes"
@@ -31,6 +34,17 @@ const FLUJO_SUPERVISOR = [
   "mis-actas",
   "panel-produccion",
 ]
+/** «Solo paradas» (jefe y analista, dueña 2026-10-08): oculta el flujo del turno y deja Registrar Paradas. */
+const APPS_DEL_TURNO = new Set(["comenzar-turno", "preparacion", "lineas", "producto-terminado", "finalizar-turno"])
+const STORAGE_SOLO_PARADAS = "natulac.soloParadas"
+function leerSoloParadas(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_SOLO_PARADAS) === "1"
+  } catch {
+    return false
+  }
+}
+
 /** Supervisor en el teléfono: estas van al final de todo, debajo de las secciones. */
 const AL_FINAL_SUPERVISOR = ["programacion", "manual", "panel-paradas"]
 
@@ -42,8 +56,19 @@ export default function Hub() {
   // Mismo criterio que ComenzarTurno: solo el responsable actual "tiene" el turno; el resto puede asumirlo o tomar el relevo.
   const soyResponsable = !sesion.sinResponsable && sesion.supervisorUsuario === session?.username.toLowerCase()
   const turnoPorAsumir = turnoActivo && !soyResponsable && puede(session, "TURNO_ASUMIR")
+  const puedeSoloParadas = session?.rol === "JEFE_PRODUCCION" || session?.rol === "ANALISTA"
+  const [soloParadas, setSoloParadas] = useState(leerSoloParadas)
+  const ocultarTurno = puedeSoloParadas && soloParadas
+  function cambiarSoloParadas(v: boolean) {
+    setSoloParadas(v)
+    try {
+      localStorage.setItem(STORAGE_SOLO_PARADAS, v ? "1" : "0")
+    } catch {
+      // Sin almacenamiento: vale hasta recargar.
+    }
+  }
   // Mismo criterio que las rutas (ProtectedRoute): puedeVerApp en src/lib/apps.tsx.
-  const appsVisibles = apps.filter((app) => puedeVerApp(session, app))
+  const appsVisibles = apps.filter((app) => puedeVerApp(session, app) && !(ocultarTurno && APPS_DEL_TURNO.has(app.slug)))
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
   const secciones = agruparPorSeccion(principales)
@@ -78,6 +103,9 @@ export default function Hub() {
                   ? "Elige una aplicación para continuar."
                   : "Inicia un turno para habilitar el resto de las aplicaciones."}
             </p>
+            <div className="mt-3">
+              <SelectorVerComo />
+            </div>
           </div>
 
           {flujo.length > 0 && (
@@ -103,8 +131,14 @@ export default function Hub() {
           {secciones.map(({ titulo, apps: appsSeccion }) => (
             <section key={titulo ?? "otras"} className={seccionVacia(appsSeccion) ? "hidden sm:block" : undefined}>
               {titulo && (
-                <h2 className="mb-3 border-b border-border/70 pb-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                <h2 className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   {titulo}
+                  {titulo === TITULOS_SECCION.produccion && puedeSoloParadas && (
+                    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium normal-case tracking-normal">
+                      <Switch checked={soloParadas} onCheckedChange={cambiarSoloParadas} aria-label="Ver solo Registrar Paradas" />
+                      Solo paradas
+                    </label>
+                  )}
                 </h2>
               )}
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">

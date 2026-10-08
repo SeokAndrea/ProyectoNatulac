@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import type { AreaCodigo, CargoCodigo, RolCodigo } from "@/lib/catalogos"
 import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
@@ -70,14 +70,44 @@ export interface DatosPrimerIngreso {
   cedula: string
 }
 
+/** «Ver como» (solo el dueño): la app se muestra con el rol y los permisos de otro. Lo que se hace sigue con el usuario real. */
+export interface VistaComo {
+  rol: RolCodigo
+  permisos: Permiso[]
+}
+
+/** Área con la que se mira cada rol en «Ver como». */
+const AREA_DE_VISTA: Partial<Record<RolCodigo, AreaCodigo>> = {
+  SUPERVISOR: "ASEPTICO",
+  ANALISTA: "ASEPTICO",
+  JEFE_PRODUCCION: "ASEPTICO",
+  MANTENIMIENTO: "MANTENIMIENTO",
+  CALIDAD: "CALIDAD",
+  SUPERVISOR_CALIDAD: "CALIDAD",
+}
+
+/** Cargo con el que se mira cada rol (el inicio ordena las tarjetas por cargo). */
+const CARGO_DE_VISTA: Partial<Record<RolCodigo, CargoCodigo>> = {
+  SUPERVISOR: "SUPERVISOR",
+  ANALISTA: "ANALISTA_PRODUCCION",
+  JEFE_PRODUCCION: "JEFE_PRODUCCION",
+}
+
 interface AuthContextValue {
+  /** La sesión con la que se muestra la app (la de «Ver como» si el dueño eligió una). */
   session: Session | null
+  /** La sesión de verdad (sin «Ver como»). */
+  sessionReal: Session | null
+  vistaComo: VistaComo | null
+  /** null = volver a la vista propia. */
+  verComo: (rol: RolCodigo | null) => Promise<{ ok: true } | { ok: false; error: string }>
   login: (username: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>
   completarPrimerIngreso: (datos: DatosPrimerIngreso) => Promise<{ ok: true } | { ok: false; error: string }>
   logout: () => void
 }
 
 const STORAGE_KEY = "natulac.session"
+const STORAGE_VISTA = "natulac.verComo"
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
@@ -100,6 +130,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * primer ingreso, se pierde y hay que iniciar sesión de nuevo.
    */
   const [passwordLogin, setPasswordLogin] = useState<string | null>(null)
+  const [vistaComo, setVistaComo] = useState<VistaComo | null>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_VISTA)
+      return raw ? (JSON.parse(raw) as VistaComo) : null
+    } catch {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    if (vistaComo) localStorage.setItem(STORAGE_VISTA, JSON.stringify(vistaComo))
+    else localStorage.removeItem(STORAGE_VISTA)
+  }, [vistaComo])
+
+  async function verComo(rol: RolCodigo | null) {
+    if (rol === null) {
+      setVistaComo(null)
+      return { ok: true as const }
+    }
+    if (!session?.esDueno) return { ok: false as const, error: "Solo el dueño puede usar «Ver como»." }
+    const { data, error } = await supabase.rpc("permisos_de_rol", { p_usuario: session.username, p_rol_codigo: rol })
+    if (error || !Array.isArray(data)) return { ok: false as const, error: error?.message || "No se pudieron leer los permisos de ese rol." }
+    setVistaComo({ rol, permisos: data as Permiso[] })
+    return { ok: true as const }
+  }
+
+  // Solo el dueño puede tener «Ver como»; si deja de serlo, no se aplica.
+  const vistaActiva = session?.esDueno ? vistaComo : null
+  const sessionVista = useMemo<Session | null>(
+    () =>
+      session && vistaActiva
+        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: AREA_DE_VISTA[vistaActiva.rol] ?? session.area, cargo: CARGO_DE_VISTA[vistaActiva.rol] ?? null }
+        : session,
+    [session, vistaActiva],
+  )
 
   useEffect(() => {
     if (session) {
@@ -222,11 +287,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function logout() {
     setPasswordLogin(null)
+    setVistaComo(null)
     setSession(null)
   }
 
   return (
-    <AuthContext.Provider value={{ session, login, completarPrimerIngreso, logout }}>
+    <AuthContext.Provider value={{ session: sessionVista, sessionReal: session, vistaComo: vistaActiva, verComo, login, completarPrimerIngreso, logout }}>
       {children}
     </AuthContext.Provider>
   )
