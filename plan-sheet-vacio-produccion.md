@@ -33,11 +33,19 @@ en el rendimiento de Aséptico.
 
 **Por confirmar:** que la salida parcial (último punto) haga falta, o si también se resuelve con el interruptor.
 
-## 3. Pantalla única de Producción (Validar + Actas + Auditoría)
+## 3. Finalizar Turno, Mis Actas y Resumen Diario
 
-Hoy está repartido (Resumen del Día, Mis Actas, Auditoría) y es confuso; el acta impresa también.
+Hoy está repartido (Resumen del Día, Mis Actas, Auditoría), es confuso, y los supervisores no logran imprimir el
+acta (se descarga sola al teléfono y hay que buscarla).
 
-- Una pantalla: se elige el **día** → sus turnos → cada turno abre **su acta como página clara**.
-- Botón **Imprimir** con una hoja limpia (no el PDF actual).
-- En el mismo lugar: validar las cajas del día, correcciones y registro de cambios del turno.
-- **Primero un boceto visual** (pantalla y acta impresa) para aprobar antes de programar.
+- **El acta no cambia:** es la misma vigente (`src/lib/actaPdf.ts`).
+- **Finalizar Turno:** lista «Antes de cerrar» (líneas, paradas, tanques, mermas) que lleva a cada sección; las
+  líneas se entregan o terminan y la parada pendiente se completa ahí mismo; barra fija abajo con el botón y lo que
+  falta. Al cerrar: el acta en pantalla con **Imprimir**, **Descargar PDF** y **Ver en grande**.
+- **Mis Actas:** cada acta se abre en el mismo visor, con Imprimir.
+- **Resumen Diario (jefe):** el día en números, turnos con su acta, cajas por sabor y presentación por turno, por
+  línea, paradas que más tiempo quitaron, semielaborado, novedades y cambios después del cierre. **El jefe no valida
+  nada.**
+- Boceto: https://claude.ai/code/artifact/c0598d8f-1b99-488d-9ad8-c7078265b401
+
+**Por decidir:** qué pasa con la validación de cajas del Resumen del Día actual (¿la hace otra persona o se quita?).
