@@ -266,18 +266,29 @@ async function leerCsvSheet(): Promise<Resultado<string>> {
   return { ok: true, datos: csv }
 }
 
-/** Los reportes de Aséptico tal cual vienen del Sheet (con las fechas ya resueltas), sin guardar nada. */
+/** Desde qué día cuenta el Sheet ('YYYY-MM-DD', migración 20261108890000): lo anterior no suma ni se muestra. */
+const DESDE_POR_DEFECTO = "2026-10-08"
+export async function fechaDesdeSheet(): Promise<string> {
+  const { data } = await supabase.rpc("obtener_configuracion", { p_clave: "sheet_mantenimiento_desde" })
+  return typeof data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : DESDE_POR_DEFECTO
+}
+
+/** Los reportes de Aséptico tal cual vienen del Sheet (con las fechas ya resueltas), sin guardar nada. Solo desde fechaDesdeSheet(). */
 export async function reportesDelSheet(): Promise<Resultado<FilaSheet[]>> {
-  const csv = await leerCsvSheet()
+  const [csv, desde] = await Promise.all([leerCsvSheet(), fechaDesdeSheet()])
   if (!csv.ok) return csv
-  return { ok: true, datos: filasDelSheet(csv.datos, [], `${fechaPlanta()}T${horaPlanta()}`).filas }
+  return { ok: true, datos: filasDelSheet(csv.datos, [], `${fechaPlanta()}T${horaPlanta()}`).filas.filter((f) => f.inicio.slice(0, 10) >= desde) }
 }
 
 export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<ResumenSync>> {
   const lectura = await leerCsvSheet()
   if (!lectura.ok) return lectura
   const csv = lectura.datos
-  const { filas, corregidas } = filasDelSheet(csv, (await catalogoParadas()).filter((t) => t.activo), `${fechaPlanta()}T${horaPlanta()}`)
+  const desde = await fechaDesdeSheet()
+  const leidas = filasDelSheet(csv, (await catalogoParadas()).filter((t) => t.activo), `${fechaPlanta()}T${horaPlanta()}`)
+  // Lo anterior a la fecha de inicio no se manda (el servidor también lo ignora).
+  const filas = leidas.filas.filter((f) => f.inicio.slice(0, 10) >= desde)
+  const corregidas = leidas.corregidas
   const { data, error } = await supabase.rpc("sincronizar_paradas_mantenimiento", { p_usuario: usuario, p_filas: filas })
   if (error) return { ok: false, error: error.message || "No se pudieron guardar las paradas." }
   const d = data as { nuevas: number; actualizadas: number; sin_cambios: number; omitidas: number }
