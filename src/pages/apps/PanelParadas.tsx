@@ -8,6 +8,7 @@ import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
+import { ReportesMantenimiento } from "@/components/paradas/ReportesMantenimiento"
 import { puede } from "@/lib/permisos"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
 import { cargarOeePeriodo } from "@/lib/eficienciaPeriodo"
@@ -151,6 +152,11 @@ export default function PanelParadas() {
           estadoLineas={estadoLineas}
           cargarOee={cargandoCatalogos ? OEE_PENDIENTE : cargarOee}
         />
+        {areaParadas !== "PRUEBAS" && (
+          <div className="mx-auto mt-4 max-w-5xl">
+            <ReportesMantenimiento />
+          </div>
+        )}
       </div>
     </AppShell>
   )

@@ -246,7 +246,8 @@ export interface ResumenSync {
 }
 
 /** Lee el Sheet y guarda las paradas de Aséptico. */
-export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<ResumenSync>> {
+/** El CSV de la pestaña de reportes, con el enlace guardado. */
+async function leerCsvSheet(): Promise<Resultado<string>> {
   const { data: enlace } = await supabase.rpc("obtener_configuracion", { p_clave: "sheet_mantenimiento_url" })
   const url = typeof enlace === "string" ? urlCsvDelSheet(enlace) : null
   if (!url) return { ok: false, error: "No hay un enlace del Sheet de Mantenimiento guardado." }
@@ -259,6 +260,20 @@ export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<R
     return { ok: false, error: "No se pudo leer el Sheet de Mantenimiento. Revisa que siga compartido con el enlace." }
   }
   if (csv.trimStart().startsWith("<")) return { ok: false, error: "El Sheet no está compartido: pide que lo compartan con «cualquiera con el enlace»." }
+  return { ok: true, datos: csv }
+}
+
+/** Los reportes de Aséptico tal cual vienen del Sheet (con las fechas ya resueltas), sin guardar nada. */
+export async function reportesDelSheet(): Promise<Resultado<FilaSheet[]>> {
+  const csv = await leerCsvSheet()
+  if (!csv.ok) return csv
+  return { ok: true, datos: filasDelSheet(csv.datos, [], `${fechaPlanta()}T${horaPlanta()}`).filas }
+}
+
+export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<ResumenSync>> {
+  const lectura = await leerCsvSheet()
+  if (!lectura.ok) return lectura
+  const csv = lectura.datos
   const { filas, corregidas } = filasDelSheet(csv, (await catalogoParadas()).filter((t) => t.activo), `${fechaPlanta()}T${horaPlanta()}`)
   const { data, error } = await supabase.rpc("sincronizar_paradas_mantenimiento", { p_usuario: usuario, p_filas: filas })
   if (error) return { ok: false, error: error.message || "No se pudieron guardar las paradas." }
