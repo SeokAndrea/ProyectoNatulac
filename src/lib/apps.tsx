@@ -170,7 +170,6 @@ export const apps: AppDef[] = [
   {
     slug: "resumen-dia",
     title: "Resumen Diario",
-    description: "La jornada: actas, cajas por sabor y presentación, líneas, paradas y novedades. La analista corrige y copia el mensaje.",
     href: "/resumen-dia",
     icon: ClipboardList,
     requiereTurno: false,
