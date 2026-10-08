@@ -23,7 +23,7 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useSesionTurno, type ResponsableTurno } from "@/lib/sesionTurno"
-import { franjaDeHora, franjaParaIniciar, horaCortaPlanta, horaDelDiaPlanta } from "@/lib/tiempoPlanta"
+import { franjaDeHora, franjaParaIniciar, franjaSiguienteTemprano, horaCortaPlanta, horaDelDiaPlanta } from "@/lib/tiempoPlanta"
 import { HORA_OFRECER_T2_NOCHE, esT2DelDia } from "@/lib/turno12x12"
 
 const fechaHoy = new Date().toLocaleDateString("es-CO", {
@@ -92,6 +92,9 @@ export default function ComenzarTurno() {
     const actual = franjaDeHora()
     const esElObjetivo = sesion.fecha === objetivo.fecha && sesion.turnoTipo === objetivo.tipo
     const esElActual = sesion.fecha === actual.fecha && sesion.turnoTipo === actual.tipo
+    // Llegó temprano (1–4 h antes del cambio): debajo del relevo, comenzar ya el siguiente.
+    const siguiente = franjaSiguienteTemprano()
+    const ofrecerSiguiente = esElObjetivo && esElActual && (siguiente.fecha !== actual.fecha || siguiente.tipo !== actual.tipo)
     // 12x12: el T2 del día no se releva; desde las 18:00 se cierra y se comienza el T2 de la noche.
     const t2Noche = esT2DelDia(sesion.esquema, sesion.turnoTipo, sesion.horaInicio) && horaDelDiaPlanta() >= HORA_OFRECER_T2_NOCHE
     return (
@@ -104,6 +107,7 @@ export default function ComenzarTurno() {
             <>
               {!esElObjetivo && <ComenzarTurnoDeAhora area={area} objetivo={objetivo} terminado={!esElActual} />}
               {(esElObjetivo || esElActual) && <AsumirTurno />}
+              {ofrecerSiguiente && <ComenzarTurnoDeAhora area={area} objetivo={siguiente} terminado={false} temprano />}
             </>
           )}
         </div>
@@ -335,18 +339,21 @@ function SelectorGrupo({
  * comienza el de ahora: el servidor cierra el abierto entregando las
  * corridas activas y el nuevo las hereda (migración 20261087). Cierra el
  * turno de otra persona: pide un segundo clic. `noche`: 12x12, el T2 del día
- * se cierra y se comienza el T2 de la noche (migración 20261106).
+ * se cierra y se comienza el T2 de la noche (migración 20261106). `temprano`:
+ * faltan 1–4 h para el cambio; va debajo del relevo (migración 20261108).
  */
 function ComenzarTurnoDeAhora({
   area,
   objetivo,
   terminado,
   noche = false,
+  temprano = false,
 }: {
   area: AreaCodigo
   objetivo: { tipo: TurnoTipoCodigo; fecha: string }
   terminado: boolean
   noche?: boolean
+  temprano?: boolean
 }) {
   const sesion = useSesionTurno()
   const { session } = useAuth()
@@ -395,6 +402,12 @@ function ComenzarTurnoDeAhora({
               A las 19:00 el Turno 2 del día se cierra con su acta y el supervisor de la noche comienza otro.
               {!sesion.sinResponsable && ` Lo ideal es que ${sesion.supervisorNombre} lo finalice primero; si no, su acta queda pendiente.`}{" "}
               El nuevo sigue con los tanques y las líneas como están.
+            </>
+          ) : temprano ? (
+            <>
+              Si llegaste antes para el {nombreObjetivo} ({TURNO_TIPOS.find((t) => t.codigo === objetivo.tipo)?.horario}), puedes
+              comenzarlo ya: el {sesion.codigo} se cierra y el nuevo sigue con los tanques y las líneas como están. Si tomas el
+              relevo de arriba, al llegar la hora el {nombreObjetivo} se abre a tu nombre.
             </>
           ) : (
             <>

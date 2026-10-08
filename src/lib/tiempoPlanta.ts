@@ -76,6 +76,15 @@ export function franjaParaIniciar(d: Date = new Date()): { tipo: "TURNO_1" | "TU
   return franjaDeHora(new Date(d.getTime() + 60 * 60 * 1000))
 }
 
+/**
+ * Turno + fecha dentro de 4 h: si es otro que el de ahora, el que llega
+ * temprano puede comenzarlo ya, o tomar el relevo y el respaldo se lo abre a
+ * su nombre al cambio (misma ventana que relevo_de_respaldo_en, 20261108).
+ */
+export function franjaSiguienteTemprano(d: Date = new Date()): { tipo: "TURNO_1" | "TURNO_2" | "TURNO_3"; fecha: string } {
+  return franjaDeHora(new Date(d.getTime() + 4 * 60 * 60 * 1000))
+}
+
 /** Hora del día (0–23) del instante, en hora de planta. */
 export function horaDelDiaPlanta(d: Date = new Date()): number {
   return Number(FMT_HORA_CORTA.format(d).slice(0, 2))
