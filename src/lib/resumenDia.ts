@@ -181,6 +181,18 @@ export function fechaCorta(fecha: string): string {
  *
  *   Total: 7.204 cajas
  */
+/**
+ * Nombre del sabor en el mensaje de WhatsApp (dueña, 2026-10-08): los
+ * néctares clásicos llevan "Néctar de" y la Naranja se llama Naranjada.
+ * Los demás (35%, Premium, Té…) van con su nombre tal cual.
+ */
+const NECTARES_CLASICOS = new Set(["pera", "manzana", "durazno", "mango"])
+export function saborEnMensaje(saborNombre: string): string {
+  const clave = saborNombre.trim().toLowerCase()
+  if (clave === "naranja") return "Naranjada"
+  return NECTARES_CLASICOS.has(clave) ? `Néctar de ${saborNombre.trim()}` : saborNombre
+}
+
 export function mensajeResumenDia(fecha: string, items: ItemDia[]): string {
   const conCajas = items.filter((i) => i.cajasOficiales > 0)
   if (conCajas.length === 0) return `Buenos días, producción del día ${fechaCorta(fecha)}\n\nSin producción registrada.`
@@ -188,7 +200,7 @@ export function mensajeResumenDia(fecha: string, items: ItemDia[]): string {
   return [
     `Buenos días, producción del día ${fechaCorta(fecha)}`,
     "",
-    ...conCajas.map((i) => `${nombrePresentacion(i.volumenMl)} ${i.saborNombre}: ${miles(i.cajasOficiales)} cajas`),
+    ...conCajas.map((i) => `${nombrePresentacion(i.volumenMl)} ${saborEnMensaje(i.saborNombre)}: ${miles(i.cajasOficiales)} cajas`),
     "",
     `Total: ${miles(total)} cajas`,
   ].join("\n")

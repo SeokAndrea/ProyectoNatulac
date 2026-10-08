@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { itemsDelDia, mensajeResumenDia, nombrePresentacion, pasosCambioPresentacion, totalPorLinea, type FilaResumenDia, type ValidacionDia } from "@/lib/resumenDia"
+import { itemsDelDia, mensajeResumenDia, nombrePresentacion, pasosCambioPresentacion, saborEnMensaje, totalPorLinea, type FilaResumenDia, type ValidacionDia } from "@/lib/resumenDia"
 
 const filas: FilaResumenDia[] = [
   { saborNombre: "Pera", volumenMl: 250, lineaCodigo: "LINEA_2", lineaNombre: "Línea 2", cajas: 1200 },
@@ -49,13 +49,29 @@ describe("resumen del día", () => {
       [
         "Buenos días, producción del día 01/10/2026",
         "",
-        "TBA-1000 cm³ Durazno: 960 cajas",
-        "TPA-330 cm³ Pera: 4.803 cajas",
-        "TPA-250 cm³ Pera: 2.401 cajas",
+        "TBA-1000 cm³ Néctar de Durazno: 960 cajas",
+        "TPA-330 cm³ Néctar de Pera: 4.803 cajas",
+        "TPA-250 cm³ Néctar de Pera: 2.401 cajas",
         "",
         "Total: 8.164 cajas",
       ].join("\n"),
     )
+  })
+
+  it("en el mensaje los clásicos llevan «Néctar de» y la Naranja es Naranjada", () => {
+    expect(["Pera", "Manzana", "Durazno", "Mango"].map(saborEnMensaje)).toEqual([
+      "Néctar de Pera",
+      "Néctar de Manzana",
+      "Néctar de Durazno",
+      "Néctar de Mango",
+    ])
+    expect(saborEnMensaje("Naranja")).toBe("Naranjada")
+    expect(["Pera 35%", "Naranja 100%", "Té de Durazno", "Agua de Coco"].map(saborEnMensaje)).toEqual([
+      "Pera 35%",
+      "Naranja 100%",
+      "Té de Durazno",
+      "Agua de Coco",
+    ])
   })
 
   it("sin producción", () => {
@@ -79,7 +95,7 @@ describe("validar el día", () => {
 
   it("el mensaje usa los números oficiales", () => {
     const mensaje = mensajeResumenDia("2026-10-01", itemsDelDia(filas, validaciones))
-    expect(mensaje).toContain("TPA-250 cm³ Pera: 2.380 cajas")
+    expect(mensaje).toContain("TPA-250 cm³ Néctar de Pera: 2.380 cajas")
     expect(mensaje).toContain("Total: 8.143 cajas")
   })
 
