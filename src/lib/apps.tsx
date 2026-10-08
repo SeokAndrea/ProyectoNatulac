@@ -169,13 +169,13 @@ export const apps: AppDef[] = [
   },
   {
     slug: "resumen-dia",
-    title: "Resumen del Día",
-    description: "Producción de la jornada: cajas por sabor y presentación, total por línea, el mensaje para copiar y validar las cajas.",
+    title: "Resumen Diario",
+    description: "La jornada: actas, cajas por sabor y presentación, líneas, paradas y novedades. La analista corrige y copia el mensaje.",
     href: "/resumen-dia",
     icon: ClipboardList,
     requiereTurno: false,
-    // Antes había una página "Validar" aparte: ahora se valida acá, solo las cajas (dueño, 2026-10-01).
-    permiso: "VALIDAR",
+    // Lo ven el jefe y la analista; solo la analista (VALIDAR) corrige el mensaje (dueña, 2026-10-08).
+    permiso: "RESUMEN_VER",
     seccion: "auditoria",
   },
   {

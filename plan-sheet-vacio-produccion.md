@@ -58,5 +58,8 @@ acta (se descarga sola al teléfono y hay que buscarla).
   llevan «Néctar de» y la Naranja es «Naranjada».
 
 - La analista además ve **Cajas por grupo** (el grupo de cada turno).
+- **Resumen Diario: programado** (migración 20261108390000, `src/lib/resumenDiario.ts`, `src/components/resumen-dia/`).
+  «Ver acta» abre el PDF vigente en otra pestaña (el visor dentro de la app llega con Finalizar Turno / Mis Actas).
+  Falta: Finalizar Turno y Mis Actas según el boceto.
 - El Coctel va solo (sin «Néctar de»). La Pera Jucosa es aparte de la Pera clásica (20261108290000: un nombre que se
   repite en otra familia lleva la familia al lado).

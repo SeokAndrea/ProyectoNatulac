@@ -15,6 +15,7 @@ export const PERMISOS = [
   { codigo: "TURNO_CORREGIR", nombre: "Corregir turno cerrado" },
   { codigo: "AUDITORIA_VER", nombre: "Ver Auditoría" },
   { codigo: "VALIDAR", nombre: "Validar producción" },
+  { codigo: "RESUMEN_VER", nombre: "Ver el Resumen Diario" },
   { codigo: "PERSONAL_GESTIONAR", nombre: "Gestionar personal" },
   { codigo: "PROGRAMACION_EDITAR", nombre: "Editar Programación" },
   { codigo: "CATALOGO_PARADAS", nombre: "Editar Catálogo de Paradas" },
