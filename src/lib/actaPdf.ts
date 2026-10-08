@@ -65,12 +65,6 @@ export function mermaPromedioLinea(
   return Math.round((mermas.reduce((a, m) => a + m.pct, 0) / mermas.length) * 100) / 100
 }
 
-/** " (guía 10 min)" y, si se pasó, " (guía 10 min, +5 min)". Solo ASCII: la letra del PDF no tiene el "−" tipográfico. */
-export function guiaParadaActa(min: number, guia: number | null): string {
-  if (guia == null) return ""
-  return min > guia ? ` (guía ${guia} min, +${min - guia} min)` : ` (guía ${guia} min)`
-}
-
 const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
 const recortar = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
 
@@ -466,7 +460,8 @@ export async function generarActaPdf(params: {
         ...propias.map((p) => {
           const min = duracionMin(p)
           const nota = notaParadaActa(p)
-          return `• ${horaNovedad(p.inicio)} ${p.tipoNombre}: ${min} min${guiaParadaActa(min, p.tiempoGuiaMin)}${nota ? ` — ${nota}` : ""}`
+          // Sin el tiempo guía (dueña, 2026-10-08).
+          return `• ${horaNovedad(p.inicio)} ${p.tipoNombre}: ${min} min${nota ? ` — ${nota}` : ""}`
         }),
         `Total: ${total} min${efic != null ? ` · Eficiencia ${efic}%` : ""}`,
       ]

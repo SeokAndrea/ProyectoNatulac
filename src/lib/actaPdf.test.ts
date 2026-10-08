@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { generarActaPdf, guiaParadaActa, notaParadaActa } from "@/lib/actaPdf"
+import { generarActaPdf, notaParadaActa } from "@/lib/actaPdf"
 import { LINEAS_DEMO, PRESENTACIONES_DEMO, contador, corrida, prep, pt, tanque } from "@/lib/auditoriaDemoFixture"
 
 const VELOCIDADES_DEMO = (["LINEA_1", "LINEA_2", "LINEA_3"] as const).map((linea, i) => ({
@@ -147,12 +147,6 @@ describe("generarActaPdf", () => {
 })
 
 describe("paradas en el acta", () => {
-  it("la guía va con ASCII y el exceso solo si se pasó", () => {
-    expect(guiaParadaActa(8, 10)).toBe(" (guía 10 min)")
-    expect(guiaParadaActa(15, 10)).toBe(" (guía 10 min, +5 min)")
-    expect(guiaParadaActa(8, null)).toBe("")
-  })
-
   it("la nota no repite el nombre del tipo", () => {
     expect(notaParadaActa({ nota: "CAMBIO DE LOTE", tipoNombre: "Cambio de Lote", origen: "MANUAL", justificacionDesvio: null })).toBeNull()
     expect(notaParadaActa({ nota: "COLISION CON EMPUJADOR", tipoNombre: "Film Wrapper · Caida de envases", origen: "MANUAL", justificacionDesvio: null })).toBe(
