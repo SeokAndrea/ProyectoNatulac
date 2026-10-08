@@ -155,7 +155,8 @@ export function itemsDelDia(filas: FilaResumenDia[], validaciones: ValidacionDia
       const v = validaciones.find((x) => x.saborNombre === i.saborNombre && x.volumenMl === i.volumenMl)
       return { ...i, cajasOficiales: v?.estado === "EDITADO" && v.cajas !== null ? v.cajas : i.cajasSupervisor }
     })
-    .sort((a, b) => b.cajasOficiales - a.cajasOficiales || a.saborNombre.localeCompare(b.saborNombre) || a.volumenMl - b.volumenMl)
+    // Por sabor (alfabético) y, dentro de cada sabor, de la presentación más grande a la más chica: 1000, 500, 330, 200.
+    .sort((a, b) => a.saborNombre.localeCompare(b.saborNombre, "es") || b.volumenMl - a.volumenMl)
 }
 
 /** Cajas por línea (lo del supervisor), en el orden de `lineas` (las que no produjeron, en 0). */

@@ -15,12 +15,23 @@ describe("resumen del día", () => {
     expect(nombrePresentacion(1000)).toBe("TBA-1000 cm³")
   })
 
-  it("una fila por sabor + presentación (suma las líneas), de más a menos cajas, pendientes", () => {
+  it("una fila por sabor + presentación (suma las líneas), por sabor y de la presentación más grande a la más chica", () => {
     expect(itemsDelDia(filas).map((i) => [i.saborNombre, i.volumenMl, i.cajasSupervisor, i.cajasOficiales, i.estado])).toEqual([
+      ["Durazno", 1000, 960, 960, "PENDIENTE"],
       ["Pera", 330, 4803, 4803, "PENDIENTE"],
       ["Pera", 250, 2401, 2401, "PENDIENTE"],
-      ["Durazno", 1000, 960, 960, "PENDIENTE"],
     ])
+  })
+
+  it("dentro de un sabor va de 1000 a 200 aunque tenga menos cajas", () => {
+    const pera: FilaResumenDia[] = [200, 330, 1000, 500].map((volumenMl, i) => ({
+      saborNombre: "Pera",
+      volumenMl,
+      lineaCodigo: "LINEA_1",
+      lineaNombre: "Línea 1",
+      cajas: (i + 1) * 100,
+    }))
+    expect(itemsDelDia(pera).map((i) => i.volumenMl)).toEqual([1000, 500, 330, 200])
   })
 
   it("total por línea (lo del supervisor), con las que no produjeron en 0", () => {
@@ -38,9 +49,9 @@ describe("resumen del día", () => {
       [
         "Buenos días, producción del día 01/10/2026",
         "",
+        "TBA-1000 cm³ Durazno: 960 cajas",
         "TPA-330 cm³ Pera: 4.803 cajas",
         "TPA-250 cm³ Pera: 2.401 cajas",
-        "TBA-1000 cm³ Durazno: 960 cajas",
         "",
         "Total: 8.164 cajas",
       ].join("\n"),
