@@ -14,7 +14,18 @@ import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { puede } from "@/lib/permisos"
 import { franjaDeHora, restarDias } from "@/lib/tiempoPlanta"
-import { cargarResumenDia, itemsDelDia, mensajeResumenDia, validarDia, type FilaResumenDia, type ValidacionDia } from "@/lib/resumenDia"
+import {
+  cargarResumenDia,
+  cargarValidacionesTurno,
+  itemsDelDia,
+  itemsDelDiaConTurnos,
+  mensajeResumenDia,
+  validarTurno,
+  type FilaResumenDia,
+  type ItemTurno,
+  type ValidacionDia,
+  type ValidacionTurno,
+} from "@/lib/resumenDia"
 import {
   cajasPorGrupo,
   cajasPorSaborYTurno,
@@ -39,6 +50,7 @@ type Cargado = {
   fecha: string
   dia: { filas: FilaResumenDia[]; validaciones: ValidacionDia[] } | null
   diario: DatosResumenDiario | null
+  validacionesTurno: ValidacionTurno[]
   error: string | null
 }
 
@@ -56,10 +68,20 @@ export default function ResumenDia() {
   useEffect(() => {
     if (!session || !fecha) return
     let vivo = true
-    Promise.all([cargarResumenDia(session.username, AREA, fecha), cargarResumenDiario(session.username, AREA, fecha)]).then(([dia, diario]) => {
+    Promise.all([
+      cargarResumenDia(session.username, AREA, fecha),
+      cargarResumenDiario(session.username, AREA, fecha),
+      cargarValidacionesTurno(session.username, AREA, fecha),
+    ]).then(([dia, diario, valTurno]) => {
       if (!vivo) return
-      const error = "error" in dia ? dia.error : "error" in diario ? diario.error : null
-      setCargado({ fecha, dia: "error" in dia ? null : dia, diario: "error" in diario ? null : diario, error })
+      const error = "error" in dia ? dia.error : "error" in diario ? diario.error : "error" in valTurno ? valTurno.error : null
+      setCargado({
+        fecha,
+        dia: "error" in dia ? null : dia,
+        diario: "error" in diario ? null : diario,
+        validacionesTurno: "error" in valTurno ? [] : valTurno,
+        error,
+      })
     })
     return () => {
       vivo = false
@@ -70,11 +92,19 @@ export default function ResumenDia() {
   // Solo las líneas físicas (LINEA_1, LINEA_2...), sin las de Pruebas.
   const lineasPlanta = useMemo(() => lineas.filter((l) => /^LINEA_\d+$/.test(l.codigo)), [lineas])
   const nombreLinea = (codigo: string) => lineasPlanta.find((l) => l.codigo.replace(/^LINEA_/, "") === codigo.replace(/^LINEA_T?/, ""))?.nombre ?? codigo
-  const items = vigente?.dia ? itemsDelDia(vigente.dia.filas, vigente.dia.validaciones) : []
   const diario = vigente?.diario ?? null
+  // El día sale de los turnos (corrección por turno); sin los turnos, como antes.
+  const conTurnos =
+    vigente?.dia && diario ? itemsDelDiaConTurnos(diario.porTurno, vigente.validacionesTurno, vigente.dia.validaciones) : null
+  const items = conTurnos?.dia ?? (vigente?.dia ? itemsDelDia(vigente.dia.filas, vigente.dia.validaciones) : [])
+  const itemsTurno: ItemTurno[] = conTurnos?.turnos ?? []
+  const etiquetaTurno = (turnoId: string) => {
+    const t = diario?.turnos.find((x) => x.turno.id === turnoId)
+    return t ? `${t.etiqueta} · ${t.turno.supervisorNombre}` : "Turno"
+  }
   const volumenes = presentaciones.filter((p) => p.activo).map((p) => p.volumenMl)
-  const validar = (saborNombre: string, volumenMl: number, cajas: number | null, nota: string) =>
-    validarDia(session?.username ?? "", AREA, fecha, saborNombre, volumenMl, cajas, nota)
+  const validar = (turnoId: string, saborNombre: string, volumenMl: number, cajas: number | null, nota: string) =>
+    validarTurno(session?.username ?? "", turnoId, saborNombre, volumenMl, cajas, nota)
 
   return (
     <AppShell title="Resumen Diario" description="Jornada de Aséptico, de 7:00 a 7:00">
@@ -124,9 +154,11 @@ export default function ResumenDia() {
                 {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(diario.turnos)} />}
               </>
             )}
-            {esAnalista && vigente.dia && (
+            {esAnalista && vigente.dia && diario && (
               <MensajeWhatsApp
-                items={items}
+                dia={items}
+                turnos={itemsTurno}
+                etiquetaTurno={etiquetaTurno}
                 volumenes={volumenes}
                 mensaje={mensajeResumenDia(fecha, items)}
                 validar={validar}

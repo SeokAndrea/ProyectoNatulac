@@ -113,10 +113,24 @@ export interface ItemDia {
   cajasOficiales: number
   nota: string | null
   validadoPorNombre: string | null
+  /** Número de la primera línea donde salió (ordena el mensaje); null si no se sabe. */
+  linea?: number | null
+}
+
+const numeroLinea = (codigo: string) => Number(codigo.replace(/^LINEA_T?/, "")) || null
+
+/** Por sabor (alfabético); dentro del sabor, por línea (1, 2, 3) y de la presentación más grande a la más chica. */
+export function ordenarItems<T extends ItemDia>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) =>
+      a.saborNombre.localeCompare(b.saborNombre, "es") ||
+      (a.linea ?? 99) - (b.linea ?? 99) ||
+      b.volumenMl - a.volumenMl,
+  )
 }
 
 /**
- * Una fila por sabor + presentación, de más a menos cajas oficiales. Suma
+ * Una fila por sabor + presentación. Suma
  * las líneas y le pega su validación; una validación sin producción (ej.
  * se corrigió un PT después) igual aparece, con 0 del supervisor.
  */
@@ -135,6 +149,8 @@ export function itemsDelDia(filas: FilaResumenDia[], validaciones: ValidacionDia
       validadoPorNombre: null,
     }
     actual.cajasSupervisor += f.cajas
+    const n = numeroLinea(f.lineaCodigo)
+    if (n !== null && (actual.linea == null || n < actual.linea)) actual.linea = n
     m.set(k, actual)
   }
   for (const v of validaciones) {
@@ -150,13 +166,143 @@ export function itemsDelDia(filas: FilaResumenDia[], validaciones: ValidacionDia
     }
     m.set(k, { ...actual, estado: v.estado, nota: v.nota, validadoPorNombre: v.validadoPorNombre })
   }
-  return [...m.values()]
-    .map((i) => {
+  return ordenarItems(
+    [...m.values()].map((i) => {
       const v = validaciones.find((x) => x.saborNombre === i.saborNombre && x.volumenMl === i.volumenMl)
       return { ...i, cajasOficiales: v?.estado === "EDITADO" && v.cajas !== null ? v.cajas : i.cajasSupervisor }
-    })
-    // Por sabor (alfabético) y, dentro de cada sabor, de la presentación más grande a la más chica: 1000, 500, 330, 200.
-    .sort((a, b) => a.saborNombre.localeCompare(b.saborNombre, "es") || b.volumenMl - a.volumenMl)
+    }),
+  )
+}
+
+// ------------------------------------------------------------
+// Corrección por turno (dueña, 2026-10-08; migración 20261108590000)
+// ------------------------------------------------------------
+
+/** La validación de un sabor + presentación en UN turno. */
+export interface ValidacionTurno {
+  turnoId: string
+  saborNombre: string
+  volumenMl: number
+  estado: "CONFIRMADO" | "EDITADO"
+  cajas: number | null
+  nota: string | null
+  validadoPorNombre: string | null
+}
+
+export interface ItemTurno extends ItemDia {
+  turnoId: string
+}
+
+/** Cajas del supervisor por turno (resumen_produccion_dia_por_turno). */
+export interface FilaTurnoResumen {
+  turnoId: string
+  saborNombre: string
+  volumenMl: number
+  lineaCodigo: string
+  cajas: number
+}
+
+/** Un ítem por turno + sabor + presentación, con su validación (una validación sin producción también aparece). */
+export function itemsPorTurno(filas: FilaTurnoResumen[], validaciones: ValidacionTurno[]): ItemTurno[] {
+  const m = new Map<string, ItemTurno>()
+  const clave = (t: string, s: string, v: number) => `${t}|${s}|${v}`
+  const nuevo = (turnoId: string, saborNombre: string, volumenMl: number): ItemTurno => ({
+    turnoId,
+    saborNombre,
+    volumenMl,
+    cajasSupervisor: 0,
+    estado: "PENDIENTE",
+    cajasOficiales: 0,
+    nota: null,
+    validadoPorNombre: null,
+    linea: null,
+  })
+  for (const f of filas) {
+    const k = clave(f.turnoId, f.saborNombre, f.volumenMl)
+    const i = m.get(k) ?? nuevo(f.turnoId, f.saborNombre, f.volumenMl)
+    i.cajasSupervisor += f.cajas
+    const n = numeroLinea(f.lineaCodigo)
+    if (n !== null && (i.linea == null || n < i.linea)) i.linea = n
+    m.set(k, i)
+  }
+  const validacion = new Map(validaciones.map((v) => [clave(v.turnoId, v.saborNombre, v.volumenMl), v]))
+  for (const v of validaciones) {
+    const k = clave(v.turnoId, v.saborNombre, v.volumenMl)
+    if (!m.has(k)) m.set(k, nuevo(v.turnoId, v.saborNombre, v.volumenMl))
+  }
+  return ordenarItems(
+    [...m.entries()].map(([k, i]) => {
+      const v = validacion.get(k)
+      if (!v) return { ...i, cajasOficiales: i.cajasSupervisor }
+      return {
+        ...i,
+        estado: v.estado,
+        nota: v.nota,
+        validadoPorNombre: v.validadoPorNombre,
+        cajasOficiales: v.estado === "EDITADO" && v.cajas !== null ? v.cajas : i.cajasSupervisor,
+      }
+    }),
+  )
+}
+
+/**
+ * Los ítems del día armados desde los turnos: el número oficial es la suma de
+ * los turnos (lo corregido donde se corrigió, lo del supervisor donde no). Un
+ * sabor + presentación sin ninguna validación por turno sigue con la
+ * corrección global de antes (validacion_dia), si la tiene.
+ */
+export function itemsDelDiaConTurnos(filas: FilaTurnoResumen[], validacionesTurno: ValidacionTurno[], validacionesDia: ValidacionDia[]): { dia: ItemDia[]; turnos: ItemTurno[] } {
+  const turnos = itemsPorTurno(filas, validacionesTurno)
+  const base = itemsDelDia(
+    filas.map((f) => ({ saborNombre: f.saborNombre, volumenMl: f.volumenMl, lineaCodigo: f.lineaCodigo, lineaNombre: "", cajas: f.cajas })),
+    validacionesDia,
+  )
+  for (const t of turnos) {
+    if (!base.some((i) => i.saborNombre === t.saborNombre && i.volumenMl === t.volumenMl)) {
+      base.push({ saborNombre: t.saborNombre, volumenMl: t.volumenMl, cajasSupervisor: 0, estado: "PENDIENTE", cajasOficiales: 0, nota: null, validadoPorNombre: null, linea: t.linea })
+    }
+  }
+  const dia = base.map((i) => {
+    const propios = turnos.filter((t) => t.saborNombre === i.saborNombre && t.volumenMl === i.volumenMl)
+    if (!propios.some((t) => t.estado !== "PENDIENTE")) return i
+    return {
+      ...i,
+      cajasOficiales: propios.reduce((a, t) => a + t.cajasOficiales, 0),
+      estado: propios.some((t) => t.estado === "EDITADO") ? ("EDITADO" as const) : propios.every((t) => t.estado === "CONFIRMADO") ? ("CONFIRMADO" as const) : ("PENDIENTE" as const),
+      nota: null,
+      validadoPorNombre: null,
+    }
+  })
+  return { dia: ordenarItems(dia), turnos }
+}
+
+export async function cargarValidacionesTurno(usuario: string, area: string, fecha: string): Promise<ValidacionTurno[] | { error: string }> {
+  const { data, error } = await supabase.rpc("validacion_turnos_de", { p_usuario: usuario, p_area_codigo: area, p_fecha: fecha })
+  if (error) return { error: error.message || "No se pudieron leer las correcciones por turno." }
+  return (
+    (data ?? []) as { turno_id: string; sabor_nombre: string; presentacion_volumen_ml: number; estado: "CONFIRMADO" | "EDITADO"; cajas: number | null; nota: string | null; validado_por_nombre: string | null }[]
+  ).map((v) => ({
+    turnoId: v.turno_id,
+    saborNombre: v.sabor_nombre,
+    volumenMl: v.presentacion_volumen_ml,
+    estado: v.estado,
+    cajas: v.cajas,
+    nota: v.nota,
+    validadoPorNombre: v.validado_por_nombre,
+  }))
+}
+
+/** Confirma (cajas null) o corrige las cajas de un sabor + presentación en un turno. */
+export async function validarTurno(usuario: string, turnoId: string, saborNombre: string, volumenMl: number, cajas: number | null, nota: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("validar_turno", {
+    p_usuario: usuario,
+    p_turno_id: turnoId,
+    p_sabor_nombre: saborNombre,
+    p_volumen_ml: volumenMl,
+    p_cajas: cajas,
+    p_nota: nota.trim() || null,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo guardar." } : { ok: true }
 }
 
 /** Cajas por línea (lo del supervisor), en el orden de `lineas` (las que no produjeron, en 0). */

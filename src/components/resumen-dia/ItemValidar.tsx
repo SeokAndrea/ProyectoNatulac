@@ -9,18 +9,21 @@ type Resultado = { ok: true } | { ok: false; error: string }
 const miles = (n: number) => n.toLocaleString("es-CO")
 
 /**
- * Un sabor + presentación del día: sus cajas, el estado y Confirmar /
- * Corregir el total. Al corregir también se puede cambiar la presentación
+ * Un sabor + presentación (de un turno, si viene `etiqueta`): sus cajas, el
+ * estado y Confirmar / Corregir el total. Al corregir también se puede cambiar la presentación
  * (ej. se cargó como 250 y era 200): las cajas pasan a la otra fila.
  */
 export function ItemValidar({
   item: i,
+  etiqueta,
   volumenes,
   guardar,
   moverA,
   onCambio,
 }: {
   item: ItemDia
+  /** Turno al que pertenece (ej. "T1 · Javier Bello"). */
+  etiqueta?: string
   /** Presentaciones que se pueden elegir (ml). */
   volumenes: number[]
   guardar: (cajas: number | null, nota: string) => Promise<Resultado>
@@ -57,6 +60,7 @@ export function ItemValidar({
     <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
+          {etiqueta && <p className="text-xs font-semibold text-muted-foreground">{etiqueta}</p>}
           <p className="text-sm font-semibold text-foreground">{i.saborNombre}</p>
           <p className="text-xs text-muted-foreground">{nombrePresentacion(i.volumenMl)}</p>
         </div>

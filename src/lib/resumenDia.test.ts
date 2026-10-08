@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest"
-import { itemsDelDia, mensajeResumenDia, nombrePresentacion, pasosCambioPresentacion, saborEnMensaje, totalPorLinea, type FilaResumenDia, type ValidacionDia } from "@/lib/resumenDia"
+import {
+  itemsDelDia,
+  itemsDelDiaConTurnos,
+  mensajeResumenDia,
+  nombrePresentacion,
+  pasosCambioPresentacion,
+  saborEnMensaje,
+  totalPorLinea,
+  type FilaResumenDia,
+  type FilaTurnoResumen,
+  type ValidacionDia,
+} from "@/lib/resumenDia"
 
 const filas: FilaResumenDia[] = [
   { saborNombre: "Pera", volumenMl: 250, lineaCodigo: "LINEA_2", lineaNombre: "Línea 2", cajas: 1200 },
@@ -15,12 +26,23 @@ describe("resumen del día", () => {
     expect(nombrePresentacion(1000)).toBe("TBA-1000 cm³")
   })
 
-  it("una fila por sabor + presentación (suma las líneas), por sabor y de la presentación más grande a la más chica", () => {
+  it("una fila por sabor + presentación (suma las líneas); por sabor y, dentro del sabor, por línea", () => {
     expect(itemsDelDia(filas).map((i) => [i.saborNombre, i.volumenMl, i.cajasSupervisor, i.cajasOficiales, i.estado])).toEqual([
       ["Durazno", 1000, 960, 960, "PENDIENTE"],
-      ["Pera", 330, 4803, 4803, "PENDIENTE"],
+      // Pera 250 salió en la Línea 2 (y 3); Pera 330, solo en la 3.
       ["Pera", 250, 2401, 2401, "PENDIENTE"],
+      ["Pera", 330, 4803, 4803, "PENDIENTE"],
     ])
+  })
+
+  it("dentro del sabor: Línea 1, 2, 3 y en cada línea de 1000 a 200", () => {
+    const pera = ([
+      [1000, "LINEA_1"],
+      [330, "LINEA_3"],
+      [200, "LINEA_2"],
+      [250, "LINEA_2"],
+    ] as const).map(([volumenMl, lineaCodigo]) => ({ saborNombre: "Pera", volumenMl, lineaCodigo, lineaNombre: "", cajas: 10 }))
+    expect(itemsDelDia(pera).map((i) => i.volumenMl)).toEqual([1000, 250, 200, 330])
   })
 
   it("la Pera Jucosa es otra fila, después de la Pera clásica", () => {
@@ -61,8 +83,8 @@ describe("resumen del día", () => {
         "Buenos días, producción del día 01/10/2026",
         "",
         "TBA-1000 cm³ Néctar de Durazno: 960 cajas",
-        "TPA-330 cm³ Néctar de Pera: 4.803 cajas",
         "TPA-250 cm³ Néctar de Pera: 2.401 cajas",
+        "TPA-330 cm³ Néctar de Pera: 4.803 cajas",
         "",
         "Total: 8.164 cajas",
       ].join("\n"),
@@ -133,5 +155,42 @@ describe("cambiar la presentación de una fila", () => {
     const pera250 = items.find((i) => i.saborNombre === "Pera" && i.volumenMl === 250)!
     const pasos = pasosCambioPresentacion(items, pera250, 330, 100, "Se activó mal")
     expect(pasos[1]).toEqual({ volumenMl: 330, cajas: 4903, nota: "Incluye 100 cajas de 250 ml. Se activó mal" })
+  })
+})
+
+describe("corrección por turno", () => {
+  const porTurno: FilaTurnoResumen[] = [
+    { turnoId: "t1", saborNombre: "Pera", volumenMl: 200, lineaCodigo: "LINEA_2", cajas: 420 },
+    { turnoId: "t3", saborNombre: "Pera", volumenMl: 200, lineaCodigo: "LINEA_2", cajas: 300 },
+    { turnoId: "t3", saborNombre: "Durazno", volumenMl: 330, lineaCodigo: "LINEA_3", cajas: 960 },
+  ]
+
+  it("el oficial del día es la suma de los turnos: lo corregido y lo del supervisor", () => {
+    const { dia, turnos } = itemsDelDiaConTurnos(
+      porTurno,
+      [{ turnoId: "t1", saborNombre: "Pera", volumenMl: 200, estado: "EDITADO", cajas: 430, nota: "Faltó una camada", validadoPorNombre: "Analista" }],
+      [],
+    )
+    expect(turnos.map((t) => [t.turnoId, t.saborNombre, t.cajasOficiales, t.estado])).toEqual([
+      ["t3", "Durazno", 960, "PENDIENTE"],
+      ["t1", "Pera", 430, "EDITADO"],
+      ["t3", "Pera", 300, "PENDIENTE"],
+    ])
+    expect(dia.map((i) => [i.saborNombre, i.cajasSupervisor, i.cajasOficiales, i.estado])).toEqual([
+      ["Durazno", 960, 960, "PENDIENTE"],
+      ["Pera", 720, 730, "EDITADO"],
+    ])
+  })
+
+  it("todos los turnos confirmados: el día queda confirmado", () => {
+    const conf = (turnoId: string) => ({ turnoId, saborNombre: "Pera", volumenMl: 200, estado: "CONFIRMADO" as const, cajas: null, nota: null, validadoPorNombre: null })
+    const { dia } = itemsDelDiaConTurnos(porTurno, [conf("t1"), conf("t3")], [])
+    expect(dia.find((i) => i.saborNombre === "Pera")).toMatchObject({ cajasOficiales: 720, estado: "CONFIRMADO" })
+  })
+
+  it("sin correcciones por turno, vale la corrección global de antes", () => {
+    const global: ValidacionDia[] = [{ saborNombre: "Pera", volumenMl: 200, estado: "EDITADO", cajas: 700, nota: null, validadoPorNombre: "Daniela" }]
+    const { dia } = itemsDelDiaConTurnos(porTurno, [], global)
+    expect(dia.find((i) => i.saborNombre === "Pera")).toMatchObject({ cajasOficiales: 700, estado: "EDITADO" })
   })
 })
