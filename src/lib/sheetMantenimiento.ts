@@ -87,6 +87,9 @@ const DIA = 24 * 3600 * 1000
 
 /**
  * Inicio y fin reales de un reporte. `ahora`: 'YYYY-MM-DDTHH:MM:SS' de planta.
+ * PENDIENTE en el Sheet es trabajo que quedó pendiente, NO la línea parada
+ * (hay reportes pendientes de hace meses): cuenta 0 min (fin = inicio) hasta
+ * que Mantenimiento lo finalice y entre con su duración real.
  * `corregida`: la fecha de inicio y la de cierre no cuadraban con el DOWNTIME y se eligió la que tiene sentido.
  */
 export function resolverHoras(
@@ -103,7 +106,7 @@ export function resolverHoras(
   const hc = horaSheet(r.horaCierre)
   if (r.pendiente || hc === null) {
     if (inicioFuturo) iniA -= DIA
-    return { inicio: aIso(iniA), fin: null, corregida: inicioFuturo }
+    return { inicio: aIso(iniA), fin: aIso(iniA), corregida: inicioFuturo }
   }
 
   const fc = fechaSheet(r.fechaCierre)

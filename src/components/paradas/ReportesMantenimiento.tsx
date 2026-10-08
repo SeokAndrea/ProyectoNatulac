@@ -22,7 +22,8 @@ const PERIODOS: { codigo: Periodo; etiqueta: string }[] = [
 
 const hora = (iso: string) => iso.slice(11, 16)
 const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
-function duracion(inicio: string, fin: string | null): string {
+function duracion(inicio: string, fin: string | null, pendiente: boolean): string {
+  if (pendiente) return "pendiente"
   if (!fin) return "en curso"
   const min = Math.round((Date.parse(`${fin}Z`) - Date.parse(`${inicio}Z`)) / 60000)
   return min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}` : `${min} min`
@@ -91,16 +92,16 @@ export function ReportesMantenimiento() {
                   >
                     <TableCell className="num whitespace-nowrap">
                       {periodo === "7D" && <span className="text-muted-foreground">{diaMes(f.inicio)} </span>}
-                      {hora(f.inicio)}–{f.fin ? hora(f.fin) : "…"}
+                      {hora(f.inicio)}{f.estatus.toUpperCase() === "PENDIENTE" ? "" : `–${f.fin ? hora(f.fin) : "…"}`}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{f.linea.replace(/^LINEA\s*/i, "L")}</TableCell>
                     <TableCell className="whitespace-normal">
                       <span className="font-medium">{f.equipo}</span>
                       {f.subsistema && <span className="text-muted-foreground"> · {f.subsistema}</span>}
                     </TableCell>
-                    <TableCell className="num whitespace-nowrap text-right">{duracion(f.inicio, f.fin)}</TableCell>
+                    <TableCell className="num whitespace-nowrap text-right">{duracion(f.inicio, f.fin, f.estatus.toUpperCase() === "PENDIENTE")}</TableCell>
                     <TableCell>
-                      {f.fin ? <Badge variant="muted">Finalizado</Badge> : <Badge variant="warning">En curso</Badge>}
+                      {f.estatus.toUpperCase() === "PENDIENTE" ? <Badge variant="warning">Pendiente</Badge> : <Badge variant="muted">Finalizado</Badge>}
                     </TableCell>
                   </TableRow>
                   {abierta === f.id && (

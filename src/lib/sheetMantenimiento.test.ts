@@ -54,8 +54,10 @@ describe("fechas del Sheet de Mantenimiento", () => {
     })
   })
 
-  it("pendiente: en curso, sin fin", () => {
-    expect(resolverHoras(r("8/10/2026", "11:05:00", "", "", "", true), AHORA)).toEqual({ inicio: "2026-10-08T11:05:00", fin: null, corregida: false })
+  it("pendiente: cuenta 0 min hasta que lo finalicen (no es la línea parada)", () => {
+    expect(resolverHoras(r("8/10/2026", "11:05:00", "", "", "", true), AHORA)).toEqual({ inicio: "2026-10-08T11:05:00", fin: "2026-10-08T11:05:00", corregida: false })
+    // El de la cámara aséptica de L1: pendiente desde el 05/08, no puede sumar dos meses de parada.
+    expect(resolverHoras(r("5/08/2026", "10:00:00", "05/08/2026", "", "", true), AHORA)).toMatchObject({ fin: "2026-08-05T10:00:00" })
   })
 
   it("sin fecha de inicio no se puede ubicar", () => {
