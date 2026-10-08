@@ -50,4 +50,12 @@ acta (se descarga sola al teléfono y hay que buscarla).
   (no el promedio de corridas del acta).
 - Boceto: https://claude.ai/code/artifact/c0598d8f-1b99-488d-9ad8-c7078265b401
 
-**Por decidir:** qué pasa con la validación de cajas del Resumen del Día actual (¿la hace otra persona o se quita?).
+- **Jefe y analista:** los dos ven el mismo Resumen Diario. Solo la **Analista de Producción** tiene la tarjeta
+  «Mensaje para WhatsApp»: corrige las cajas (queda como número oficial del día, como hoy) y copia. El jefe ve el
+  número oficial, con la marca «corregido» donde la analista cambió algo. Hace falta: permiso nuevo para ver el
+  resumen (jefe y analista) y quitarle VALIDAR al rol Jefe de Producción.
+- Mensaje (ya en la app, 3f2c0ec / 322ed1a): por sabor y de 1000 a 200; los clásicos (Pera, Manzana, Durazno, Mango)
+  llevan «Néctar de» y la Naranja es «Naranjada».
+
+**Por decidir:** el Coctel (también es clásico) ¿lleva «Néctar de»? Y la Pera Jugosa se suma con la Clásica porque el
+resumen agrupa por nombre: ¿se produce Jugosa en Aséptico?
