@@ -23,6 +23,17 @@ describe("resumen del día", () => {
     ])
   })
 
+  it("la Pera Jucosa es otra fila, después de la Pera clásica", () => {
+    const conJucosa: FilaResumenDia[] = [
+      { saborNombre: "Pera Jucosa", volumenMl: 200, lineaCodigo: "LINEA_2", lineaNombre: "Línea 2", cajas: 300 },
+      { saborNombre: "Pera", volumenMl: 200, lineaCodigo: "LINEA_2", lineaNombre: "Línea 2", cajas: 500 },
+    ]
+    expect(itemsDelDia(conJucosa).map((i) => [i.saborNombre, i.cajasOficiales])).toEqual([
+      ["Pera", 500],
+      ["Pera Jucosa", 300],
+    ])
+  })
+
   it("dentro de un sabor va de 1000 a 200 aunque tenga menos cajas", () => {
     const pera: FilaResumenDia[] = [200, 330, 1000, 500].map((volumenMl, i) => ({
       saborNombre: "Pera",
@@ -66,6 +77,8 @@ describe("resumen del día", () => {
       "Néctar de Mango",
     ])
     expect(saborEnMensaje("Naranja")).toBe("Naranjada")
+    expect(saborEnMensaje("Coctel")).toBe("Coctel")
+    expect(saborEnMensaje("Pera Jucosa")).toBe("Pera Jucosa")
     expect(["Pera 35%", "Naranja 100%", "Té de Durazno", "Agua de Coco"].map(saborEnMensaje)).toEqual([
       "Pera 35%",
       "Naranja 100%",
