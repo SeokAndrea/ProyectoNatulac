@@ -183,14 +183,17 @@ export function fechaCorta(fecha: string): string {
  */
 /**
  * Nombre del sabor en el mensaje de WhatsApp (dueña, 2026-10-08): los
- * néctares clásicos llevan "Néctar de" y la Naranja se llama Naranjada.
- * Los demás (35%, Premium, Té…) van con su nombre tal cual.
+ * néctares clásicos y los Selecto 35% de esos sabores llevan "Néctar de"
+ * ("Néctar de Pera", "Néctar de Pera 35%") y la Naranja se llama Naranjada.
+ * Los demás (Coctel, Jucosa, Premium, Té…) van con su nombre tal cual.
  */
-const NECTARES_CLASICOS = new Set(["pera", "manzana", "durazno", "mango"])
+const NECTARES = new Set(["pera", "manzana", "durazno", "mango"])
 export function saborEnMensaje(saborNombre: string): string {
-  const clave = saborNombre.trim().toLowerCase()
+  const nombre = saborNombre.trim()
+  const clave = nombre.toLowerCase()
   if (clave === "naranja") return "Naranjada"
-  return NECTARES_CLASICOS.has(clave) ? `Néctar de ${saborNombre.trim()}` : saborNombre
+  const base = clave.replace(/\s*35\s*%$/, "")
+  return NECTARES.has(base) ? `Néctar de ${nombre}` : saborNombre
 }
 
 export function mensajeResumenDia(fecha: string, items: ItemDia[]): string {

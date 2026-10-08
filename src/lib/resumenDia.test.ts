@@ -79,8 +79,9 @@ describe("resumen del día", () => {
     expect(saborEnMensaje("Naranja")).toBe("Naranjada")
     expect(saborEnMensaje("Coctel")).toBe("Coctel")
     expect(saborEnMensaje("Pera Jucosa")).toBe("Pera Jucosa")
-    expect(["Pera 35%", "Naranja 100%", "Té de Durazno", "Agua de Coco"].map(saborEnMensaje)).toEqual([
-      "Pera 35%",
+    expect(["Pera 35%", "Mango 35%", "Naranja 100%", "Té de Durazno", "Agua de Coco"].map(saborEnMensaje)).toEqual([
+      "Néctar de Pera 35%",
+      "Néctar de Mango 35%",
       "Naranja 100%",
       "Té de Durazno",
       "Agua de Coco",
