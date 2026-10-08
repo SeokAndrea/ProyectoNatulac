@@ -8,8 +8,8 @@ const miles = (n: number) => n.toLocaleString("es-CO")
 const LIMITE_PCT = LIMITE_MERMA * 100
 
 /*
- * Solo la analista: por turno, cada lote con su contador de llenadora, sus
- * cajas y su merma. Lo justo para leerlo de un vistazo; la justificación de
+ * Solo la analista: por turno, cada lote con su Contador 1 (llenadora), su
+ * Contador 2 (envases buenos), sus cajas y su merma. Lo justo para leerlo de un vistazo; la justificación de
  * una merma alta se abre con "Ver por qué".
  */
 export function ContadoresDelDia({
@@ -43,7 +43,8 @@ export function ContadoresDelDia({
               <TableHeader>
                 <TableRow>
                   <TableHead>Línea · lote</TableHead>
-                  <TableHead className="text-right">Llenadora</TableHead>
+                  <TableHead className="text-right">Contador 1</TableHead>
+                  <TableHead className="text-right">Contador 2</TableHead>
                   <TableHead className="text-right">Cajas</TableHead>
                   <TableHead className="text-right">Merma</TableHead>
                 </TableRow>
@@ -64,6 +65,7 @@ export function ContadoresDelDia({
                           </span>
                         </TableCell>
                         <TableCell className="num text-right">{f.llenadora > 0 ? miles(f.llenadora) : "--"}</TableCell>
+                        <TableCell className="num text-right">{f.buenos != null ? miles(f.buenos) : "--"}</TableCell>
                         <TableCell className="num text-right">{miles(f.cajas)}</TableCell>
                         <TableCell className="text-right">
                           <span className={`num ${alta ? "font-semibold text-destructive" : ""}`}>
@@ -83,7 +85,7 @@ export function ContadoresDelDia({
                       </TableRow>,
                       abierta === f.corridaId && f.justificacion ? (
                         <TableRow key={`${f.corridaId}-j`}>
-                          <TableCell colSpan={4} className="whitespace-normal pt-0 text-sm text-muted-foreground">
+                          <TableCell colSpan={5} className="whitespace-normal pt-0 text-sm text-muted-foreground">
                             {f.justificacion}
                           </TableCell>
                         </TableRow>
