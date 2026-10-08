@@ -43,9 +43,8 @@ acta (se descarga sola al teléfono y hay que buscarla).
   líneas se entregan o terminan y la parada pendiente se completa ahí mismo; barra fija abajo con el botón y lo que
   falta. Al cerrar: el acta en pantalla con **Imprimir**, **Descargar PDF** y **Ver en grande**.
 - **Mis Actas:** cada acta se abre en el mismo visor, con Imprimir.
-- **Resumen Diario (jefe):** el día en números, turnos con su acta, cajas por sabor y presentación por turno, por
-  línea, paradas que más tiempo quitaron, semielaborado, novedades y cambios después del cierre. **El jefe no valida
-  nada.**
+- **Resumen Diario (jefe), solo esto:** botones Ver acta T1 · T2 · T3; cajas por sabor y presentación (por turno y
+  del día); por línea; paradas que más tiempo quitaron; novedades del día. **El jefe no valida nada.**
 - Boceto: https://claude.ai/code/artifact/c0598d8f-1b99-488d-9ad8-c7078265b401
 
 **Por decidir:** qué pasa con la validación de cajas del Resumen del Día actual (¿la hace otra persona o se quita?).
