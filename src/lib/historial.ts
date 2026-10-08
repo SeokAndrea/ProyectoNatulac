@@ -110,7 +110,7 @@ export function construirHistorial(
     agregar(
       p.creadoEn,
       "Preparaciones",
-      `Tanque ${p.numeroTanque}: ${p.saborNombre ?? "sin sabor"}${p.lote ? ` · Lote ${p.lote}` : ""} · ${p.tambores} tambores${ajustes ? ` · ${ajustes}` : ""}`,
+      `Tanque ${p.numeroTanque}: ${p.saborNombre ?? "sin sabor"}${p.lote ? ` · Lote ${p.lote}` : ""} · ${p.tambores.toLocaleString("es-CO")} tambores${ajustes ? ` · ${ajustes}` : ""}`,
     )
     if (p.liberadoEn) {
       agregar(p.liberadoEn, "Preparaciones", `Tanque ${p.numeroTanque}: lote liberado (Listo)`)

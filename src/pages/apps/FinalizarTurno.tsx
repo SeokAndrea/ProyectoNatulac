@@ -452,7 +452,7 @@ export default function FinalizarTurno() {
                         {p.lote ? ` · Lote ${p.lote}` : ""}
                       </p>
                       <p className="text-muted-foreground">
-                        {p.tambores} tambores
+                        {p.tambores.toLocaleString("es-CO")} tambores
                         {p.agua !== null ? ` · Agua ${p.agua} L` : ""}
                         {p.azucar !== null ? ` · Azúcar ${p.azucar} kg` : ""}
                         {p.acidoCitrico !== null ? ` · Ácido cítrico ${p.acidoCitrico} kg` : ""}

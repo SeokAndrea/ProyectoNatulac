@@ -132,6 +132,8 @@ export function TanqueEditForm({
             <Input
               type="number"
               min={0}
+              step={0.5}
+              inputMode="decimal"
               placeholder={unidadPrep === "kits" ? "Kits" : "Tambores"}
               value={tambores}
               onChange={(e) => setTambores(e.target.value)}

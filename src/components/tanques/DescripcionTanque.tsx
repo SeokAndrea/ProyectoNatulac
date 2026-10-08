@@ -26,7 +26,7 @@ export function DescripcionTanque({ tanque, loteAbierto }: { tanque: TanqueRecep
       return (
         <p className="text-sm break-words text-muted-foreground">
           {loteAbierto
-            ? `${loteAbierto.saborNombre ?? "Sin sabor"}${loteAbierto.lote ? ` · Lote ${loteAbierto.lote}` : ""} · ${loteAbierto.tambores} ${unidadPreparacion(loteAbierto.saborNombre)}${loteAbierto.volumenActualL ? ` · ${loteAbierto.volumenActualL} L` : ""}`
+            ? `${loteAbierto.saborNombre ?? "Sin sabor"}${loteAbierto.lote ? ` · Lote ${loteAbierto.lote}` : ""} · ${loteAbierto.tambores.toLocaleString("es-CO")} ${unidadPreparacion(loteAbierto.saborNombre)}${loteAbierto.volumenActualL ? ` · ${loteAbierto.volumenActualL} L` : ""}`
             : "Sin datos de la preparación."}
         </p>
       )

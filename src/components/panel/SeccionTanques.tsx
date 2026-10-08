@@ -118,7 +118,7 @@ function TanquePanel({ tanque, preparaciones }: { tanque: TanqueRecepcion; prepa
             </Badge>
             <p className="truncate text-[10px] text-muted-foreground">
               {ultimaPrep
-                ? `${ultimaPrep.tambores}t · ${ultimaPrep.saborNombre ?? "Sin sabor"}${tanque.lote ? ` · Lote ${tanque.lote}` : ""}`
+                ? `${ultimaPrep.tambores.toLocaleString("es-CO")}t · ${ultimaPrep.saborNombre ?? "Sin sabor"}${tanque.lote ? ` · Lote ${tanque.lote}` : ""}`
                 : "Sin registrar aún."}
             </p>
           </>
