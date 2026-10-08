@@ -59,7 +59,8 @@ acta (se descarga sola al teléfono y hay que buscarla).
 
 - La analista además ve **Cajas por grupo** (el grupo de cada turno).
 - **Resumen Diario: programado** (migración 20261108390000, `src/lib/resumenDiario.ts`, `src/components/resumen-dia/`).
-  «Ver acta» abre el PDF vigente en otra pestaña (el visor dentro de la app llega con Finalizar Turno / Mis Actas).
-  Falta: Finalizar Turno y Mis Actas según el boceto.
+- **Finalizar Turno y Mis Actas: programados.** Visor del acta en la app (`src/components/acta/VisorActa.tsx`, pdf.js
+  solo al abrir): Imprimir saca solo la hoja; también en el Resumen Diario. Al cerrar ya no se descarga solo el PDF:
+  queda en pantalla con Imprimir y Descargar PDF. Completar parada salió a `src/components/paradas/FormCompletarParada.tsx`.
 - El Coctel va solo (sin «Néctar de»). La Pera Jucosa es aparte de la Pera clásica (20261108290000: un nombre que se
   repite en otra familia lleva la familia al lado).

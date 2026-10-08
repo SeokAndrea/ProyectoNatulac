@@ -1,31 +1,26 @@
 import { useEffect, useState } from "react"
-import { Download, FileText, Loader2 } from "lucide-react"
+import { ArrowLeft, Eye, FileText, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
+import { VisorActa } from "@/components/acta/VisorActa"
 import { EmptyState } from "@/components/EmptyState"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth"
 import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import { misActas, urlPublicaActa, type MiActa } from "@/lib/historialTurnos"
-import { descargarDesdeUrl, nombreArchivoActa } from "@/lib/descargarArchivo"
 
 /*
- * Mis Actas: el supervisor ve y descarga las actas de SUS propios
- * turnos cerrados, sin pasar por Auditoría (esa pestaña sigue siendo
- * solo Super Administrador / Administrador de Área). Antes el único
- * momento en que veía el link de su acta era justo al finalizar el
- * turno (FinalizarTurno.tsx) — si navegaba a otro lado, lo perdía.
- *
- * El Super Administrador ve las actas de todos los turnos (migración
- * 20261097), con el supervisor y el área de cada una.
+ * Mis Actas: el supervisor ve las actas de SUS propios turnos (el Super
+ * Administrador y el dueño, las de todos, migración 20261097). Cada una se
+ * abre en pantalla, igual a la que se imprime, con Imprimir y Descargar PDF
+ * (src/components/acta/VisorActa.tsx).
  */
 export default function MisActas() {
   const { session } = useAuth()
   const veTodas = session?.rol === "SUPERADMINISTRADOR" || session?.esDueno === true
   const [actas, setActas] = useState<MiActa[]>([])
   const [cargando, setCargando] = useState(true)
-  /** Acta que se está bajando (para el spinner del botón). */
-  const [descargando, setDescargando] = useState<string | null>(null)
+  const [abierta, setAbierta] = useState<MiActa | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -34,6 +29,22 @@ export default function MisActas() {
       setCargando(false)
     })
   }, [session])
+
+  const titulo = (a: MiActa) => `${a.fecha} · ${nombrePorCodigo(TURNO_TIPOS, a.turnoTipo)} · ${nombreGrupo(a.grupo)}`
+
+  if (abierta) {
+    return (
+      <AppShell title="Mis Actas" description={`${titulo(abierta)} · ${abierta.turnoCodigo}`}>
+        <div className="mx-auto flex max-w-3xl flex-col gap-3">
+          <Button variant="ghost" className="self-start" onClick={() => setAbierta(null)}>
+            <ArrowLeft className="size-4" />
+            Volver a la lista
+          </Button>
+          <VisorActa fuente={urlPublicaActa(abierta.storagePath)} codigoTurno={abierta.turnoCodigo} />
+        </div>
+      </AppShell>
+    )
+  }
 
   return (
     <AppShell title="Mis Actas" description={veTodas ? "Actas de todos los turnos cerrados" : "Actas de tus turnos cerrados"}>
@@ -49,28 +60,16 @@ export default function MisActas() {
             <Card key={a.id}>
               <CardContent className="flex items-center justify-between gap-3 py-4">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {a.fecha} · {nombrePorCodigo(TURNO_TIPOS, a.turnoTipo)} · {nombreGrupo(a.grupo)}
-                  </p>
+                  <p className="truncate text-sm font-semibold text-foreground">{titulo(a)}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {a.turnoCodigo}
                     {veTodas && a.supervisorNombre ? ` · ${a.supervisorNombre}` : ""}
                     {veTodas && a.areaNombre ? ` · ${a.areaNombre}` : ""}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  disabled={descargando === a.id}
-                  onClick={async () => {
-                    setDescargando(a.id)
-                    await descargarDesdeUrl(urlPublicaActa(a.storagePath), nombreArchivoActa(a.turnoCodigo))
-                    setDescargando(null)
-                  }}
-                >
-                  {descargando === a.id ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-                  Descargar
+                <Button size="sm" className="shrink-0" onClick={() => setAbierta(a)}>
+                  <Eye className="size-3.5" />
+                  Ver
                 </Button>
               </CardContent>
             </Card>

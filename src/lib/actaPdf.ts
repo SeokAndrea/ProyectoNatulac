@@ -49,8 +49,8 @@ function horaNovedad(iso: string): string {
   return horaCortaPlanta(iso, iso)
 }
 
-/** Merma promedio del turno para UNA línea — simple promedio de la merma de cada corrida comparable (mismo criterio que "Producido"). */
-function mermaPromedioLinea(
+/** Merma promedio del turno para UNA línea — simple promedio de la merma de cada corrida comparable (mismo criterio que "Producido"). Finalizar Turno muestra la misma. */
+export function mermaPromedioLinea(
   corridas: Corrida[],
   contadores: ContadorRegistro[],
   productoTerminado: ProductoTerminadoRegistro[],
