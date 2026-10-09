@@ -71,6 +71,7 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Tamaño de esquinas redondeadas | `src/index.css` → variable `--radius` |
 | Tipografía | `src/index.css` → `--font-sans` (IBM Plex Sans) / `--font-mono` (JetBrains Mono, para números tabulares — clase utilitaria `num`) |
 | Apariencia de un componente puntual (botón, tarjeta, input...) | `src/components/ui/` (uno por componente, son de shadcn/ui) |
+| Navegación entre pantallas: menú lateral (PC) y botón flotante con abanico (teléfono) | `src/components/nav/` (`MenuLateral`, `BotonNavegacion`), montados en `src/components/AppShell.tsx`; qué pantallas muestra en `src/lib/navegacion.ts` |
 | Panel de Producción en vivo (tanques con nivel animado, Meta calculada, merma, por línea — con selector de fecha/turno para ver turnos viejos; abajo, Resumen de Planta con rango de fechas, Por Grupo y Por Supervisor) | `src/pages/apps/PanelProduccion.tsx`, `src/lib/panelProduccion.ts`, `src/lib/estadisticas.ts` |
 
 ## Catálogos (listas de opciones)

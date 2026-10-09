@@ -7,10 +7,10 @@ import { Logo } from "@/components/Logo"
 import { SelectorVerComo } from "@/components/VerComo"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
-import { useSesionTurno } from "@/lib/sesionTurno"
 import { useGenerarActasPendientes } from "@/lib/actasPendientes"
 import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
 import { esAreaDeApoyo } from "@/lib/catalogos"
+import { agruparPorSeccion, FLUJO_SUPERVISOR, TITULOS_SECCION, useTurnoDeLaSesion } from "@/lib/navegacion"
 import { puede } from "@/lib/permisos"
 import { cn } from "@/lib/utils"
 
@@ -20,21 +20,6 @@ const EMOJI_SALUDO_POR_USUARIO: Record<string, string> = {
 }
 const EMOJI_SALUDO_DEFAULT = "👋"
 
-/**
- * Cargo Supervisor, en el teléfono: el flujo del turno arriba de todo, en este
- * orden (dueño, 2026-09-30). En pantallas grandes, y para los otros cargos,
- * el hub queda como siempre.
- */
-const FLUJO_SUPERVISOR = [
-  "comenzar-turno",
-  "preparacion",
-  "lineas",
-  "producto-terminado",
-  "paradas",
-  "finalizar-turno",
-  "mis-actas",
-  "panel-produccion",
-]
 /** «Solo paradas» (jefe y analista, dueña 2026-10-08): oculta el flujo del turno y deja Registrar Paradas. */
 const APPS_DEL_TURNO = new Set(["comenzar-turno", "preparacion", "lineas", "producto-terminado", "finalizar-turno"])
 const STORAGE_SOLO_PARADAS = "natulac.soloParadas"
@@ -51,12 +36,8 @@ const AL_FINAL_SUPERVISOR = ["programacion", "manual", "panel-paradas"]
 
 export default function Hub() {
   const { session } = useAuth()
-  const sesion = useSesionTurno()
+  const { turnoActivo, turnoPorAsumir, sinResponsable } = useTurnoDeLaSesion()
   useGenerarActasPendientes()
-  const turnoActivo = sesion.turnoId !== null
-  // Mismo criterio que ComenzarTurno: solo el responsable actual "tiene" el turno; el resto puede asumirlo o tomar el relevo.
-  const soyResponsable = !sesion.sinResponsable && sesion.supervisorUsuario === session?.username.toLowerCase()
-  const turnoPorAsumir = turnoActivo && !soyResponsable && puede(session, "TURNO_ASUMIR")
   const puedeSoloParadas = session?.rol === "JEFE_PRODUCCION" || session?.rol === "ANALISTA"
   const [soloParadas, setSoloParadas] = useState(leerSoloParadas)
   const ocultarTurno = puedeSoloParadas && soloParadas
@@ -97,7 +78,7 @@ export default function Hub() {
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
               {turnoPorAsumir
-                ? sesion.sinResponsable
+                ? sinResponsable
                   ? "Hay un turno abierto sin responsable. Entra a Comenzar Turno para asumirlo."
                   : "Elige una aplicación para continuar."
                 : turnoActivo || !puede(session, "TURNO_ASUMIR")
@@ -168,38 +149,6 @@ export default function Hub() {
       </main>
     </div>
   )
-}
-
-const TITULOS_SECCION: Record<NonNullable<AppDef["seccion"]>, string> = {
-  produccion: "Producción",
-  apoyo: "Servicios de apoyo",
-  auditoria: "Auditoría",
-  "base-datos": "Base de Datos",
-}
-
-/**
- * Agrupa las tarjetas principales por su `seccion` (ver src/lib/apps.tsx),
- * preservando el orden de aparición de cada grupo. Las tarjetas sin
- * `seccion` van todas juntas al final, sin título. Para un área de apoyo,
- * las de "produccion" (ej. Registrar Paradas en Mantenimiento) van en "apoyo".
- */
-function agruparPorSeccion(appsPrincipales: AppDef[], areaDeApoyo: boolean): { titulo: string | null; apps: AppDef[] }[] {
-  const grupos: { titulo: string | null; apps: AppDef[] }[] = []
-  const indicePorTitulo = new Map<string | null, number>()
-
-  for (const app of appsPrincipales) {
-    const seccion = areaDeApoyo && app.seccion === "produccion" ? "apoyo" : app.seccion
-    const titulo = seccion ? TITULOS_SECCION[seccion] : null
-    let indice = indicePorTitulo.get(titulo)
-    if (indice === undefined) {
-      indice = grupos.length
-      indicePorTitulo.set(titulo, indice)
-      grupos.push({ titulo, apps: [] })
-    }
-    grupos[indice].apps.push(app)
-  }
-
-  return grupos
 }
 
 function TarjetaAtajo({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean }) {

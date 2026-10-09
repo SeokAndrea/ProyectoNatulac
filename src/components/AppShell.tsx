@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button"
 import { LogoMark } from "@/components/Logo"
 import { AppHeader } from "@/components/AppHeader"
 import { NavPanelesVista } from "@/components/NavPanelesVista"
+import { BotonNavegacion } from "@/components/nav/BotonNavegacion"
+import { MenuLateral } from "@/components/nav/MenuLateral"
 import { useAuth } from "@/lib/auth"
 import { esSoloVista } from "@/lib/rolVista"
+import { cn } from "@/lib/utils"
 
 export function AppShell({
   title,
@@ -44,38 +47,45 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-background">
-      <AppHeader
-        title={title}
-        description={description}
-        ocultarEstadoBanner={ocultarEstadoBanner}
-        right={soloVista && <NavPanelesVista />}
-        left={
-          soloVista ? (
-            // Solo Vista no tiene inicio al que volver: solo el logo, sin link.
-            <LogoMark className="size-7 shrink-0" />
-          ) : (
-          <>
-            <Button variant="ghost" size="icon" className="shrink-0" onClick={atras} aria-label="Volver">
-              <ArrowLeft className="size-4.5" />
-            </Button>
-            <Link to="/hub" className="hidden shrink-0 items-center sm:flex">
-              <LogoMark className="size-7" />
-            </Link>
-          </>
-          )
-        }
-      />
+    <div className="flex min-h-svh bg-background">
+      {/* Navegación entre pantallas: menú lateral en PC, botón flotante en el teléfono. Solo Vista tiene sus flechas. */}
+      {!soloVista && <MenuLateral plegadoInicial={fullWidth} />}
+      {!soloVista && <BotonNavegacion />}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AppHeader
+          title={title}
+          description={description}
+          ocultarEstadoBanner={ocultarEstadoBanner}
+          right={soloVista && <NavPanelesVista />}
+          left={
+            soloVista ? (
+              // Solo Vista no tiene inicio al que volver: solo el logo, sin link.
+              <LogoMark className="size-7 shrink-0" />
+            ) : (
+            <>
+              <Button variant="ghost" size="icon" className="shrink-0" onClick={atras} aria-label="Volver">
+                <ArrowLeft className="size-4.5" />
+              </Button>
+              <Link to="/hub" className="hidden shrink-0 items-center sm:flex lg:hidden">
+                <LogoMark className="size-7" />
+              </Link>
+            </>
+            )
+          }
+        />
 
-      <main
-        className={
-          fullWidth
-            ? "w-full flex-1 px-3 py-4 sm:px-4 sm:py-5 print:p-0"
-            : "mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8 print:max-w-none print:p-0"
-        }
-      >
-        {children}
-      </main>
+        <main
+          className={cn(
+            fullWidth
+              ? "w-full flex-1 px-3 py-4 sm:px-4 sm:py-5 print:p-0"
+              : "mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8 print:max-w-none print:p-0",
+            // Lugar para el botón flotante: que no tape lo último de la página.
+            !soloVista && "max-lg:pb-24",
+          )}
+        >
+          {children}
+        </main>
+      </div>
     </div>
   )
 }

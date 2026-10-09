@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { Lock } from "lucide-react"
 import type { AppDef } from "@/lib/apps"
+import { bloqueoDeApp } from "@/lib/navegacion"
 import { cn } from "@/lib/utils"
 
 const COLOR_ICONO: Record<NonNullable<AppDef["color"]>, string> = {
@@ -30,8 +31,7 @@ export function AppCard({
   turnoPorAsumir?: boolean
 }) {
   const Icon = app.icon
-  const bloqueadaPorTurno = !!app.bloqueaConTurno && turnoActivo && !turnoPorAsumir
-  const bloqueada = !app.href || (app.requiereTurno && !turnoActivo) || bloqueadaPorTurno
+  const { bloqueada, porTurnoEnCurso: bloqueadaPorTurno } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir)
   const resaltada = app.resaltarConTurno && turnoActivo && !bloqueada
 
   const iconoWrap = (
