@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from "react-router-dom"
 import { useAuth } from "@/lib/auth"
 import Login from "@/pages/Login"
 import PrimerIngreso from "@/pages/PrimerIngreso"
-import Hub from "@/pages/Hub"
 import ComenzarTurno from "@/pages/apps/ComenzarTurno"
 import Preparacion from "@/pages/apps/Preparacion"
 import Lineas from "@/pages/apps/Lineas"
@@ -28,6 +27,7 @@ import ErroresCliente from "@/pages/apps/ErroresCliente"
 import PreparacionPLC from "@/pages/apps/PreparacionPLC"
 import Calidad from "@/pages/apps/Calidad"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { InicioSegunRol } from "@/components/InicioSegunRol"
 import { VersionChecker } from "@/components/VersionChecker"
 
 /*
@@ -58,7 +58,7 @@ export default function App() {
           path="/hub"
           element={
             <ProtectedRoute>
-              <Hub />
+              <InicioSegunRol />
             </ProtectedRoute>
           }
         />

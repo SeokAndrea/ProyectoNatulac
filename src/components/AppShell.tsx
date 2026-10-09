@@ -4,6 +4,9 @@ import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LogoMark } from "@/components/Logo"
 import { AppHeader } from "@/components/AppHeader"
+import { NavPanelesVista } from "@/components/NavPanelesVista"
+import { useAuth } from "@/lib/auth"
+import { esSoloVista } from "@/lib/rolVista"
 
 export function AppShell({
   title,
@@ -24,6 +27,8 @@ export function AppShell({
   children: ReactNode
 }) {
   const navigate = useNavigate()
+  const { session } = useAuth()
+  const soloVista = esSoloVista(session)
 
   /**
    * Flecha = un paso atrás, como el botón del navegador (ej. Calculadora de
@@ -44,7 +49,12 @@ export function AppShell({
         title={title}
         description={description}
         ocultarEstadoBanner={ocultarEstadoBanner}
+        right={soloVista && <NavPanelesVista />}
         left={
+          soloVista ? (
+            // Solo Vista no tiene inicio al que volver: solo el logo, sin link.
+            <LogoMark className="size-7 shrink-0" />
+          ) : (
           <>
             <Button variant="ghost" size="icon" className="shrink-0" onClick={atras} aria-label="Volver">
               <ArrowLeft className="size-4.5" />
@@ -53,6 +63,7 @@ export function AppShell({
               <LogoMark className="size-7" />
             </Link>
           </>
+          )
         }
       />
 

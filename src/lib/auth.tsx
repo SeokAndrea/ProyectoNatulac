@@ -84,6 +84,7 @@ const AREA_DE_VISTA: Partial<Record<RolCodigo, AreaCodigo>> = {
   MANTENIMIENTO: "MANTENIMIENTO",
   CALIDAD: "CALIDAD",
   SUPERVISOR_CALIDAD: "CALIDAD",
+  VISTA: "ASEPTICO",
 }
 
 /** Cargo con el que se mira cada rol (el inicio ordena las tarjetas por cargo). */

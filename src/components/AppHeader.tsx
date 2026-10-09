@@ -32,11 +32,14 @@ function initials(name: string) {
  */
 export function AppHeader({
   left,
+  right,
   title,
   description,
   ocultarEstadoBanner,
 }: {
   left: ReactNode
+  /** Opcional: algo más antes del botón de tema (ej. la flecha entre paneles de Solo Vista). */
+  right?: ReactNode
   title?: string
   description?: string
   ocultarEstadoBanner?: boolean
@@ -68,6 +71,8 @@ export function AppHeader({
           ) : (
             <div className="flex-1" />
           )}
+
+          {right}
 
           <Button
             variant="ghost"

@@ -24,6 +24,7 @@ import {
 import type { Session } from "@/lib/auth"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 import { puede, type Permiso } from "@/lib/permisos"
+import { esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
 
 export interface AppDef {
   slug: string
@@ -382,6 +383,8 @@ export function appPorSlug(slug: string): AppDef | undefined {
  */
 export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (!session) return false
+  // Solo Vista: los dos paneles y nada más, aunque esté en Pruebas.
+  if (esSoloVista(session)) return PANELES_SOLO_VISTA.some((p) => p.slug === app.slug)
   if (session.area === "PRUEBAS") return true
   if (app.permiso && ![app.permiso].flat().some((p) => puede(session, p))) return false
   if (app.rolesExcluidos?.includes(session.rol)) return false

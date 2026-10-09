@@ -46,6 +46,8 @@ export const ROLES = [
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
   { codigo: "CALIDAD", nombre: "Analista de Calidad" },
   { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad" },
+  // Solo mira el Panel de Producción y el de Paradas (src/lib/rolVista.ts).
+  { codigo: "VISTA", nombre: "Solo Vista" },
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
 ] as const
 
