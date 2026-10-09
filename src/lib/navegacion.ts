@@ -19,7 +19,7 @@ export const TITULOS_SECCION: Record<NonNullable<AppDef["seccion"]>, string> = {
 
 /**
  * Cargo Supervisor: el flujo del turno, en este orden (dueño, 2026-09-30).
- * Arriba de todo en el Hub del teléfono y en el botón flotante.
+ * Arriba de todo en el Hub del teléfono.
  */
 export const FLUJO_SUPERVISOR = [
   "comenzar-turno",
@@ -31,6 +31,9 @@ export const FLUJO_SUPERVISOR = [
   "mis-actas",
   "panel-produccion",
 ]
+
+/** Supervisor (quien más usa la app): lo que tiene en el botón flotante, en este orden (dueño, 2026-10-09). */
+export const RAPIDAS_SUPERVISOR = ["lineas", "preparacion", "paradas", "panel-produccion"]
 
 export interface Seccion {
   titulo: string | null
@@ -83,7 +86,7 @@ export function useTurnoDeLaSesion() {
 /**
  * Lo que muestran el menú lateral y el botón flotante:
  * - `secciones`: todas las pantallas que puede abrir, agrupadas como en el Hub (los accesos del Hub al final).
- * - `rapidas`: las principales y no bloqueadas, en orden (Supervisor: el flujo del turno).
+ * - `rapidas`: las principales y no bloqueadas, en orden (Supervisor: RAPIDAS_SUPERVISOR).
  */
 export function useAppsNavegables() {
   const { session } = useAuth()
@@ -98,7 +101,7 @@ export function useAppsNavegables() {
   const libre = (app: AppDef) => !bloqueoDeApp(app, turnoActivo, turnoPorAsumir).bloqueada
   const orden =
     session?.cargo === "SUPERVISOR"
-      ? FLUJO_SUPERVISOR.map((slug) => visibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)
+      ? RAPIDAS_SUPERVISOR.map((slug) => visibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)
       : [...principales, ...atajos]
   const rapidas = orden.filter(libre)
 

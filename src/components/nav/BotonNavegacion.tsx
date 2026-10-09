@@ -9,7 +9,7 @@ const MAX_PANTALLAS = 5
 
 /**
  * Botón flotante (teléfono y tablet): al tocarlo se abre un abanico con las
- * pantallas principales (Supervisor: el flujo del turno) e Inicio. Se
+ * pantallas principales (Supervisor: Líneas, Preparación, Paradas y Panel) e Inicio. Se
  * esconde al bajar la página y con el teclado abierto, para no tapar nada.
  */
 export function BotonNavegacion() {
