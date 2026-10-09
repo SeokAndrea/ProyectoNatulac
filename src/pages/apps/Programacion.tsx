@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { AREAS, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
+import { AREA_QUE_MIRA_EL_APOYO, AREAS, esAreaDeApoyo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import {
   fechaJornada,
   guardarProgramacionDia,
@@ -37,7 +37,7 @@ export default function Programacion() {
 
   // Las áreas de apoyo (Calidad, Servicios Industriales, Mantenimiento) no tienen plan propio: ven el de Aséptico.
   const [area, setArea] = useState<AreaCodigo>(
-    !session?.area || ["CALIDAD", "SERVICIOS_INDUSTRIALES", "MANTENIMIENTO"].includes(session.area) ? "ASEPTICO" : session.area,
+    !session?.area || esAreaDeApoyo(session.area) ? AREA_QUE_MIRA_EL_APOYO : session.area,
   )
   const [sabores, setSabores] = useState<Sabor[]>([])
   const [plan, setPlan] = useState<ProgramacionItem[]>([])

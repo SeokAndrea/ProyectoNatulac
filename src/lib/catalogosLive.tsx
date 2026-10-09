@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth"
-import type { LineaCodigo, PresentacionCodigo } from "@/lib/catalogos"
+import { AREA_QUE_MIRA_EL_APOYO, esAreaDeApoyo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 
 /*
  * Versión EN VIVO (Supabase) de líneas, presentaciones y velocidades
@@ -110,8 +110,8 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
     // todo el 2026-09-25), así que se filtra directo a esa.
     // Calidad y Mantenimiento (también áreas de apoyo) igual: miran Aséptico.
     const areaCatalogo =
-      session?.area && ["SERVICIOS_INDUSTRIALES", "CALIDAD", "MANTENIMIENTO"].includes(session.area)
-        ? "ASEPTICO"
+      esAreaDeApoyo(session?.area)
+        ? AREA_QUE_MIRA_EL_APOYO
         : (session?.area ?? null)
     const [lineasRes, presentacionesRes, velocidadesRes] = await Promise.all([
       supabase.rpc("listar_lineas", { p_area_codigo: areaCatalogo }),

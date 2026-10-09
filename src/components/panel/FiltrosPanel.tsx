@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AREAS, TURNO_TIPOS, type AreaCodigo } from "@/lib/catalogos"
 
-/** Pruebas y Servicios Industriales nunca tienen un turno propio — no tiene sentido elegirlas en el filtro de área del Panel. */
-const AREAS_SELECCIONABLES = AREAS.filter((a) => !["PRUEBAS", "SERVICIOS_INDUSTRIALES", "CALIDAD", "MANTENIMIENTO"].includes(a.codigo))
+/** Pruebas y las áreas de apoyo nunca tienen un turno propio: no tiene sentido elegirlas en el filtro de área del Panel. */
+const AREAS_SELECCIONABLES = AREAS.filter((a) => a.tipo === "PRODUCCION" && a.codigo !== "PRUEBAS")
 
 /** Área (si puede elegirla), tipo de turno, fecha y "Ver en vivo". Cambiar turno o fecha busca ese turno. */
 export function FiltrosPanel({

@@ -15,15 +15,31 @@
  */
 // Vacío se sacó de la app el 2026-09-25: nunca se usó y no se va a usar.
 // El área VACIO sigue en la base (sin migración que la borre).
+// tipo: PRODUCCION abre turnos y tiene líneas; APOYO no produce y mira la producción de Aséptico.
 export const AREAS = [
-  { codigo: "ASEPTICO", nombre: "Producción Aséptico" },
-  { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales" },
-  { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
-  { codigo: "CALIDAD", nombre: "Calidad" },
-  { codigo: "PRUEBAS", nombre: "Área de Pruebas" },
+  { codigo: "ASEPTICO", nombre: "Producción Aséptico", tipo: "PRODUCCION" },
+  { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales", tipo: "APOYO" },
+  { codigo: "MANTENIMIENTO", nombre: "Mantenimiento", tipo: "APOYO" },
+  { codigo: "CALIDAD", nombre: "Calidad", tipo: "APOYO" },
+  { codigo: "PRUEBAS", nombre: "Área de Pruebas", tipo: "PRODUCCION" },
 ] as const
 
 export type AreaCodigo = (typeof AREAS)[number]["codigo"]
+export type TipoArea = (typeof AREAS)[number]["tipo"]
+
+/** Títulos de los dos grupos de áreas (selectores de Personal, sección del Hub). */
+export const TIPOS_AREA: readonly { tipo: TipoArea; nombre: string }[] = [
+  { tipo: "PRODUCCION", nombre: "Producción" },
+  { tipo: "APOYO", nombre: "Servicios de apoyo" },
+]
+
+/** Área productiva que miran las áreas de apoyo (Panel, Programación, catálogos). */
+export const AREA_QUE_MIRA_EL_APOYO: AreaCodigo = "ASEPTICO"
+
+/** ¿Es un área de apoyo (Calidad, Mantenimiento, Servicios Industriales)? Sin área (Super Administrador): no. */
+export function esAreaDeApoyo(area: string | null | undefined): boolean {
+  return AREAS.some((a) => a.codigo === area && a.tipo === "APOYO")
+}
 
 /** Roles de Calidad: solo van en el área Calidad (o en Pruebas, para probar). Migración 20261089. */
 const ROLES_CALIDAD: readonly string[] = ["CALIDAD", "SUPERVISOR_CALIDAD"]
@@ -60,18 +76,36 @@ export type RolCodigo = (typeof ROLES)[number]["codigo"]
  * (eso lo decide el rol de arriba). El mismo cargo puede ir sobre
  * roles distintos — ej. "Analista de Producción" siendo SUPERADMINISTRADOR
  * en Aséptico o SUPERVISOR en Vacío. Espejo de usuarios.cargo (texto),
- * ver supabase/migrations/20260982090000_cargo_personal.sql. Para
- * sumar un cargo nuevo, agregar acá una línea.
+ * ver supabase/migrations/20260982090000_cargo_personal.sql (texto
+ * libre: sumar un cargo no lleva migración). Para sumar un cargo nuevo,
+ * agregar acá una línea con las áreas donde se ofrece.
  */
+const AREAS_CARGO_PRODUCCION = ["ASEPTICO", "PRUEBAS"] as const
+const AREAS_CARGO_CALIDAD = ["CALIDAD", "PRUEBAS"] as const
+
 export const CARGOS = [
-  { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción" },
-  { codigo: "SUBJEFE", nombre: "Subjefe" },
-  { codigo: "ANALISTA_PRODUCCION", nombre: "Analista de Producción" },
-  { codigo: "SUPERVISOR", nombre: "Supervisor" },
-  { codigo: "PASANTE", nombre: "Pasante / Aprendiz" },
+  { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción", areas: AREAS_CARGO_PRODUCCION },
+  { codigo: "SUBJEFE", nombre: "Subjefe", areas: AREAS_CARGO_PRODUCCION },
+  { codigo: "ANALISTA_PRODUCCION", nombre: "Analista de Producción", areas: AREAS_CARGO_PRODUCCION },
+  { codigo: "SUPERVISOR", nombre: "Supervisor", areas: AREAS_CARGO_PRODUCCION },
+  { codigo: "PASANTE", nombre: "Pasante / Aprendiz", areas: AREAS_CARGO_PRODUCCION },
+  { codigo: "JEFE_CALIDAD", nombre: "Jefe de Calidad", areas: AREAS_CARGO_CALIDAD },
+  { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad", areas: AREAS_CARGO_CALIDAD },
+  { codigo: "ANALISTA_CALIDAD", nombre: "Analista de Calidad", areas: AREAS_CARGO_CALIDAD },
 ] as const
 
 export type CargoCodigo = (typeof CARGOS)[number]["codigo"]
+
+/** Cargos que se ofrecen en un área. Sin área elegida: todos. Mantenimiento y Servicios Industriales todavía no tienen cargos propios. */
+export function cargosDeArea(area: string | null | undefined): readonly (typeof CARGOS)[number][] {
+  if (!area) return CARGOS
+  return CARGOS.filter((c) => (c.areas as readonly string[]).includes(area))
+}
+
+/** ¿El cargo se ofrece en esa área? Al cambiar de área, un cargo que no va ahí se limpia. */
+export function cargoValeEnArea(cargo: string, area: string | null | undefined): boolean {
+  return cargo === "" || cargosDeArea(area).some((c) => c.codigo === cargo)
+}
 
 export const TURNO_TIPOS = [
   { codigo: "TURNO_1", nombre: "Turno 1", horario: "7:00 a 15:00" },

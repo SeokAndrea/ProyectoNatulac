@@ -6,6 +6,7 @@ import { listarParadas, LINEAS_PARADAS } from "@/lib/paradas"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { useAuth } from "@/lib/auth"
+import { esAreaDeApoyo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
 import { ReportesMantenimiento } from "@/components/paradas/ReportesMantenimiento"
@@ -67,7 +68,7 @@ export default function PanelParadas() {
   // Las áreas de apoyo (Calidad, Servicios Industriales, Mantenimiento) no tienen turno propio:
   // miran producción, igual que el Super Admin (null = todas menos Pruebas).
   const area =
-    session?.area && !["CALIDAD", "SERVICIOS_INDUSTRIALES", "MANTENIMIENTO"].includes(session.area) ? session.area : null
+    session?.area && !esAreaDeApoyo(session.area) ? session.area : null
   const { lineas: lineasReales, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
   const [turno, setTurno] = useState<TurnoActivo | null>(null)
   // `turno?.id ?? null` (nunca undefined): si todavía no hay turno resuelto

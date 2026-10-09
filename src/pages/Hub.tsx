@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useGenerarActasPendientes } from "@/lib/actasPendientes"
 import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
+import { esAreaDeApoyo } from "@/lib/catalogos"
 import { puede } from "@/lib/permisos"
 import { cn } from "@/lib/utils"
 
@@ -71,7 +72,7 @@ export default function Hub() {
   const appsVisibles = apps.filter((app) => puedeVerApp(session, app) && !(ocultarTurno && APPS_DEL_TURNO.has(app.slug)))
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
-  const secciones = agruparPorSeccion(principales)
+  const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area))
   // Por CARGO (rótulo del puesto en Personal), no por rol: el cargo no da permisos, solo ordena el inicio.
   const esSupervisor = session?.cargo === "SUPERVISOR"
   const porSlug = (slugs: string[]) =>
@@ -171,6 +172,7 @@ export default function Hub() {
 
 const TITULOS_SECCION: Record<NonNullable<AppDef["seccion"]>, string> = {
   produccion: "Producción",
+  apoyo: "Servicios de apoyo",
   auditoria: "Auditoría",
   "base-datos": "Base de Datos",
 }
@@ -178,15 +180,16 @@ const TITULOS_SECCION: Record<NonNullable<AppDef["seccion"]>, string> = {
 /**
  * Agrupa las tarjetas principales por su `seccion` (ver src/lib/apps.tsx),
  * preservando el orden de aparición de cada grupo. Las tarjetas sin
- * `seccion` (ej. Servicios Industriales) van todas juntas al final, sin
- * título.
+ * `seccion` van todas juntas al final, sin título. Para un área de apoyo,
+ * las de "produccion" (ej. Registrar Paradas en Mantenimiento) van en "apoyo".
  */
-function agruparPorSeccion(appsPrincipales: AppDef[]): { titulo: string | null; apps: AppDef[] }[] {
+function agruparPorSeccion(appsPrincipales: AppDef[], areaDeApoyo: boolean): { titulo: string | null; apps: AppDef[] }[] {
   const grupos: { titulo: string | null; apps: AppDef[] }[] = []
   const indicePorTitulo = new Map<string | null, number>()
 
   for (const app of appsPrincipales) {
-    const titulo = app.seccion ? TITULOS_SECCION[app.seccion] : null
+    const seccion = areaDeApoyo && app.seccion === "produccion" ? "apoyo" : app.seccion
+    const titulo = seccion ? TITULOS_SECCION[seccion] : null
     let indice = indicePorTitulo.get(titulo)
     if (indice === undefined) {
       indice = grupos.length

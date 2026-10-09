@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth"
-import type { AreaCodigo } from "@/lib/catalogos"
+import { esAreaDeApoyo, type AreaCodigo } from "@/lib/catalogos"
 import {
   cargoDeUsuario,
   type LecturaServiciosIndustriales,
@@ -87,9 +87,9 @@ export function usePanelTurno() {
    * trata igual que al Super Administrador: elige qué área mirar,
    * arrancando siempre en ASEPTICO.
    */
-  // Calidad y Mantenimiento (también de apoyo, sin turnos propios) igual que Servicios Industriales.
+  // Calidad y Mantenimiento (también de apoyo, sin turnos propios) igual que Servicios Industriales: ver esAreaDeApoyo.
   const puedeElegirArea =
-    !session?.area || ["SERVICIOS_INDUSTRIALES", "CALIDAD", "MANTENIMIENTO"].includes(session.area)
+    !session?.area || esAreaDeApoyo(session.area)
   const [areaFiltro, setAreaFiltro] = useState<AreaCodigo | "TODAS">(puedeElegirArea ? "ASEPTICO" : (session?.area ?? "ASEPTICO"))
   const areaEfectiva = puedeElegirArea ? (areaFiltro === "TODAS" ? null : areaFiltro) : (session?.area ?? null)
 

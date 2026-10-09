@@ -60,7 +60,7 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Textos de "Servicios Industriales" | `src/pages/apps/ServiciosIndustriales.tsx` |
 | Textos de "Validar" (revisión post-turno, VALIDAR) | `src/pages/apps/Validar.tsx`, `src/components/ValidarLista.tsx` |
 | Textos de "Edición de Datos" | `src/pages/apps/EdicionDatos.tsx` |
-| Textos de "Personal" (administradores de área) | `src/pages/apps/Personal.tsx`, `src/components/PersonalPanel.tsx` |
+| Textos de "Personal" (administradores de área) | `src/pages/apps/Personal.tsx`, `src/components/personal/` (`PersonalPanel`, `FiltrosPersonal`, `FilaPersonal`, `FilaEdicionPersonal`, `FormularioNuevoPersonal`, `EditorPermisosExtra`; selectores de área/rol/cargo en `SelectoresPuesto`) |
 | Textos de "Auditoría" (buscar turnos pasados, Super Administrador) | `src/pages/apps/Historial.tsx`, `src/components/AuditoriaTurnos.tsx` |
 
 ## Estilo / apariencia
@@ -83,7 +83,8 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Familias de producto y sabores | Edición de Datos → pestaña Sabores (Supabase real, `src/lib/sabores.ts`) |
 | Velocidades de llenadora por línea + presentación | Edición de Datos → pestaña Velocidades (Supabase real, `src/lib/catalogosLive.tsx` + `src/lib/velocidades.ts`; Línea 1 = TB, Línea 2/3 = TP) |
 | Líneas (nombre, activa/inactiva — el código no se puede cambiar) | Edición de Datos → pestaña Líneas (Supabase real, `src/lib/lineas.ts`) |
-| Áreas | `src/lib/catalogos.ts` → `AREAS` |
+| Áreas, y cuáles son de producción o de apoyo (las de apoyo no ven las tarjetas de producción y miran Aséptico) | `src/lib/catalogos.ts` → `AREAS` (`tipo`), `esAreaDeApoyo` |
+| Cargos (título del puesto, solo visual) y en qué áreas se ofrece cada uno | `src/lib/catalogos.ts` → `CARGOS` (`areas`), `cargosDeArea` |
 | Roles (Supervisor, Administrador de Área, Super Administrador) | `src/lib/catalogos.ts` → `ROLES` |
 
 Áreas, Roles, Tipos de turno y Grupos siguen como copia local
@@ -113,14 +114,14 @@ página (cada pestaña llama a `recargar()` del contexto).
 | Líneas, corridas y contadores: activar/pausar/continuar/terminar una corrida, registrar contador | `src/lib/produccion/` (mismo patrón núcleo/ajustes), `src/lib/produccion/useProduccion.ts` |
 | Producto Terminado: registrar paletas/cajas al cerrar una corrida (un total por corrida, sin entregas parciales) | `src/lib/productoTerminado.ts` |
 | Merma / meta / eficiencia (compone los 3 módulos, no calcula nada por sí mismo) | `src/lib/reportes/` (`teorico.ts` = fórmulas puras, `realidadPreparacion.ts` / `realidadProduccion.ts` = qué entra al cálculo, `index.ts` = compone) |
-| Alta, edición, reseteo de contraseña y baja de personal — filtrado por área en Postgres (no solo en la interfaz): ADMINISTRADOR_AREA solo ve/edita la suya, SUPERADMINISTRADOR ve todas | `src/lib/personal.ts`, `src/components/PersonalPanel.tsx` (usado por `Personal.tsx` y por la pestaña Personal de `EdicionDatos.tsx`) |
+| Alta, edición, reseteo de contraseña y baja de personal — filtrado por área en Postgres (no solo en la interfaz): ADMINISTRADOR_AREA solo ve/edita la suya, SUPERADMINISTRADOR ve todas | `src/lib/personal.ts`, `src/components/personal/` (`PersonalPanel`, `FiltrosPersonal`, `FilaPersonal`, `FilaEdicionPersonal`, `FormularioNuevoPersonal`, `EditorPermisosExtra`; selectores de área/rol/cargo en `SelectoresPuesto`) (usado por `Personal.tsx` y por la pestaña Personal de `EdicionDatos.tsx`) |
 | Edición de catálogos generales — sabores, personal, presentaciones, velocidades, líneas (solo SUPERADMINISTRADOR) | `src/pages/apps/EdicionDatos.tsx`, `src/lib/catalogosLive.tsx` |
 | Historial del turno en curso (Hora - Sección - Qué, dentro de Finalizar Turno; NO va en el PDF) | `src/lib/historial.ts` → `construirHistorial` |
 | Checklist antes de finalizar turno (qué falta cargar) | `src/pages/apps/FinalizarTurno.tsx` → `itemsChecklist` |
 | Acta de turno en PDF (resumen estilizado; usa la impresión del navegador, no una librería) | `src/lib/actaPdf.ts`, botón "Generar Acta" en Finalizar Turno y en Auditoría |
 | Auditoría: buscar cualquier turno pasado por supervisor/fecha (solo Super Administrador/Administrador de Área) | `src/pages/apps/Historial.tsx`, `src/components/AuditoriaTurnos.tsx`, `src/lib/historialTurnos.ts`, `src/lib/auditoriaVista.ts` |
 | VALIDAR: revisión post-turno, marca posibles duplicados/turnos sin PT | `src/pages/apps/Validar.tsx`, `src/components/ValidarLista.tsx`, `src/lib/validacion.ts` |
-| Eliminar personal (borrado real, no solo desactivar; con "forzar" para limpiar usuarios de prueba con turnos) | `src/components/PersonalPanel.tsx`, `src/lib/personal.ts` → `eliminarPersonal` |
+| Eliminar personal (borrado real, no solo desactivar; con "forzar" para limpiar usuarios de prueba con turnos) | `src/components/personal/` (`PersonalPanel`, `FiltrosPersonal`, `FilaPersonal`, `FilaEdicionPersonal`, `FormularioNuevoPersonal`, `EditorPermisosExtra`; selectores de área/rol/cargo en `SelectoresPuesto`), `src/lib/personal.ts` → `eliminarPersonal` |
 | Resumen de Planta / Por Grupo / Por Supervisor (merma, horas, litros) — dentro de Panel de Producción; ver `resumen-diseno-dashboard-natulac.md` para el diseño completo pendiente | `src/pages/apps/PanelProduccion.tsx`, `src/lib/estadisticas.ts` |
 | Status y Preparación (misma UI compartida — Status es Recepción: confirmar/corregir lo heredado del turno anterior; Preparación está disponible todo el turno). Condición de tanque real: `LISTO` \| `SUCIO` \| `EN_PREPARACION` \| `STANDBY` \| `CIP` \| `LIMPIO` (candidato a fusionar SUCIO+STANDBY, ver plan Fase 1) | `src/components/EstadoPlantaTabs.tsx` (`modo="status"` / `modo="preparacion"`), `src/pages/apps/Status.tsx`, `src/pages/apps/Preparacion.tsx` |
 | Líneas: activar corrida, Parada Operacional (+motivo), Detener línea (dos pasos: detener deja `ESPERANDO_PT`, cargar el PT es lo único que cierra) | `src/pages/apps/Lineas.tsx`, `src/components/LineasEstadoPlanta.tsx` |

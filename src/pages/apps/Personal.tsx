@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/AppShell"
-import { PersonalPanel } from "@/components/PersonalPanel"
+import { PersonalPanel } from "@/components/personal/PersonalPanel"
 
 /*
  * Personal suelto, para quien tiene PERSONAL_GESTIONAR sin entrar a

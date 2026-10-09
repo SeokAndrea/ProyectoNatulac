@@ -22,7 +22,7 @@ import {
   ClipboardList,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
-import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
+import { esAreaDeApoyo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
 import { puede, type Permiso } from "@/lib/permisos"
 import { APPS_FUERA_DE_GESTION, esGestion, esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
 
@@ -50,15 +50,15 @@ export interface AppDef {
   rolesExcluidos?: RolCodigo[]
   /** Si se define, la tarjeta solo aparece para usuarios de estas áreas (ej. Servicios Industriales, que no tiene un rol propio). */
   areasPermitidas?: AreaCodigo[]
-  /**
-   * Si se define, la tarjeta NO aparece para usuarios de estas áreas,
-   * aunque su rol sí califique (ej. Servicios Industriales usa el rol
-   * SUPERVISOR — igual que Aséptico — pero no tiene que ver
-   * corridas de producción: Comenzar Turno, Preparación, Líneas,
-   * Producto Terminado, Finalizar Turno, Mis Actas y Programación
-   * quedan afuera para esa área).
-   */
+  /** Si se define, la tarjeta NO aparece para usuarios de estas áreas, aunque su rol sí califique. */
   areasExcluidas?: AreaCodigo[]
+  /**
+   * Tarjeta de producción (Comenzar Turno, Preparación, Líneas, Producto
+   * Terminado, Finalizar Turno, Mis Actas, Programación): las áreas de
+   * apoyo no la ven aunque su rol califique (ej. Servicios Industriales
+   * usa el rol SUPERVISOR). Ver esAreaDeApoyo en src/lib/catalogos.ts.
+   */
+  soloProduccion?: boolean
   /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
   atajo?: boolean
   /** Se bloquea (gris) cuando SÍ hay un turno en curso — lo opuesto de requiereTurno (ver Comenzar Turno). */
@@ -74,10 +74,12 @@ export interface AppDef {
   /**
    * Grupo bajo el que aparece la tarjeta en la grilla principal del hub,
    * con un separador y título arriba (ver Hub.tsx). Sin esta propiedad,
-   * la tarjeta va suelta, sin sección (ej. Servicios Industriales, que
-   * ya tiene su propia vista acotada por área).
+   * la tarjeta va suelta, sin sección. "apoyo": tarjetas de las áreas de
+   * apoyo (Calidad, Servicios Industriales); para quien es de un área de
+   * apoyo, las de "produccion" que ve (ej. Registrar Paradas en
+   * Mantenimiento) también van ahí.
    */
-  seccion?: "produccion" | "auditoria" | "base-datos"
+  seccion?: "produccion" | "apoyo" | "auditoria" | "base-datos"
 }
 
 /*
@@ -102,8 +104,8 @@ export const apps: AppDef[] = [
     icon: PlayCircle,
     requiereTurno: false,
     permiso: "TURNO_ASUMIR",
-    // Servicios Industriales usa el rol SUPERVISOR pero no arranca turnos de producción.
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    // Las áreas de apoyo (ej. Servicios Industriales, con rol SUPERVISOR) no arrancan turnos de producción.
+    soloProduccion: true,
     bloqueaConTurno: true,
     color: "success",
     seccion: "produccion",
@@ -116,7 +118,7 @@ export const apps: AppDef[] = [
     icon: Beaker,
     requiereTurno: true,
     permiso: "TURNO_CARGAR",
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    soloProduccion: true,
     color: "blue",
     seccion: "produccion",
   },
@@ -131,7 +133,7 @@ export const apps: AppDef[] = [
     // Área Calidad (apoyo: ve el turno de Aséptico, migración 20261089) y Pruebas para probar. Ver plan-calidad.md.
     areasPermitidas: ["CALIDAD", "PRUEBAS"],
     color: "purple",
-    seccion: "produccion",
+    seccion: "apoyo",
   },
   {
     slug: "lineas",
@@ -141,7 +143,7 @@ export const apps: AppDef[] = [
     icon: Factory,
     requiereTurno: true,
     permiso: "TURNO_CARGAR",
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    soloProduccion: true,
     color: "blue",
     seccion: "produccion",
   },
@@ -153,7 +155,7 @@ export const apps: AppDef[] = [
     icon: PackageCheck,
     requiereTurno: true,
     permiso: "TURNO_CARGAR",
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    soloProduccion: true,
     seccion: "produccion",
   },
   {
@@ -164,7 +166,7 @@ export const apps: AppDef[] = [
     icon: ClipboardCheck,
     requiereTurno: true,
     permiso: "TURNO_ASUMIR",
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    soloProduccion: true,
     resaltarConTurno: true,
     seccion: "produccion",
   },
@@ -186,7 +188,7 @@ export const apps: AppDef[] = [
     icon: FileText,
     requiereTurno: false,
     permiso: "TURNO_CARGAR",
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    soloProduccion: true,
     seccion: "auditoria",
   },
   {
@@ -236,8 +238,8 @@ export const apps: AppDef[] = [
     href: "/programacion",
     icon: CalendarRange,
     requiereTurno: false,
-    // Programación es de producción — Servicios Industriales y Mantenimiento no la necesitan.
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    // Programación es de producción: las áreas de apoyo y el rol Mantenimiento no la necesitan.
+    soloProduccion: true,
     rolesExcluidos: ["MANTENIMIENTO"],
     atajo: true,
   },
@@ -259,6 +261,7 @@ export const apps: AppDef[] = [
     icon: Thermometer,
     requiereTurno: false,
     areasPermitidas: ["SERVICIOS_INDUSTRIALES"],
+    seccion: "apoyo",
   },
   {
     slug: "registros-servicios-industriales",
@@ -268,6 +271,7 @@ export const apps: AppDef[] = [
     icon: History,
     requiereTurno: false,
     areasPermitidas: ["SERVICIOS_INDUSTRIALES"],
+    seccion: "apoyo",
   },
   {
     slug: "auditoria",
@@ -392,6 +396,7 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (app.rolesExcluidos?.includes(session.rol)) return false
   if (app.areasPermitidas && !(session.area && app.areasPermitidas.includes(session.area))) return false
   if (app.areasExcluidas && session.area && app.areasExcluidas.includes(session.area)) return false
+  if (app.soloProduccion && esAreaDeApoyo(session.area)) return false
   if (app.soloDueno && !session.esDueno) return false
   if (app.usuarioPermitido && session.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
   return true
