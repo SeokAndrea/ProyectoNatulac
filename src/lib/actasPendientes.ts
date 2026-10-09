@@ -3,7 +3,6 @@ import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { misTurnosSinActa } from "@/lib/historialTurnos"
-import { regenerarActaDeMiTurno } from "@/lib/regenerarActa"
 
 /**
  * Si el cron cerró alguno de tus turnos solo (abandonado — ver
@@ -29,6 +28,9 @@ export function useGenerarActasPendientes(): void {
     yaCorrio.current = true
 
     misTurnosSinActa(session.username).then(async (pendientes) => {
+      if (pendientes.length === 0) return
+      // jsPDF se descarga solo si hay actas pendientes, no cada vez que se abre el Hub.
+      const { regenerarActaDeMiTurno } = await import("@/lib/regenerarActa")
       for (const { turnoId } of pendientes) {
         // Si falla no se pierde nada: mis_turnos_sin_acta() lo vuelve a traer en la próxima visita mientras no tenga acta VIGENTE.
         await regenerarActaDeMiTurno(session, turnoId, { lineas, presentaciones, velocidades })

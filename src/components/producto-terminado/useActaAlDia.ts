@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { regenerarActaDeMiTurno } from "@/lib/regenerarActa"
 
 export type EstadoActa = "quieta" | "actualizando" | "lista" | { error: string }
 
@@ -29,6 +28,8 @@ export function useActaAlDia(turnoId: string | null) {
     setEstado("actualizando")
     temporizador.current = setTimeout(async () => {
       const { lineas, presentaciones, velocidades } = catalogos
+      // jsPDF se descarga recién acá, no al abrir Producto Terminado.
+      const { regenerarActaDeMiTurno } = await import("@/lib/regenerarActa")
       const r = await regenerarActaDeMiTurno(session, turnoId, { lineas, presentaciones, velocidades })
       setEstado(r.ok ? "lista" : { error: r.error })
     }, ESPERA_MS)

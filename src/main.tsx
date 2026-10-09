@@ -7,6 +7,19 @@ import { AuthProvider } from '@/lib/auth'
 import { CatalogosProvider } from '@/lib/catalogosLive'
 import { SesionTurnoProvider } from '@/lib/sesionTurno'
 
+// Tras un deploy, una pestaña vieja pide pantallas que ya no existen en el servidor: se recarga una vez para tomar la versión nueva.
+window.addEventListener('vite:preloadError', (evento) => {
+  try {
+    const ultima = Number(sessionStorage.getItem('natulac-recarga-version') ?? 0)
+    if (Date.now() - ultima < 30_000) return
+    sessionStorage.setItem('natulac-recarga-version', String(Date.now()))
+  } catch {
+    // Sin sessionStorage: igual se recarga.
+  }
+  evento.preventDefault()
+  window.location.reload()
+})
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
