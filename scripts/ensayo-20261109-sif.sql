@@ -279,13 +279,12 @@ begin
 
   return query
   select p.id, p.inicio, p.fin, p.origen,
-         -- Del Sheet: lo que escribió Mantenimiento. De la app: el catálogo.
-         case when p.origen = 'SHEET' then nullif(p.mtto_equipo, '') else coalesce(eq.nombre, te.nombre) end,
-         case when p.origen = 'SHEET' then nullif(p.mtto_subsistema, '') else ss.nombre end,
+         -- Del Sheet: lo que escribió Mantenimiento. De la app: el equipo del tipo y
+         -- el tipo mismo (desde 20261064 la parada no guarda equipo propio: el tipo es la falla del equipo).
+         case when p.origen = 'SHEET' then nullif(p.mtto_equipo, '') else te.nombre end,
+         case when p.origen = 'SHEET' then nullif(p.mtto_subsistema, '') else t.nombre end,
          case when p.origen = 'SHEET' then 'Sheet de Mantenimiento' else coalesce(u.nombre, u.usuario) end
   from paradas p
-  left join paradas_equipos eq on eq.id = p.equipo_id
-  left join paradas_subsistemas ss on ss.id = p.subsistema_id
   left join paradas_tipos t on t.id = p.tipo_id
   left join paradas_equipos te on te.id = t.equipo_id
   left join usuarios u on u.id = p.creado_por
