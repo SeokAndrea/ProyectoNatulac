@@ -48,7 +48,13 @@ export function MenuLateral({ plegadoInicial = false }: { plegadoInicial?: boole
         {!plegado && <span className="truncate text-sm font-semibold text-foreground">Inicio</span>}
       </Link>
 
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2">
+      {/* Plegado sin barra de desplazamiento (en Windows ocupa ~17 px y dejaba los íconos fuera de su recuadro); se baja igual con la rueda. */}
+      <nav
+        className={cn(
+          "flex-1 overflow-y-auto overflow-x-hidden px-2 py-2",
+          plegado ? "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "[scrollbar-width:thin]",
+        )}
+      >
         {secciones.map(({ titulo, apps }, i) => (
           <div key={titulo ?? "otras"}>
             {plegado ? (
@@ -92,7 +98,8 @@ function ItemMenu({
 }) {
   const Icon = app.icon
   const { bloqueada, sinTurno } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir)
-  const base = "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm"
+  // Plegado: el ícono centrado en su recuadro.
+  const base = cn("flex h-9 items-center gap-2.5 rounded-md text-sm", plegado ? "justify-center" : "px-2.5")
 
   if (bloqueada) {
     return (
