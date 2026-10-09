@@ -21,7 +21,7 @@ export const PANELES_SOLO_VISTA = [
 export const INICIO_SOLO_VISTA = PANELES_SOLO_VISTA[0].href
 
 /** Lo único que ve Sistema de Gestión. */
-export const APPS_GESTION = new Set(["mis-actas", "resumen-dia", "auditoria", "programacion", "panel-produccion", "panel-paradas"])
+export const APPS_GESTION = new Set(["mis-actas", "resumen-dia", "auditoria", "solicitudes-intervencion", "programacion", "panel-produccion", "panel-paradas"])
 
 export function esSoloVista(session: Session | null): boolean {
   return session?.rol === "VISTA"

@@ -56,6 +56,7 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Textos de "Finalizar Turno" | `src/pages/apps/FinalizarTurno.tsx` |
 | Textos del Panel de Producción (tanques en vivo, líneas, merma, Resumen de Planta) | `src/pages/apps/PanelProduccion.tsx` (arma la página) y `src/components/panel/` (una pieza por sección: `BannerSuperior`, `SeccionTanques`, `SeccionLineas`, `SeccionMermas`, `DetalleTurno`, `resumen-planta/`…; cuentas en `calculosPanel.ts`) |
 | Textos de "Registrar Paradas" (pantalla única, +1 pendiente) / "Panel de Paradas" | `src/pages/apps/RegistrarParadas.tsx`, `src/components/BuscadorTipoParada.tsx`, `src/pages/apps/PanelParadas.tsx`, `src/components/PanelParadasVista.tsx` |
+| Textos de "Solicitudes de Intervención" (SIF: fallas repetidas para Mantenimiento) | `src/pages/apps/SolicitudesIntervencion.tsx`, `src/components/sif/` (`ListaSif`, `DetalleSif`, `AccionesSif`, `AvisoSifPendientes`); datos en `src/lib/sif.ts`, acta PDF en `src/lib/sifPdf.ts`; reglas de generación en la migración 20261109390000 |
 | Textos de "Programación" | `src/pages/apps/Programacion.tsx` |
 | Textos de "Servicios Industriales" | `src/pages/apps/ServiciosIndustriales.tsx` |
 | Textos de "Validar" (revisión post-turno, VALIDAR) | `src/pages/apps/Validar.tsx`, `src/components/ValidarLista.tsx` |

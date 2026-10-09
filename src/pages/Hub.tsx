@@ -5,6 +5,7 @@ import { AppCard } from "@/components/AppCard"
 import { AppHeader } from "@/components/AppHeader"
 import { Logo } from "@/components/Logo"
 import { SelectorVerComo } from "@/components/VerComo"
+import { AvisoSifPendientes } from "@/components/sif/AvisoSifPendientes"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import { useGenerarActasPendientes } from "@/lib/actasPendientes"
@@ -70,6 +71,7 @@ export default function Hub() {
       <AppHeader left={<Logo />} />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        <AvisoSifPendientes />
         <div className="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">

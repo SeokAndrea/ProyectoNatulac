@@ -19,6 +19,7 @@ const ResumenDia = lazy(() => import("@/pages/apps/ResumenDia"))
 const PanelProduccion = lazy(() => import("@/pages/apps/PanelProduccion"))
 const PanelParadas = lazy(() => import("@/pages/apps/PanelParadas"))
 const RegistrarParadas = lazy(() => import("@/pages/apps/RegistrarParadas"))
+const SolicitudesIntervencion = lazy(() => import("@/pages/apps/SolicitudesIntervencion"))
 const CatalogoParadas = lazy(() => import("@/pages/apps/CatalogoParadas"))
 const Programacion = lazy(() => import("@/pages/apps/Programacion"))
 const EdicionDatos = lazy(() => import("@/pages/apps/EdicionDatos"))
@@ -136,6 +137,14 @@ export default function App() {
             element={
               <ProtectedRoute app="paradas">
                 <RegistrarParadas />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/solicitudes-intervencion"
+            element={
+              <ProtectedRoute app="solicitudes-intervencion">
+                <SolicitudesIntervencion />
               </ProtectedRoute>
             }
           />

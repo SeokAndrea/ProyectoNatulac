@@ -20,6 +20,7 @@ import {
   Droplets,
   Users,
   ClipboardList,
+  Siren,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
 import { esAreaDeApoyo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
@@ -209,6 +210,18 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     // Pantalla única (antes había una para supervisores y otra para Mantenimiento): entra quien tenga cualquiera de los dos permisos.
     permiso: ["PARADAS_REGISTRAR", "PARADAS_MANTENIMIENTO"],
+    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
+    seccion: "produccion",
+  },
+  {
+    slug: "solicitudes-intervencion",
+    title: "Solicitudes de Intervención",
+    description: "Fallas repetidas para Mantenimiento: responsable, cierre y acta.",
+    href: "/solicitudes-intervencion",
+    icon: Siren,
+    requiereTurno: false,
+    // Las genera el servidor (migración 20261109390000). Mantenimiento las gestiona (SIF_GESTIONAR); quien registra paradas o audita las ve.
+    permiso: ["SIF_GESTIONAR", "PARADAS_REGISTRAR", "PARADAS_MANTENIMIENTO", "AUDITORIA_VER"],
     areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     seccion: "produccion",
   },
