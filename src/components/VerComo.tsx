@@ -10,7 +10,7 @@ import { ROLES, nombrePorCodigo, type RolCodigo } from "@/lib/catalogos"
  * (pantallas y botones); lo que se hace sigue quedando con su usuario.
  * Ver src/lib/auth.tsx y la migración 20261108690000.
  */
-const ROLES_VISTA: RolCodigo[] = ["SUPERVISOR", "ANALISTA", "JEFE_PRODUCCION", "MANTENIMIENTO", "CALIDAD", "VISTA"]
+const ROLES_VISTA: RolCodigo[] = ["SUPERVISOR", "ANALISTA", "JEFE_PRODUCCION", "MANTENIMIENTO", "CALIDAD", "VISTA", "GESTION"]
 
 /** Selector para el inicio. Solo lo ve el dueño de verdad. */
 export function SelectorVerComo() {

@@ -24,7 +24,7 @@ import {
 import type { Session } from "@/lib/auth"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 import { puede, type Permiso } from "@/lib/permisos"
-import { esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
+import { APPS_FUERA_DE_GESTION, esGestion, esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
 
 export interface AppDef {
   slug: string
@@ -385,6 +385,8 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (!session) return false
   // Solo Vista: los dos paneles y nada más, aunque esté en Pruebas.
   if (esSoloVista(session)) return PANELES_SOLO_VISTA.some((p) => p.slug === app.slug)
+  // Sistema de Gestión: todo, sin importar permisos ni áreas (no puede guardar nada: src/lib/soloLectura.ts).
+  if (esGestion(session)) return !APPS_FUERA_DE_GESTION.has(app.slug) && !app.soloDueno && !app.usuarioPermitido
   if (session.area === "PRUEBAS") return true
   if (app.permiso && ![app.permiso].flat().some((p) => puede(session, p))) return false
   if (app.rolesExcluidos?.includes(session.rol)) return false

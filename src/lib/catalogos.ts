@@ -48,6 +48,8 @@ export const ROLES = [
   { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad" },
   // Solo mira el Panel de Producción y el de Paradas (src/lib/rolVista.ts).
   { codigo: "VISTA", nombre: "Solo Vista" },
+  // Ve todas las pantallas (menos Personal), sin poder guardar nada (src/lib/rolVista.ts).
+  { codigo: "GESTION", nombre: "Sistema de Gestión" },
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
 ] as const
 

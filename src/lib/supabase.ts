@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { MENSAJE_SOLO_LECTURA, rpcBloqueada } from "@/lib/soloLectura"
 
 /*
  * Cliente de Supabase para el frontend. Usa la clave "anon" (pública),
@@ -53,6 +54,16 @@ function contextoSinSecretos(args: RpcArgs): Record<string, unknown> | null {
 
 // @ts-expect-error — angostamos la firma genérica de supabase-js a como se usa en todo el proyecto: `const { data, error } = await supabase.rpc(fn, args)`, sin encadenar `.select()`/`.single()` después.
 supabase.rpc = async (fn: string, args?: RpcArgs) => {
+  // Roles que solo miran (src/lib/soloLectura.ts): no llega a la base ni se loguea como error.
+  if (rpcBloqueada(fn)) {
+    return {
+      data: null,
+      error: { name: "PostgrestError", message: MENSAJE_SOLO_LECTURA, details: "", hint: "", code: "SOLO_LECTURA" },
+      count: null,
+      status: 403,
+      statusText: "Solo lectura",
+    }
+  }
   const resultado = await rpcOriginal(fn, args)
   if (resultado.error && fn !== "registrar_error_cliente") {
     const usuario = typeof args?.p_usuario === "string" ? args.p_usuario : null

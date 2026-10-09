@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { AreaCodigo, CargoCodigo, RolCodigo } from "@/lib/catalogos"
 import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
+import { esSoloLectura } from "@/lib/rolVista"
+import { fijarSoloLectura } from "@/lib/soloLectura"
 import { supabase } from "@/lib/supabase"
 
 /** Permisos efectivos (rol + extras). null = no se pudieron consultar (se conserva lo que había). */
@@ -85,6 +87,7 @@ const AREA_DE_VISTA: Partial<Record<RolCodigo, AreaCodigo>> = {
   CALIDAD: "CALIDAD",
   SUPERVISOR_CALIDAD: "CALIDAD",
   VISTA: "ASEPTICO",
+  GESTION: "ASEPTICO",
 }
 
 /** Cargo con el que se mira cada rol (el inicio ordena las tarjetas por cargo). */
@@ -166,6 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : session,
     [session, vistaActiva],
   )
+  // En el render y no en un efecto: los efectos de las pantallas (que ya piden datos) corren antes que los de acá.
+  fijarSoloLectura(esSoloLectura(sessionVista))
 
   useEffect(() => {
     if (session) {

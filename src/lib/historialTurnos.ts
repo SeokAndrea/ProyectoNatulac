@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { MENSAJE_SOLO_LECTURA, rpcBloqueada } from "@/lib/soloLectura"
 import type { AreaCodigo, GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { saborSinFamiliaOculta } from "@/lib/turno"
 import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/sesionTurno"
@@ -386,6 +387,8 @@ export async function subirYRegistrarActa(
   codigoTurno: string,
   pdfBlob: Blob,
 ): Promise<{ ok: true; acta: ActaRegistrada } | { ok: false; error: string }> {
+  // Solo lectura: frenar antes de subir el PDF (la subida no pasa por supabase.rpc).
+  if (rpcBloqueada("registrar_acta")) return { ok: false, error: MENSAJE_SOLO_LECTURA }
   const ruta = `${areaCodigo}/${turnoId}/${codigoTurno}-${Date.now()}.pdf`
 
   const { error: errorSubida } = await supabase.storage.from("actas").upload(ruta, pdfBlob, {
