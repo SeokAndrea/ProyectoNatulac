@@ -21,6 +21,8 @@ export const AREAS = [
   { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales", tipo: "APOYO" },
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento", tipo: "APOYO" },
   { codigo: "CALIDAD", nombre: "Calidad", tipo: "APOYO" },
+  // Quien no es de ningún área (Presidencia, gerencias): casi siempre con Solo Vista. Migración 20261109190000.
+  { codigo: "OTROS", nombre: "Otros", tipo: "APOYO" },
   { codigo: "PRUEBAS", nombre: "Área de Pruebas", tipo: "PRODUCCION" },
 ] as const
 

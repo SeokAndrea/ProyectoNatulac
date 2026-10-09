@@ -11,8 +11,8 @@ const PRODUCCION = ["comenzar-turno", "preparacion", "lineas", "producto-termina
 const PERMISOS_SUPERVISOR: Session["permisos"] = ["TURNO_ASUMIR", "TURNO_CARGAR", "PARADAS_REGISTRAR"]
 
 describe("áreas de apoyo", () => {
-  it("Calidad, Mantenimiento y Servicios Industriales son de apoyo; Aséptico, Pruebas y sin área no", () => {
-    expect(["CALIDAD", "MANTENIMIENTO", "SERVICIOS_INDUSTRIALES"].every(esAreaDeApoyo)).toBe(true)
+  it("Calidad, Mantenimiento, Servicios Industriales y Otros son de apoyo; Aséptico, Pruebas y sin área no", () => {
+    expect(["CALIDAD", "MANTENIMIENTO", "SERVICIOS_INDUSTRIALES", "OTROS"].every(esAreaDeApoyo)).toBe(true)
     expect([esAreaDeApoyo("ASEPTICO"), esAreaDeApoyo("PRUEBAS"), esAreaDeApoyo(null)]).toEqual([false, false, false])
   })
 
