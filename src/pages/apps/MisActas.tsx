@@ -8,16 +8,19 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth"
 import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import { misActas, urlPublicaActa, type MiActa } from "@/lib/historialTurnos"
+import { esGestion } from "@/lib/rolVista"
 
 /*
  * Mis Actas: el supervisor ve las actas de SUS propios turnos (el Super
- * Administrador y el dueño, las de todos, migración 20261097). Cada una se
+ * Administrador, el dueño y Sistema de Gestión, las de todos, migraciones
+ * 20261097 y 20261109290000). Cada una se
  * abre en pantalla, igual a la que se imprime, con Imprimir y Descargar PDF
  * (src/components/acta/VisorActa.tsx).
  */
 export default function MisActas() {
   const { session } = useAuth()
-  const veTodas = session?.rol === "SUPERADMINISTRADOR" || session?.esDueno === true
+  // Sistema de Gestión también: mira documentos (migración 20261109290000).
+  const veTodas = session?.rol === "SUPERADMINISTRADOR" || session?.esDueno === true || esGestion(session)
   const [actas, setActas] = useState<MiActa[]>([])
   const [cargando, setCargando] = useState(true)
   const [abierta, setAbierta] = useState<MiActa | null>(null)

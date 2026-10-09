@@ -8,8 +8,10 @@ import type { Session } from "@/lib/auth"
  * directo al Panel de Producción (ver InicioSegunRol) y con la flecha del
  * header pasa al de Paradas (ver NavPanelesVista).
  *
- * Sistema de Gestión (migración 20261109090000): todas las pantallas menos
- * las de abajo, de solo lectura.
+ * Sistema de Gestión (migración 20261109090000): documentos (actas de
+ * todos los turnos, Resumen Diario, Auditoría), Programación y los dos
+ * paneles, de solo lectura. Las pantallas del turno no: sin turno propio
+ * solo le mostraban avisos de "no hay turno".
  */
 export const PANELES_SOLO_VISTA = [
   { slug: "panel-produccion", href: "/panel-produccion", titulo: "Producción" },
@@ -18,8 +20,8 @@ export const PANELES_SOLO_VISTA = [
 
 export const INICIO_SOLO_VISTA = PANELES_SOLO_VISTA[0].href
 
-/** Sistema de Gestión no entra acá: Personal pide PERSONAL_GESTIONAR, que también deja editar gente. */
-export const APPS_FUERA_DE_GESTION = new Set(["personal"])
+/** Lo único que ve Sistema de Gestión. */
+export const APPS_GESTION = new Set(["mis-actas", "resumen-dia", "auditoria", "programacion", "panel-produccion", "panel-paradas"])
 
 export function esSoloVista(session: Session | null): boolean {
   return session?.rol === "VISTA"

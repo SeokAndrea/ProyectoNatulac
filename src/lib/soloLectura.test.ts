@@ -33,11 +33,8 @@ describe("apps de los roles que solo miran", () => {
     expect(visibles(sesion("VISTA")).sort()).toEqual(["panel-paradas", "panel-produccion"])
   })
 
-  it("Sistema de Gestión ve todo menos Personal, Errores y la prueba del PLC", () => {
+  it("Sistema de Gestión ve documentos, Programación y los paneles; nada del turno", () => {
     const v = visibles(sesion("GESTION", ["AUDITORIA_VER", "RESUMEN_VER"]))
-    expect(v).toEqual(expect.arrayContaining(["preparacion", "lineas", "auditoria", "resumen-dia", "edicion-datos", "calidad", "servicios-industriales"]))
-    expect(v).not.toContain("personal")
-    expect(v).not.toContain("errores")
-    expect(v).not.toContain("preparacion-plc")
+    expect(v.sort()).toEqual(["auditoria", "mis-actas", "panel-paradas", "panel-produccion", "programacion", "resumen-dia"])
   })
 })
