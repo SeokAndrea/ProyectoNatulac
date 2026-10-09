@@ -89,6 +89,7 @@ vi.mock("@/lib/preparacion/usePreparacion", () => ({
     transferencias: [],
     desvases: [],
     cargando: false,
+    recargar: api.recargarModulo,
   }),
 }))
 vi.mock("@/lib/produccion/useProduccion", () => ({
@@ -97,11 +98,12 @@ vi.mock("@/lib/produccion/useProduccion", () => ({
     contadores: deTurno(id)?.contadores ?? [],
     lineasEstado: deTurno(id)?.lineasEstado ?? [],
     cargando: false,
+    recargar: api.recargarModulo,
   }),
 }))
 vi.mock("@/lib/productoTerminado", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/productoTerminado")>()),
-  useProductoTerminado: (id: string | null) => ({ registros: deTurno(id)?.pt ?? [], cargando: false }),
+  useProductoTerminado: (id: string | null) => ({ registros: deTurno(id)?.pt ?? [], cargando: false, recargar: api.recargarModulo }),
 }))
 
 const api = {
@@ -115,6 +117,7 @@ const api = {
   programacionDia: vi.fn(),
   paradas: vi.fn(),
   estadisticas: vi.fn(),
+  recargarModulo: vi.fn(),
 }
 vi.mock("@/lib/panelProduccion", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/panelProduccion")>()),
@@ -453,13 +456,15 @@ describe("Panel de Producción — en vivo", () => {
     expect(within(celda).getByText("Naranja")).toBeInTheDocument()
   })
 
-  it("a los 30 min se recarga solo, sin sacar lo que se ve", async () => {
+  it("a los 15 min se recarga solo, sin sacar lo que se ve", async () => {
     renderPanel()
     await esperarTurno()
     expect(api.estadoPlantaActual).toHaveBeenCalledTimes(1)
-    act(() => vi.advanceTimersByTime(30 * 60 * 1000))
+    act(() => vi.advanceTimersByTime(15 * 60 * 1000))
     await waitFor(() => expect(api.estadoPlantaActual).toHaveBeenCalledTimes(2))
     expect(api.serviciosIndustriales).toHaveBeenCalledTimes(2)
+    // Mismo turno: tanques, corridas y PT se recargan aparte (el id no cambia).
+    await waitFor(() => expect(api.recargarModulo).toHaveBeenCalledTimes(3))
     expect(screen.getByText("Juan Pérez")).toBeInTheDocument()
   })
 
@@ -488,7 +493,7 @@ describe("Panel de Producción — buscar otro turno", () => {
     expect(html(container)).toMatchSnapshot()
 
     const llamadas = api.estadoPlantaActual.mock.calls.length
-    act(() => vi.advanceTimersByTime(30 * 60 * 1000))
+    act(() => vi.advanceTimersByTime(15 * 60 * 1000))
     await act(async () => {})
     expect(api.estadoPlantaActual).toHaveBeenCalledTimes(llamadas)
   })

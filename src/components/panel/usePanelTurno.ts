@@ -26,7 +26,7 @@ import type { TurnoActivo } from "@/lib/turno"
  * refresco silencioso (sin spinner de pantalla completa). No aplica
  * cuando se está viendo un turno histórico elegido a mano.
  */
-const REFRESCO_EN_VIVO_MS = 30 * 60 * 1000
+const REFRESCO_EN_VIVO_MS = 15 * 60 * 1000
 
 /**
  * Todos los datos del Panel de Producción y cómo se cargan: el turno (en
@@ -124,8 +124,9 @@ export function usePanelTurno() {
    */
   const fechaJornadaPanel = turno?.fecha ?? fechaJornada(ahora)
 
+  // Por minuto: las cuentas (eficiencia, duraciones) no necesitan segundos. El reloj del banner tiene su propio intervalo (RelojPlanta).
   useEffect(() => {
-    const id = setInterval(() => setAhora(new Date()), 1000)
+    const id = setInterval(() => setAhora(new Date()), 60 * 1000)
     return () => clearInterval(id)
   }, [])
 
@@ -219,6 +220,12 @@ export function usePanelTurno() {
   async function cargarEnVivo(silencioso = false) {
     if (!silencioso) setCargando(true)
     const t = await obtenerEstadoPlantaActual(areaEfectiva)
+    // Mismo turno: el id no cambia y los módulos no recargan solos (tanques, corridas y PT quedarían viejos).
+    if (silencioso && t && t.id === turno?.id) {
+      void prep.recargar()
+      void prod.recargar()
+      void pt.recargar()
+    }
     setTramos([])
     if (t) {
       setTurno(t)

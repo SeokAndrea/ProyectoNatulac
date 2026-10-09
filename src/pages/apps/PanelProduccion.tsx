@@ -168,7 +168,6 @@ export default function PanelProduccion() {
           puedeElegirArea={puedeElegirArea}
           areaFiltro={areaFiltro}
           supervisorCargo={supervisorCargo}
-          ahora={ahora}
           cajas={cajasProducidasTotal}
           litros={litrosProducidos}
           programacionItems={programacionItems}

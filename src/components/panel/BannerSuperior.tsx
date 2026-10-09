@@ -1,12 +1,12 @@
 import { Activity, Boxes, Building2, CalendarDays, ClipboardList, Clock, RadioTower, Target, UserRound, type LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { AREAS, CARGOS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
-import { horaPlanta } from "@/lib/tiempoPlanta"
 import type { TurnoActivo } from "@/lib/turno"
 import { tramoT2 } from "@/lib/turno12x12"
 import { cn } from "@/lib/utils"
 import { HORARIOS, type ProgramacionItem } from "./calculosPanel"
 import { ProgramacionCarrusel } from "./ProgramacionCarrusel"
+import { RelojPlanta } from "./RelojPlanta"
 
 export interface MetaBanner {
   pctCumplimiento: number | null
@@ -30,7 +30,6 @@ export function BannerSuperior({
   puedeElegirArea,
   areaFiltro,
   supervisorCargo,
-  ahora,
   cajas,
   litros,
   programacionItems,
@@ -48,7 +47,6 @@ export function BannerSuperior({
   puedeElegirArea: boolean
   areaFiltro: AreaCodigo | "TODAS"
   supervisorCargo: string | null
-  ahora: Date
   cajas: number
   litros: number
   programacionItems: ProgramacionItem[]
@@ -56,7 +54,6 @@ export function BannerSuperior({
   onAlternarFiltros: () => void
   onAbrirFiltros: () => void
 }) {
-  const [hh, mm, ss] = horaPlanta(ahora).split(":")
   // 12x12: el T2 se parte a las 19:00 (15:00–19:00 / 19:00–22:30).
   const tramo = tramoT2(turno?.esquema, turno?.turnoTipo, turno?.horaInicio)
   const horario = tramo ? { inicio: tramo.desde, fin: tramo.hasta } : HORARIOS[turnoTipo]
@@ -144,12 +141,7 @@ export function BannerSuperior({
           <div className="relative grid grid-cols-1 divide-y divide-border/70 md:grid-cols-4 md:divide-x md:divide-y-0">
             {/* HORA */}
             <BannerCelda icon={Clock} label="Hora" centrado>
-              <p className="num flex items-baseline justify-center gap-1 text-4xl font-bold leading-none tracking-tight text-foreground">
-                {hh}
-                <span className="alert-pulse text-muted-foreground">:</span>
-                {mm}
-                <span className="text-lg font-semibold text-muted-foreground">:{ss}</span>
-              </p>
+              <RelojPlanta />
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {horario ? `Turno de ${horario.inicio} a ${horario.fin}` : "Sin horario definido"}
               </p>
