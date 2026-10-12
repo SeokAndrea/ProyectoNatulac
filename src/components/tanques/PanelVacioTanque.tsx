@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button"
 import { MedirTanqueInline } from "@/components/MedirTanqueInline"
 import { LataPixel } from "@/components/pixel/LataPixel"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
+import type { Corrida } from "@/lib/produccion/tipos"
 import type { Sabor } from "@/lib/sabores"
+import { AvisoPtPendiente } from "./AvisoPtPendiente"
 import { conLiquido } from "./estadoTanque"
 import { FormEntregarVacio } from "./FormEntregarVacio"
 import { FormIniciarPreparacion } from "./FormIniciarPreparacion"
@@ -27,6 +29,7 @@ export function PanelVacioTanque({
   areaCodigo,
   usuarioSesion,
   acciones,
+  corridasSinPt = [],
   onTransferir,
 }: {
   tanque: TanqueRecepcion
@@ -35,6 +38,8 @@ export function PanelVacioTanque({
   areaCodigo: string | null
   usuarioSesion: string
   acciones: AccionesTanque
+  /** Corridas de este lote sin PT cargado. */
+  corridasSinPt?: Corrida[]
   onTransferir: () => void
 }) {
   const [form, setForm] = useState<Form>(null)
@@ -79,6 +84,7 @@ export function PanelVacioTanque({
   if (form === "entregar") {
     return (
       <FormEntregarVacio
+        aviso={<AvisoPtPendiente corridas={corridasSinPt} accion="entregar todo a Vacío" />}
         tanque={tanque}
         onEntregar={(litros) => acciones.entregarAVacio(tanque.numeroTanque, litros)}
         onListo={cerrar}
@@ -115,7 +121,9 @@ export function PanelVacioTanque({
   const botonVacio = "border-vacio/50 text-vacio hover:text-vacio"
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2">
+      {conProducto && <AvisoPtPendiente corridas={corridasSinPt} accion="entregar a Vacío, pasar a Aséptico o transferir" />}
+      <div className="flex flex-wrap gap-2">
       {vacioDisponible && (
         <>
           <Button size="sm" variant="outline" className={botonVacio} onClick={() => setForm("preparar")}>
@@ -155,6 +163,7 @@ export function PanelVacioTanque({
       {!vacioDisponible && !conLiquido(tanque) && (
         <p className="text-xs text-muted-foreground">Nada que hacer para Vacío en este tanque ahora.</p>
       )}
+      </div>
     </div>
   )
 }

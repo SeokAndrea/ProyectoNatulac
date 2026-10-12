@@ -127,6 +127,19 @@ export default function FinalizarTurno() {
   const puedeFinalizar = esPruebas || (!sesion.sinResponsable && (soyResponsable || puede(session, "TURNO_CORREGIR") || !!session?.esDueno))
   const lineasActivas = lineas.filter((l) => l.activo)
   const sinResolver = esPruebas ? [] : prod.corridas.filter(corridaSinResolver)
+  /**
+   * Corridas ya resueltas (terminadas o entregadas) con contador pero SIN Producto
+   * Terminado: quedaron sin producción, por un olvido o un guardado que falló a
+   * medias. No deja cerrar: si no produjo nada, se carga 0.
+   */
+  const sinPt = esPruebas
+    ? []
+    : prod.corridas.filter(
+        (c) =>
+          !corridaSinResolver(c) &&
+          !pt.registros.some((p) => p.corridaId === c.id) &&
+          prod.contadores.some((x) => x.corridaId === c.id),
+      )
   /** Paradas +1 sin minutos (o Falla sin especificar sin código): finalizar_turno() no deja cerrar (migración 20261090). */
   const paradasPendientes = paradas.filter((p) => p.pendiente)
   const tanquesSinConfirmar = prep.tanques.filter((t) => !t.confirmadoFinEn)
@@ -137,6 +150,17 @@ export default function FinalizarTurno() {
 
   const lineasConProblema = [...new Set(sinResolver.map((c) => lineas.find((l) => l.codigo === c.linea)?.nombre ?? c.linea))]
   const puntos: PuntoCierre[] = [
+    {
+      seccion: "seccion-lineas",
+      titulo: "Producto Terminado",
+      estado: sinPt.length === 0 ? "ok" : "falta",
+      texto:
+        sinPt.length === 0
+          ? "Cada corrida con contador tiene su PT"
+          : `Falta en Producto Terminado: ${sinPt
+              .map((c) => `${lineas.find((l) => l.codigo === c.linea)?.nombre ?? c.linea}${c.lote ? ` (Lote ${c.lote})` : ""}`)
+              .join(", ")}`,
+    },
     {
       seccion: "seccion-lineas",
       titulo: "Líneas",
@@ -166,6 +190,7 @@ export default function FinalizarTurno() {
     },
   ]
   const faltan = [
+    sinPt.length > 0 ? `${sinPt.length} ${sinPt.length === 1 ? "corrida sin Producto Terminado" : "corridas sin Producto Terminado"}` : null,
     sinResolver.length > 0 ? `${lineasConProblema.length} ${lineasConProblema.length === 1 ? "línea sin resolver" : "líneas sin resolver"}` : null,
     paradasPendientes.length > 0 ? `${paradasPendientes.length} ${paradasPendientes.length === 1 ? "parada sin completar" : "paradas sin completar"}` : null,
   ].filter((x): x is string => x !== null)

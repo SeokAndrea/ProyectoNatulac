@@ -52,6 +52,7 @@ export function TanqueCard({
   acciones,
   modoVacio = false,
   salidasVacio = [],
+  corridasSinPt = [],
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
@@ -73,6 +74,8 @@ export function TanqueCard({
   modoVacio?: boolean
   /** Salidas a Vacío del turno (de todos los tanques). */
   salidasVacio?: SalidaVacioRegistro[]
+  /** Corridas del turno sin Producto Terminado cargado (de todas las líneas). */
+  corridasSinPt?: Corrida[]
 }) {
   const [editando, setEditando] = useState(false)
   const [transfiriendo, setTransfiriendo] = useState(false)
@@ -94,6 +97,10 @@ export function TanqueCard({
   const deVacio = tanque.paraVacio && conLiquido(tanque)
   const entregadoAVacio = loteActivo ? salidasVacio.filter((s) => s.loteId === loteActivo.id) : []
   const litrosEntregados = entregadoAVacio.reduce((suma, s) => suma + s.litros, 0)
+  // Corridas de este lote sin PT: el tanque marca litros ya envasados (AvisoPtPendiente).
+  const sinPtDelLote = loteActivo ? corridasSinPt.filter((c) => c.loteId === loteActivo.id) : []
+  // Al transferir, la corrida que sigue corriendo se muda con el lote: el problema son las que ya pararon.
+  const sinPtParadas = sinPtDelLote.filter((c) => !c.activa)
   /** Tanque destino tal como quedó DESPUÉS de la transferencia (dato fresco del turno). */
   const destinoTransferido = transferencia ? tanquesDelTurno.find((t) => t.numeroTanque === transferencia.destino) : undefined
 
@@ -180,6 +187,7 @@ export function TanqueCard({
             areaCodigo={areaCodigo}
             usuarioSesion={usuarioSesion}
             acciones={acciones}
+            corridasSinPt={sinPtDelLote}
             onTransferir={() => setTransfiriendo(true)}
           />
         )}
@@ -194,6 +202,7 @@ export function TanqueCard({
             areaCodigo={areaCodigo}
             usuarioSesion={usuarioSesion}
             acciones={acciones}
+            corridasSinPt={sinPtDelLote}
             onTransferir={() => setTransfiriendo(true)}
           />
         )}
@@ -203,6 +212,7 @@ export function TanqueCard({
             tanque={tanque}
             destinos={destinos}
             hayCorridaEnEsteTanque={hayCorridaEnEsteTanque}
+            corridasSinPt={sinPtParadas}
             medirTanque={acciones.medirTanque}
             transferir={acciones.transferir}
             onCerrar={() => setTransfiriendo(false)}

@@ -320,7 +320,7 @@ describe("Producto Terminado — cómo se ve", () => {
 })
 
 describe("Producto Terminado — cerrar una corrida", () => {
-  it("Terminar: termina, suma contador, carga PT y pide medir el tanque", async () => {
+  it("Terminar: suma contador, termina, carga PT (que cierra) y pide medir el tanque", async () => {
     const u = userEvent.setup()
     renderPagina()
     const t = tarjeta("Línea 1")
@@ -334,8 +334,8 @@ describe("Producto Terminado — cerrar una corrida", () => {
     await u.click(t.getByRole("button", { name: "Cerrar" }))
     await screen.findByText("Medir Tanque 1")
     expect(orden).toEqual([
-      'terminar ["c1"]',
       'contador [{"corridaId":"c1","linea":"LINEA_1","envasesLlenadora":1200,"envasesBuenos":1150,"justificacion":""}]',
+      'terminar ["c1"]',
       'producto [{"corridaId":"c1","linea":"LINEA_1","saborId":"s1","presentacion":"1000","paletas":10,"cajasSueltas":90}]',
       "recargar",
     ])
@@ -425,11 +425,61 @@ describe("Producto Terminado — validaciones", () => {
     await u.type(t.getByPlaceholderText("Justificación de la merma..."), " Se rompió una bobina ")
     await u.click(t.getByRole("button", { name: "Cerrar" }))
     await screen.findByText("Medir Tanque 1")
-    expect(orden[1]).toContain('"justificacion":"Se rompió una bobina"')
+    expect(orden[0]).toContain('"justificacion":"Se rompió una bobina"')
+  })
+
+  it("si el PT falla después del contador, el reintento no vuelve a sumar el contador", async () => {
+    const u = userEvent.setup()
+    acc.registrarProductoTerminado = vi
+      .fn()
+      .mockImplementationOnce(async () => (orden.push("producto falló"), { ok: false, error: "Sin conexión." }))
+      .mockImplementation(async (...args: unknown[]) => (orden.push(`producto ${JSON.stringify(args)}`), OK))
+    renderPagina()
+    const t = tarjeta("Línea 1")
+    await escribir(u, t, "Sumar al contador", "1200")
+    await escribir(u, t, "Envases buenos", "1150")
+    await escribir(u, t, "Paletas", "10")
+    await escribir(u, t, "Cajas sueltas", "90")
+    await u.click(t.getByRole("button", { name: "Entregar línea (sigue el próximo turno)" }))
+    await u.click(t.getByRole("button", { name: "Cerrar" }))
+    expect(await t.findByRole("alert")).toHaveTextContent("Sin conexión. El contador ya quedó guardado")
+    expect(t.getByPlaceholderText("Sumar al contador")).toHaveValue(null)
+    expect(t.getByPlaceholderText("Paletas")).toHaveValue(10)
+
+    await u.click(t.getByRole("button", { name: "Cerrar" }))
+    await screen.findByText("Medir Tanque 1")
+    expect(orden.filter((o) => o.startsWith("contador"))).toHaveLength(1)
+    expect(orden.at(-1)).toBe('entregar ["c1"]')
+  })
+
+  it("Terminar con solo el contador no deja cerrar: falta el PT", async () => {
+    const u = userEvent.setup()
+    renderPagina()
+    const t = tarjeta("Línea 1")
+    await escribir(u, t, "Sumar al contador", "1200")
+    await escribir(u, t, "Envases buenos", "1150")
+    // La Línea 1 ya trae PT cargado: se vacía para probar el caso sin PT.
+    await u.clear(t.getByPlaceholderText("Paletas"))
+    await u.clear(t.getByPlaceholderText("Cajas sueltas"))
+    await u.click(t.getByRole("button", { name: "Terminar" }))
+    expect(t.getByText(/Para cerrar la corrida hay que cargar el Producto Terminado/)).toBeInTheDocument()
+    expect(t.getByRole("button", { name: "Cerrar" })).toBeDisabled()
+    await escribir(u, t, "Paletas", "0")
+    expect(t.queryByText(/Para cerrar la corrida hay que cargar el Producto Terminado/)).not.toBeInTheDocument()
   })
 })
 
 describe("Producto Terminado — otros estados de la corrida", () => {
+  it("esperando cierre: solo el contador no alcanza (lo cerraría sin PT)", async () => {
+    const u = userEvent.setup()
+    renderPagina()
+    const t = tarjeta("Línea 3")
+    await escribir(u, t, "Sumar al contador", "500")
+    await escribir(u, t, "Envases buenos", "490")
+    expect(t.getByRole("button", { name: "Registrar" })).toBeDisabled()
+    expect(t.getByText(/Para cerrar la corrida hay que cargar el Producto Terminado/)).toBeInTheDocument()
+  })
+
   it("esperando cierre: solo Registrar, sin elegir qué pasa ni medir", async () => {
     const u = userEvent.setup()
     renderPagina()

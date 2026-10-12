@@ -10,6 +10,7 @@ import type { Sabor } from "@/lib/sabores"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
+import { useProductoTerminado } from "@/lib/productoTerminado"
 import { cn } from "@/lib/utils"
 
 /** El Modo Vacío se recuerda en este navegador (es una comodidad, no un dato). */
@@ -81,6 +82,8 @@ export function EstadoPlantaTabs({
   const preparacion = usePreparacion(turnoIdProp)
   const { tanques, preparaciones, cargando } = preparacion
   const { corridas, cargando: cargandoProduccion } = useProduccion(turnoIdProp)
+  // Solo para avisar: un lote con corridas sin PT marca litros que ya se envasaron (AvisoPtPendiente).
+  const { registros: productoTerminado } = useProductoTerminado(turnoIdProp)
   const sesion = useSesionTurno()
   const turnoId = turnoIdProp === undefined ? sesion.turnoId : turnoIdProp
   const lotesAbiertos = preparaciones.filter((p) => !p.liberadoEn && !p.cerradoEn).map((p) => p.id)
@@ -176,6 +179,7 @@ export function EstadoPlantaTabs({
           acciones={acciones}
           modoVacio={vacioActivo}
           salidasVacio={preparacion.salidasVacio}
+          corridasSinPt={corridas.filter((c) => !productoTerminado.some((p) => p.corridaId === c.id))}
         />
       ))}
       </div>

@@ -7,6 +7,8 @@ import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tip
 import type { Sabor } from "@/lib/sabores"
 import { useAccion } from "@/lib/useAccion"
 import { DESVASE_HABILITADO } from "./constantes"
+import type { Corrida } from "@/lib/produccion/tipos"
+import { AvisoPtPendiente } from "./AvisoPtPendiente"
 import { conLiquido } from "./estadoTanque"
 import { FormIniciarPreparacion } from "./FormIniciarPreparacion"
 import type { AccionesTanque } from "./tipos"
@@ -28,6 +30,7 @@ export function PanelAccionesTanque({
   areaCodigo,
   usuarioSesion,
   acciones,
+  corridasSinPt = [],
   onTransferir,
 }: {
   tanque: TanqueRecepcion
@@ -45,6 +48,8 @@ export function PanelAccionesTanque({
   areaCodigo: string | null
   usuarioSesion: string
   acciones: AccionesTanque
+  /** Corridas de este lote sin PT cargado. */
+  corridasSinPt?: Corrida[]
   onTransferir: () => void
 }) {
   const [form, setForm] = useState<Form>(null)
@@ -125,6 +130,7 @@ export function PanelAccionesTanque({
     }
     return (
       <div className="flex flex-col gap-2">
+        {tieneResto && <AvisoPtPendiente corridas={corridasSinPt} accion="preparar encima, transferir o desvasar" />}
         {deVacio && (
           <p className="text-xs text-vacio">Tanque de Vacío: entregar o pasar a Aséptico, en MODO VACÍO.</p>
         )}

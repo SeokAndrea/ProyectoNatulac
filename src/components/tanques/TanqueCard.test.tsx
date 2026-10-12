@@ -141,6 +141,7 @@ interface Escenario {
   puedeIrACalidad?: boolean
   modoVacio?: boolean
   salidasVacio?: SalidaVacioRegistro[]
+  corridasSinPt?: Corrida[]
 }
 
 function crearAcciones() {
@@ -182,6 +183,7 @@ function renderCard(e: Escenario, acciones: Acciones = crearAcciones()) {
         acciones={acciones}
         modoVacio={e.modoVacio}
         salidasVacio={e.salidasVacio}
+        corridasSinPt={e.corridasSinPt}
       />
     </MemoryRouter>,
   )
@@ -881,5 +883,30 @@ describe("TanqueCard — Vacío", () => {
     await u.click(screen.getByRole("combobox"))
     expect(screen.queryByRole("option", { name: /Tanque 1/ })).not.toBeInTheDocument()
     expect(screen.getByRole("option", { name: /Tanque 3 · Limpio/ })).toBeInTheDocument()
+  })
+})
+
+describe("TanqueCard — Producto Terminado pendiente", () => {
+  it("avisa si el lote tiene una corrida parada sin PT (preparar encima, transferir, desvasar)", async () => {
+    const u = userEvent.setup()
+    const parada = { ...corridaDe("p1"), activa: false, esperandoCierre: true }
+    renderCard({ tanque: tanque(1, "LISTO"), preparaciones: [prep()], corridasSinPt: [parada], otros: [tanque(2, "LIMPIO")] })
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Falta el Producto Terminado de Línea 1 (Lote 0001): este tanque marca más litros de los que tiene.",
+    )
+    await u.click(boton("Transferir"))
+    expect(within(screen.getByRole("dialog")).getByRole("alert")).toHaveTextContent("Antes de transferir, carga el PT o mide el tanque.")
+  })
+
+  it("al transferir no avisa por la corrida que sigue corriendo (se muda con el lote)", async () => {
+    const u = userEvent.setup()
+    renderCard({ tanque: tanque(1, "LISTO"), preparaciones: [prep()], corridasSinPt: [corridaDe("p1")], otros: [tanque(2, "LIMPIO")] })
+    await u.click(boton("Transferir"))
+    expect(within(screen.getByRole("dialog")).queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("sin corridas pendientes, no avisa", () => {
+    renderCard({ tanque: tanque(1, "LISTO"), preparaciones: [prep()] })
+    expect(screen.queryByText(/Falta el Producto Terminado/)).not.toBeInTheDocument()
   })
 })

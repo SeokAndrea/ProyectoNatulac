@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,8 +19,11 @@ export function FormEntregarVacio({
   onEntregar,
   onListo,
   onCancelar,
+  aviso = null,
 }: {
   tanque: TanqueRecepcion
+  /** Aviso de PT pendiente del lote (AvisoPtPendiente). */
+  aviso?: ReactNode
   /** litros null = se lleva todo. */
   onEntregar: (litros: number | null) => Promise<Resultado>
   onListo: () => void
@@ -44,6 +47,7 @@ export function FormEntregarVacio({
       <p className="text-xs font-semibold text-vacio">
         {tanque.paraVacio ? "Entregar a Vacío" : "Salida a Vacío"} · Tanque {tanque.numeroTanque}
       </p>
+      {aviso}
       {!tanque.paraVacio && (
         <p className="text-xs text-muted-foreground">
           Vacío se lleva una parte de este lote de Aséptico. Se registra como un desvase: no es merma.

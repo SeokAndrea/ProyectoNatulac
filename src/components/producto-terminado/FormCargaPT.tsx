@@ -21,6 +21,14 @@ type ProximoEstado = "TERMINO_SABOR" | "CONTINUA"
  * sueltas — estas son el TOTAL actual de la corrida (se editan, no se
  * suman). Con la corrida corriendo, además se elige qué pasa con la línea
  * (Terminar o Entregar al próximo turno) y se cierra de una.
+ *
+ * Guardar son varios pedidos seguidos (contador → terminar → PT →
+ * entregar), no uno solo: si uno falla, los anteriores ya quedaron. Por eso
+ * el contador se limpia apenas se guarda (se SUMA: reintentar no debe
+ * mandarlo dos veces), y el PT va después de terminar, para que sea él quien
+ * cierra la corrida — si falla, la corrida sigue esperando su PT en esta
+ * misma tarjeta. Cerrar (Terminar, Entregar, o una corrida ya detenida)
+ * exige el PT: si no produjo nada, 0 paletas y 0 cajas.
  */
 export function FormCargaPT({
   corrida,
@@ -60,6 +68,8 @@ export function FormCargaPT({
   const [cajasSueltas, setCajasSueltas] = useState(registro ? String(registro.cajasSueltas) : "")
   const [justificacion, setJustificacion] = useState("")
   const [proximoEstado, setProximoEstado] = useState<ProximoEstado | null>(null)
+  /** El contador de esta pasada ya se guardó y el resto falló: se avisa para que no lo vuelvan a escribir. */
+  const [contadorGuardado, setContadorGuardado] = useState(false)
   const { enviando, error, ejecutar } = useAccion()
 
   const previa = vistaPreviaCarga({ presentacion, paletas, cajasSueltas, contadorActual, contadorBuenosActual, envasesLlenadora, envasesBuenos })
@@ -74,9 +84,13 @@ export function FormCargaPT({
   /** El Contador 2 (envases buenos) es OBLIGATORIO junto con el contador de la llenadora, y no puede superarlo. */
   const buenosValido =
     !hayContadorNuevo || (nuevoContadorBuenos !== null && nuevoContadorBuenos >= 0 && nuevoContadorBuenos <= nuevoContador)
+  /** Esta pasada cierra la corrida (o ya está detenida esperando su PT): sin PT quedaría cerrada sin producción. */
+  const requierePt = !modoCorreccion && (proximoEstado !== null || corrida.esperandoCierre)
+  const faltaPt = requierePt && !hayProducto
   const valido =
     (hayContadorNuevo || hayProducto) &&
     buenosValido &&
+    !faltaPt &&
     (!puedeElegirProximoEstado || proximoEstado !== null) &&
     (!requiereJustificacion || justificacion.trim() !== "")
   const textoBoton = modoCorreccion ? "Guardar corrección" : puedeElegirProximoEstado ? "Cerrar" : "Registrar"
@@ -85,14 +99,10 @@ export function FormCargaPT({
     if (!valido) return
     // Si esta pasada CIERRA la corrida (Terminar / Entregar), después se pide medir el tanque.
     const cerrando = !modoCorreccion && proximoEstado !== null
+    setContadorGuardado(false)
     const ok = await ejecutar(async () => {
-      // "Terminar" primero: deja la corrida en ESPERANDO_PT para que el
-      // contador/PT que siguen la cierren de verdad (costura 2 —
-      // terminar_sabor_linea ya no cierra por su cuenta).
-      if (proximoEstado === "TERMINO_SABOR") {
-        const r = await acciones.terminarSabor(corrida.id)
-        if (!r.ok) return r
-      }
+      // 1. Contador. Con la corrida corriendo no la cierra; se limpia apenas
+      //    queda guardado, así un reintento no lo suma dos veces.
       if (hayContadorNuevo) {
         const r = await acciones.registrarContador({
           corridaId: corrida.id,
@@ -102,7 +112,19 @@ export function FormCargaPT({
           justificacion: justificacion.trim(),
         })
         if (!r.ok) return r
+        setEnvasesLlenadora("")
+        setEnvasesBuenos("")
+        setJustificacion("")
+        setContadorGuardado(true)
       }
+      // 2. "Terminar": deja la corrida en ESPERANDO_PT (costura 2 —
+      //    terminar_sabor_linea no cierra por su cuenta).
+      if (proximoEstado === "TERMINO_SABOR") {
+        const r = await acciones.terminarSabor(corrida.id)
+        if (!r.ok) return r
+      }
+      // 3. PT: cierra la corrida que quedó esperando. Es un total (se
+      //    reemplaza), reintentarlo no duplica nada.
       if (hayProducto) {
         const r = await acciones.registrarProducto({
           corridaId: corrida.id,
@@ -118,9 +140,7 @@ export function FormCargaPT({
       return { ok: true }
     })
     if (!ok) return
-    setEnvasesLlenadora("")
-    setEnvasesBuenos("")
-    setJustificacion("")
+    setContadorGuardado(false)
     setProximoEstado(null)
     onGuardado(cerrando)
   }
@@ -230,9 +250,16 @@ export function FormCargaPT({
           </div>
         )}
 
+        {faltaPt && (
+          <p className="text-sm text-warning">
+            Para cerrar la corrida hay que cargar el Producto Terminado. Si no produjo nada, pon 0 paletas y 0 cajas.
+          </p>
+        )}
+
         {error && (
           <p className="text-sm text-destructive" role="alert">
             {error}
+            {contadorGuardado && " El contador ya quedó guardado: no lo vuelvas a escribir, toca el botón de nuevo para guardar el resto."}
           </p>
         )}
 
