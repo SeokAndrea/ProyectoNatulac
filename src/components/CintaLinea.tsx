@@ -41,6 +41,8 @@ export function CintaLinea({
   saborNombre,
   lote,
   presentacion = null,
+  aviso = null,
+  avisoUrgente = false,
 }: {
   numeroLinea: number
   estado: EstadoLineaVista
@@ -48,6 +50,9 @@ export function CintaLinea({
   lote: string | null
   /** Código de presentación de la corrida ("1000", "500"...). Si no llega, se dibuja el de 1 litro. */
   presentacion?: string | null
+  /** Parada abierta: "Parada hace 6 min" (todavía corre) o "Mantenimiento · 42 min" (ya parada). Ver src/lib/paradasEnVivo.ts. */
+  aviso?: string | null
+  avisoUrgente?: boolean
 }) {
   const meta = META[estado]
   const Icon = meta.icono
@@ -65,6 +70,16 @@ export function CintaLinea({
         <span className={cn("size-1.5 rounded-full bg-current", estado === "CORRIENDO" && "alert-pulse")} />
         {meta.etiqueta}
       </span>
+      {aviso && (
+        <span
+          className={cn(
+            "absolute right-2 top-6 z-20 rounded-md border bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold",
+            avisoUrgente ? "alert-pulse border-danger/40 text-danger" : "border-warning/40 text-warning",
+          )}
+        >
+          {aviso}
+        </span>
+      )}
 
       {/* Track de la cinta (solo para las cajitas lisas — la pixel art trae su propia cinta) */}
       {!(conCajas && jugoPixel) && !escenaPixel && (

@@ -74,6 +74,10 @@ export interface EstadoLineaEnVivo {
   lote: string | null
   /** Código de presentación de la corrida activa ("1000", "500"...) — para dibujar el envase correcto en la cinta. */
   presentacion?: string | null
+  /** Parada abierta: "Parada hace 6 min" / "Mantenimiento · 42 min" (src/lib/paradasEnVivo.ts). */
+  aviso?: string | null
+  /** Ya pasó el margen de 15 min. */
+  avisoUrgente?: boolean
 }
 
 /** Carga el OEE por línea (clave LINEA_1/2/3) del período y turno elegidos — ver cargarOeePeriodo (src/lib/eficienciaPeriodo.ts). */
@@ -314,6 +318,8 @@ export function PanelParadasVista({
                       saborNombre={enVivo.saborNombre}
                       lote={enVivo.lote}
                       presentacion={enVivo.presentacion}
+                      aviso={enVivo.aviso}
+                      avisoUrgente={enVivo.avisoUrgente}
                     />
                   ) : (
                     <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">

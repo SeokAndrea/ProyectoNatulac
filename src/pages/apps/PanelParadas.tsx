@@ -12,6 +12,7 @@ import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
 import { ReportesMantenimiento } from "@/components/paradas/ReportesMantenimiento"
 import { puede } from "@/lib/permisos"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
+import { paradaEnVivo, textoParadaEnVivo, useParadasAbiertas, type ParadaEnVivo } from "@/lib/paradasEnVivo"
 import { cargarOeePeriodo } from "@/lib/eficienciaPeriodo"
 import type { TurnoActivo } from "@/lib/turno"
 
@@ -42,14 +43,20 @@ import type { TurnoActivo } from "@/lib/turno"
  */
 
 /** Traduce corrida/lineasEstado (Producción, real) al estado visual de la cinta. Mismo criterio que LineaVisual.tsx / FinalizarTurno.tsx. */
-function estadoLineaVista(lineaCodigo: string, corridas: Corrida[], lineasEstado: LineaEstado[]): EstadoLineaVista {
+function estadoLineaVista(
+  lineaCodigo: string,
+  corridas: Corrida[],
+  lineasEstado: LineaEstado[],
+  parada: ParadaEnVivo | null,
+): EstadoLineaVista {
   const estado = lineasEstado.find((le) => le.linea === lineaCodigo)
   // En CIP con el lote que sigue, la corrida queda activa: igual se ve el CIP, no "corriendo".
   if (estado?.condicion === "CIP") return "CIP"
   const corrida = corridas.find((c) => c.linea === lineaCodigo && c.activa)
+  // Parada abierta de más de 15 min (ver src/lib/paradasEnVivo.ts). Antes del margen la cinta sigue corriendo.
+  if (parada?.visible) return corrida ? "PARADA" : "DETENIDA"
   if (corrida) {
     if (corrida.loteTerminado != null) return "TERMINO"
-    if (corrida.pausadaEn != null) return "PARADA"
     return "CORRIENDO"
   }
   if (estado?.condicion === "CAMBIO_PRESENTACION") return "CAMBIO"
@@ -87,6 +94,8 @@ export default function PanelParadas() {
     [areaParadas, versionParadas],
   )
   const puedeActualizarSheet = areaParadas !== "PRUEBAS" && (puede(session, "PARADAS_REGISTRAR") || session?.area === "MANTENIMIENTO")
+  // Paradas abiertas para la cinta en vivo; quien puede, trae el Sheet de Mantenimiento solo cada 5 min.
+  const paradasAbiertas = useParadasAbiertas(areaParadas, puedeActualizarSheet ? (session?.username ?? null) : null)
 
   // OEE por línea del período elegido en la vista — mismo cálculo que el
   // Panel de Producción, turno por turno (src/lib/eficienciaPeriodo.ts).
@@ -131,9 +140,12 @@ export default function PanelParadas() {
     : LINEAS_PARADAS.map((l, i) => {
         const lineaReal = lineasReales[i]
         const corrida = lineaReal ? prod.corridas.find((c) => c.linea === lineaReal.codigo && c.activa) : undefined
+        const parada = lineaReal ? paradaEnVivo(lineaReal.codigo, paradasAbiertas, corrida?.pausadaEn ?? null, new Date()) : null
         return {
           lineaCodigo: l.codigo,
-          estado: lineaReal ? estadoLineaVista(lineaReal.codigo, prod.corridas, prod.lineasEstado) : "LIBRE",
+          estado: lineaReal ? estadoLineaVista(lineaReal.codigo, prod.corridas, prod.lineasEstado, parada) : "LIBRE",
+          aviso: parada ? textoParadaEnVivo(parada) : null,
+          avisoUrgente: parada?.visible ?? false,
           saborNombre: corrida?.saborNombre ?? null,
           lote: corrida?.lote ?? null,
           presentacion: corrida?.presentacion ?? null,

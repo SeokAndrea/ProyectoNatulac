@@ -1,6 +1,7 @@
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import type { EficienciaTurno } from "@/lib/eficiencia"
 import { duracionMin, type Parada } from "@/lib/paradas"
+import { paradaEnVivo, type ParadaEnVivo } from "@/lib/paradasEnVivo"
 import type { ProduccionDiaItem } from "@/lib/panelProduccion"
 import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/tipos"
@@ -43,6 +44,8 @@ export interface LineaConEstado {
   corrida: Corrida | null
   /** Falla u observación cargada al dejar la línea en DETENIDA — solo cuando aplica. null si no hay. */
   observacion: string | null
+  /** Parada abierta ahora mismo (solo en vivo, ver aplicarParadasEnVivo). */
+  paradaEnVivo?: ParadaEnVivo | null
 }
 
 /** Fila de la tabla "Líneas activas": estado + producción + merma, todo junto. */
@@ -170,6 +173,23 @@ export function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[],
     // solo "Libre" para todas. Ver LineasEstadoPlanta.tsx.
     const estado: EstadoLinea = (estadoContinuo && ESTADO_POR_CONDICION[estadoContinuo.condicion]) ?? "libre"
     return { codigo: lc.codigo, nombre: lc.nombre, estado, corrida: null, observacion }
+  })
+}
+
+/**
+ * Panel en vivo: las paradas abiertas cambian el estado de la línea (ver
+ * src/lib/paradasEnVivo.ts). Con más de 15 min, una línea con corrida se ve
+ * "parada" y una sin corrida "detenida"; antes del margen sigue como
+ * estaba (la corrida pausada desde Líneas vuelve a verse "activa"), con el
+ * aviso en `paradaEnVivo`. CIP y "esperando cierre" no cambian.
+ */
+export function aplicarParadasEnVivo(lineas: LineaConEstado[], abiertas: Parada[], ahora: Date): LineaConEstado[] {
+  return lineas.map((le) => {
+    if (le.estado === "cip" || le.estado === "esperando_cierre") return le
+    const conCorrida = le.estado === "activa" || le.estado === "parada"
+    const parada = paradaEnVivo(le.codigo, abiertas, conCorrida ? (le.corrida?.pausadaEn ?? null) : null, ahora)
+    if (conCorrida) return { ...le, estado: parada?.visible ? "parada" : "activa", paradaEnVivo: parada }
+    return { ...le, estado: parada?.visible ? "detenida" : le.estado, paradaEnVivo: parada }
   })
 }
 

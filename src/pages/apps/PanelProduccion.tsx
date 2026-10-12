@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/EmptyState"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { BannerSuperior } from "@/components/panel/BannerSuperior"
 import {
+  aplicarParadasEnVivo,
   estadoDeLineas,
   filasDeLineas,
   produccionPorLineaDe,
@@ -26,6 +27,7 @@ import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { minutosPorLinea } from "@/lib/paradas"
+import { useParadasAbiertas } from "@/lib/paradasEnVivo"
 import { puede } from "@/lib/permisos"
 import { horasTranscurridasTurno, mermaEnvasesTurno, mermaSemielaboradoTurno } from "@/lib/reportes"
 
@@ -77,6 +79,11 @@ export default function PanelProduccion() {
     verEnVivo,
     elegirTramo,
   } = usePanelTurno()
+  // Paradas abiertas para las cintas en vivo. Aséptico y Pruebas ven lo suyo; el resto, producción.
+  const areaParadas = areaEfectiva === "ASEPTICO" || areaEfectiva === "PRUEBAS" ? areaEfectiva : null
+  // Quien puede, trae el Sheet de Mantenimiento solo cada 5 min (como el botón del Panel de Paradas).
+  const puedeSincronizarSheet = areaParadas !== "PRUEBAS" && (puede(session ?? null, "PARADAS_REGISTRAR") || session?.area === "MANTENIMIENTO")
+  const paradasAbiertas = useParadasAbiertas(areaParadas, puedeSincronizarSheet ? (session?.username ?? null) : null, enVivo)
 
   // ------------------------------------------------------------ cuentas
   const horasTurnoActual = turno ? horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin) : 0
@@ -107,7 +114,9 @@ export default function PanelProduccion() {
       }
     : null
   const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
-  const lineasEstado = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
+  const lineasBase = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
+  // En vivo, las paradas abiertas de más de 15 min paran la cinta (src/lib/paradasEnVivo.ts).
+  const lineasEstado = enVivo ? aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora) : lineasBase
   const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, lineas, presentaciones) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   /*

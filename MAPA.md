@@ -129,6 +129,7 @@ página (cada pestaña llama a `recargar()` del contexto).
 | Status y Preparación (misma UI compartida — Status es Recepción: confirmar/corregir lo heredado del turno anterior; Preparación está disponible todo el turno). Condición de tanque real: `LISTO` \| `SUCIO` \| `EN_PREPARACION` \| `STANDBY` \| `CIP` \| `LIMPIO` (candidato a fusionar SUCIO+STANDBY, ver plan Fase 1) | `src/components/EstadoPlantaTabs.tsx` (`modo="status"` / `modo="preparacion"`), `src/pages/apps/Status.tsx`, `src/pages/apps/Preparacion.tsx` |
 | Líneas: activar corrida, Parada Operacional (+motivo), Detener línea (dos pasos: detener deja `ESPERANDO_PT`, cargar el PT es lo único que cierra) | `src/pages/apps/Lineas.tsx`, `src/components/LineasEstadoPlanta.tsx` |
 | Comenzar Turno (solo Turno tipo + Grupo — al confirmar manda derecho a Status) | `src/pages/apps/ComenzarTurno.tsx`, `src/components/TanqueEditForm.tsx` |
+| Cinta en vivo de los paneles con paradas abiertas (margen de 15 min, Mantenimiento primero, Sheet sincronizado solo cada 5 min) | `src/lib/paradasEnVivo.ts` (regla y hook), usado en `src/pages/apps/PanelParadas.tsx` y `src/components/panel/calculosPanel.ts` (`aplicarParadasEnVivo`) |
 | Paradas (downtime de líneas): +1 pendiente, completar, eliminar (migración 20261090) | `src/lib/paradas.ts`, `src/pages/apps/RegistrarParadas.tsx`, `src/components/BuscadorTipoParada.tsx`, `src/pages/apps/PanelParadas.tsx`, `src/components/PanelParadasVista.tsx` |
 
 ## Piezas compartidas entre páginas

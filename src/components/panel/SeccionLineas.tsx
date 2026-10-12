@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom"
-import { AlertTriangle, Workflow } from "lucide-react"
+import { AlertTriangle, Clock3, Workflow } from "lucide-react"
 import { CintaEstadoLinea, type EstadoCinta } from "@/components/CintaEstadoLinea"
 import { colorTextoPorNivel, nivelMerma, type NivelMerma } from "@/lib/estadisticas"
+import { textoParadaEnVivo } from "@/lib/paradasEnVivo"
 import { cn } from "@/lib/utils"
 import { formatDuracion, type EstadoLinea, type FilaLineaCompacta } from "./calculosPanel"
 import { PanelCard } from "./PanelCard"
@@ -89,6 +90,17 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
             {info.label}
             {fila.minutosProduccion !== null ? ` - TP: ${formatDuracion(fila.minutosProduccion)}` : ""}
           </p>
+          {fila.paradaEnVivo && (
+            <p
+              className={cn(
+                "mt-0.5 flex items-center gap-1 text-xs font-semibold",
+                fila.paradaEnVivo.visible ? "text-danger" : "text-warning",
+              )}
+            >
+              <Clock3 className="size-3 shrink-0" />
+              {textoParadaEnVivo(fila.paradaEnVivo)}
+            </p>
+          )}
           {fila.observacion && (
             <p className="mt-1 flex items-start gap-1 text-xs leading-snug text-danger">
               <AlertTriangle className="mt-0.5 size-3 shrink-0" />
