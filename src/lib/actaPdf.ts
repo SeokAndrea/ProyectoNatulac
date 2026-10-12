@@ -10,7 +10,7 @@ import { FRANJA_ACTA, ICONO_CONTADOR_BUENOS, ICONO_CONTADOR_DESECHO, ICONO_CONTA
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/sesionTurno"
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
-import type { CondicionTanque, TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro, TransferenciaRegistro } from "@/lib/preparacion/tipos"
+import type { CondicionTanque, TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro, SalidaVacioRegistro, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { duracionMin, type Parada } from "@/lib/paradas"
 import type { NovedadTurno } from "@/lib/novedades"
@@ -126,6 +126,8 @@ export async function generarActaPdf(params: {
   ajustesVolumen: AjusteVolumenRegistro[]
   /** Transferencias entre tanques del turno: en 1.7 el lote que se mudó dice "Transferido a TQn". */
   transferencias?: TransferenciaRegistro[]
+  /** Litros que Vacío se llevó en el turno: en 1.7 se restan del consumo del lote (no son merma). Migración 20261109490000. */
+  salidasVacio?: SalidaVacioRegistro[]
   /** Paradas registradas en este turno (ver cargarParadasDelTurno). Van en los recuadros por línea de 2.1. */
   paradas?: Parada[]
   /** Lecturas de Servicios Industriales con turno_id = este turno (ver migración 20261057). Van en 2.3. */
@@ -157,6 +159,7 @@ export async function generarActaPdf(params: {
     novedades,
     ajustesVolumen,
     transferencias = [],
+    salidasVacio = [],
     paradas = [],
     serviciosIndustriales = [],
     supervisorNombre,
@@ -293,7 +296,9 @@ export async function generarActaPdf(params: {
   // ---------------------------------------------------------------- 1.6 / 1.8 tanques
   const bloqueTanques = (
     titulo: string,
-    datos: (n: 1 | 2 | 3) => { condicion: CondicionTanque; volumenL: number | null; saborNombre: string | null; lote: string | null } | null,
+    datos: (
+      n: 1 | 2 | 3,
+    ) => { condicion: CondicionTanque; volumenL: number | null; saborNombre: string | null; lote: string | null; paraVacio?: boolean } | null,
   ) => {
     barra(titulo)
     const bloque = 3 * C
@@ -306,7 +311,7 @@ export async function generarActaPdf(params: {
       celda(x + 2.5 * C, y, 0.5 * C, 4.5, conProducto ? (t.lote ?? "") : "", { negrita: true, tamano: 7 })
       celda(x, y + 4.5, C, 4.5, "Cantidad", { fondo: CELESTE, negrita: true })
       celda(x + C, y + 4.5, 2 * C, 4.5, "Sabor / Status", { fondo: CELESTE, negrita: true })
-      const sabor = t === null ? "Sin registrar" : conProducto ? `${t.saborNombre ?? "Sin sabor"}${t.condicion === "STANDBY" ? " (con restos)" : ""}` : NOMBRE_CONDICION[t.condicion]
+      const sabor = t === null ? "Sin registrar" : conProducto ? `${t.saborNombre ?? "Sin sabor"}${t.paraVacio ? " (Vacío)" : t.condicion === "STANDBY" ? " (con restos)" : ""}` : NOMBRE_CONDICION[t.condicion]
       celda(x, y + 9, C, 6, conProducto ? miles(t.volumenL ?? 0) : "0", { negrita: true, tamano: 8 })
       celda(x + C, y + 9, 2 * C, 6, sabor, { negrita: conProducto, tamano: 8 })
     })
@@ -346,12 +351,15 @@ export async function generarActaPdf(params: {
       ]
       return tanquesDestino.length > 0 ? ` — Transferido a ${tanquesDestino.map((n) => `TQ${n}`).join(" y ")}` : ""
     }
+    /** Litros que Vacío se llevó de este lote de Aséptico: no son consumo, van como nota al lado del lote. */
+    const litrosAVacio = (loteId: string) => salidasVacio.filter((s) => s.loteId === loteId).reduce((a, s) => a + s.litros, 0)
     const loteIdsCorridos = new Set(corridas.map((c) => c.loteId).filter((id): id is string => id !== null))
     const lotesDelTurno = preparaciones.filter((p) => loteIdsCorridos.has(p.id))
     const filas = lotesDelTurno.map((lote) => {
       const corridasLote = corridas.filter((c) => c.loteId === lote.id)
       const inicio = lote.volumenAlIniciarTurnoL ?? lote.volumenPreparadoL ?? 0
-      const consumo = inicio - (lote.volumenActualL ?? 0)
+      const aVacio = litrosAVacio(lote.id)
+      const consumo = inicio - (lote.volumenActualL ?? 0) - aVacio
       const ptPorLinea = lineas.map((l) => {
         const ids = corridasLote.filter((c) => c.linea === l.codigo).map((c) => c.id)
         return productoTerminado.filter((p) => p.corridaId && ids.includes(p.corridaId)).reduce((a, p) => a + p.litrosProducidos, 0)
@@ -359,7 +367,7 @@ export async function generarActaPdf(params: {
       const envasado = ptPorLinea.reduce((a, b) => a + b, 0)
       const rendimiento = consumo > 0 ? Math.round((envasado / consumo) * 1000) / 10 : null
       return [
-        `${lote.saborNombre ?? "Sin sabor"}\nLote ${lote.lote ?? "—"} · TQ${lote.numeroTanque}${transferidoA(lote.id)}`,
+        `${lote.saborNombre ?? "Sin sabor"}\nLote ${lote.lote ?? "—"} · TQ${lote.numeroTanque}${transferidoA(lote.id)}${aVacio > 0 ? ` — Vacío se llevó ${miles(aVacio)} L` : ""}`,
         consumo > 0 ? miles(consumo - envasado) : "--",
         miles(inicio),
         miles(lote.volumenPreparadoL ?? 0),

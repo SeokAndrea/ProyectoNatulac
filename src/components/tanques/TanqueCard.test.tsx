@@ -6,7 +6,7 @@ import { TanqueCard } from "@/components/tanques/TanqueCard"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import type { AnalisisCalidad } from "@/lib/calidad"
 import type { Desvase } from "@/lib/desvases"
-import type { CondicionTanque, PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
+import type { CondicionTanque, PreparacionRegistro, SalidaVacioRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida } from "@/lib/produccion/tipos"
 import type { Sabor } from "@/lib/sabores"
 
@@ -27,6 +27,8 @@ beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
   Element.prototype.releasePointerCapture ??= () => {}
   Element.prototype.scrollIntoView ??= () => {}
+  // jsdom no dibuja en canvas (la lata pixel de Vacío): sin esto avisa en cada render.
+  HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext
 })
 beforeEach(() => {
   desvases.mockReset()
@@ -60,6 +62,7 @@ function tanque(numero: 1 | 2 | 3, condicion: CondicionTanque, over: Partial<Tan
     confirmadoFinEn: null,
     cipIniciadoEn: null,
     cipFinalizadoEn: null,
+    paraVacio: false,
     ...over,
   }
 }
@@ -82,6 +85,7 @@ function prep(over: Partial<PreparacionRegistro> = {}): PreparacionRegistro {
     creadoEn: "2026-10-05T07:00:00",
     liberadoEn: "2026-10-05T07:30:00",
     cerradoEn: null,
+    paraVacio: false,
     ...over,
   }
 }
@@ -135,6 +139,8 @@ interface Escenario {
   analisisPorLote?: Map<string, AnalisisCalidad[]>
   calidadLibera?: boolean | null
   puedeIrACalidad?: boolean
+  modoVacio?: boolean
+  salidasVacio?: SalidaVacioRegistro[]
 }
 
 function crearAcciones() {
@@ -149,6 +155,9 @@ function crearAcciones() {
     desvasar: vi.fn().mockResolvedValue(OK),
     medirTanque: vi.fn().mockResolvedValue(OK),
     capturarRestoOrigen: vi.fn().mockResolvedValue(OK),
+    recibirDeVacio: vi.fn().mockResolvedValue(OK),
+    entregarAVacio: vi.fn().mockResolvedValue(OK),
+    pasarAAseptico: vi.fn().mockResolvedValue(OK),
   }
 }
 type Acciones = ReturnType<typeof crearAcciones>
@@ -171,6 +180,8 @@ function renderCard(e: Escenario, acciones: Acciones = crearAcciones()) {
         puedeIrACalidad={e.puedeIrACalidad ?? false}
         turnoId={TURNO}
         acciones={acciones}
+        modoVacio={e.modoVacio}
+        salidasVacio={e.salidasVacio}
       />
     </MemoryRouter>,
   )
@@ -756,5 +767,119 @@ describe("TanqueCard — Status y Editar", () => {
   it("Editar también está en Status", () => {
     renderCard({ modo: "status", tanque: tanque(1, "LISTO") })
     boton("Editar")
+  })
+})
+
+describe("TanqueCard — Vacío", () => {
+  const TANQUE_VACIO = () => tanque(2, "LISTO", { paraVacio: true, saborNombre: "Coctel", volumenL: 5200, lote: "0412" })
+  const LOTE_VACIO = prep({ id: "pv", numeroTanque: 2, lote: "0412", paraVacio: true, volumenActualL: 5200 })
+
+  it("un tanque de Vacío se marca y, fuera del Modo Vacío, no ofrece preparar encima ni desvasar", () => {
+    renderCard({ tanque: TANQUE_VACIO(), preparaciones: [LOTE_VACIO] })
+    expect(screen.getByText("Para Vacío")).toBeInTheDocument()
+    expect(screen.getByText("Ninguna línea lo toma.")).toBeInTheDocument()
+    noHayBoton(/Iniciar (nueva )?preparación/i)
+    noHayBoton("Desvase")
+    noHayBoton(/Entregar a Vacío/)
+  })
+
+  it("Modo Vacío, tanque Limpio: preparar para Vacío manda paraVacio", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({ tanque: tanque(1, "LIMPIO"), modoVacio: true })
+    noHayBoton("Iniciar Preparación")
+    await u.click(boton("Preparar para Vacío"))
+    await elegir(u, screen.getByRole("combobox"), /Fresa/)
+    await u.type(screen.getByPlaceholderText("Lote"), "0412")
+    await u.type(screen.getByPlaceholderText("Tambores"), "10")
+    await u.click(boton("Preparar para Vacío"))
+    expect(a.iniciarPreparacion).toHaveBeenCalledWith(expect.objectContaining({ numeroTanque: 1, lote: "0412", tambores: 10, paraVacio: true }))
+  })
+
+  it("Modo Vacío, tanque Limpio: recibir de Vacío pide sabor, lote y litros", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({ tanque: tanque(1, "LIMPIO"), modoVacio: true })
+    await u.click(boton("Recibir de Vacío"))
+    await elegir(u, screen.getByRole("combobox"), /Mango/)
+    await u.type(screen.getByPlaceholderText("Lote"), " 0500 ")
+    await u.type(screen.getByPlaceholderText("Litros que llegaron"), "8000")
+    await u.click(boton("Recibir"))
+    expect(a.recibirDeVacio).toHaveBeenCalledWith({ numeroTanque: 1, saborId: "s2", lote: "0500", litros: 8000 })
+  })
+
+  it("Modo Vacío, tanque de Vacío: entregar por partes y entregar todo", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({ tanque: TANQUE_VACIO(), preparaciones: [LOTE_VACIO], modoVacio: true })
+    await u.click(boton(/Entregar a Vacío/))
+    await u.type(screen.getByPlaceholderText("Litros"), "2000")
+    expect(screen.getByText("Quedan 3.200 L en el tanque.")).toBeInTheDocument()
+    await u.click(boton("Entregar"))
+    expect(a.entregarAVacio).toHaveBeenLastCalledWith(2, 2000)
+
+    await u.click(boton(/Entregar a Vacío/))
+    await u.click(boton("Se lleva todo (5.200 L)"))
+    expect(screen.getByText("Se lleva todo: el tanque queda Con Restos 0 L.")).toBeInTheDocument()
+    await u.click(boton("Entregar"))
+    expect(a.entregarAVacio).toHaveBeenLastCalledWith(2, null)
+  })
+
+  it("no deja entregar más de lo que tiene el tanque", async () => {
+    const u = userEvent.setup()
+    renderCard({ tanque: TANQUE_VACIO(), preparaciones: [LOTE_VACIO], modoVacio: true })
+    await u.click(boton(/Entregar a Vacío/))
+    await u.type(screen.getByPlaceholderText("Litros"), "6000")
+    expect(screen.getByRole("alert")).toHaveTextContent("El tanque tiene 5.200 L. Si tiene más, primero Medir tanque.")
+    expect(boton("Entregar")).toBeDisabled()
+  })
+
+  it("Modo Vacío: pasar a Aséptico con lo medido", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({ tanque: TANQUE_VACIO(), preparaciones: [LOTE_VACIO], modoVacio: true })
+    await u.click(boton("Pasar a Aséptico"))
+    const campo = screen.getByRole("spinbutton")
+    await u.clear(campo)
+    await u.type(campo, "5100")
+    await u.click(boton("Pasar a Aséptico"))
+    expect(a.pasarAAseptico).toHaveBeenCalledWith(2, 5100)
+  })
+
+  it("Modo Vacío, lote de Aséptico: salida a Vacío", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({ tanque: tanque(1, "LISTO"), preparaciones: [prep()], modoVacio: true })
+    noHayBoton("Pasar a Aséptico")
+    await u.click(boton(/Salida a Vacío/))
+    await u.type(screen.getByPlaceholderText("Litros"), "1500")
+    await u.click(boton("Registrar salida"))
+    expect(a.entregarAVacio).toHaveBeenCalledWith(1, 1500)
+  })
+
+  it("muestra lo entregado a Vacío en el turno", () => {
+    const salida = (id: string, litros: number): SalidaVacioRegistro => ({
+      id,
+      numeroTanque: 2,
+      loteId: "pv",
+      lote: "0412",
+      saborNombre: "Coctel",
+      litros,
+      deLoteVacio: true,
+      usuarioNombre: null,
+      creadoEn: "2026-10-05T09:00:00",
+    })
+    renderCard({ tanque: TANQUE_VACIO(), preparaciones: [LOTE_VACIO], salidasVacio: [salida("s1", 3600), salida("s2", 3200)] })
+    expect(screen.getByText(/Entregado a Vacío este turno/)).toHaveTextContent("Entregado a Vacío este turno: 6.800 L en 2 entregas")
+  })
+
+  it("transferir no ofrece un tanque de Aséptico como destino de un lote de Vacío", async () => {
+    const u = userEvent.setup()
+    renderCard({
+      tanque: TANQUE_VACIO(),
+      preparaciones: [LOTE_VACIO],
+      modoVacio: true,
+      otros: [tanque(1, "LISTO", { saborId: "s1" }), tanque(3, "LIMPIO")],
+    })
+    await u.click(boton("Transferir"))
+    await u.click(boton("Es correcto, seguir"))
+    await u.click(screen.getByRole("combobox"))
+    expect(screen.queryByRole("option", { name: /Tanque 1/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("option", { name: /Tanque 3 · Limpio/ })).toBeInTheDocument()
   })
 })

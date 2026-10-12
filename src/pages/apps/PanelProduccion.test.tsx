@@ -218,6 +218,7 @@ function tanque(n: 1 | 2 | 3, over: Partial<TanqueRecepcion>): TanqueRecepcion {
     confirmadoFinEn: null,
     cipIniciadoEn: null,
     cipFinalizadoEn: null,
+    paraVacio: false,
     ...over,
   }
 }
@@ -240,6 +241,7 @@ function prep(over: Partial<PreparacionRegistro>): PreparacionRegistro {
     creadoEn: "2026-10-05T07:10:00",
     liberadoEn: "2026-10-05T07:25:00",
     cerradoEn: null,
+    paraVacio: false,
     ...over,
   }
 }

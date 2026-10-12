@@ -25,7 +25,8 @@ export function SeccionTanques({
   ahora: Date
   conLinks: boolean
 }) {
-  const listos = tanques.filter((t) => t.condicion === "LISTO").length
+  // Listos para las líneas de Aséptico: el de Vacío no cuenta.
+  const listos = tanques.filter((t) => t.condicion === "LISTO" && !t.paraVacio).length
   return (
     <PanelCard icon={Container} titulo="Tanques" meta={`${listos}/${tanques.length} listos`}>
       <ServiciosIndustrialesFranja lectura={servIndustriales} ahora={ahora} />
@@ -83,6 +84,8 @@ function TanquePanel({ tanque, preparaciones }: { tanque: TanqueRecepcion; prepa
         volumenInicialL={tanque.volumenInicialL}
         color={color}
         capacidad={TANK_CAPACITY}
+        paraVacio={tanque.paraVacio}
+        saborNombre={tanque.saborNombre}
       />
 
       {/* Pie del tanque */}
@@ -104,6 +107,11 @@ function TanquePanel({ tanque, preparaciones }: { tanque: TanqueRecepcion; prepa
             >
               {tanque.saborNombre ?? "Sabor"}
             </span>
+            {tanque.paraVacio && (
+              <span className="w-fit max-w-full truncate rounded-md bg-vacio-soft px-1.5 py-0.5 text-[10px] font-semibold text-vacio">
+                Para Vacío
+              </span>
+            )}
             {tanque.lote && (
               <p className="truncate text-[10px] text-muted-foreground">
                 {standby ? "Resto del lote " : "Lote "}

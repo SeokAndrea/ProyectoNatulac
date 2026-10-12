@@ -88,7 +88,7 @@ export function construirHistorial(
   for (const t of turno.tanques) {
     const estado =
       t.condicion === "LISTO" || t.condicion === "STANDBY"
-        ? `${t.saborNombre ?? "Sabor"} · ${t.volumenL} L${t.lote ? ` · Lote ${t.lote}` : ""}`
+        ? `${t.saborNombre ?? "Sabor"} · ${t.volumenL} L${t.lote ? ` · Lote ${t.lote}` : ""}${t.paraVacio ? " · para Vacío" : ""}`
         : t.condicion === "SUCIO"
           ? `Sucio${t.ultimoSaborNombre ? ` · último: ${t.ultimoSaborNombre}${t.ultimoLote ? ` · Lote ${t.ultimoLote}` : ""}` : ""}`
           : t.condicion === "CIP"
@@ -110,14 +110,23 @@ export function construirHistorial(
     agregar(
       p.creadoEn,
       "Preparaciones",
-      `Tanque ${p.numeroTanque}: ${p.saborNombre ?? "sin sabor"}${p.lote ? ` · Lote ${p.lote}` : ""} · ${p.tambores.toLocaleString("es-CO")} tambores${ajustes ? ` · ${ajustes}` : ""}`,
+      `Tanque ${p.numeroTanque}: ${p.saborNombre ?? "sin sabor"}${p.lote ? ` · Lote ${p.lote}` : ""} · ${p.tambores.toLocaleString("es-CO")} tambores${ajustes ? ` · ${ajustes}` : ""}${p.paraVacio ? " · para Vacío" : ""}`,
     )
-    if (p.liberadoEn) {
+    // El lote de Vacío nace Listo: no hay un "liberado" aparte.
+    if (p.liberadoEn && !p.paraVacio) {
       agregar(p.liberadoEn, "Preparaciones", `Tanque ${p.numeroTanque}: lote liberado (Listo)`)
     }
     if (p.cerradoEn) {
       agregar(p.cerradoEn, "Preparaciones", `Tanque ${p.numeroTanque}: lote finalizado`)
     }
+  }
+
+  for (const s of turno.salidasVacio) {
+    agregar(
+      s.creadoEn,
+      "Preparaciones",
+      `Tanque ${s.numeroTanque}: Vacío se llevó ${s.litros.toLocaleString("es-CO")} L${s.lote ? ` · Lote ${s.lote}` : ""}${s.deLoteVacio ? "" : " (lote de Aséptico)"}`,
+    )
   }
 
   for (const c of turno.contadores) {

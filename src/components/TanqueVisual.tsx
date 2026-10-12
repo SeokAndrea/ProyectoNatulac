@@ -1,4 +1,5 @@
 import { Clock3, Droplets, Sparkle } from "lucide-react"
+import { LataPixel } from "@/components/pixel/LataPixel"
 import type { CondicionTanque } from "@/lib/preparacion/tipos"
 import { cn } from "@/lib/utils"
 
@@ -65,6 +66,8 @@ export function TanqueVisual({
   capacidad = 20000,
   square = false,
   llenado = null,
+  paraVacio = false,
+  saborNombre = null,
 }: {
   numeroTanque: number
   condicion: CondicionTanque
@@ -76,8 +79,13 @@ export function TanqueVisual({
   square?: boolean
   /** Datos del sensor mientras se llena — activa la animación de llenado. null = no se está llenando. */
   llenado?: LlenadoTanque | null
+  /** El lote es de Vacío: líquido rayado y un sello con la lata del sabor. */
+  paraVacio?: boolean
+  /** Sabor del lote, para la fruta de la lata de Vacío. */
+  saborNombre?: string | null
 }) {
   const tieneLiquido = condicion === "LISTO" || condicion === "STANDBY"
+  const deVacio = paraVacio && tieneLiquido
   const pct = tieneLiquido ? Math.min(100, ((volumenL ?? 0) / capacidad) * 100) : 0
   const pctTexto =
     tieneLiquido && volumenInicialL && volumenInicialL > 0 ? Math.min(100, ((volumenL ?? 0) / volumenInicialL) * 100) : pct
@@ -150,7 +158,21 @@ export function TanqueVisual({
             className="liquid-bubble absolute bottom-3 left-2/3 size-1.5 rounded-full bg-white/60"
             style={{ animationDelay: "1.4s" }}
           />
+          {/* Vacío: rayado suave para que no se confunda con un lote de Aséptico. */}
+          {deVacio && (
+            <div
+              className="absolute inset-0"
+              style={{ backgroundImage: "repeating-linear-gradient(135deg, transparent 0 7px, rgb(255 255 255 / 0.28) 7px 10px)" }}
+            />
+          )}
         </div>
+      )}
+
+      {deVacio && (
+        <span className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md border border-vacio/50 bg-background/90 py-0.5 pl-0.5 pr-1.5 text-[9px] font-bold tracking-wide text-vacio">
+          <LataPixel saborNombre={saborNombre} zoom={square ? 1 : 2} />
+          VACÍO
+        </span>
       )}
 
       {condicion === "EN_PREPARACION" && !llenando && (

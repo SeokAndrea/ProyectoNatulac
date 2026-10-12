@@ -113,6 +113,7 @@ página (cada pestaña llama a `recargar()` del contexto).
 | Identidad del turno activo (quién, cuál turno, área) — la usan los 3 módulos | `src/lib/sesionTurno.tsx` (`SesionTurnoProvider`/`useSesionTurno`) |
 | Fecha/hora de planta (America/Caracas) — usar esto en vez de `new Date()` suelto | `src/lib/tiempoPlanta.ts` |
 | Tanques y lotes: iniciar preparación, liberar, ajustar, transferir, desvasar, medir tanque, fijar volumen real | `src/lib/preparacion/` (`nucleo.ts` = ciclo normal, `ajustes.ts` = correcciones/excepciones), `src/lib/preparacion/usePreparacion.ts` |
+| Vacío en tanques de Aséptico (MODO VACÍO de Preparación: preparar para Vacío, recibir de Vacío, entregar / salida a Vacío, pasar a Aséptico; fuera de la merma) | `src/lib/preparacion/vacio.ts`, `src/components/tanques/PanelVacioTanque.tsx`, interruptor en `src/components/EstadoPlantaTabs.tsx`, lata pixel en `src/components/pixel/LataPixel.tsx`; migración 20261109490000 |
 | Líneas, corridas y contadores: activar/pausar/continuar/terminar una corrida, registrar contador | `src/lib/produccion/` (mismo patrón núcleo/ajustes), `src/lib/produccion/useProduccion.ts` |
 | Producto Terminado: registrar paletas/cajas al cerrar una corrida (un total por corrida, sin entregas parciales) | `src/lib/productoTerminado.ts` |
 | Merma / meta / eficiencia (compone los 3 módulos, no calcula nada por sí mismo) | `src/lib/reportes/` (`teorico.ts` = fórmulas puras, `realidadPreparacion.ts` / `realidadProduccion.ts` = qué entra al cálculo, `index.ts` = compone) |

@@ -24,6 +24,7 @@ export function FormIniciarPreparacion({
   saborRestanteNombre,
   areaCodigo,
   usuarioSesion,
+  paraVacio = false,
   onIniciar,
   onCancelar,
 }: {
@@ -36,6 +37,8 @@ export function FormIniciarPreparacion({
   saborRestanteNombre: string | null
   areaCodigo: string | null
   usuarioSesion: string
+  /** Preparación para Vacío (Modo Vacío): no se libera, queda lista y fuera de la merma. */
+  paraVacio?: boolean
   onIniciar: (datos: DatosIniciarPreparacion) => Promise<Resultado>
   onCancelar: () => void
 }) {
@@ -93,14 +96,15 @@ export function FormIniciarPreparacion({
         azucar: azucar.trim() === "" ? null : Number(azucar),
         acidoCitrico: acidoCitrico.trim() === "" ? null : Number(acidoCitrico),
         desvaseId: desvaseId || null,
+        ...(paraVacio ? { paraVacio: true } : {}),
       }),
     )
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-      <p className="text-xs font-semibold text-muted-foreground">
-        Nueva preparación (lote independiente, no se suma a otros)
+    <div className={cn("flex flex-col gap-2 rounded-lg border border-dashed p-3", paraVacio ? "border-vacio/50" : "border-border")}>
+      <p className={cn("text-xs font-semibold", paraVacio ? "text-vacio" : "text-muted-foreground")}>
+        {paraVacio ? "Preparación para Vacío (queda lista sin liberar, no cuenta en la merma)" : "Nueva preparación (lote independiente, no se suma a otros)"}
         {volumenRestante > 0 ? ` — se suman los ${volumenRestante.toLocaleString("es-CO")} L que quedaban en el tanque.` : ""}
       </p>
       <div className="grid grid-cols-2 gap-2">
@@ -178,7 +182,7 @@ export function FormIniciarPreparacion({
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant={confirmandoSaborDistinto ? "destructive" : "default"} disabled={!valido || enviando} onClick={handleSubmit}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Beaker className="size-3.5" />}
-          {confirmandoSaborDistinto ? "¿Seguro? Sí, mezclar y preparar" : "Iniciar Preparación"}
+          {confirmandoSaborDistinto ? "¿Seguro? Sí, mezclar y preparar" : paraVacio ? "Preparar para Vacío" : "Iniciar Preparación"}
         </Button>
         <Button size="sm" variant="ghost" onClick={confirmandoSaborDistinto ? () => setConfirmandoSaborDistinto(false) : onCancelar}>
           Cancelar

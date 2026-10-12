@@ -62,6 +62,8 @@
     --color-danger-foreground: var(--danger-foreground);
     --color-danger-soft: var(--danger-soft);
     --color-info: var(--info);
+    --color-vacio: var(--vacio);
+    --color-vacio-soft: var(--vacio-soft);
     --color-flavor-orange: var(--flavor-orange);
     --color-flavor-yellow: var(--flavor-yellow);
     --color-flavor-red: var(--flavor-red);
@@ -105,6 +107,9 @@
     --danger-foreground: oklch(0.42 0.17 24);
     --danger-soft: oklch(0.94 0.05 22);
     --info: oklch(0.55 0.16 245);
+    /* Vacío (latas): tanques de Aséptico con producto de Vacío y el Modo Vacío de Preparación. */
+    --vacio: oklch(0.45 0.13 268);
+    --vacio-soft: oklch(0.94 0.03 268);
     --flavor-orange: oklch(0.72 0.18 55);
     --flavor-yellow: oklch(0.84 0.16 92);
     --flavor-red: oklch(0.58 0.22 26);
@@ -157,6 +162,8 @@
     --danger-foreground: oklch(0.9 0.08 24);
     --danger-soft: oklch(0.34 0.09 24);
     --info: oklch(0.72 0.14 245);
+    --vacio: oklch(0.74 0.11 268);
+    --vacio-soft: oklch(0.27 0.05 268);
     --flavor-orange: oklch(0.75 0.18 55);
     --flavor-yellow: oklch(0.86 0.16 92);
     --flavor-red: oklch(0.63 0.22 26);

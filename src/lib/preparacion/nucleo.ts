@@ -31,6 +31,8 @@ export async function iniciarPreparacion(
     p_azucar: datos.azucar,
     p_acido_citrico: datos.acidoCitrico,
     p_desvase_id: datos.desvaseId,
+    // Solo se manda si es para Vacío: así una preparación normal sigue andando aunque falte la migración 20261109490000.
+    ...(datos.paraVacio ? { p_para_vacio: true } : {}),
   })
 
   if (error || !data) {

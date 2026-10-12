@@ -91,6 +91,7 @@ const TANQUE_LISTO: TanqueRecepcion = {
   confirmadoFinEn: null,
   cipIniciadoEn: null,
   cipFinalizadoEn: null,
+  paraVacio: false,
 }
 
 const PRESENTACIONES = [

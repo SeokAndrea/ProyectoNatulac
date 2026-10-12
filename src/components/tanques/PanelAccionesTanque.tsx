@@ -56,6 +56,8 @@ export function PanelAccionesTanque({
   const conResto = conLiquido(tanque)
   /** Guardrail #1: el tanque tiene producto sin usar — al preparar encima, se suma solo por default (ver iniciar_preparacion). */
   const tieneResto = conResto && (tanque.volumenL ?? 0) > 0
+  /** Lote de Vacío: sus opciones (entregar, pasar a Aséptico) están en MODO VACÍO; acá no se prepara encima ni se desvasa. */
+  const deVacio = conResto && tanque.paraVacio
 
   async function iniciarCip() {
     if (!confirmandoCip) {
@@ -123,17 +125,22 @@ export function PanelAccionesTanque({
     }
     return (
       <div className="flex flex-col gap-2">
-        {tieneResto && (
+        {deVacio && (
+          <p className="text-xs text-vacio">Tanque de Vacío: entregar o pasar a Aséptico, en MODO VACÍO.</p>
+        )}
+        {tieneResto && !deVacio && (
           <p className="text-xs text-muted-foreground">
             Quedan {(tanque.volumenL ?? 0).toLocaleString("es-CO")} L de {tanque.saborNombre} sin usar — al preparar encima, se
             suman solos al lote nuevo. Para otra cosa: Transferir o Desvase.
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => setForm("preparar")}>
-            <Beaker className="size-3.5" />
-            {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
-          </Button>
+          {!deVacio && (
+            <Button size="sm" variant="outline" onClick={() => setForm("preparar")}>
+              <Beaker className="size-3.5" />
+              {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
+            </Button>
+          )}
           <Button size="sm" variant={confirmandoCip ? "destructive" : "outline"} disabled={cip.enviando} onClick={iniciarCip}>
             {cip.enviando ? <Loader2 className="size-3.5 animate-spin" /> : <BroomSparkles className="size-3.5" />}
             {confirmandoCip ? "¿Seguro? Sí, iniciar CIP" : "Iniciar CIP"}
@@ -161,7 +168,7 @@ export function PanelAccionesTanque({
               Transferir
             </Button>
           )}
-          {DESVASE_HABILITADO && tieneResto && (
+          {DESVASE_HABILITADO && tieneResto && !deVacio && (
             <Button size="sm" variant="outline" onClick={desvasar} disabled={desvase.enviando}>
               {desvase.enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageOpen className="size-3.5" />}
               {confirmandoDesvase ? "¿Seguro? Sí, desvasar" : "Desvase"}

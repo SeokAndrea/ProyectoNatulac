@@ -168,6 +168,7 @@ export default function Historial() {
         novedades: detalle.novedades,
         ajustesVolumen: detalle.ajustesVolumen,
         transferencias: detalle.transferencias,
+        salidasVacio: detalle.salidasVacio,
         paradas,
         responsables: detalle.responsables,
         esquema: detalle.esquema,

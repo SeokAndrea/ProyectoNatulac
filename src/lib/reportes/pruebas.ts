@@ -259,6 +259,7 @@ function construirCaso(nombre: string, filas: FilaCaso[]): CasoPrueba {
         creadoEn: "",
         liberadoEn: "",
         cerradoEn: f.loteCerrado ? "2026-01-01T12:00:00Z" : null,
+        paraVacio: false,
       })
     }
 

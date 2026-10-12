@@ -41,6 +41,18 @@ en el rendimiento de Aséptico.
 
 **Por confirmar:** que la salida parcial (último punto) haga falta, o si también se resuelve con el interruptor.
 
+**Programado (2026-10-12, migración 20261109490000, `src/lib/preparacion/vacio.ts`).** Cambió respecto de lo de
+arriba: en vez de un interruptor por tanque, Preparación tiene un interruptor **MODO VACÍO** que cambia los botones de
+cada tanque por los 4 casos de Vacío (`src/components/tanques/PanelVacioTanque.tsx`):
+1. **Preparar para Vacío** (con tambores; no se libera, queda listo).
+2. **Recibir de Vacío** (llega por tubería: sabor, lote y litros a mano).
+3. **Pasar a Aséptico** (se mide; lo medido es el 100% del lote nuevo de Aséptico).
+4. **Salida a Vacío** (Vacío se lleva una parte de un lote de Aséptico: no es merma).
+
+El tanque de Vacío se entrega **por partes** ("Entregar a Vacío"); cuando se lleva todo, queda Con Restos 0 L. Se
+dibuja con el líquido rayado y un sello con una lata pixel de 340 ml (`src/components/pixel/LataPixel.tsx`). Calidad
+no entra. Ensayo: `scripts/ensayo-20261109-vacio.sql`.
+
 ## 3. Finalizar Turno, Mis Actas y Resumen Diario
 
 Hoy está repartido (Resumen del Día, Mis Actas, Auditoría), es confuso, y los supervisores no logran imprimir el

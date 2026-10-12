@@ -38,6 +38,7 @@ export async function regenerarActaDeMiTurno(
       novedades: turno.novedades,
       ajustesVolumen: turno.ajustesVolumen,
       transferencias: turno.transferencias,
+      salidasVacio: turno.salidasVacio,
       paradas,
       serviciosIndustriales,
       responsables: turno.responsables,

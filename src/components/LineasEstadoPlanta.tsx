@@ -84,7 +84,8 @@ export function LineasEstadoPlanta({
     continuarCorridaDetenida: produccion.continuarCorridaDetenida,
     terminarLinea: produccion.terminarLinea,
   }
-  const tanquesListos = tanques.filter((t) => t.condicion === "LISTO")
+  // Un tanque de Vacío no lo toma ninguna línea (el servidor también lo frena).
+  const tanquesListos = tanques.filter((t) => t.condicion === "LISTO" && !t.paraVacio)
 
   return (
     <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">

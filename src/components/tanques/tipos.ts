@@ -1,6 +1,7 @@
 import type {
   DatosCambiarTanque,
   DatosIniciarPreparacion,
+  DatosRecibirDeVacio,
   ModoTransferencia,
   MotivoTransferencia,
   Resultado,
@@ -20,4 +21,8 @@ export interface AccionesTanque {
   desvasar: (numeroTanque: Tanque) => Promise<Resultado>
   medirTanque: (numeroTanque: Tanque, volumenReal: number) => Promise<Resultado>
   capturarRestoOrigen: (origen: Tanque, litrosResto: number) => Promise<Resultado>
+  /** Vacío (src/lib/preparacion/vacio.ts). */
+  recibirDeVacio: (datos: DatosRecibirDeVacio) => Promise<Resultado>
+  entregarAVacio: (numeroTanque: Tanque, litros: number | null) => Promise<Resultado>
+  pasarAAseptico: (numeroTanque: Tanque, volumenReal: number) => Promise<Resultado>
 }

@@ -11,9 +11,11 @@ import type {
   FilaAjusteVolumen,
   FilaDesvaseLote,
   FilaPreparacion,
+  FilaSalidaVacio,
   FilaTanque,
   FilaTransferencia,
   PreparacionRegistro,
+  SalidaVacioRegistro,
   TanqueRecepcion,
   TransferenciaRegistro,
 } from "./tipos"
@@ -35,6 +37,7 @@ export function mapearTanque(fila: FilaTanque): TanqueRecepcion {
     confirmadoFinEn: fila.confirmado_fin_en,
     cipIniciadoEn: fila.cip_iniciado_en,
     cipFinalizadoEn: fila.cip_finalizado_en,
+    paraVacio: fila.para_vacio ?? false,
   }
 }
 
@@ -56,6 +59,30 @@ export function mapearPreparacion(fila: FilaPreparacion): PreparacionRegistro {
     creadoEn: fila.creado_en,
     liberadoEn: fila.liberado_en,
     cerradoEn: fila.cerrado_en,
+    paraVacio: fila.para_vacio ?? false,
+  }
+}
+
+/**
+ * Para la merma, una salida a Vacío es como un desvase: litros que el lote
+ * entregó afuera. Se suman a la lista de desvases que va a Reportes (es su
+ * único uso), así cada pantalla que calcula merma las resta sin cambios.
+ */
+export function salidasComoDesvases(salidas: SalidaVacioRegistro[]): DesvaseLoteRegistro[] {
+  return salidas.map((s) => ({ id: s.id, litros: s.litros, loteIdOrigen: s.loteId, creadoEn: s.creadoEn }))
+}
+
+export function mapearSalidaVacio(fila: FilaSalidaVacio): SalidaVacioRegistro {
+  return {
+    id: fila.id,
+    numeroTanque: fila.numero_tanque as 1 | 2 | 3,
+    loteId: fila.lote_id,
+    lote: fila.lote,
+    saborNombre: saborSinFamiliaOculta(fila.sabor_nombre),
+    litros: Number(fila.litros),
+    deLoteVacio: fila.de_lote_vacio,
+    usuarioNombre: fila.usuario_nombre,
+    creadoEn: fila.creado_en,
   }
 }
 

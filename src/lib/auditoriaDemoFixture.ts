@@ -84,6 +84,7 @@ export function tanque(over: Partial<TanqueRecepcion> & Pick<TanqueRecepcion, "n
     confirmadoFinEn: null,
     cipIniciadoEn: null,
     cipFinalizadoEn: null,
+    paraVacio: false,
     ...over,
   }
 }
@@ -124,6 +125,7 @@ export function prep(
     acidoCitrico: 18,
     liberadoEn: null,
     cerradoEn: null,
+    paraVacio: false,
     ...over,
   }
 }
@@ -168,6 +170,7 @@ export function turnoDemo(over: Override): TurnoHistorial {
     preparaciones: [],
     transferencias: [],
     desvases: [],
+    salidasVacio: [],
     novedades: [],
     ajustesVolumen: [],
     ...over,

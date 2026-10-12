@@ -181,6 +181,7 @@ const tanque = (n: 1 | 2 | 3, over: Partial<TanqueRecepcion>): TanqueRecepcion =
   confirmadoFinEn: null,
   cipIniciadoEn: null,
   cipFinalizadoEn: null,
+  paraVacio: false,
   ...over,
 })
 
@@ -199,7 +200,7 @@ function cargarDatos() {
     tanque(2, { condicion: "STANDBY", saborId: "s2", saborNombre: "Mango", lote: "0002", volumenL: 300 }),
   ]
   datos.preparaciones = [
-    { id: "p1", turnoId: "t-1", numeroTanque: 1, saborId: "s1", saborNombre: "Fresa", lote: "0001", volumenActualL: 6500, volumenPreparadoL: 20000, volumenAlIniciarTurnoL: 20000, tambores: 100, agua: null, azucar: null, acidoCitrico: null, creadoEn: "2026-10-05T07:00:00", liberadoEn: "2026-10-05T07:30:00", cerradoEn: null },
+    { id: "p1", turnoId: "t-1", numeroTanque: 1, saborId: "s1", saborNombre: "Fresa", lote: "0001", volumenActualL: 6500, volumenPreparadoL: 20000, volumenAlIniciarTurnoL: 20000, tambores: 100, agua: null, azucar: null, acidoCitrico: null, creadoEn: "2026-10-05T07:00:00", liberadoEn: "2026-10-05T07:30:00", cerradoEn: null, paraVacio: false },
   ]
 }
 

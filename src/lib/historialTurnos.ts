@@ -3,16 +3,26 @@ import { MENSAJE_SOLO_LECTURA, rpcBloqueada } from "@/lib/soloLectura"
 import type { AreaCodigo, GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { saborSinFamiliaOculta } from "@/lib/turno"
 import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/sesionTurno"
-import { mapearAjusteVolumen, mapearDesvaseLote, mapearPreparacion, mapearTanque, mapearTransferencia } from "@/lib/preparacion/mapear"
+import {
+  mapearAjusteVolumen,
+  mapearDesvaseLote,
+  mapearPreparacion,
+  mapearSalidaVacio,
+  mapearTanque,
+  mapearTransferencia,
+  salidasComoDesvases,
+} from "@/lib/preparacion/mapear"
 import type {
   AjusteVolumenRegistro,
   DesvaseLoteRegistro,
   FilaAjusteVolumen,
   FilaDesvaseLote,
   FilaPreparacion,
+  FilaSalidaVacio,
   FilaTanque,
   FilaTransferencia,
   PreparacionRegistro,
+  SalidaVacioRegistro,
   TanqueRecepcion,
   TransferenciaRegistro,
 } from "@/lib/preparacion/tipos"
@@ -70,7 +80,10 @@ export interface TurnoHistorial {
   contadores: ContadorRegistro[]
   productoTerminado: ProductoTerminadoRegistro[]
   transferencias: TransferenciaRegistro[]
+  /** Desvases a pipa + salidas a Vacío (salidasComoDesvases): todo lo que un lote entregó afuera. Solo para la merma. */
   desvases: DesvaseLoteRegistro[]
+  /** Litros que Vacío se llevó en el turno (migración 20261109490000). */
+  salidasVacio: SalidaVacioRegistro[]
   novedades: NovedadTurno[]
   ajustesVolumen: AjusteVolumenRegistro[]
 }
@@ -110,11 +123,13 @@ interface FilaTurnoHistorial {
   preparaciones: FilaPreparacion[]
   transferencias: FilaTransferencia[]
   desvases: FilaDesvaseLote[]
+  salidas_vacio?: FilaSalidaVacio[]
   novedades: FilaNovedadTurno[]
   ajustes_volumen: FilaAjusteVolumen[]
 }
 
 export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
+  const salidasVacio = (fila.salidas_vacio ?? []).map(mapearSalidaVacio)
   return {
     id: fila.id,
     codigo: fila.codigo,
@@ -147,7 +162,8 @@ export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
     contadores: fila.contadores.map(mapearContador),
     productoTerminado: fila.producto_terminado.map(mapearProductoTerminado),
     transferencias: fila.transferencias.map(mapearTransferencia),
-    desvases: fila.desvases.map(mapearDesvaseLote),
+    desvases: [...fila.desvases.map(mapearDesvaseLote), ...salidasComoDesvases(salidasVacio)],
+    salidasVacio,
     novedades: fila.novedades.map(mapearNovedadTurno),
     ajustesVolumen: fila.ajustes_volumen.map(mapearAjusteVolumen),
   }

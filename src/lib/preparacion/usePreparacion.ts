@@ -28,21 +28,37 @@ import {
 } from "./ajustes"
 import { confirmarEstadoTanque as confirmarEstadoTanqueAccion, iniciarPreparacion as iniciarPreparacionAccion, liberarLote as liberarLoteAccion } from "./nucleo"
 import { registrarAnalisisCalidad as registrarAnalisisCalidadAccion, type DatosAnalisisCalidad } from "@/lib/calidad"
-import { mapearAjusteVolumen, mapearDesvaseLote, mapearPreparacion, mapearTanque, mapearTransferencia } from "./mapear"
+import {
+  mapearAjusteVolumen,
+  mapearDesvaseLote,
+  mapearPreparacion,
+  mapearSalidaVacio,
+  mapearTanque,
+  mapearTransferencia,
+  salidasComoDesvases,
+} from "./mapear"
+import {
+  entregarAVacio as entregarAVacioAccion,
+  pasarLoteAAseptico as pasarLoteAAsepticoAccion,
+  recibirDeVacio as recibirDeVacioAccion,
+} from "./vacio"
 import type {
   AjusteVolumenRegistro,
   DatosCambiarTanque,
   DatosIniciarPreparacion,
+  DatosRecibirDeVacio,
   DesvaseLoteRegistro,
   FilaAjusteVolumen,
   FilaDesvaseLote,
   FilaPreparacion,
+  FilaSalidaVacio,
   FilaTanque,
   FilaTransferencia,
   ModoTransferencia,
   MotivoTransferencia,
   PreparacionRegistro,
   Resultado,
+  SalidaVacioRegistro,
   TanqueRecepcion,
   TransferenciaRegistro,
 } from "./tipos"
@@ -53,6 +69,8 @@ interface FilaTurnoPreparacion {
   transferencias: FilaTransferencia[]
   desvases: FilaDesvaseLote[]
   ajustes_volumen: FilaAjusteVolumen[]
+  /** Sin la migración 20261109490000 no viene. */
+  salidas_vacio?: FilaSalidaVacio[]
 }
 
 export interface UsePreparacionResultado {
@@ -60,9 +78,12 @@ export interface UsePreparacionResultado {
   preparaciones: PreparacionRegistro[]
   /** Solo para alimentar el cálculo de merma (restar lo transferido del tramo de un lote) — no hay UI que liste esto todavía. */
   transferencias: TransferenciaRegistro[]
+  /** Desvases a pipa + salidas a Vacío (salidasComoDesvases): todo lo que un lote entregó afuera. Solo para la merma. */
   desvases: DesvaseLoteRegistro[]
   /** Ajustes de volumen (sumar agua/jugo, botón "Ajustar") de este turno — alimenta el Acta de Entrega. */
   ajustesVolumen: AjusteVolumenRegistro[]
+  /** Litros que Vacío se llevó en este turno — no son merma. */
+  salidasVacio: SalidaVacioRegistro[]
   cargando: boolean
   recargar: () => Promise<void>
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
@@ -87,6 +108,10 @@ export interface UsePreparacionResultado {
   confirmarEstadoTanque: (numeroTanque: 1 | 2 | 3, momento: "INICIO" | "FIN") => Promise<Resultado>
   /** TODO (Fase 2 del plan): todavía hace CIP + confirmar INICIO/FIN — ver ajustes.ts. */
   cambiarCondicionTanque: (datos: DatosCambiarTanque) => Promise<Resultado>
+  /** Vacío (ver vacio.ts). */
+  recibirDeVacio: (datos: DatosRecibirDeVacio) => Promise<Resultado>
+  entregarAVacio: (numeroTanque: 1 | 2 | 3, litros: number | null) => Promise<Resultado>
+  pasarLoteAAseptico: (numeroTanque: 1 | 2 | 3, volumenReal: number) => Promise<Resultado>
 }
 
 /**
@@ -113,14 +138,17 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
   const [transferencias, setTransferencias] = useState<TransferenciaRegistro[]>([])
   const [desvases, setDesvases] = useState<DesvaseLoteRegistro[]>([])
   const [ajustesVolumen, setAjustesVolumen] = useState<AjusteVolumenRegistro[]>([])
+  const [salidasVacio, setSalidasVacio] = useState<SalidaVacioRegistro[]>([])
   const [cargando, setCargando] = useState(true)
 
   function tomarDatos(fila: FilaTurnoPreparacion | null) {
     setTanques(fila ? fila.tanques.map(mapearTanque) : [])
     setPreparaciones(fila ? fila.preparaciones.map(mapearPreparacion) : [])
     setTransferencias(fila ? fila.transferencias.map(mapearTransferencia) : [])
-    setDesvases(fila ? fila.desvases.map(mapearDesvaseLote) : [])
+    const salidas = fila ? (fila.salidas_vacio ?? []).map(mapearSalidaVacio) : []
+    setDesvases(fila ? [...fila.desvases.map(mapearDesvaseLote), ...salidasComoDesvases(salidas)] : [])
     setAjustesVolumen(fila ? fila.ajustes_volumen.map(mapearAjusteVolumen) : [])
+    setSalidasVacio(salidas)
   }
 
   const recargar = useCallback(async () => {
@@ -224,12 +252,34 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     return resultado
   }
 
+  async function recibirDeVacio(datos: DatosRecibirDeVacio): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await recibirDeVacioAccion(usuario, turnoId, datos)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
+  async function entregarAVacio(numeroTanque: 1 | 2 | 3, litros: number | null): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await entregarAVacioAccion(usuario, turnoId, numeroTanque, litros)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
+  async function pasarLoteAAseptico(numeroTanque: 1 | 2 | 3, volumenReal: number): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await pasarLoteAAsepticoAccion(usuario, turnoId, numeroTanque, volumenReal)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
   return {
     tanques,
     preparaciones,
     transferencias,
     desvases,
     ajustesVolumen,
+    salidasVacio,
     cargando,
     recargar,
     iniciarPreparacion,
@@ -243,5 +293,8 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     capturarRestoOrigenTransferencia,
     confirmarEstadoTanque,
     cambiarCondicionTanque,
+    recibirDeVacio,
+    entregarAVacio,
+    pasarLoteAAseptico,
   }
 }

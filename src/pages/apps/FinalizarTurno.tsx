@@ -214,6 +214,7 @@ export default function FinalizarTurno() {
       novedades: novedades.novedades,
       ajustesVolumen: prep.ajustesVolumen,
       transferencias: prep.transferencias,
+      salidasVacio: prep.salidasVacio,
       paradas,
       serviciosIndustriales,
       responsables: sesion.responsables,

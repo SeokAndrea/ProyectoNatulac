@@ -10,7 +10,7 @@ import { TanqueEditForm } from "@/components/TanqueEditForm"
 import { TanqueVisual } from "@/components/TanqueVisual"
 import type { AnalisisCalidad } from "@/lib/calidad"
 import { colorSabor } from "@/lib/coloresSabor"
-import type { ModoTransferencia, PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
+import type { ModoTransferencia, PreparacionRegistro, SalidaVacioRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida } from "@/lib/produccion/tipos"
 import type { Sabor } from "@/lib/sabores"
 import { useAccion } from "@/lib/useAccion"
@@ -21,6 +21,7 @@ import { DialogTransferir } from "./DialogTransferir"
 import { badgeVariantCondicion, conLiquido, nombreCondicionTanque, saborDibujado } from "./estadoTanque"
 import { PanelAccionesTanque } from "./PanelAccionesTanque"
 import { PanelEnPreparacion } from "./PanelEnPreparacion"
+import { PanelVacioTanque } from "./PanelVacioTanque"
 import type { AccionesTanque } from "./tipos"
 
 /** Transferencia hecha que falta cerrar con lo medido. */
@@ -49,6 +50,8 @@ export function TanqueCard({
   puedeIrACalidad,
   turnoId,
   acciones,
+  modoVacio = false,
+  salidasVacio = [],
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
@@ -66,6 +69,10 @@ export function TanqueCard({
   puedeIrACalidad: boolean
   turnoId: string | null
   acciones: AccionesTanque
+  /** Preparación en MODO VACÍO: los botones son los de Vacío (PanelVacioTanque). */
+  modoVacio?: boolean
+  /** Salidas a Vacío del turno (de todos los tanques). */
+  salidasVacio?: SalidaVacioRegistro[]
 }) {
   const [editando, setEditando] = useState(false)
   const [transfiriendo, setTransfiriendo] = useState(false)
@@ -77,11 +84,16 @@ export function TanqueCard({
   const loteActivoSinCorrida =
     loteActivo !== null && loteActivo.turnoId === turnoId && !corridasDelTurno.some((c) => c.loteId === loteActivo.id)
   const hayCorridaEnEsteTanque = loteActivo !== null && corridasDelTurno.some((c) => c.loteId === loteActivo.id && c.activa)
+  // Un lote de Vacío y uno de Aséptico no se mezclan (transferir_tanque también lo frena).
   const destinos = tanquesDelTurno.filter(
     (t) =>
       t.numeroTanque !== tanque.numeroTanque &&
-      (t.condicion === "LIMPIO" || (conLiquido(t) && t.saborId !== null && t.saborId === tanque.saborId)),
+      (t.condicion === "LIMPIO" ||
+        (conLiquido(t) && t.saborId !== null && t.saborId === tanque.saborId && t.paraVacio === tanque.paraVacio)),
   )
+  const deVacio = tanque.paraVacio && conLiquido(tanque)
+  const entregadoAVacio = loteActivo ? salidasVacio.filter((s) => s.loteId === loteActivo.id) : []
+  const litrosEntregados = entregadoAVacio.reduce((suma, s) => suma + s.litros, 0)
   /** Tanque destino tal como quedó DESPUÉS de la transferencia (dato fresco del turno). */
   const destinoTransferido = transferencia ? tanquesDelTurno.find((t) => t.numeroTanque === transferencia.destino) : undefined
 
@@ -93,8 +105,8 @@ export function TanqueCard({
             <Container className="size-4.5 text-muted-foreground" />
             Tanque {tanque.numeroTanque}
           </span>
-          <Badge variant={badgeVariantCondicion[tanque.condicion]} className="shrink-0">
-            {nombreCondicionTanque(tanque.condicion, tanque.volumenL)}
+          <Badge variant={deVacio ? "vacio" : badgeVariantCondicion[tanque.condicion]} className="shrink-0">
+            {deVacio ? "Para Vacío" : nombreCondicionTanque(tanque.condicion, tanque.volumenL)}
           </Badge>
         </div>
 
@@ -107,6 +119,8 @@ export function TanqueCard({
             color={colorSabor(saborDibujado(tanque, loteAbierto))}
             capacidad={TANK_CAPACITY}
             square
+            paraVacio={tanque.paraVacio}
+            saborNombre={tanque.saborNombre}
           />
           <div className="min-w-0 flex-1">
             {conLiquido(tanque) && (
@@ -117,6 +131,14 @@ export function TanqueCard({
 
         <div className="min-w-0">
           <DescripcionTanque tanque={tanque} loteAbierto={loteAbierto} />
+          {deVacio && <p className="text-xs text-vacio">Ninguna línea lo toma.</p>}
+          {litrosEntregados > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Entregado a Vacío este turno:{" "}
+              <span className="num font-medium text-foreground">{litrosEntregados.toLocaleString("es-CO")} L</span>
+              {entregadoAVacio.length > 1 ? ` en ${entregadoAVacio.length} entregas` : ""}
+            </p>
+          )}
         </div>
 
         {/* También en modo "status": si al editar el tanque queda En Preparación, se debe poder liberar aquí mismo sin ir a Preparación. */}
@@ -150,7 +172,19 @@ export function TanqueCard({
           </>
         )}
 
-        {modo === "preparacion" && tanque.condicion !== "EN_PREPARACION" && tanque.condicion !== "CIP" && (
+        {modo === "preparacion" && modoVacio && tanque.condicion !== "EN_PREPARACION" && tanque.condicion !== "CIP" && (
+          <PanelVacioTanque
+            tanque={tanque}
+            sabores={sabores}
+            puedeTransferir={destinos.length > 0}
+            areaCodigo={areaCodigo}
+            usuarioSesion={usuarioSesion}
+            acciones={acciones}
+            onTransferir={() => setTransfiriendo(true)}
+          />
+        )}
+
+        {modo === "preparacion" && !modoVacio && tanque.condicion !== "EN_PREPARACION" && tanque.condicion !== "CIP" && (
           <PanelAccionesTanque
             tanque={tanque}
             sabores={sabores}

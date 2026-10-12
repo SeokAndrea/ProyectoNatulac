@@ -4,6 +4,7 @@ import type { DesvaseLoteRegistro, PreparacionRegistro, TransferenciaRegistro } 
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import { calcularConsumoYProducido } from "./realidadPreparacion"
 import { mermaSemielaboradoTurno } from "./index"
+import { salidasComoDesvases } from "@/lib/preparacion/mapear"
 
 /*
  * Merma de semielaborado — casos de "preparar encima" y transferir.
@@ -38,6 +39,7 @@ function lote(over: Partial<PreparacionRegistro>): PreparacionRegistro {
     creadoEn: "",
     liberadoEn: "",
     cerradoEn: "2026-09-10T18:00:00Z",
+    paraVacio: false,
     ...over,
   }
 }
@@ -294,5 +296,55 @@ describe("calcularConsumoYProducido — transferencias y desvases", () => {
     expect(r.consumo).toBe(0)
     expect(r.producido).toBe(0)
     expect(r.litrosSinContraste).toBe(0)
+  })
+})
+
+/*
+ * Vacío en tanques de Aséptico (migración 20261109490000): un lote de
+ * Vacío no entra en la merma de Aséptico, y lo que Vacío se lleva de un
+ * lote de Aséptico se resta como un desvase (llega en `desvases` vía
+ * salidasComoDesvases).
+ */
+describe("calcularConsumoYProducido — Vacío", () => {
+  it("un lote de Vacío preparado en el turno no cuenta: sin corridas ni PT, no es merma", () => {
+    const r = calcularConsumoYProducido(
+      TURNO,
+      [lote({ id: "lote-vacio", paraVacio: true, volumenAlIniciarTurnoL: 12000, volumenPreparadoL: 12000, volumenActualL: 0, cerradoEn: null })],
+      [],
+      [],
+      SIN_CONTADORES,
+      [],
+    )
+    expect(r.consumo).toBe(0)
+    expect(r.producido).toBe(0)
+    expect(r.hayLoteAbierto).toBe(false)
+  })
+
+  it("Vacío se lleva parte de un lote de Aséptico: esos litros no son consumo", () => {
+    // 10000 al inicio, Vacío se llevó 3000, la línea envasó 6900 y quedó en 0.
+    const r = calcularConsumoYProducido(
+      TURNO,
+      [lote({ id: "lote-a", volumenAlIniciarTurnoL: 10000, volumenPreparadoL: 10000, volumenActualL: 0 })],
+      [corrida({ loteId: "lote-a" })],
+      [pt(6900)],
+      SIN_CONTADORES,
+      [],
+      [],
+      salidasComoDesvases([
+        {
+          id: "sal-1",
+          numeroTanque: 1,
+          loteId: "lote-a",
+          lote: "0003",
+          saborNombre: "Pera",
+          litros: 3000,
+          deLoteVacio: false,
+          usuarioNombre: null,
+          creadoEn: "2026-09-15T12:00:00Z",
+        },
+      ]),
+    )
+    expect(r.consumo).toBe(7000)
+    expect(r.producido).toBe(6900)
   })
 })

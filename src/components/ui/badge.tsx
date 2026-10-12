@@ -24,6 +24,7 @@ const badgeVariants = cva(
         warning: "bg-warning-soft text-warning-foreground [a]:hover:bg-warning-soft/80",
         danger: "bg-danger-soft text-danger-foreground [a]:hover:bg-danger-soft/80",
         info: "bg-info/10 text-info [a]:hover:bg-info/20",
+        vacio: "border-vacio/40 bg-vacio-soft text-vacio [a]:hover:bg-vacio-soft/80",
       },
     },
     defaultVariants: {

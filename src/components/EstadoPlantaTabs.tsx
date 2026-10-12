@@ -1,4 +1,6 @@
+import { useState } from "react"
 import { Loader2 } from "lucide-react"
+import { LataPixel } from "@/components/pixel/LataPixel"
 import { TanqueCard } from "@/components/tanques/TanqueCard"
 import type { AccionesTanque } from "@/components/tanques/tipos"
 import { useAuth } from "@/lib/auth"
@@ -8,6 +10,18 @@ import type { Sabor } from "@/lib/sabores"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
+import { cn } from "@/lib/utils"
+
+/** El Modo Vacío se recuerda en este navegador (es una comodidad, no un dato). */
+const LLAVE_MODO_VACIO = "preparacion.modoVacio"
+
+function leerModoVacio(): boolean {
+  try {
+    return localStorage.getItem(LLAVE_MODO_VACIO) === "1"
+  } catch {
+    return false
+  }
+}
 
 export type ModoEstadoPlanta = "status" | "preparacion"
 
@@ -47,6 +61,11 @@ export type ModoEstadoPlanta = "status" | "preparacion"
  * ninguna de sus mutaciones.
  *
  * La tarjeta de cada tanque y sus paneles viven en src/components/tanques/.
+ *
+ * MODO VACÍO (solo en "preparacion"): un interruptor cambia los botones de
+ * cada tanque por los de Vacío — Preparar para Vacío, Recibir de Vacío,
+ * Entregar / Salida a Vacío, Pasar a Aséptico (PanelVacioTanque). Ver
+ * migración 20261109490000.
  */
 export function EstadoPlantaTabs({
   sabores,
@@ -68,6 +87,17 @@ export function EstadoPlantaTabs({
   const { porLote: analisisPorLote } = useAnalisisCalidad(lotesAbiertos)
   const puedeIrACalidad = puede(session, "LOTE_LIBERAR") || session?.area === "PRUEBAS"
   const calidadLibera = useCalidadLibera(session?.area ?? null)
+  const [modoVacio, setModoVacio] = useState(leerModoVacio)
+
+  function cambiarModoVacio() {
+    const nuevo = !modoVacio
+    setModoVacio(nuevo)
+    try {
+      localStorage.setItem(LLAVE_MODO_VACIO, nuevo ? "1" : "0")
+    } catch {
+      // Sin almacenamiento: el modo dura hasta recargar.
+    }
+  }
 
   if (cargando || cargandoProduccion) {
     return (
@@ -88,10 +118,46 @@ export function EstadoPlantaTabs({
     desvasar: preparacion.desvasarTanque,
     medirTanque: preparacion.medirTanque,
     capturarRestoOrigen: preparacion.capturarRestoOrigenTransferencia,
+    recibirDeVacio: preparacion.recibirDeVacio,
+    entregarAVacio: preparacion.entregarAVacio,
+    pasarAAseptico: preparacion.pasarLoteAAseptico,
   }
 
+  const vacioActivo = modo === "preparacion" && modoVacio
+
   return (
-    <div className="mx-auto grid max-w-3xl grid-cols-1 gap-2 sm:grid-cols-3">
+    <div className={cn("mx-auto flex max-w-3xl flex-col gap-2", vacioActivo && "rounded-xl bg-vacio-soft p-2")}>
+      {modo === "preparacion" && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {vacioActivo && (
+            <p className="mr-auto text-xs font-medium text-vacio">
+              Modo Vacío: los botones de cada tanque son los de Vacío. Nada de esto cuenta en la merma de Aséptico.
+            </p>
+          )}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={modoVacio}
+            onClick={cambiarModoVacio}
+            className={cn(
+              "flex items-center gap-2 rounded-full border-2 bg-card py-1 pl-1.5 pr-3 text-xs font-bold tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vacio",
+              modoVacio ? "border-vacio text-vacio" : "border-border text-muted-foreground",
+            )}
+          >
+            <span className={cn("relative h-5 w-9 rounded-full transition-colors", modoVacio ? "bg-vacio" : "bg-border")}>
+              <span
+                className={cn(
+                  "absolute left-0.5 top-0.5 size-4 rounded-full bg-card transition-transform",
+                  modoVacio && "translate-x-4",
+                )}
+              />
+            </span>
+            <LataPixel saborNombre="Coctel" />
+            MODO VACÍO
+          </button>
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
       {tanques.map((t) => (
         <TanqueCard
           key={t.numeroTanque}
@@ -108,8 +174,11 @@ export function EstadoPlantaTabs({
           puedeIrACalidad={puedeIrACalidad}
           turnoId={turnoId}
           acciones={acciones}
+          modoVacio={vacioActivo}
+          salidasVacio={preparacion.salidasVacio}
         />
       ))}
+      </div>
     </div>
   )
 }

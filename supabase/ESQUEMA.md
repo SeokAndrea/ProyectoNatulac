@@ -321,6 +321,22 @@ Dos tablas de ajuste de un lote, distintas:
   líneas del mismo lote siguen OK.
 - `continuar_siguiente_lote()` lleva la misma guarda antes de insertar la corrida nueva.
 
+**Lotes para Vacío** (20261109490000): `preparaciones.para_vacio` marca un lote de Producción Vacío
+guardado en un tanque de Aséptico. No cuenta en la merma de Aséptico y el trigger
+`turno_lineas_sin_lote_vacio` impide que una corrida lo tome. `turno_json` lo trae en `tanques[]` y
+`preparaciones[]`.
+
+| Función | Qué hace |
+|---|---|
+| `iniciar_preparacion(…, p_para_vacio)` | Preparar para Vacío: con tambores; el lote nace liberado y el tanque `LISTO` |
+| `recibir_de_vacio(turno, tanque, sabor, lote, litros)` | El néctar de Vacío llega por tubería a un tanque Limpio o Con Restos 0 L |
+| `entregar_a_vacio(turno, tanque, litros)` | Vacío se lleva litros (por partes; `null` = todo). Sirve también para una parte de un lote de Aséptico. Si se lleva todo, el tanque queda `SUCIO` |
+| `pasar_lote_a_aseptico(turno, tanque, volumen_real)` | Cierra el lote de Vacío y crea uno de Aséptico con lo medido (su 100% para la merma) |
+
+`salidas_vacio` guarda cada salida (`litros`, `lote_id`, `de_lote_vacio`); en la merma se restan como
+un desvase. `transferir_tanque` no mezcla un lote de Vacío con uno de Aséptico; a un tanque Limpio, el
+lote nuevo hereda la marca.
+
 ### `analisis_calidad` (20261086)
 Cada análisis de Calidad de un lote: `preparacion_id`, `turno_id` (turno del análisis), `brix`,
 `acidez`, `conforme`, `observacion`, `usuario_id` (analista). Se guardan todos.

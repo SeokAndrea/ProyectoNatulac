@@ -52,6 +52,8 @@ export interface TanqueRecepcion {
   /** Se marcan al entrar a CIP / al salir de CIP hacia LIMPIO. */
   cipIniciadoEn: string | null
   cipFinalizadoEn: string | null
+  /** El lote del tanque es de Vacío: no cuenta en la merma y ninguna línea lo toma (migración 20261109490000). */
+  paraVacio: boolean
 }
 
 /**
@@ -83,6 +85,26 @@ export interface PreparacionRegistro {
   creadoEn: string
   liberadoEn: string | null
   cerradoEn: string | null
+  /** Lote de Vacío: fuera de la merma de Aséptico. */
+  paraVacio: boolean
+}
+
+/**
+ * Litros que Vacío se llevó de un tanque (entregar_a_vacio). De un lote
+ * de Vacío, o una parte de un lote de Aséptico: en los dos casos no es
+ * merma, se resta del tramo del lote como un desvase.
+ */
+export interface SalidaVacioRegistro {
+  id: string
+  numeroTanque: 1 | 2 | 3
+  loteId: string | null
+  lote: string | null
+  saborNombre: string | null
+  litros: number
+  /** false = Vacío se llevó parte de un lote de Aséptico. */
+  deLoteVacio: boolean
+  usuarioNombre: string | null
+  creadoEn: string
 }
 
 /**
@@ -135,6 +157,16 @@ export interface DatosIniciarPreparacion {
   acidoCitrico: number | null
   /** Un desvase guardado (en pipa) a sumar — ver desvasarTanque — null si no hay o no se eligió ninguno. */
   desvaseId: string | null
+  /** Preparación para Vacío: no se libera, nace Lista. */
+  paraVacio?: boolean
+}
+
+/** Recibir de Vacío: el néctar llega por tubería — sabor, lote y litros a mano. */
+export interface DatosRecibirDeVacio {
+  numeroTanque: 1 | 2 | 3
+  saborId: string
+  lote: string
+  litros: number
 }
 
 /**
@@ -175,6 +207,8 @@ export interface FilaTanque {
   confirmado_fin_en: string | null
   cip_iniciado_en: string | null
   cip_finalizado_en: string | null
+  /** Sin la migración 20261109490000 no viene. */
+  para_vacio?: boolean
 }
 
 export interface FilaPreparacion {
@@ -194,6 +228,19 @@ export interface FilaPreparacion {
   creado_en: string
   liberado_en: string | null
   cerrado_en: string | null
+  para_vacio?: boolean
+}
+
+export interface FilaSalidaVacio {
+  id: string
+  numero_tanque: number
+  lote_id: string | null
+  lote: string | null
+  sabor_nombre: string | null
+  litros: number
+  de_lote_vacio: boolean
+  usuario_nombre: string | null
+  creado_en: string
 }
 
 export interface FilaTransferencia {

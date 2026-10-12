@@ -58,8 +58,8 @@ export interface ConsumoYProducido {
 }
 
 /**
- * Litros que un lote entregó a otro lado (transferencia o desvase) —
- * NO son merma, así que se restan de su tramo antes de compararlo
+ * Litros que un lote entregó a otro lado (transferencia, desvase o salida
+ * a Vacío, que llega en `desvases`, ver salidasComoDesvases) — NO son merma, así que se restan de su tramo antes de compararlo
  * contra el Producto Terminado. Ver plan de "restar transferencias y
  * desvases del consumo".
  */
@@ -155,6 +155,8 @@ export function calcularConsumoYProducido(
       litrosSinContraste += ptLote
       continue
     }
+    // Lote de Vacío: no es de Aséptico, no entra en su merma (migración 20261109490000).
+    if (lote.paraVacio) continue
     if (lote.cerradoEn === null) hayLoteAbierto = true
 
     const inicio = lote.volumenAlIniciarTurnoL ?? lote.volumenPreparadoL
