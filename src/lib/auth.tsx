@@ -4,7 +4,8 @@ import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
 import { esSoloLectura } from "@/lib/rolVista"
 import { fijarSoloLectura } from "@/lib/soloLectura"
-import { supabase } from "@/lib/supabase"
+import { alVencerSesion, fijarTokenSesion, limpiarAvisoSalida, tokenSesion } from "@/lib/sesionToken"
+import { cerrarSesionEnBase, supabase } from "@/lib/supabase"
 
 /** Permisos efectivos (rol + extras). null = no se pudieron consultar (se conserva lo que había). */
 async function cargarPermisos(usuario: string): Promise<Permiso[] | null> {
@@ -64,6 +65,8 @@ export interface Session {
   debeCompletarPerfil: boolean
   /** Rótulo del puesto (Supervisor, Jefe de Producción…). Solo visual: no da permisos. Llega con perfil_sesion al abrir la app. */
   cargo?: CargoCodigo | null
+  /** Credencial que entregó verificar_login; va en cada petición (ver sesionToken.ts). Las sesiones de antes no la traen. */
+  token?: string | null
 }
 
 export interface DatosPrimerIngreso {
@@ -122,6 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Sesiones guardadas antes del rework traían veErrores en vez de esDueno.
       const guardada = JSON.parse(raw) as Session & { veErrores?: boolean }
+      // Acá y no en un efecto: las pantallas piden datos antes de que corran los efectos de este provider.
+      fijarTokenSesion(guardada.token ?? null)
       return { ...guardada, esDueno: guardada.esDueno ?? guardada.veErrores ?? false, permisos: guardada.permisos ?? [] }
     } catch {
       return null
@@ -180,6 +185,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session])
 
+  // La base rechazó la credencial (venció, cambió la clave, desactivada): a la pantalla de entrada.
+  useEffect(() => {
+    alVencerSesion(() => {
+      fijarTokenSesion(null)
+      setPasswordLogin(null)
+      setVistaComo(null)
+      setSession(null)
+    })
+    return () => alVencerSesion(null)
+  }, [])
+
   /*
    * Al abrir la app (y al entrar) se piden rol, área y permisos actuales:
    * la sesión guardada puede ser vieja. Si la persona fue desactivada o
@@ -202,6 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
       if (perfil === null || !perfil.activo) {
+        fijarTokenSesion(null)
         setPasswordLogin(null)
         setSession(null)
         return
@@ -235,6 +252,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     if (error) {
+      // 5 claves malas seguidas: la base bloquea ese usuario 15 minutos y lo dice.
+      if (error.message?.startsWith("Demasiados intentos")) return { ok: false as const, error: error.message }
       return { ok: false as const, error: "No se pudo validar el usuario. Intenta de nuevo." }
     }
     const perfil = data?.[0]
@@ -242,9 +261,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false as const, error: "Usuario o contraseña incorrectos." }
     }
 
+    // Antes de pedir nada más: desde acá cada petición lleva la credencial.
+    const token: string | null = perfil.token ?? null
+    fijarTokenSesion(token)
+    limpiarAvisoSalida()
     const permisos = (await cargarPermisos(perfil.usuario)) ?? []
     setPasswordLogin(password)
     setSession({
+      token,
       permisos,
       username: perfil.usuario,
       nombre: perfil.nombre ?? perfil.usuario,
@@ -292,6 +316,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    const token = tokenSesion()
+    if (token) cerrarSesionEnBase(token)
+    fijarTokenSesion(null)
     setPasswordLogin(null)
     setVistaComo(null)
     setSession(null)

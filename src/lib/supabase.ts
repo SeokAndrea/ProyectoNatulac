@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import { MENSAJE_SOLO_LECTURA, rpcBloqueada } from "@/lib/soloLectura"
+import { CODIGO_SESION_INVALIDA, fetchConSesion, HEADER_SESION, sesionRechazada } from "@/lib/sesionToken"
 
 /*
  * Cliente de Supabase para el frontend. Usa la clave "anon" (pública),
@@ -21,7 +22,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// La credencial de la sesión va en cada petición a la base (ver sesionToken.ts).
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, { global: { fetch: fetchConSesion } })
 
 /*
  * Log de errores (ver migración 20261047090000): cualquier RPC que
@@ -65,6 +67,11 @@ supabase.rpc = async (fn: string, args?: RpcArgs) => {
     }
   }
   const resultado = await rpcOriginal(fn, args)
+  // La base no reconoce la credencial (venció, cambió la clave, desactivada): a la pantalla de entrada.
+  if (resultado.error?.code === CODIGO_SESION_INVALIDA) {
+    sesionRechazada()
+    return resultado
+  }
   if (resultado.error && fn !== "registrar_error_cliente") {
     const usuario = typeof args?.p_usuario === "string" ? args.p_usuario : null
     rpcOriginal("registrar_error_cliente", {
@@ -78,4 +85,17 @@ supabase.rpc = async (fn: string, args?: RpcArgs) => {
     )
   }
   return resultado
+}
+
+/**
+ * Borra la sesión en la base. Manda la credencial vieja explícita: para
+ * cuando sale la petición, la app ya puede tener otra (alguien entró rápido).
+ */
+export function cerrarSesionEnBase(token: string) {
+  rpcOriginal("cerrar_sesion")
+    .setHeader(HEADER_SESION, token)
+    .then(
+      () => {},
+      () => {},
+    )
 }

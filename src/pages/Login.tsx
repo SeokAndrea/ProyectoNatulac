@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth"
+import { avisoSalida } from "@/lib/sesionToken"
 import { Loader2 } from "lucide-react"
 
 export default function Login() {
@@ -11,7 +12,8 @@ export default function Login() {
   const navigate = useNavigate()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  // Si la base cerró la sesión (venció, cambió la clave), se avisa acá.
+  const [error, setError] = useState<string | null>(() => avisoSalida())
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: FormEvent) {

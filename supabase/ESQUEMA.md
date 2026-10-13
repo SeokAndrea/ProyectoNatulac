@@ -219,7 +219,7 @@ tiene RLS activado y sin políticas — bloqueada para acceso directo).
 | Función | Qué hace |
 |---|---|
 | `crear_usuario(creador_usuario, usuario, password, rol_codigo, area_codigo?, nombre?, cedula?)` | Da de alta un usuario; hashea la contraseña adentro; devuelve el `uuid` del nuevo usuario |
-| `verificar_login(usuario, password)` | Valida usuario+contraseña; devuelve el perfil (usuario, nombre, rol, área) o vacío. Nunca devuelve el hash |
+| `verificar_login(usuario, password)` | Valida usuario+contraseña; devuelve el perfil (usuario, nombre, rol, área) y la credencial de la sesión (`token`), o vacío. Nunca devuelve el hash. 5 claves malas en 15 min bloquean ese usuario 15 min (20261109690000) |
 | `listar_personal(usuario)` | Lista el personal visible para ese usuario (todas las áreas si es SUPERADMINISTRADOR, solo la propia si es ADMINISTRADOR_AREA), sin exponer `password_hash` |
 | `editar_personal(creador_usuario, usuario_id, nombre, cedula, area_codigo, rol_codigo)` | Edita a alguien ya registrado |
 | `restablecer_password(creador_usuario, usuario_id, password)` | Le pone una contraseña nueva a alguien (no se puede "ver" la vieja — está hasheada) |
@@ -386,6 +386,18 @@ definidas**. Eso significa que hoy están bloqueadas por defecto para
 `anon`/`authenticated` hasta que se escriban las políticas de "quién
 puede leer/escribir qué según su rol y área" — pendiente, según los
 comentarios de la primera migración, de terminar de definir los roles.
+
+## Sesiones con credencial (20261109690000)
+
+La base ya no le cree al `p_usuario` que manda la app:
+
+- `verificar_login` entrega un `token`. En `sesiones` queda solo su huella (sha256). La app lo manda en el header `x-sesion` (`src/lib/sesionToken.ts`).
+- `revisar_peticion()` corre antes de **cada** petición (`pgrst.db_pre_request`). Sin credencial válida solo pasan `verificar_login` y `registrar_error_cliente`.
+- `exigir_usuario(funcion, usuario)` va al comienzo de cada función con `p_usuario` (o `p_creador_usuario`, que manda cuando existe). El nombre tiene que ser el de la credencial. Solo revisa la función que pidió la app, no las que esta llama por dentro.
+- `seguridad_config.modo`: `AVISO` solo anota en `accesos_rechazados`; `EXIGIR` rechaza (código 28000, la app vuelve a la pantalla de entrada). El cambio se hace desde el SQL Editor.
+- Cambiar la clave o desactivar a alguien cierra sus otras sesiones (trigger en `usuarios`).
+
+**Regla para migraciones nuevas:** si crean o reemplazan una función con `p_usuario`, terminan con `select * from asegurar_control_usuario();`. Esa llamada le agrega `exigir_usuario` a las que no lo tengan.
 
 ---
 
