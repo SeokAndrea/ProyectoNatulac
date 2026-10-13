@@ -165,7 +165,7 @@ export default function PanelProduccion() {
 
   // ------------------------------------------------------------ pantalla
   return (
-    <AppShell title="Panel de Producción" description="Estado de la planta en vivo" fullWidth ocultarEstadoBanner>
+    <AppShell title="Panel de Producción" description="Estado de la planta en vivo" fullWidth ocultarEstadoBanner sinMenuLateral>
       <div className="flex flex-col gap-5">
         <BannerSuperior
           turno={turno}

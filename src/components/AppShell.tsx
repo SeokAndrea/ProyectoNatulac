@@ -17,6 +17,7 @@ export function AppShell({
   description,
   fullWidth,
   ocultarEstadoBanner,
+  sinMenuLateral,
   volverA = "/hub",
   children,
 }: {
@@ -28,11 +29,14 @@ export function AppShell({
   fullWidth?: boolean
   /** Para pantallas que ya muestran Área/Supervisor/Turno en su propio banner (ej. Panel de Producción) — evita repetir esa misma info dos veces seguidas. */
   ocultarEstadoBanner?: boolean
+  /** Sin el menú lateral de PC (dueña, 2026-10-13: Panel de Producción usa todo el ancho). En el teléfono sigue el botón flotante. */
+  sinMenuLateral?: boolean
   children: ReactNode
 }) {
   const navigate = useNavigate()
   const { session } = useAuth()
   const soloVista = esSoloVista(session)
+  const conMenuLateral = !soloVista && !sinMenuLateral
 
   /**
    * Flecha = un paso atrás, como el botón del navegador (ej. Calculadora de
@@ -50,7 +54,7 @@ export function AppShell({
   return (
     <div className="flex min-h-svh bg-background">
       {/* Navegación entre pantallas: menú lateral en PC, botón flotante en el teléfono. Solo Vista tiene sus flechas. */}
-      {!soloVista && <MenuLateral plegadoInicial={fullWidth} />}
+      {conMenuLateral && <MenuLateral plegadoInicial={fullWidth} />}
       {!soloVista && <BotonNavegacion />}
       <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader
@@ -67,7 +71,8 @@ export function AppShell({
               <Button variant="ghost" size="icon" className="shrink-0" onClick={atras} aria-label="Volver">
                 <ArrowLeft className="size-4.5" />
               </Button>
-              <Link to="/hub" className="hidden shrink-0 items-center sm:flex lg:hidden">
+              {/* En PC el logo vive en el menú lateral; sin menú, va acá. */}
+              <Link to="/hub" className={cn("hidden shrink-0 items-center sm:flex", conMenuLateral && "lg:hidden")}>
                 <LogoMark className="size-7" />
               </Link>
             </>
