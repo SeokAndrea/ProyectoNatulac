@@ -134,7 +134,7 @@ export function EstadoPlantaTabs({
         <div className="flex flex-wrap items-center justify-end gap-2">
           {vacioActivo && (
             <p className="mr-auto text-xs font-medium text-vacio">
-              Modo Vacío: los botones de cada tanque son los de Vacío. Nada de esto cuenta en la merma de Aséptico.
+              Modo Vacío: los botones de cada tanque son los de Vacío.
             </p>
           )}
           <button
