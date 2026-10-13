@@ -37,3 +37,11 @@ supabase/.branches
 # material de referencia de diseño, no código del repo
 /lovable things/
 /UI diseño paradas.pdf
+
+# Variables de entorno con credenciales (en cualquier carpeta, también plc-bridge/)
+.env
+.env.*
+!.env.example
+
+# Información interna de la empresa: se queda solo en el PC, no va a GitHub
+/Info que no va en el pryecto/

@@ -1,9 +1,0 @@
-Codigos que uso mucho:
-
-Subir cambios
-git add -A
-
-Romper el node
-
-Subir Docker
-docker compose --profile preview up -d --build
