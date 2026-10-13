@@ -115,7 +115,6 @@ export const apps: AppDef[] = [
   {
     slug: "preparacion",
     title: "Preparación",
-    description: "Preparar y liberar tanques — en cualquier momento del turno.",
     href: "/preparacion",
     icon: Beaker,
     requiereTurno: true,
@@ -140,7 +139,6 @@ export const apps: AppDef[] = [
   {
     slug: "lineas",
     title: "Líneas",
-    description: "Activar o detener corridas de las 3 líneas — en cualquier momento del turno.",
     href: "/lineas",
     icon: Factory,
     requiereTurno: true,
@@ -163,7 +161,6 @@ export const apps: AppDef[] = [
   {
     slug: "finalizar-turno",
     title: "Finalizar Turno",
-    description: "Resumen y cierre del turno con los contadores por línea.",
     href: "/finalizar-turno",
     icon: ClipboardCheck,
     requiereTurno: true,
@@ -197,7 +194,6 @@ export const apps: AppDef[] = [
   {
     slug: "mis-actas",
     title: "Mis Actas",
-    description: "Actas de tus turnos cerrados — verlas y descargarlas cuando quieras.",
     href: "/mis-actas",
     icon: FileText,
     requiereTurno: false,
@@ -229,7 +225,7 @@ export const apps: AppDef[] = [
   {
     slug: "solicitudes-intervencion",
     title: "Solicitudes de Intervención",
-    description: "Fallas repetidas para Mantenimiento: responsable, cierre y acta.",
+    description: "Fallas repetidas para Mantenimiento.",
     href: "/solicitudes-intervencion",
     icon: Siren,
     requiereTurno: false,
@@ -302,7 +298,7 @@ export const apps: AppDef[] = [
   {
     slug: "auditoria",
     title: "Auditoría",
-    description: "Qué hizo cada supervisor, turno por turno: resumen, línea de tiempo, actas y registro de cambios.",
+    description: "Línea de tiempo.",
     href: "/auditoria",
     icon: History,
     requiereTurno: false,
