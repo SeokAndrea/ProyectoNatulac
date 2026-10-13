@@ -209,6 +209,8 @@ números para ambas.
 | Línea 2 / 3 | 330 ml | TP | 7500 | 2250 |
 | Línea 2 / 3 | 330 ml | TP | 9000 | 2970 |
 
+La Línea 3 llena **330, 250 y 200 ml**. `20261109790000_linea3_tres_presentaciones.sql` reactiva las que estén apagadas.
+
 ---
 
 ## Funciones (Postgres, `security definer`)
