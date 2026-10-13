@@ -101,15 +101,40 @@ function litrosEntrantesPorLote(transferencias: TransferenciaRegistro[], prepara
   return entrante
 }
 
+/** Por qué un lote no entra en la merma del turno. */
+export type MotivoSinContraste = "SIN_LOTE" | "SIN_TRAMO" | "PT_EXCEDE"
+
+/**
+ * Un lote que el turno tocó, con su tramo de consumo y su PT. `excluido` =
+ * por qué no entra en la merma (null = entra). Los lotes de Vacío no
+ * aparecen (no son de Aséptico, migración 20261109490000).
+ */
+export interface TramoLote {
+  loteId: string
+  lote: PreparacionRegistro | null
+  /** Volumen al empezar el turno (o el preparado, si nació en él). */
+  inicio: number | null
+  /** Volumen al terminar el turno. */
+  fin: number
+  /** Transferido, desvasado o entregado a Vacío desde este lote. */
+  salientes: number
+  /** Absorbido a mitad de turno desde otro lote. */
+  entrantes: number
+  /** inicio − fin − salientes + entrantes; null sin inicio. */
+  tramo: number | null
+  /** Litros de PT de las corridas de este lote. */
+  pt: number
+  excluido: MotivoSinContraste | null
+}
+
 /**
  * Lotes que este turno tocó (alimentaron una corrida, o nacieron en el
  * turno), con su tramo de consumo (inicio − fin, ajustado por lo
- * transferido/desvasado) si es confiable, y el PT que produjeron. El
- * guardrail: numerador y denominador cubren SIEMPRE los mismos lotes —
- * uno que no es confiable queda afuera de los dos lados, sus litros
- * van a `litrosSinContraste`.
+ * transferido/desvasado) y el PT que produjeron. El guardrail: un lote
+ * que no es confiable queda marcado en `excluido` y afuera de los dos
+ * lados de la merma. `ptSinLote`: PT de corridas sin lote.
  */
-export function calcularConsumoYProducido(
+export function tramosPorLote(
   turnoId: string,
   preparaciones: PreparacionRegistro[],
   corridas: Corrida[],
@@ -118,7 +143,7 @@ export function calcularConsumoYProducido(
   presentaciones: PresentacionLive[],
   transferencias: TransferenciaRegistro[] = [],
   desvases: DesvaseLoteRegistro[] = [],
-): ConsumoYProducido {
+): { tramos: TramoLote[]; ptSinLote: number } {
   const litrosSalientes = litrosSalientesPorLote(transferencias, desvases)
   const litrosEntrantes = litrosEntrantesPorLote(transferencias, preparaciones)
 
@@ -143,32 +168,27 @@ export function calcularConsumoYProducido(
     loteIds.add(loteId)
   }
 
-  let consumo = 0
-  let producido = 0
-  let litrosSinContraste = ptSinLote
-  let hayLoteAbierto = false
-
+  const tramos: TramoLote[] = []
   for (const loteId of loteIds) {
-    const lote = preparaciones.find((p) => p.id === loteId)
+    const lote = preparaciones.find((p) => p.id === loteId) ?? null
     const ptLote = ptPorLote.get(loteId) ?? 0
+    const salientes = litrosSalientes.get(loteId) ?? 0
+    const entrantes = litrosEntrantes.get(loteId) ?? 0
     if (!lote) {
-      litrosSinContraste += ptLote
+      tramos.push({ loteId, lote: null, inicio: null, fin: 0, salientes, entrantes, tramo: null, pt: ptLote, excluido: "SIN_LOTE" })
       continue
     }
     // Lote de Vacío: no es de Aséptico, no entra en su merma (migración 20261109490000).
     if (lote.paraVacio) continue
-    if (lote.cerradoEn === null) hayLoteAbierto = true
 
     const inicio = lote.volumenAlIniciarTurnoL ?? lote.volumenPreparadoL
     const fin = lote.volumenActualL ?? 0
     const vi = lote.volumenPreparadoL // volumen preparado, para el chequeo físico
-    const tramoCrudo = inicio === null ? null : inicio - fin
     // Lo transferido/desvasado no se perdió — se restó del tramo del que
     // lo entrega; lo absorbido a mitad de turno por un lote ya existente
     // no está en su "inicio" fijo — se le suma. Ver litrosSalientesPorLote
     // / litrosEntrantesPorLote arriba.
-    const tramo =
-      tramoCrudo === null ? null : tramoCrudo - (litrosSalientes.get(loteId) ?? 0) + (litrosEntrantes.get(loteId) ?? 0)
+    const tramo = inicio === null ? null : inicio - fin - salientes + entrantes
     const ptExcedeVi = vi !== null && vi > 0 && ptLote > vi * MARGEN_REDONDEO
 
     let ptExcedeViCorroborado = false
@@ -186,12 +206,54 @@ export function calcularConsumoYProducido(
     const ptExcedeTramo =
       tramo !== null && tramo > 0 && ptLote > tramo * MARGEN_REDONDEO && !ptExcedeViCorroborado
 
-    if (tramo === null || tramo <= 0 || (ptExcedeVi && !ptExcedeViCorroborado) || ptExcedeTramo) {
-      litrosSinContraste += ptLote
+    const excluido: MotivoSinContraste | null =
+      tramo === null || tramo <= 0 ? "SIN_TRAMO" : (ptExcedeVi && !ptExcedeViCorroborado) || ptExcedeTramo ? "PT_EXCEDE" : null
+    tramos.push({ loteId, lote, inicio, fin, salientes, entrantes, tramo, pt: ptLote, excluido })
+  }
+
+  return { tramos, ptSinLote }
+}
+
+/**
+ * Totales de merma de semielaborado del turno (ver tramosPorLote). El
+ * guardrail: numerador y denominador cubren SIEMPRE los mismos lotes —
+ * uno que no es confiable queda afuera de los dos lados, sus litros
+ * van a `litrosSinContraste`.
+ */
+export function calcularConsumoYProducido(
+  turnoId: string,
+  preparaciones: PreparacionRegistro[],
+  corridas: Corrida[],
+  productoTerminado: ProductoTerminadoRegistro[],
+  contadores: ContadorRegistro[],
+  presentaciones: PresentacionLive[],
+  transferencias: TransferenciaRegistro[] = [],
+  desvases: DesvaseLoteRegistro[] = [],
+): ConsumoYProducido {
+  const { tramos, ptSinLote } = tramosPorLote(
+    turnoId,
+    preparaciones,
+    corridas,
+    productoTerminado,
+    contadores,
+    presentaciones,
+    transferencias,
+    desvases,
+  )
+
+  let consumo = 0
+  let producido = 0
+  let litrosSinContraste = ptSinLote
+  let hayLoteAbierto = false
+
+  for (const t of tramos) {
+    if (t.lote && t.lote.cerradoEn === null) hayLoteAbierto = true
+    if (t.excluido !== null || t.tramo === null) {
+      litrosSinContraste += t.pt
       continue
     }
-    consumo += tramo
-    producido += ptLote
+    consumo += t.tramo
+    producido += t.pt
   }
 
   return { consumo, producido, hayLoteAbierto, litrosSinContraste: Math.round(litrosSinContraste) }

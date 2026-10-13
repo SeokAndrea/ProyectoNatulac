@@ -1,5 +1,9 @@
 # Plan — Módulo VALIDAR + candado de edición de Producto Terminado
 
+> **2026-10-12: Validar jornada** (`/validar-jornada`, solo en Pruebas por ahora): la Analista valida el día completo en cuatro
+> partes (cajas, envases por corrida, semielaborado por lote, paradas) y cierra la jornada; los KPIs leen solo jornadas
+> validadas. Migración 20261109590000, `src/lib/validarJornada.ts`. Maqueta: https://claude.ai/artifact/R8Ly11dMPP4g6JVYWXD3pf
+
 > **2026-10-01 (dueño): Validar se unió al Resumen del Día** (`/resumen-dia`, permiso VALIDAR) **y ahora valida el número del DÍA**
 > por sabor + presentación (tabla validacion_dia, migración 20261099190000): Confirmar o Corregir el total de cajas. Se quitó la página Validar aparte y la edición de
 > contadores, litros, lote y mermas. Lo de abajo es la historia del módulo original.

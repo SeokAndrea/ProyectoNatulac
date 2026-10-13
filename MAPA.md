@@ -59,6 +59,7 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Textos de "Solicitudes de Intervención" (SIF: fallas repetidas para Mantenimiento) | `src/pages/apps/SolicitudesIntervencion.tsx`, `src/components/sif/` (`ListaSif`, `DetalleSif`, `AccionesSif`, `AvisoSifPendientes`); datos en `src/lib/sif.ts`, acta PDF en `src/lib/sifPdf.ts`; reglas de generación en la migración 20261109390000 |
 | Textos de "Programación" | `src/pages/apps/Programacion.tsx` |
 | Textos de "Servicios Industriales" | `src/pages/apps/ServiciosIndustriales.tsx` |
+| Validar jornada (la Analista revisa el día: cajas, envases, semielaborado y paradas; recién validada cuenta en los KPIs). Por ahora solo en Pruebas | `src/pages/apps/ValidarJornada.tsx`, `src/components/validar-jornada/`, datos y cuentas en `src/lib/validarJornada.ts`; migración 20261109590000 |
 | Textos de "Validar" (revisión post-turno, VALIDAR) | `src/pages/apps/Validar.tsx`, `src/components/ValidarLista.tsx` |
 | Textos de "Edición de Datos" | `src/pages/apps/EdicionDatos.tsx` |
 | Textos de "Personal" (administradores de área) | `src/pages/apps/Personal.tsx`, `src/components/personal/` (`PersonalPanel`, `FiltrosPersonal`, `FilaPersonal`, `FilaEdicionPersonal`, `FormularioNuevoPersonal`, `EditorPermisosExtra`; selectores de área/rol/cargo en `SelectoresPuesto`) |

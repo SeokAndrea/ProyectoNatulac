@@ -21,6 +21,7 @@ import {
   Users,
   ClipboardList,
   Siren,
+  ListChecks,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
 import { esAreaDeApoyo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
@@ -179,6 +180,18 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     // Lo ven el jefe y la analista; solo la analista (VALIDAR) corrige el mensaje (dueña, 2026-10-08).
     permiso: "RESUMEN_VER",
+    seccion: "auditoria",
+  },
+  {
+    slug: "validar-jornada",
+    title: "Validar jornada",
+    description: "Revisar el día (cajas, envases, semielaborado y paradas) y validarlo para los KPIs.",
+    href: "/validar-jornada",
+    icon: ListChecks,
+    requiereTurno: false,
+    permiso: "VALIDAR",
+    // En prueba (2026-10-12): solo el Área de Pruebas hasta que la Analista lo apruebe. Ver src/lib/validarJornada.ts.
+    areasPermitidas: ["PRUEBAS"],
     seccion: "auditoria",
   },
   {
