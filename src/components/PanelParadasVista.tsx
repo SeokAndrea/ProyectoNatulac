@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CintaLinea, type EstadoLineaVista } from "@/components/CintaLinea"
 import { DetalleParadas } from "@/components/paradas/DetalleParadas"
+import { ParadasPorTurno } from "@/components/paradas/ParadasPorTurno"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { OeePeriodo } from "@/lib/eficiencia"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
@@ -45,12 +47,14 @@ import {
  * real). undefined = todavía cargando.
  */
 
-type PeriodoCodigo = "HOY" | "AYER" | "7D" | "MES"
+type PeriodoCodigo = "HOY" | "AYER" | "7D" | "MES" | "DIA"
 const PERIODO_FILTRO: { codigo: PeriodoCodigo; etiqueta: string }[] = [
   { codigo: "HOY", etiqueta: "Hoy" },
   { codigo: "AYER", etiqueta: "Ayer" },
   { codigo: "7D", etiqueta: "Últimos 7 días" },
   { codigo: "MES", etiqueta: "Este mes" },
+  // Un día cualquiera, con calendario (dueña, 2026-10-14).
+  { codigo: "DIA", etiqueta: "Un día" },
 ]
 
 const TURNO_FILTRO: { codigo: TurnoTipoCodigo | "TODOS"; etiqueta: string }[] = [
@@ -101,6 +105,7 @@ export function PanelParadasVista({
   cargarOee: CargarOee
 }) {
   const [periodo, setPeriodo] = useState<PeriodoCodigo>("HOY")
+  const [dia, setDia] = useState(() => restarDias(fechaPlanta(), 1))
   const [clase, setClase] = useState<ClaseParada | "TODAS">("TODAS")
   const [linea, setLinea] = useState("TODAS")
   const [turno, setTurno] = useState<TurnoTipoCodigo | "TODOS">("TODOS")
@@ -118,13 +123,14 @@ export function PanelParadasVista({
   const hoy = fechaPlanta(ahora)
   const { desde, hasta } = useMemo(() => {
     if (periodo === "HOY") return { desde: hoy, hasta: hoy }
+    if (periodo === "DIA") return { desde: dia, hasta: dia }
     if (periodo === "AYER") {
       const ayer = restarDias(hoy, 1)
       return { desde: ayer, hasta: ayer }
     }
     if (periodo === "7D") return { desde: restarDias(hoy, 6), hasta: hoy }
     return { desde: `${hoy.slice(0, 8)}01`, hasta: hoy }
-  }, [periodo, hoy])
+  }, [periodo, hoy, dia])
 
   // Paradas del período. Se guardan con la clave del rango: al refrescar se
   // sigue viendo lo anterior; al cambiar de período, cargando.
@@ -220,6 +226,16 @@ export function PanelParadasVista({
                   {p.etiqueta}
                 </Button>
               ))}
+              {periodo === "DIA" && (
+                <Input
+                  type="date"
+                  aria-label="Día"
+                  value={dia}
+                  max={hoy}
+                  onChange={(e) => e.target.value && setDia(e.target.value)}
+                  className="h-8 w-auto"
+                />
+              )}
             </div>
           </div>
           <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setMostrarFiltros((v) => !v)}>
@@ -342,7 +358,15 @@ export function PanelParadasVista({
             )
           })}
         </div>
-        <DetalleParadas paradas={filtradas} ahora={ahora} />
+        {/* Un solo día: como el resumen de un turno, por turno y en orden de hora (Producción y Mantenimiento juntas). */}
+        {desde === hasta ? (
+          <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
+            <h2 className="text-sm font-semibold text-foreground">Paradas del día, por turno</h2>
+            <ParadasPorTurno paradas={filtradas} ahora={ahora} />
+          </section>
+        ) : (
+          <DetalleParadas paradas={filtradas} ahora={ahora} />
+        )}
         </>
       )}
 

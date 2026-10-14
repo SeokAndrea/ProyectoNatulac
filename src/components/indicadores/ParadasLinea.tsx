@@ -24,19 +24,50 @@ function Lista({ titulo, paradas, por }: { titulo: string; paradas: ParadaMes[];
   )
 }
 
-/** Paradas no programadas del mes, por presentación: 3 por tiempo y 3 por veces. Los bloques se reparten todo el alto. */
-export function ParadasLinea({ presentaciones }: { presentaciones: { clave: string; nombre: string; color: CSSProperties; paradas: ParadaMes[] }[] }) {
+/** Cargadas a mano: solo los nombres, numerados, sin tiempo ni veces (dueña, 2026-10-14). */
+function ListaNombres({ paradas }: { paradas: ParadaMes[] }) {
+  const nombres = paradas.map((p) => p.causa.trim()).filter(Boolean)
+  if (nombres.length === 0) return <span className="text-sm text-muted-foreground">—</span>
   return (
-    <section aria-label="Paradas no programadas" className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2.5 max-lg:flex-none">
-      <h2 className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">Paradas no programadas</h2>
+    <ol className="flex flex-col gap-0.5 text-[12.5px]">
+      {nombres.map((n, i) => (
+        <li key={`${i}-${n}`} className="grid grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5">
+          <span className="grid size-[17px] place-items-center rounded-full bg-muted text-[10.5px] font-bold">{i + 1}</span>
+          <span className="truncate" title={n}>
+            {n}
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/**
+ * Paradas del mes, por presentación. Automático: 3 por tiempo y 3 por veces.
+ * Manual: la lista de lo cargado, solo los nombres. Los bloques se reparten todo el alto.
+ */
+export function ParadasLinea({
+  presentaciones,
+  manual,
+}: {
+  presentaciones: { clave: string; nombre: string; color: CSSProperties; paradas: ParadaMes[] }[]
+  manual: boolean
+}) {
+  return (
+    <section aria-label="Paradas" className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2.5 max-lg:flex-none">
+      <h2 className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">{manual ? "Paradas" : "Paradas no programadas"}</h2>
       {presentaciones.length === 0 && <p className="text-sm text-muted-foreground">—</p>}
       {presentaciones.map((p) => (
         <div key={p.clave} style={p.color} className="flex min-h-0 flex-[1_1_0] flex-col justify-evenly gap-1 border-l-4 border-[var(--c)] py-1 pl-2.5 max-lg:flex-none">
           <span className="text-[15px] font-bold text-[var(--c-texto)]">{p.nombre}</span>
-          <div className="grid flex-1 grid-cols-2 gap-x-3">
-            <Lista titulo="Más tiempo" paradas={p.paradas} por="tiempo" />
-            <Lista titulo="Más veces" paradas={p.paradas} por="veces" />
-          </div>
+          {manual ? (
+            <ListaNombres paradas={p.paradas} />
+          ) : (
+            <div className="grid flex-1 grid-cols-2 gap-x-3">
+              <Lista titulo="Más tiempo" paradas={p.paradas} por="tiempo" />
+              <Lista titulo="Más veces" paradas={p.paradas} por="veces" />
+            </div>
+          )}
         </div>
       ))}
     </section>

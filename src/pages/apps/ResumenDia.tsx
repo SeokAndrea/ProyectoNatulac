@@ -150,7 +150,7 @@ export default function ResumenDia() {
                 <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
                   <CajasPorSabor filas={cajasPorSaborYTurno(items, diario.porTurno, diario.turnos)} etiquetas={diario.turnos.map((t) => t.etiqueta)} />
                   <LineasDelDia lineas={lineasDelDia(lineasPlanta, diario.turnos, diario.porTurno, diario.paradas, presentaciones)} />
-                  <ParadasDelDia paradas={paradasQueMasQuitaron(diario.paradas)} nombreLinea={nombreLinea} />
+                  <ParadasDelDia paradas={paradasQueMasQuitaron(diario.paradas)} todas={diario.paradas} nombreLinea={nombreLinea} />
                   {!esAnalista && <NovedadesDelDia turnos={diario.turnos} />}
                 </div>
                 {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(diario.turnos)} />}

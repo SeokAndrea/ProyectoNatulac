@@ -60,6 +60,7 @@ export function VistaLinea({
           <GraficoEficiencia serie={meses.map((m) => ({ mes: m.mes, valor: m.datos?.eficiencia[linea] ?? null }))} />
         </section>
         <ParadasLinea
+          manual={elegido.modo === "MANUAL"}
           presentaciones={visibles.map((p) => ({
             clave: p.clave,
             nombre: p.nombre,
