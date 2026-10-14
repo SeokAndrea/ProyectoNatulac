@@ -30,6 +30,8 @@ export default function Indicadores() {
   const area = session?.area === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
   const usuario = session?.username ?? ""
   const puedeEditar = !esSoloLectura(session)
+  // El modo del mes y la carga a mano: solo la analista (y superadmin o dueño). La base lo exige igual.
+  const puedeCargar = puedeEditar && (session?.rol === "ANALISTA" || session?.rol === "SUPERADMINISTRADOR" || session?.esDueno === true)
   const mesActual = `${franjaDeHora().fecha.slice(0, 7)}-01`
   // Por defecto, el último mes cerrado.
   const [mes, setMes] = useState(() => sumarMeses(mesActual, -1))
@@ -98,7 +100,7 @@ export default function Indicadores() {
           modo={elegido.modo}
           onModo={cambiarModo}
           onCargar={() => setEditando(true)}
-          puedeEditar={puedeEditar}
+          puedeEditar={puedeCargar}
           cambiandoModo={accionModo.enviando}
         />
         <MensajeError error={ind.error ?? elegido.error ?? accionModo.error} />

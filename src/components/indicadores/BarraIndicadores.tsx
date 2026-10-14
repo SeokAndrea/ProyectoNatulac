@@ -1,5 +1,5 @@
 import { Pencil } from "lucide-react"
-import { capital, nombreMes } from "@/lib/indicadores/calculos"
+import { nombreMes } from "@/lib/indicadores/calculos"
 import type { ModoMes } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
 
@@ -15,7 +15,7 @@ const SECCIONES: { valor: Seccion; texto: string }[] = [
 const chip = "inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-[12.5px] font-semibold tracking-wide"
 const activo = "border-primary bg-primary text-primary-foreground"
 
-/** Filtros: línea o semielaborado, el mes, y el modo del mes (AUTOMÁTICO / MANUAL) con su botón para cargar datos. */
+/** Filtros: línea o semielaborado y el mes. La analista ve además el modo del mes (AUTOMÁTICO / MANUAL) y el botón para cargar datos. */
 export function BarraIndicadores({
   seccion,
   onSeccion,
@@ -54,28 +54,28 @@ export function BarraIndicadores({
           </option>
         ))}
       </select>
-      <div role="group" aria-label="Origen de los datos del mes" className="inline-flex rounded-full border bg-card p-0.5">
-        {(["AUTO", "MANUAL"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            aria-pressed={modo === m}
-            disabled={!puedeEditar || cambiandoModo}
-            onClick={() => modo !== m && onModo(m)}
-            className={cn("rounded-full px-3 py-1 text-[11.5px] font-semibold tracking-wide text-muted-foreground disabled:cursor-default", modo === m && activo)}
-          >
-            {m === "AUTO" ? "AUTOMÁTICO" : "MANUAL"}
-          </button>
-        ))}
-      </div>
+      {/* El modo del mes y la carga a mano son solo de la analista (dueña, 2026-10-14). */}
+      {puedeEditar && (
+        <div role="group" aria-label="Origen de los datos del mes" className="inline-flex rounded-full border bg-card p-0.5">
+          {(["AUTO", "MANUAL"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={modo === m}
+              disabled={cambiandoModo}
+              onClick={() => modo !== m && onModo(m)}
+              className={cn("rounded-full px-3 py-1 text-[11.5px] font-semibold tracking-wide text-muted-foreground disabled:cursor-default", modo === m && activo)}
+            >
+              {m === "AUTO" ? "AUTOMÁTICO" : "MANUAL"}
+            </button>
+          ))}
+        </div>
+      )}
       {modo === "MANUAL" && puedeEditar && (
         <button type="button" onClick={onCargar} className={cn(chip, "border-dashed border-primary")}>
           <Pencil className="size-3.5" /> Cargar datos de {nombreMes(mes)}
         </button>
       )}
-      <span className="ml-auto text-[11px] text-muted-foreground">
-        {capital(nombreMes(mes))}: {modo === "MANUAL" ? "datos cargados a mano" : "calculado con las jornadas validadas"}
-      </span>
     </div>
   )
 }
