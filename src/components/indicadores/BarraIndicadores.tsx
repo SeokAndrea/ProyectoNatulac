@@ -2,15 +2,7 @@ import { Pencil } from "lucide-react"
 import { nombreMes } from "@/lib/indicadores/calculos"
 import type { ModoMes } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
-
-export type Seccion = "1" | "2" | "3" | "semi"
-
-const SECCIONES: { valor: Seccion; texto: string }[] = [
-  { valor: "1", texto: "LÍNEA 1" },
-  { valor: "2", texto: "LÍNEA 2" },
-  { valor: "3", texto: "LÍNEA 3" },
-  { valor: "semi", texto: "SEMIELABORADO" },
-]
+import { SECCIONES, type Seccion } from "@/components/indicadores/secciones"
 
 const chip = "inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-[12.5px] font-semibold tracking-wide"
 const activo = "border-primary bg-primary text-primary-foreground"

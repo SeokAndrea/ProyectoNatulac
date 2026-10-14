@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { MensajeError } from "@/components/MensajeError"
-import { BarraIndicadores, type Seccion } from "@/components/indicadores/BarraIndicadores"
+import { BarraIndicadores } from "@/components/indicadores/BarraIndicadores"
+import { useFlechas, type Seccion } from "@/components/indicadores/secciones"
 import { EditorManual } from "@/components/indicadores/editor/EditorManual"
 import { Observacion } from "@/components/indicadores/Observacion"
 import { useIndicadores } from "@/components/indicadores/useIndicadores"
@@ -41,6 +42,8 @@ export default function Indicadores() {
   const [editando, setEditando] = useState(false)
   const [sabores, setSabores] = useState<Sabor[] | null>(null)
   const accionModo = useAccion()
+  // ← → cambian de pantalla, para exponer.
+  useFlechas(seccion, setSeccion, !editando)
 
   useEffect(() => {
     listarSabores().then(setSabores)
