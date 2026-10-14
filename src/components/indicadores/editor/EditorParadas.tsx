@@ -6,11 +6,11 @@ import type { ParadaMes } from "@/lib/indicadores/tipos"
 /** Id del <datalist> con los tipos de parada no programada (lo pone EditorManual). */
 export const LISTA_CAUSAS = "indicadores-causas"
 
-/** Paradas de una presentación cargadas a mano: solo el nombre, en una lista numerada (dueña, 2026-10-14). */
-export function EditorParadas({ paradas, onCambio }: { paradas: ParadaMes[]; onCambio: (p: ParadaMes[]) => void }) {
+/** Paradas cargadas a mano (de una presentación o las generales): solo el nombre, en una lista numerada (dueña, 2026-10-14). */
+export function EditorParadas({ paradas, onCambio, titulo = "Paradas" }: { paradas: ParadaMes[]; onCambio: (p: ParadaMes[]) => void; titulo?: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Paradas</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{titulo}</span>
       {paradas.map((p, i) => (
         <div key={i} className="grid grid-cols-[22px_minmax(0,1fr)_28px] items-center gap-1">
           <span className="text-sm font-semibold text-muted-foreground">{i + 1}.</span>

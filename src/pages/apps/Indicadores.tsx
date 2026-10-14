@@ -91,6 +91,7 @@ export default function Indicadores() {
       incidencias: manual?.incidencias ?? [],
       tituloIncidencias: manual?.tituloIncidencias,
       totalAseptico: manual?.totalAseptico,
+      paradasGenerales: manual?.paradasGenerales,
     }
   }
 

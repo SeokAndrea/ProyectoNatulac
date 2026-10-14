@@ -42,6 +42,8 @@ export function Kpi({
   const anterior = serie.length > 1 ? serie[serie.length - 2] : null
   const dif = diferencia(actual.valor, anterior?.valor ?? null)
   const ext = extremos(serie)
+  // Con menos de 2 meses con dato no hay qué comparar: no se muestran (dueña, 2026-10-14).
+  const verExtremos = !sinExtremos && serie.filter((p) => p.valor != null).length >= 2
   const texto = (v: number | null) => (v == null ? "—" : `${fmt(v, decimales)}${unidad}`)
   const pts = unidad === " %" ? " pts" : ""
 
@@ -77,13 +79,13 @@ export function Kpi({
           </>
         )}
       </span>
-      {!sinExtremos && (
+      {verExtremos && ext && (
         <>
           <span className="truncate text-[10.5px] text-muted-foreground">
-            ▲ Más alto <b className="text-foreground">{ext ? `${mesCorto(ext.alto.mes)} ${texto(ext.alto.valor)}` : "—"}</b>
+            ▲ Más alto <b className="text-foreground">{`${mesCorto(ext.alto.mes)} ${texto(ext.alto.valor)}`}</b>
           </span>
           <span className="truncate text-[10.5px] text-muted-foreground">
-            ▼ Más bajo <b className="text-foreground">{ext ? `${mesCorto(ext.bajo.mes)} ${texto(ext.bajo.valor)}` : "—"}</b>
+            ▼ Más bajo <b className="text-foreground">{`${mesCorto(ext.bajo.mes)} ${texto(ext.bajo.valor)}`}</b>
           </span>
         </>
       )}

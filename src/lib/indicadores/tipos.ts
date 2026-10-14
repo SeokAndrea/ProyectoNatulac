@@ -69,6 +69,8 @@ export interface DatosMes {
   presentaciones: Record<string, DatosPresentacion>
   /** Rendimiento del semielaborado, %. Clave: nombre de la familia (familias_producto). */
   semielaborado: Record<string, number | null>
+  /** Modo MANUAL: paradas que afectan a todas (ej. suministro eléctrico). Una lista para las 3 líneas; sale arriba como GENERALES (dueña, 2026-10-14). */
+  paradasGenerales?: ParadaMes[]
   /** Siempre a mano, también en los meses automáticos. */
   ausentismo?: Ausentismo | null
   /** Siempre a mano, también en los meses automáticos. */

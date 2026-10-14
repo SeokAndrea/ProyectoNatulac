@@ -61,6 +61,7 @@ export function VistaLinea({
         </section>
         <ParadasLinea
           manual={elegido.modo === "MANUAL"}
+          generales={elegido.datos?.paradasGenerales}
           presentaciones={visibles.map((p) => ({
             clave: p.clave,
             nombre: p.nombre,

@@ -13,7 +13,7 @@ import { EditorAusentismo } from "@/components/indicadores/editor/EditorAusentis
 import { EditorIncidencias } from "@/components/indicadores/editor/EditorIncidencias"
 import { EditorTotal } from "@/components/indicadores/editor/EditorTotal"
 import { EditorLinea } from "@/components/indicadores/editor/EditorLinea"
-import { LISTA_CAUSAS } from "@/components/indicadores/editor/EditorParadas"
+import { EditorParadas, LISTA_CAUSAS } from "@/components/indicadores/editor/EditorParadas"
 import { EditorSemielaborado } from "@/components/indicadores/editor/EditorSemielaborado"
 
 type Resultado = { ok: true } | { ok: false; error: string }
@@ -86,9 +86,16 @@ export function EditorManual({
   async function traerAutomatico() {
     const r = await obtenerAuto(mes)
     if ("error" in r) return setError(r.error)
-    // Ausentismo, incidencias y el % total sin cajas no vienen de la app: se conservan.
+    // Ausentismo, incidencias, las paradas generales y el % total sin cajas no vienen de la app: se conservan.
     const b = borrador
-    cambiar({ ...structuredClone(r), ausentismo: b.ausentismo, incidencias: b.incidencias, tituloIncidencias: b.tituloIncidencias, totalAseptico: b.totalAseptico })
+    cambiar({
+      ...structuredClone(r),
+      ausentismo: b.ausentismo,
+      incidencias: b.incidencias,
+      tituloIncidencias: b.tituloIncidencias,
+      totalAseptico: b.totalAseptico,
+      paradasGenerales: b.paradasGenerales,
+    })
     setVersion((v) => v + 1)
   }
 
@@ -157,6 +164,14 @@ export function EditorManual({
           ) : (
             <div className="flex flex-col gap-3">
               <EditorTotal datos={borrador} onCambio={cambiar} />
+              {/* Una sola lista para las 3 líneas: es la misma en cada pestaña de línea. */}
+              <div className="rounded-xl border border-dashed p-3">
+                <EditorParadas
+                  titulo="Paradas generales · se ven en las 3 líneas"
+                  paradas={borrador.paradasGenerales ?? []}
+                  onCambio={(paradasGenerales) => cambiar({ ...borrador, paradasGenerales })}
+                />
+              </div>
               <EditorLinea linea={tab} presentaciones={presentacionesDe(tab)} datos={borrador} nombreMes={nombreMes(mes)} onCambio={cambiar} />
             </div>
           )}

@@ -44,18 +44,28 @@ function ListaNombres({ paradas }: { paradas: ParadaMes[] }) {
 
 /**
  * Paradas del mes, por presentación. Automático: 3 por tiempo y 3 por veces.
- * Manual: la lista de lo cargado, solo los nombres. Los bloques se reparten todo el alto.
+ * Manual: la lista de lo cargado, solo los nombres, con las GENERALES (las
+ * mismas en las 3 líneas) arriba. Los bloques se reparten todo el alto.
  */
 export function ParadasLinea({
   presentaciones,
   manual,
+  generales = [],
 }: {
   presentaciones: { clave: string; nombre: string; color: CSSProperties; paradas: ParadaMes[] }[]
   manual: boolean
+  /** Solo en manual. */
+  generales?: ParadaMes[]
 }) {
   return (
     <section aria-label="Paradas" className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2.5 max-lg:flex-none">
       <h2 className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">{manual ? "Paradas" : "Paradas no programadas"}</h2>
+      {manual && generales.some((p) => p.causa.trim()) && (
+        <div className="flex min-h-0 flex-[1_1_0] flex-col justify-evenly gap-1 border-l-4 border-muted-foreground py-1 pl-2.5 max-lg:flex-none">
+          <span className="text-[15px] font-bold">GENERALES</span>
+          <ListaNombres paradas={generales} />
+        </div>
+      )}
       {presentaciones.length === 0 && <p className="text-sm text-muted-foreground">—</p>}
       {presentaciones.map((p) => (
         <div key={p.clave} style={p.color} className="flex min-h-0 flex-[1_1_0] flex-col justify-evenly gap-1 border-l-4 border-[var(--c)] py-1 pl-2.5 max-lg:flex-none">
