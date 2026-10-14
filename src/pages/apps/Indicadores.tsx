@@ -35,9 +35,12 @@ export default function Indicadores() {
   const area = session?.area === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
   const usuario = session?.username ?? ""
   const puedeEditar = !esSoloLectura(session)
-  // El modo del mes y la carga a mano: solo la analista y la dueña. El superadmin (Jorge) expone
-  // los Indicadores y no debe ver nada del modo manual (dueña, 2026-10-14). La base lo exige igual.
-  const puedeCargar = puedeEditar && (session?.rol === "ANALISTA" || session?.esDueno === true)
+  // El modo del mes y la carga a mano: solo la analista (por rol o por cargo, como Daniela, que es
+  // superadmin con cargo Analista de Producción) y la dueña. Jorge (superadmin, Jefe de Producción)
+  // expone los Indicadores y no debe ver nada del modo manual (dueña, 2026-10-14). La base lo exige igual
+  // (migración 20261110690000).
+  const puedeCargar =
+    puedeEditar && (session?.rol === "ANALISTA" || session?.cargo === "ANALISTA_PRODUCCION" || session?.esDueno === true)
   const mesActual = `${franjaDeHora().fecha.slice(0, 7)}-01`
   // Por defecto, el último mes cerrado.
   const [mes, setMes] = useState(() => sumarMeses(mesActual, -1))
