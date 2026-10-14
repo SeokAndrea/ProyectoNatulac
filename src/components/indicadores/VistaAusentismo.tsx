@@ -10,9 +10,9 @@ const horas = (h: number | null) => fmt(h, h != null && !Number.isInteger(h) ? 1
 
 function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detalle: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-1 rounded-xl border bg-card px-4 py-4 text-center">
+    <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border bg-card px-4 py-2 text-center">
       <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</span>
-      <span className="font-mono text-5xl font-semibold tabular-nums">{valor}</span>
+      <span className="font-mono text-[clamp(36px,6.5vh,60px)] font-semibold leading-none tabular-nums">{valor}</span>
       <span className="text-sm text-muted-foreground">{detalle}</span>
     </div>
   )
@@ -20,8 +20,8 @@ function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detal
 
 /*
  * Ausentismo del mes, con la estructura del informe: horas teóricas, % total,
- * horas perdidas y, por grupo (GruposAusentismo), el % de ausentismo, la parte de
- * las horas perdidas y quién incidió más. Siempre se carga a mano (dueña, 2026-10-14).
+ * horas perdidas y, por grupo (GruposAusentismo), el anillo del % con quién
+ * incidió más y cómo se reparten las horas perdidas. Siempre a mano (dueña, 2026-10-14).
  */
 export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos: DatosMes | null }[]; editar: ReactNode }) {
   const elegido = meses[meses.length - 1]
@@ -40,10 +40,10 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
         <p className="m-auto text-muted-foreground">Sin datos de ausentismo en {nombreMes(elegido.mes)}.</p>
       ) : (
         // Todo centrado y grande, repartido en el alto de la pantalla (dueña, 2026-10-14).
-        <div className="flex flex-1 flex-col justify-evenly gap-5">
+        <div className="flex flex-1 flex-col justify-evenly gap-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Dato titulo="Horas teóricas" valor={horas(a.horasTeoricas)} detalle="Horas planificadas del período" />
-            <div className="flex flex-col justify-center rounded-xl border py-2">
+            <div className="flex flex-col justify-center rounded-xl border py-1">
               <Kpi
                 titulo={<span className="text-sm tracking-wider text-muted-foreground">% AUSENTISMO TOTAL</span>}
                 serie={serie}
@@ -52,7 +52,7 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
                 mayorEsMejor={false}
                 centrado
                 sinExtremos
-                claseValor="text-5xl"
+                claseValor="text-[clamp(36px,6.5vh,60px)] leading-none"
                 detalle="Horas perdidas ÷ horas teóricas"
               />
             </div>

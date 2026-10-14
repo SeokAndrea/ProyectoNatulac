@@ -5,57 +5,101 @@ import { fmt } from "@/components/indicadores/formato"
 
 const colorGrupo = (g: string) => ({ "--c": `var(--ind-g${g})` }) as CSSProperties
 
-/** Barra horizontal desde 0; `max` llena su pista. El número va al lado, con su propio lugar. */
-function Barra({ valor, max }: { valor: number | null; max: number }) {
+/** Anillo con el % del grupo, como en el informe. */
+function Dona({ pct }: { pct: number | null }) {
+  const r = 42, c = 2 * Math.PI * r
+  const parte = Math.max(0, Math.min(100, pct ?? 0)) / 100
   return (
-    <div className="flex min-w-0 items-center gap-3">
-      <div className="min-w-0 flex-1">
-        {valor != null && max > 0 && <div style={{ width: `${(valor / max) * 100}%` }} className="h-[clamp(28px,4.5vh,48px)] rounded-md bg-[var(--c)]" />}
-      </div>
-      <span className="w-[5.2em] shrink-0 font-mono text-[clamp(20px,1.9vw,34px)] font-semibold tabular-nums">{valor == null ? "—" : `${fmt(valor, 2)} %`}</span>
+    <svg viewBox="0 0 110 110" className="size-[clamp(90px,14vh,170px)] shrink-0" role="img" aria-label={pct == null ? "Sin dato" : `${fmt(pct, 2)} %`}>
+      <circle cx="55" cy="55" r={r} fill="none" strokeWidth="14" className="stroke-muted" />
+      {pct != null && (
+        <circle cx="55" cy="55" r={r} fill="none" stroke="var(--c)" strokeWidth="14" strokeDasharray={`${c * parte} ${c}`} transform="rotate(-90 55 55)" />
+      )}
+      <text x="55" y="61" textAnchor="middle" className="fill-foreground font-mono text-base font-bold">
+        {pct == null ? "—" : `${fmt(pct, 2)}%`}
+      </text>
+    </svg>
+  )
+}
+
+/** Flecha de punta a punta: marca el ancho de su tramo de la barra. */
+function Flecha() {
+  return (
+    <div className="flex items-center" aria-hidden>
+      <span className="border-y-[6px] border-r-[9px] border-y-transparent border-r-[var(--c)]" />
+      <span className="h-0.5 flex-1 bg-[var(--c)]" />
+      <span className="border-y-[6px] border-l-[9px] border-y-transparent border-l-[var(--c)]" />
     </div>
   )
 }
 
-const encabezado = "text-[clamp(12px,0.95vw,16px)] font-semibold uppercase tracking-wider text-muted-foreground"
-
 /**
- * Los 3 grupos en filas, para comparar de un vistazo: % de ausentismo y % de
- * las horas perdidas en barras, cada columna en su escala (la mayor llega al
- * borde), y quién incidió más. En anillos o en una barra apilada no se veía la
- * diferencia (dueña, 2026-10-14). El grupo con más ausentismo lleva la estrella.
+ * Cómo se reparten las horas perdidas: una barra con un tramo por grupo,
+ * separados por un borde, y sobre cada tramo una flecha de punta a punta con
+ * el grupo y su %. Así se ve cuánto ocupa cada uno (dueña, 2026-10-14).
+ */
+function DistribucionPerdidas({ grupos }: { grupos: AusentismoGrupo[] }) {
+  const tramos = grupos.filter((g) => (g.partePerdidas ?? 0) > 0)
+  if (tramos.length === 0) return null
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Distribución de las horas perdidas por grupo</span>
+      <div className="flex w-full flex-col gap-1.5">
+        <div className="flex w-full gap-1.5">
+          {tramos.map((g) => (
+            <div key={g.grupo} style={{ ...colorGrupo(g.grupo), flexGrow: g.partePerdidas!, flexBasis: 0 }} className="flex min-w-0 flex-col gap-1">
+              <span className="truncate text-center text-[clamp(14px,1.2vw,20px)] font-bold">
+                Grupo {g.grupo} · <span className="font-mono">{fmt(g.partePerdidas, 2)} %</span>
+              </span>
+              <Flecha />
+            </div>
+          ))}
+        </div>
+        <div className="flex h-[clamp(36px,5.5vh,56px)] w-full gap-1.5">
+          {tramos.map((g) => (
+            <div
+              key={g.grupo}
+              style={{ ...colorGrupo(g.grupo), flexGrow: g.partePerdidas!, flexBasis: 0 }}
+              className="min-w-0 rounded-md border-2 border-foreground/25 bg-[var(--c)]"
+              title={`Grupo ${g.grupo}: ${fmt(g.partePerdidas, 2)} %`}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/*
+ * Los 3 grupos como en el informe: tarjeta con el anillo del % de
+ * ausentismo y quién incidió más (la estrella al mayor), y debajo cómo se
+ * reparten las horas perdidas.
  */
 export function GruposAusentismo({ grupos }: { grupos: AusentismoGrupo[] }) {
-  const maxPct = Math.max(0, ...grupos.map((g) => g.porcentaje ?? 0))
-  const maxParte = Math.max(0, ...grupos.map((g) => g.partePerdidas ?? 0))
+  // El grupo con más ausentismo lleva la estrella, como en el informe.
   const conDato = grupos.filter((g) => g.porcentaje != null)
   const mayor = conDato.length ? conDato.reduce((x, y) => (y.porcentaje! > x.porcentaje! ? y : x)).grupo : null
 
   return (
-    <div className="grid grid-cols-1 items-center gap-x-6 gap-y-3 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
-      <span className="max-lg:hidden" />
-      <span className={encabezado + " max-lg:hidden"}>% de ausentismo</span>
-      <span className={encabezado + " max-lg:hidden"}>% de las horas perdidas</span>
-      <span className={encabezado + " max-lg:hidden"}>Quién incidió más</span>
-      {grupos.map((g) => (
-        <div key={g.grupo} style={colorGrupo(g.grupo)} className="contents">
-          <b className="flex items-center gap-2 whitespace-nowrap border-l-[6px] border-[var(--c)] pl-3 text-[clamp(20px,1.9vw,32px)] max-lg:mt-2">
-            Grupo {g.grupo}
-            {mayor === g.grupo && <Star className="size-[0.8em] fill-danger text-danger" aria-label="Mayor incidencia del período" />}
-          </b>
-          <Barra valor={g.porcentaje} max={maxPct} />
-          <Barra valor={g.partePerdidas} max={maxParte} />
-          <span className="text-[clamp(16px,1.35vw,24px)] leading-tight">
-            <b>{g.quien || "—"}</b>
-            {g.dias != null && <span className="text-muted-foreground"> · {fmt(g.dias)} {g.dias === 1 ? "día" : "días"}</span>}
-          </span>
-        </div>
-      ))}
-      {mayor && (
-        <span className="text-[clamp(13px,1vw,17px)] text-muted-foreground lg:col-span-4">
-          <Star className="inline size-[1em] fill-danger text-danger" /> Mayor incidencia del período
-        </span>
-      )}
-    </div>
+    <>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {grupos.map((g) => (
+          <div key={g.grupo} style={colorGrupo(g.grupo)} className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-[var(--c)] p-3 text-center">
+            <b className="text-2xl">Grupo {g.grupo}</b>
+            <Dona pct={g.porcentaje} />
+            <span className="text-base text-muted-foreground">
+              Quien incidió más: <b className="text-foreground">{g.quien || "—"}</b>
+              {g.dias != null && ` (${fmt(g.dias)} ${g.dias === 1 ? "día" : "días"})`}
+            </span>
+            {mayor === g.grupo && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2.5 py-0.5 text-sm font-semibold text-danger">
+                <Star className="size-4 fill-current" /> Mayor incidencia del período
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      <DistribucionPerdidas grupos={grupos} />
+    </>
   )
 }
