@@ -4,6 +4,7 @@ import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
 import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
+import { TurnoCompleto } from "@/components/paradas/TurnoCompleto"
 import { ahoraPlanta, CampoFin, conSegundos, FormCompletarParada } from "@/components/paradas/FormCompletarParada"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import {
   duracionMin,
   eliminarParada,
   fmtDuracion,
+  LARGO_NOTA_PARADA,
   LINEAS_PARADAS,
   listarParadas,
   nombreLineaParada,
@@ -25,6 +27,7 @@ import {
   type TipoParada,
 } from "@/lib/paradas"
 import { useEquiposParadas, type EquipoParada } from "@/lib/paradasEquipos"
+import { esLineaNoProgramada } from "@/lib/paradasTurnoCompleto"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 
@@ -39,6 +42,8 @@ import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
  *    ("?parada=<id>" la abre de entrada).
  *  - Las que tienen hora de inicio sin fin: en curso, se terminan aquí.
  *  - "Anotar otra parada" (plegado): +1, o con horas reales si se conocen.
+ *    Las de Línea No Programada (LNPE) también por turno completo, de uno o
+ *    varios días (TurnoCompleto.tsx). La descripción tiene un máximo de LARGO_NOTA_PARADA.
  *    Si ya hay un +1 igual pendiente en esa línea, primero se pide cuánto
  *    tardó el anterior, o "Es un error" y no se guarda el nuevo.
  *  - Últimos 30 días (plegado).
@@ -292,6 +297,7 @@ function FormNuevaParada({
   const [tipo, setTipo] = useState<TipoParada | null>(null)
   const [nota, setNota] = useState("")
   const [conHoras, setConHoras] = useState(false)
+  const [turnoCompleto, setTurnoCompleto] = useState(false)
   const [inicio, setInicio] = useState(ahoraPlanta)
   const [fin, setFin] = useState("")
   const [guardando, setGuardando] = useState(false)
@@ -301,6 +307,7 @@ function FormNuevaParada({
   const [previa, setPrevia] = useState<Parada | null>(null)
 
   const esOcioso = ocioso || tipo?.clase === "OCIOSO"
+  const porTurno = turnoCompleto && !ocioso && esLineaNoProgramada(tipo)
   const faltan: string[] = []
   if (!ocioso && !tipo) faltan.push("Tipo de parada")
   if (esOcioso && nota.trim() === "") faltan.push("Motivo del tiempo ocioso")
@@ -391,51 +398,86 @@ function FormNuevaParada({
           onElegir={setTipo}
         />
       )}
-      <Input
-        placeholder={esOcioso ? "Motivo del tiempo ocioso (obligatorio)" : "Detalle (opcional)"}
-        value={nota}
-        onChange={(e) => setNota(e.target.value)}
-        className="h-9"
-      />
+      <label className="flex flex-col gap-1">
+        <Input
+          placeholder={esOcioso ? "Motivo del tiempo ocioso (obligatorio)" : "Descripción (opcional, se ve en los paneles)"}
+          value={nota}
+          maxLength={LARGO_NOTA_PARADA}
+          onChange={(e) => setNota(e.target.value)}
+          className="h-9"
+        />
+        <span className="self-end text-[11px] text-muted-foreground">
+          {nota.length}/{LARGO_NOTA_PARADA}
+        </span>
+      </label>
 
-      {conHoras && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            Inicio
-            <Input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} className="h-9" />
-          </label>
-          <CampoFin etiqueta="Fin (vacío = en curso)" inicio={inicio} fin={fin} onFin={setFin} />
+      {/* Línea No Programada: se puede cargar por turno completo (dueña, 2026-10-14). */}
+      {!ocioso && esLineaNoProgramada(tipo) && (
+        <div className="flex flex-wrap gap-2">
+          {[
+            { valor: false, texto: "Por horas o +1" },
+            { valor: true, texto: "Turno completo" },
+          ].map((o) => (
+            <Button key={o.texto} type="button" size="sm" variant={turnoCompleto === o.valor ? "default" : "outline"} onClick={() => setTurnoCompleto(o.valor)}>
+              {o.texto}
+            </Button>
+          ))}
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => setConHoras((v) => !v)}
-        className="self-start text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
-      >
-        {conHoras ? "Quitar horas (sumar +1 y poner los minutos después)" : "Ya sé la hora de inicio"}
-      </button>
 
-      {faltan.length > 0 && (tipo || ocioso) && (
-        <ul className="list-disc pl-4 text-xs text-danger-foreground">
-          {faltan.map((f) => (
-            <li key={f}>Falta: {f}</li>
-          ))}
-        </ul>
+      {porTurno && tipo ? (
+        <TurnoCompleto
+          usuario={usuario}
+          lineaCodigo={linea}
+          tipo={tipo}
+          nota={nota}
+          pagina={PAGINA}
+          onGuardada={onGuardada}
+          onRecargar={onCompletadaPrevia}
+          onCancelar={onCancelar}
+        />
+      ) : (
+        <>
+          {conHoras && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                Inicio
+                <Input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} className="h-9" />
+              </label>
+              <CampoFin etiqueta="Fin (vacío = en curso)" inicio={inicio} fin={fin} onFin={setFin} />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setConHoras((v) => !v)}
+            className="self-start text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
+          >
+            {conHoras ? "Quitar horas (sumar +1 y poner los minutos después)" : "Ya sé la hora de inicio"}
+          </button>
+    
+          {faltan.length > 0 && (tipo || ocioso) && (
+            <ul className="list-disc pl-4 text-xs text-danger-foreground">
+              {faltan.map((f) => (
+                <li key={f}>Falta: {f}</li>
+              ))}
+            </ul>
+          )}
+          {error && (
+            <p className="text-sm text-danger-foreground" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={guardar} disabled={faltan.length > 0 || guardando}>
+              {guardando ? <Loader2 className="size-4 animate-spin" /> : null}
+              {!conHoras ? "+1" : fin ? "Guardar parada" : "Iniciar parada (en curso)"}
+            </Button>
+            <Button variant="ghost" onClick={onCancelar} disabled={guardando}>
+              Cancelar
+            </Button>
+          </div>
+        </>
       )}
-      {error && (
-        <p className="text-sm text-danger-foreground" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={guardar} disabled={faltan.length > 0 || guardando}>
-          {guardando ? <Loader2 className="size-4 animate-spin" /> : null}
-          {!conHoras ? "+1" : fin ? "Guardar parada" : "Iniciar parada (en curso)"}
-        </Button>
-        <Button variant="ghost" onClick={onCancelar} disabled={guardando}>
-          Cancelar
-        </Button>
-      </div>
 
       <Dialog open={previa !== null} onOpenChange={(abierto) => !abierto && setPrevia(null)}>
         <DialogContent>

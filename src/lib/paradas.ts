@@ -141,6 +141,9 @@ export function codigoPlanilla(tipo: TipoParada, lineaCodigo: string, area?: str
  * cambia el número). Es la semilla: si `paradas_tipos` no responde, se usa
  * esta lista (ver paradasCatalogo.ts).
  */
+/** Largo máximo del detalle de una parada: se lee en los paneles, en una línea (dueña, 2026-10-14). */
+export const LARGO_NOTA_PARADA = 120
+
 export const CATALOGO_TIPOS: TipoParada[] = [
   // ---- Programada (PPL# / PPEL#) ----
   { codigo: "ARRANQUE_PRODUCCION", nombre: "Arranque de Producción", clase: "PROGRAMADA", familia: "PROGRAMADA", tiempoGuiaMin: 180, prefijoPlanilla: "PP", secuenciaPlanilla: null },

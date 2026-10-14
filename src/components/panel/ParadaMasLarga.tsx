@@ -20,6 +20,12 @@ export function ParadaMasLarga({ paradas, lineas, ahora }: { paradas: Parada[]; 
               {codigoDeParadaLive(parada) ? codigoDeParadaLive(parada) + " · " : ""}
               {parada.tipoNombre}
             </p>
+            {/* La descripción que escribió quien la registró (máx. LARGO_NOTA_PARADA). */}
+            {parada.nota && (
+              <p className="truncate text-xs text-foreground" title={parada.nota}>
+                {parada.nota}
+              </p>
+            )}
           </div>
           <span className="num shrink-0 text-lg font-bold text-warning">{formatDuracion(duracionMin(parada, ahora))}</span>
         </div>
