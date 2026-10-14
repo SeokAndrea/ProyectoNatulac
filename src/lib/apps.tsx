@@ -22,6 +22,7 @@ import {
   ClipboardList,
   Siren,
   ListChecks,
+  BarChart3,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
 import { esAreaDeApoyo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
@@ -189,6 +190,17 @@ export const apps: AppDef[] = [
     permiso: "VALIDAR",
     // En prueba (2026-10-12): solo el Área de Pruebas hasta que la Analista lo apruebe. Ver src/lib/validarJornada.ts.
     areasPermitidas: ["PRUEBAS"],
+    seccion: "auditoria",
+  },
+  {
+    slug: "indicadores",
+    title: "Indicadores",
+    description: "Eficiencia, cajas, merma y paradas del mes, por línea y presentación.",
+    href: "/indicadores",
+    icon: BarChart3,
+    requiereTurno: false,
+    // Jefe, analista y la dueña (2026-10-13): los mismos del Resumen Diario. Cada mes, automático o cargado a mano.
+    permiso: ["RESUMEN_VER", "VALIDAR"],
     seccion: "auditoria",
   },
   {

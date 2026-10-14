@@ -539,7 +539,7 @@ export interface FiltrosParadas {
   area?: string | null
 }
 
-interface FilaParada {
+export interface FilaParada {
   id: string
   clase: ClaseParada
   origen: OrigenParada
@@ -567,7 +567,12 @@ export async function listarParadas(filtros: FiltrosParadas): Promise<Parada[]> 
     p_area: filtros.area ?? null,
   })
   if (error || !data) return []
-  return (data as FilaParada[]).map((f) => ({
+  return (data as FilaParada[]).map(mapearFilaParada)
+}
+
+/** Una fila de `listar_paradas` (también la usa indicadores_turnos, src/lib/indicadores/automatico.ts). */
+export function mapearFilaParada(f: FilaParada): Parada {
+  return {
     id: f.id,
     clase: f.clase,
     origen: f.origen,
@@ -582,7 +587,7 @@ export async function listarParadas(filtros: FiltrosParadas): Promise<Parada[]> 
     fin: f.fin,
     supervisorNombre: f.supervisor_nombre,
     pendiente: f.pendiente === true,
-  }))
+  }
 }
 
 export interface DatosRegistroParada {

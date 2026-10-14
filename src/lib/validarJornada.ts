@@ -261,6 +261,7 @@ export interface FilaLote {
   id: string
   lote: string | null
   numeroTanque: number
+  saborId: string | null
   saborNombre: string | null
   /** Volumen al empezar la jornada (o el preparado, si nació ese día). */
   inicio: number | null
@@ -312,6 +313,7 @@ export function filasLotes(turnos: TurnoJornada[], presentaciones: PresentacionL
           id: t.loteId,
           lote: t.lote.lote,
           numeroTanque: t.lote.numeroTanque,
+          saborId: t.lote.saborId,
           saborNombre: t.lote.saborNombre,
           inicio: t.inicio,
           entradas: t.entrantes,

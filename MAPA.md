@@ -60,6 +60,7 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Textos de "Programación" | `src/pages/apps/Programacion.tsx` |
 | Textos de "Servicios Industriales" | `src/pages/apps/ServiciosIndustriales.tsx` |
 | Validar jornada (la Analista revisa el día: cajas, envases, semielaborado y paradas; recién validada cuenta en los KPIs). Por ahora solo en Pruebas | `src/pages/apps/ValidarJornada.tsx`, `src/components/validar-jornada/`, datos y cuentas en `src/lib/validarJornada.ts`; migración 20261109590000 |
+| Indicadores (mes por línea y presentación: eficiencia, cajas, merma, paradas y semielaborado; cada mes AUTOMÁTICO o MANUAL, con observaciones) | `src/pages/apps/Indicadores.tsx`, `src/components/indicadores/` (editor manual en `editor/`), cuentas en `src/lib/indicadores/`; migración 20261109990000 |
 | Textos de "Validar" (revisión post-turno, VALIDAR) | `src/pages/apps/Validar.tsx`, `src/components/ValidarLista.tsx` |
 | Textos de "Edición de Datos" | `src/pages/apps/EdicionDatos.tsx` |
 | Textos de "Personal" (administradores de área) | `src/pages/apps/Personal.tsx`, `src/components/personal/` (`PersonalPanel`, `FiltrosPersonal`, `FilaPersonal`, `FilaEdicionPersonal`, `FormularioNuevoPersonal`, `EditorPermisosExtra`; selectores de área/rol/cargo en `SelectoresPuesto`) |

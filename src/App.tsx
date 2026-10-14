@@ -17,6 +17,7 @@ const FinalizarTurno = lazy(() => import("@/pages/apps/FinalizarTurno"))
 const MisActas = lazy(() => import("@/pages/apps/MisActas"))
 const ResumenDia = lazy(() => import("@/pages/apps/ResumenDia"))
 const ValidarJornada = lazy(() => import("@/pages/apps/ValidarJornada"))
+const Indicadores = lazy(() => import("@/pages/apps/Indicadores"))
 const PanelProduccion = lazy(() => import("@/pages/apps/PanelProduccion"))
 const PanelParadas = lazy(() => import("@/pages/apps/PanelParadas"))
 const RegistrarParadas = lazy(() => import("@/pages/apps/RegistrarParadas"))
@@ -228,6 +229,14 @@ export default function App() {
             element={
               <ProtectedRoute app="resumen-dia">
                 <ResumenDia />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/indicadores"
+            element={
+              <ProtectedRoute app="indicadores">
+                <Indicadores />
               </ProtectedRoute>
             }
           />
