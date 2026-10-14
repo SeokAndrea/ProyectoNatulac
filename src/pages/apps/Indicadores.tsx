@@ -110,7 +110,10 @@ export default function Indicadores() {
           </p>
         ) : sinValidadas ? (
           <p className="m-auto max-w-md text-center text-sm text-muted-foreground">
-            {capital(nombreMes(mes))} no tiene jornadas validadas todavía. El modo automático cuenta solo lo validado en Validar jornada; mientras tanto, se puede pasar el mes a MANUAL.
+            {/* Quien no carga datos no ve nada del modo manual (se expone en reuniones, dueña 2026-10-14). */}
+            {puedeCargar
+              ? `${capital(nombreMes(mes))} no tiene jornadas validadas todavía. El modo automático cuenta solo lo validado en Validar jornada; mientras tanto, se puede pasar el mes a MANUAL.`
+              : `${capital(nombreMes(mes))} todavía no tiene datos.`}
           </p>
         ) : seccion === "semi" ? (
           <VistaSemielaborado meses={ind.meses} vista={vistaSemi} onVista={setVistaSemi} renderObservacion={observacion} />
