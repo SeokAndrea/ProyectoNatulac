@@ -101,6 +101,12 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
               {textoParadaEnVivo(fila.paradaEnVivo)}
             </p>
           )}
+          {/* Descripción de la parada (máx. LARGO_NOTA_PARADA), ej. "Arreglo del piso" (dueña, 2026-10-14). */}
+          {fila.paradaEnVivo?.visible && fila.paradaEnVivo.nota && (
+            <p className="truncate text-xs text-foreground" title={fila.paradaEnVivo.nota}>
+              {fila.paradaEnVivo.nota}
+            </p>
+          )}
           {fila.observacion && (
             <p className="mt-1 flex items-start gap-1 text-xs leading-snug text-danger">
               <AlertTriangle className="mt-0.5 size-3 shrink-0" />

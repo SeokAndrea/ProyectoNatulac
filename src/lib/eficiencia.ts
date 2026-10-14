@@ -1,4 +1,4 @@
-import { minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
+import { esParadaLNPE, minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 import { tramoT2 } from "@/lib/turno12x12"
@@ -11,7 +11,8 @@ import { tramoT2 } from "@/lib/turno12x12"
  * Idea (dueña, 2026-09-22 — corrige la de 2026-09-21): la base es siempre la
  * duración completa del turno. Las paradas PROGRAMADAS y el TIEMPO OCIOSO
  * reducen el tiempo disponible (no castigan); las NO PROGRAMADAS son lo que
- * hace perder eficiencia. La Meta usa la velocidad ELEGIDA (el compromiso del
+ * hace perder eficiencia, salvo las de Línea No Programada (LNPE), que cuentan
+ * como el Ocioso (dueña, 2026-10-14). La Meta usa la velocidad ELEGIDA (el compromiso del
  * supervisor al activar la línea).
  *
  * Eficiencia (dueña, 2026-10-06): es de TIEMPO, no de envases. Arranca en
@@ -222,8 +223,11 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     const transcurridoLineaMin = Math.min(transcurridoMin, minutosDesdeActivacion)
 
     // Sin solape: si supervisor y Mantenimiento registran la misma falla, cuenta una vez.
+    // Línea No Programada (LNPE) cuenta como el Ocioso: baja la meta, no castiga (dueña, 2026-10-14).
     const minutos = minutosPorClaseSinSolape(
-      t.paradas.filter((p) => numeroLinea(p.lineaCodigo) === numeroLinea(codigo)),
+      t.paradas
+        .filter((p) => numeroLinea(p.lineaCodigo) === numeroLinea(codigo))
+        .map((p) => (esParadaLNPE(p) ? { ...p, clase: "OCIOSO" as const } : p)),
       ahora,
       primeraActivacionMs,
     )

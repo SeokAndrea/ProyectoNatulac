@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { anotarParada, type TipoParada } from "@/lib/paradas"
 import { MAX_DIAS_TURNO_COMPLETO, TURNOS_COMPLETOS, diasEntre, turnosACargar, type TipoTurno } from "@/lib/paradasTurnoCompleto"
-import { franjaDeHora, restarDias } from "@/lib/tiempoPlanta"
+import { franjaDeHora } from "@/lib/tiempoPlanta"
 import { cn } from "@/lib/utils"
 
 const ddmm = (fecha: string) => `${fecha.slice(8, 10)}/${fecha.slice(5, 7)}`
@@ -13,7 +13,7 @@ const ddmm = (fecha: string) => `${fecha.slice(8, 10)}/${fecha.slice(5, 7)}`
 /**
  * Parada de Línea No Programada por TURNO COMPLETO (dueña, 2026-10-14): de
  * un día a otro y los turnos elegidos, una parada por turno con todo su
- * horario. Solo los turnos que ya terminaron.
+ * horario. Los que ya empezaron; el de ahora entra hasta su fin.
  */
 export function TurnoCompleto({
   usuario,
@@ -35,17 +35,18 @@ export function TurnoCompleto({
   onRecargar: () => void | Promise<void>
   onCancelar: () => void
 }) {
-  // Por defecto, la jornada anterior: lo común es cargarla después.
-  const ayer = restarDias(franjaDeHora().fecha, 1)
-  const [desde, setDesde] = useState(ayer)
-  const [hasta, setHasta] = useState(ayer)
-  const [tipos, setTipos] = useState<TipoTurno[]>(TURNOS_COMPLETOS.map((t) => t.tipo))
+  // Por defecto, el turno de ahora: así sale en el Panel de Producción mientras dura.
+  const [franja] = useState(franjaDeHora)
+  const [desde, setDesde] = useState(franja.fecha)
+  const [hasta, setHasta] = useState(franja.fecha)
+  const [tipos, setTipos] = useState<TipoTurno[]>([franja.tipo])
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const muchosDias = diasEntre(desde, hasta).length > MAX_DIAS_TURNO_COMPLETO
   const turnos = muchosDias ? [] : turnosACargar(desde, hasta, tipos, ahoraPlanta())
-  const listos = turnos.filter((t) => t.termino)
+  const listos = turnos.filter((t) => t.empezo)
+  const enCurso = listos.find((t) => t.enCurso)
   const faltan = turnos.length - listos.length
 
   async function guardar() {
@@ -105,9 +106,10 @@ export function TurnoCompleto({
         {muchosDias
           ? `Máximo ${MAX_DIAS_TURNO_COMPLETO} días de una vez.`
           : listos.length === 0
-            ? "Elige al menos un turno que ya haya terminado."
+            ? "Elige al menos un turno que ya haya empezado."
             : `Se registran ${listos.length} parada${listos.length === 1 ? "" : "s"} de «${tipo.nombre}», una por turno, cada una con el turno entero.`}
-        {faltan > 0 && ` ${faltan} turno${faltan === 1 ? "" : "s"} todavía no termina${faltan === 1 ? "" : "n"}: se carga${faltan === 1 ? "" : "n"} cuando terminen.`}
+        {enCurso && ` El ${enCurso.corto} de ahora queda hasta las ${enCurso.fin.slice(11)} y se ve en el Panel de Producción mientras dura.`}
+        {faltan > 0 && ` ${faltan} turno${faltan === 1 ? "" : "s"} todavía no empieza${faltan === 1 ? "" : "n"}: no se carga${faltan === 1 ? "" : "n"}.`}
       </p>
 
       {error && (

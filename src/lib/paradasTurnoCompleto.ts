@@ -5,8 +5,9 @@ import { restarDias } from "@/lib/tiempoPlanta"
  * Externa (LNPE) puede cubrir el turno entero, por ejemplo los días en que
  * arreglaron el piso y ninguna línea estuvo planificada. Se registra con el
  * horario del turno: T1 07:00–15:00, T2 15:00–22:30, T3 22:30–07:00 (el mismo
- * de turnoTipoActual). Solo turnos que ya terminaron: el servidor no acepta
- * un fin en el futuro.
+ * de turnoTipoActual). Los que ya empezaron: el turno en curso entra entero,
+ * con su fin todavía adelante (migración 20261110590000, solo LNPE), y así el
+ * Panel de Producción la muestra en la fila de la línea mientras dura.
  */
 
 export type TipoTurno = "TURNO_1" | "TURNO_2" | "TURNO_3"
@@ -31,8 +32,10 @@ export interface TurnoACargar {
   /** 'YYYY-MM-DDTHH:MM', hora de planta. */
   inicio: string
   fin: string
-  /** Si ya terminó (los que no, no se pueden cargar todavía). */
-  termino: boolean
+  /** Si ya empezó (los que no, no se pueden cargar todavía). */
+  empezo: boolean
+  /** Empezó y todavía no termina. */
+  enCurso: boolean
 }
 
 /** Días de `desde` a `hasta` inclusive ('YYYY-MM-DD'). Vacío si están al revés. */
@@ -47,7 +50,8 @@ export function turnosACargar(desde: string, hasta: string, tipos: TipoTurno[], 
   return diasEntre(desde, hasta).flatMap((fecha) =>
     TURNOS_COMPLETOS.filter((t) => tipos.includes(t.tipo)).map((t) => {
       const fin = `${t.tipo === "TURNO_3" ? restarDias(fecha, -1) : fecha}T${t.hasta}`
-      return { fecha, tipo: t.tipo, corto: t.corto, inicio: `${fecha}T${t.desde}`, fin, termino: fin <= ahora }
+      const inicio = `${fecha}T${t.desde}`
+      return { fecha, tipo: t.tipo, corto: t.corto, inicio, fin, empezo: inicio <= ahora, enCurso: inicio <= ahora && ahora < fin }
     }),
   )
 }

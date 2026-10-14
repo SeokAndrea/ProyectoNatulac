@@ -82,3 +82,17 @@ describe("aplicarParadasEnVivo", () => {
     expect(aplicarParadasEnVivo(base, [abierta({ inicio: "2026-10-12T08:00:00" })], AHORA)[0].estado).toBe("cip")
   })
 })
+
+describe("Línea No Programada hasta el final del turno (dueña, 2026-10-14)", () => {
+  const lnpe = abierta({ tipoCodigo: "FERIADO", tipoNombre: "Feriado", origen: "MANTENIMIENTO", inicio: "2026-10-12T07:00:00", fin: "2026-10-12T15:00:00", nota: "Arreglo del piso" })
+
+  it("mientras dura, la fila la muestra de entrada, con su descripción", () => {
+    const p = paradaEnVivo("LINEA_1", [lnpe], null, AHORA)
+    expect(p).toMatchObject({ lineaNoProgramada: true, visible: true, deMantenimiento: false, nota: "Arreglo del piso", minutos: 180 })
+    expect(textoParadaEnVivo(p!)).toBe("Línea no programada · Feriado")
+  })
+
+  it("después del fin, ya no", () => {
+    expect(paradaEnVivo("LINEA_1", [lnpe], null, new Date("2026-10-12T15:30:00"))).toBeNull()
+  })
+})

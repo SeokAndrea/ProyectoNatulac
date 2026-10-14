@@ -208,6 +208,18 @@ export const CATALOGO_TIPOS: TipoParada[] = [
   { codigo: "COLEO_PREPARACION", nombre: "Coleo de Preparación", clase: "NO_PROGRAMADA", familia: "PREPARACION", tiempoGuiaMin: null, prefijoPlanilla: "P", secuenciaPlanilla: 1 },
 ]
 
+/*
+ * Línea No Programada / Externa (prefijo LNPE): cuenta como el Ocioso, baja la
+ * meta y no castiga la eficiencia, y puede cubrir el turno entero (dueña,
+ * 2026-10-14). Los códigos salen del catálogo en vivo (paradasCatalogo los
+ * actualiza al cargar); hasta entonces, de esta semilla.
+ */
+let codigosLNPE = new Set(CATALOGO_TIPOS.filter((t) => t.prefijoPlanilla === "LNPE").map((t) => t.codigo))
+export function fijarCodigosLNPE(tipos: Pick<TipoParada, "codigo" | "prefijoPlanilla">[]) {
+  codigosLNPE = new Set(tipos.filter((t) => t.prefijoPlanilla === "LNPE").map((t) => t.codigo))
+}
+export const esParadaLNPE = (p: Pick<Parada, "tipoCodigo">) => !!p.tipoCodigo && codigosLNPE.has(p.tipoCodigo)
+
 /** Solo la familia PROGRAMADA — para quien necesite ese subconjunto puntual. */
 export const CATALOGO_PROGRAMADA: TipoParada[] = CATALOGO_TIPOS.filter((t) => t.clase === "PROGRAMADA")
 
@@ -291,7 +303,8 @@ export const paradaAbierta = (p: Parada) => p.fin === null
 /** Duración en minutos: `fin − inicio` (o `ahora − inicio` si está abierta). */
 export function duracionMin(p: Pick<Parada, "inicio" | "fin">, ahora: Date = new Date()): number {
   const ini = new Date(p.inicio).getTime()
-  const fin = p.fin ? new Date(p.fin).getTime() : ahora.getTime()
+  // Una LNPE puede terminar al final del turno en curso: cuenta hasta ahora.
+  const fin = Math.min(p.fin ? new Date(p.fin).getTime() : ahora.getTime(), ahora.getTime())
   return Math.max(0, Math.round((fin - ini) / 60000))
 }
 
@@ -314,7 +327,7 @@ export function minutosPorClaseSinSolape(
   const tramos = paradas
     .map((p) => ({
       ini: Math.max(new Date(p.inicio).getTime(), desdeMs),
-      fin: p.fin ? new Date(p.fin).getTime() : ahora.getTime(),
+      fin: Math.min(p.fin ? new Date(p.fin).getTime() : ahora.getTime(), ahora.getTime()),
       clase: p.clase,
     }))
     .filter((t) => t.fin > t.ini)

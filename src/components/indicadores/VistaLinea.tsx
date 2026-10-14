@@ -5,7 +5,8 @@ import type { VelocidadLive } from "@/lib/catalogosLive"
 import { colorLinea, colorPresentacion } from "@/components/indicadores/colores"
 import { ColumnaPresentacion } from "@/components/indicadores/ColumnaPresentacion"
 import { GraficoEficiencia } from "@/components/indicadores/GraficoEficiencia"
-import { ParadasLinea } from "@/components/indicadores/ParadasLinea"
+import { hayParadas, ParadasLinea } from "@/components/indicadores/ParadasLinea"
+import { cn } from "@/lib/utils"
 import type { MesIndicadores } from "@/components/indicadores/useIndicadores"
 
 /*
@@ -32,6 +33,13 @@ export function VistaLinea({
   const claves = meses.flatMap((m) => Object.keys(m.datos?.presentaciones ?? {}))
   const visibles = presentacionesDeLinea(linea, velocidades, claves).filter((p) => tieneDatos(elegido.datos?.presentaciones[p.clave], elegido.modo))
   const color = colorLinea(linea)
+  const manual = elegido.modo === "MANUAL"
+  const generales = manual ? (elegido.datos?.paradasGenerales ?? []) : []
+  // Sin paradas cargadas, la presentación no aparece en Paradas; sin ninguna, tampoco el bloque (dueña, 2026-10-14).
+  const conParadas = visibles
+    .map((p) => ({ clave: p.clave, nombre: p.nombre, color: colorPresentacion(linea, p.indice), paradas: elegido.datos?.presentaciones[p.clave]?.paradas ?? [] }))
+    .filter((p) => hayParadas(p.paradas))
+  const verParadas = conParadas.length > 0 || hayParadas(generales)
 
   return (
     <div
@@ -39,7 +47,7 @@ export function VistaLinea({
       style={{ ...color, "--columnas": `minmax(0, 1.15fr) repeat(${Math.max(1, visibles.length)}, minmax(0, 1fr))` } as CSSProperties}
     >
       <div className="flex min-h-0 min-w-0 flex-col gap-2.5">
-        <section aria-label="Eficiencia de la línea" className="flex h-[38%] min-h-[190px] flex-col gap-1.5 rounded-xl border bg-card px-3 py-2.5">
+        <section aria-label="Eficiencia de la línea" className={cn("flex min-h-[190px] flex-col gap-1.5 rounded-xl border bg-card px-3 py-2.5", verParadas ? "h-[38%]" : "flex-1")}>
           <h2 className="flex items-baseline gap-2 text-base font-bold tracking-wider text-[var(--c-texto)]">
             EFICIENCIA <span className="text-xs font-medium tracking-normal text-muted-foreground">Línea {linea}</span>
           </h2>
@@ -59,16 +67,7 @@ export function VistaLinea({
           </div>
           <GraficoEficiencia serie={meses.map((m) => ({ mes: m.mes, valor: m.datos?.eficiencia[linea] ?? null }))} />
         </section>
-        <ParadasLinea
-          manual={elegido.modo === "MANUAL"}
-          generales={elegido.datos?.paradasGenerales}
-          presentaciones={visibles.map((p) => ({
-            clave: p.clave,
-            nombre: p.nombre,
-            color: colorPresentacion(linea, p.indice),
-            paradas: elegido.datos?.presentaciones[p.clave]?.paradas ?? [],
-          }))}
-        />
+        {verParadas && <ParadasLinea manual={manual} generales={generales} presentaciones={conParadas} />}
       </div>
       {visibles.length === 0 && (
         <p className="self-center text-center text-sm text-muted-foreground">Sin datos de la Línea {linea} en {nombreMes(elegido.mes)}.</p>

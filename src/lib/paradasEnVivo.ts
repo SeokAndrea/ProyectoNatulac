@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { duracionMin, fmtDuracion, listarParadas, type Parada } from "@/lib/paradas"
+import { duracionMin, esParadaLNPE, fmtDuracion, listarParadas, type Parada } from "@/lib/paradas"
 import { actualizarDesdeSheet, ultimaActualizacionSheet } from "@/lib/sheetMantenimiento"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 
@@ -37,7 +37,18 @@ export interface ParadaEnVivo {
   tipoNombre: string | null
   /** Ya pasó el margen: la cinta se muestra parada. */
   visible: boolean
+  /** Línea No Programada (LNPE): la línea no estaba planificada; se muestra con su descripción. */
+  lineaNoProgramada: boolean
+  /** Descripción que escribió quien la registró. */
+  nota: string | null
 }
+
+/**
+ * Si la parada sigue en curso: sin fin, o una LNPE cargada hasta el final del
+ * turno, que todavía no terminó (dueña, 2026-10-14).
+ */
+export const sigueEnVivo = (p: Parada, ahora: Date) =>
+  p.fin === null || (esParadaLNPE(p) && new Date(p.inicio) <= ahora && new Date(p.fin) > ahora)
 
 /** "LINEA_T2" (Pruebas) y "LINEA_2" (Aséptico, paradas) son la misma línea física: se comparan por número. */
 const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
@@ -50,21 +61,34 @@ const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
 export function paradaEnVivo(lineaCodigo: string, abiertas: Parada[], pausadaEn: string | null, ahora: Date): ParadaEnVivo | null {
   const n = numeroLinea(lineaCodigo)
   const candidatas: ParadaEnVivo[] = abiertas
-    .filter((p) => p.fin === null && numeroLinea(p.lineaCodigo) === n)
+    .filter((p) => sigueEnVivo(p, ahora) && numeroLinea(p.lineaCodigo) === n)
     .map((p) => {
       const minutos = duracionMin(p, ahora)
-      return { minutos, deMantenimiento: p.origen !== "MANUAL", tipoNombre: p.tipoNombre, visible: minutos >= MARGEN_PARADA_MIN }
+      const lnp = esParadaLNPE(p)
+      // La LNPE se ve de entrada: no es una falla que haya que darle tiempo al supervisor para registrar.
+      return {
+        minutos,
+        deMantenimiento: p.origen !== "MANUAL" && !lnp,
+        tipoNombre: p.tipoNombre,
+        visible: lnp || minutos >= MARGEN_PARADA_MIN,
+        lineaNoProgramada: lnp,
+        nota: p.nota,
+      }
     })
   if (pausadaEn) {
     const minutos = Math.max(0, Math.round((ahora.getTime() - new Date(pausadaEn).getTime()) / 60000))
-    candidatas.push({ minutos, deMantenimiento: false, tipoNombre: null, visible: minutos >= MARGEN_PARADA_MIN })
+    candidatas.push({ minutos, deMantenimiento: false, tipoNombre: null, visible: minutos >= MARGEN_PARADA_MIN, lineaNoProgramada: false, nota: null })
   }
   if (candidatas.length === 0) return null
-  return candidatas.sort((a, b) => Number(b.deMantenimiento) - Number(a.deMantenimiento) || b.minutos - a.minutos)[0]
+  // La LNPE explica por qué la línea no produce: va primero.
+  return candidatas.sort(
+    (a, b) => Number(b.lineaNoProgramada) - Number(a.lineaNoProgramada) || Number(b.deMantenimiento) - Number(a.deMantenimiento) || b.minutos - a.minutos,
+  )[0]
 }
 
-/** Texto corto para la cinta: "Mantenimiento · 42 min", "Parada · 23 min" o "Parada hace 6 min". */
+/** Texto corto para la cinta: "Línea no programada · Feriado", "Mantenimiento · 42 min", "Parada · 23 min" o "Parada hace 6 min". */
 export function textoParadaEnVivo(p: ParadaEnVivo): string {
+  if (p.lineaNoProgramada) return `Línea no programada · ${p.tipoNombre}`
   if (!p.visible) return `Parada hace ${p.minutos} min`
   return `${p.deMantenimiento ? "Mantenimiento" : "Parada"} · ${fmtDuracion(p.minutos)}`
 }
@@ -95,7 +119,7 @@ export function useParadasAbiertas(area: string | null, sincronizarComo: string 
       await sincronizarSiHaceFalta()
       const hoy = fechaPlanta()
       const paradas = await listarParadas({ desde: restarDias(hoy, DIAS_ATRAS), hasta: hoy, area })
-      if (vivo) setAbiertas(paradas.filter((p) => p.fin === null))
+      if (vivo) setAbiertas(paradas.filter((p) => sigueEnVivo(p, new Date())))
     }
 
     cargar()

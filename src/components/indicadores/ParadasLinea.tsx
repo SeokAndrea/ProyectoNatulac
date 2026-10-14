@@ -46,7 +46,11 @@ function ListaNombres({ paradas }: { paradas: ParadaMes[] }) {
  * Paradas del mes, por presentación. Automático: 3 por tiempo y 3 por veces.
  * Manual: la lista de lo cargado, solo los nombres, con las GENERALES (las
  * mismas en las 3 líneas) arriba. Los bloques se reparten todo el alto.
+ * Solo llegan las presentaciones con paradas (VistaLinea filtra con hayParadas).
  */
+/** Si hay alguna parada con nombre. Sin paradas, el bloque no aparece (dueña, 2026-10-14). */
+export const hayParadas = (paradas: ParadaMes[] | undefined) => !!paradas?.some((p) => p.causa.trim())
+
 export function ParadasLinea({
   presentaciones,
   manual,
@@ -60,13 +64,12 @@ export function ParadasLinea({
   return (
     <section aria-label="Paradas" className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2.5 max-lg:flex-none">
       <h2 className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">{manual ? "Paradas" : "Paradas no programadas"}</h2>
-      {manual && generales.some((p) => p.causa.trim()) && (
+      {manual && hayParadas(generales) && (
         <div className="flex min-h-0 flex-[1_1_0] flex-col justify-evenly gap-1 border-l-4 border-muted-foreground py-1 pl-2.5 max-lg:flex-none">
           <span className="text-[15px] font-bold">GENERALES</span>
           <ListaNombres paradas={generales} />
         </div>
       )}
-      {presentaciones.length === 0 && <p className="text-sm text-muted-foreground">—</p>}
       {presentaciones.map((p) => (
         <div key={p.clave} style={p.color} className="flex min-h-0 flex-[1_1_0] flex-col justify-evenly gap-1 border-l-4 border-[var(--c)] py-1 pl-2.5 max-lg:flex-none">
           <span className="text-[15px] font-bold text-[var(--c-texto)]">{p.nombre}</span>

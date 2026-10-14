@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react"
 import { supabase } from "@/lib/supabase"
-import { CATALOGO_TIPOS, codigoPlanilla, listarParadas, type FamiliaParada, type LineaDeTipo, type Parada, type TipoParada } from "@/lib/paradas"
+import { CATALOGO_TIPOS, codigoPlanilla, fijarCodigosLNPE, listarParadas, type FamiliaParada, type LineaDeTipo, type Parada, type TipoParada } from "@/lib/paradas"
 
 /*
  * Catálogo de tipos de parada EDITABLE. Vive en la tabla `paradas_tipos`
@@ -63,6 +63,7 @@ export async function recargarCatalogo(): Promise<void> {
       activo: f.activo,
     }))
   }
+  fijarCodigosLNPE(cache)
   avisar()
 }
 
