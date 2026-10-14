@@ -18,6 +18,8 @@ export function Kpi({
   detalle,
   centrado,
   grande,
+  sinExtremos,
+  claseValor,
 }: {
   titulo?: ReactNode
   serie: PuntoSerie[]
@@ -31,6 +33,10 @@ export function Kpi({
   detalle?: ReactNode
   centrado?: boolean
   grande?: boolean
+  /** Sin "más alto / más bajo" (ej. el ausentismo total, dueña 2026-10-14). */
+  sinExtremos?: boolean
+  /** Tamaño propio del número (pisa a grande). */
+  claseValor?: string
 }) {
   const actual = serie[serie.length - 1]
   const anterior = serie.length > 1 ? serie[serie.length - 2] : null
@@ -51,7 +57,7 @@ export function Kpi({
           )}
         </div>
       )}
-      <span className={cn("font-mono font-semibold tabular-nums leading-tight", grande ? "text-3xl" : "text-xl")}>{texto(actual.valor)}</span>
+      <span className={cn("font-mono font-semibold tabular-nums leading-tight", claseValor ?? (grande ? "text-3xl" : "text-xl"))}>{texto(actual.valor)}</span>
       <span className="truncate text-[11px] text-muted-foreground">
         {detalle}
         {detalle && " · "}
@@ -71,12 +77,16 @@ export function Kpi({
           </>
         )}
       </span>
-      <span className="truncate text-[10.5px] text-muted-foreground">
-        ▲ Más alto <b className="text-foreground">{ext ? `${mesCorto(ext.alto.mes)} ${texto(ext.alto.valor)}` : "—"}</b>
-      </span>
-      <span className="truncate text-[10.5px] text-muted-foreground">
-        ▼ Más bajo <b className="text-foreground">{ext ? `${mesCorto(ext.bajo.mes)} ${texto(ext.bajo.valor)}` : "—"}</b>
-      </span>
+      {!sinExtremos && (
+        <>
+          <span className="truncate text-[10.5px] text-muted-foreground">
+            ▲ Más alto <b className="text-foreground">{ext ? `${mesCorto(ext.alto.mes)} ${texto(ext.alto.valor)}` : "—"}</b>
+          </span>
+          <span className="truncate text-[10.5px] text-muted-foreground">
+            ▼ Más bajo <b className="text-foreground">{ext ? `${mesCorto(ext.bajo.mes)} ${texto(ext.bajo.valor)}` : "—"}</b>
+          </span>
+        </>
+      )}
     </div>
   )
 }

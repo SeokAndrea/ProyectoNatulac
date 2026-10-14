@@ -15,7 +15,7 @@ function Dona({ pct }: { pct: number | null }) {
   const r = 42, c = 2 * Math.PI * r
   const parte = Math.max(0, Math.min(100, pct ?? 0)) / 100
   return (
-    <svg viewBox="0 0 110 110" className="size-28 shrink-0" role="img" aria-label={pct == null ? "Sin dato" : `${fmt(pct, 2)} %`}>
+    <svg viewBox="0 0 110 110" className="size-36 shrink-0" role="img" aria-label={pct == null ? "Sin dato" : `${fmt(pct, 2)} %`}>
       <circle cx="55" cy="55" r={r} fill="none" strokeWidth="14" className="stroke-muted" />
       {pct != null && (
         <circle cx="55" cy="55" r={r} fill="none" stroke="var(--c)" strokeWidth="14" strokeDasharray={`${c * parte} ${c}`} transform="rotate(-90 55 55)" />
@@ -29,10 +29,10 @@ function Dona({ pct }: { pct: number | null }) {
 
 function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detalle: string }) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-xl border bg-card px-4 py-3">
-      <span className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</span>
-      <span className="font-mono text-3xl font-semibold tabular-nums">{valor}</span>
-      <span className="text-xs text-muted-foreground">{detalle}</span>
+    <div className="flex flex-col items-center justify-center gap-1 rounded-xl border bg-card px-4 py-4 text-center">
+      <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</span>
+      <span className="font-mono text-5xl font-semibold tabular-nums">{valor}</span>
+      <span className="text-sm text-muted-foreground">{detalle}</span>
     </div>
   )
 }
@@ -61,48 +61,57 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
       {!a ? (
         <p className="m-auto text-muted-foreground">Sin datos de ausentismo en {nombreMes(elegido.mes)}.</p>
       ) : (
-        <>
+        // Todo centrado y grande, repartido en el alto de la pantalla (dueña, 2026-10-14).
+        <div className="flex flex-1 flex-col justify-evenly gap-5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Dato titulo="Horas teóricas" valor={horas(a.horasTeoricas)} detalle="Horas planificadas del período" />
-            <div className="rounded-xl border">
-              <Kpi titulo="% AUSENTISMO TOTAL" serie={serie} decimales={2} unidad=" %" mayorEsMejor={false} centrado grande detalle="Horas perdidas ÷ horas teóricas" />
+            <div className="flex flex-col justify-center rounded-xl border py-2">
+              <Kpi
+                titulo={<span className="text-sm tracking-wider text-muted-foreground">% AUSENTISMO TOTAL</span>}
+                serie={serie}
+                decimales={2}
+                unidad=" %"
+                mayorEsMejor={false}
+                centrado
+                sinExtremos
+                claseValor="text-5xl"
+                detalle="Horas perdidas ÷ horas teóricas"
+              />
             </div>
             <Dato titulo="Horas perdidas" valor={horas(a.horasPerdidas)} detalle="En el mes" />
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {a.grupos.map((g) => (
-              <div key={g.grupo} style={colorGrupo(g.grupo)} className="flex items-center gap-3 rounded-xl border-2 border-[var(--c)] p-3">
+              <div key={g.grupo} style={colorGrupo(g.grupo)} className="flex flex-col items-center gap-2 rounded-xl border-2 border-[var(--c)] p-4 text-center">
+                <b className="text-2xl">Grupo {g.grupo}</b>
                 <Dona pct={g.porcentaje} />
-                <div className="flex min-w-0 flex-col gap-1">
-                  <b className="text-lg">Grupo {g.grupo}</b>
-                  <span className="text-sm text-muted-foreground">
-                    Quien incidió más: <b className="text-foreground">{g.quien || "—"}</b>
-                    {g.dias != null && ` (${fmt(g.dias)} ${g.dias === 1 ? "día" : "días"})`}
+                <span className="text-base text-muted-foreground">
+                  Quien incidió más: <b className="text-foreground">{g.quien || "—"}</b>
+                  {g.dias != null && ` (${fmt(g.dias)} ${g.dias === 1 ? "día" : "días"})`}
+                </span>
+                {mayor === g.grupo && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2.5 py-0.5 text-sm font-semibold text-danger">
+                    <Star className="size-4 fill-current" /> Mayor incidencia del período
                   </span>
-                  {mayor === g.grupo && (
-                    <span className="inline-flex items-center gap-1 self-start rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger">
-                      <Star className="size-3.5 fill-current" /> Mayor incidencia del período
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
             ))}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <span className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">Distribución de las horas perdidas por grupo</span>
-            <div className="flex h-9 overflow-hidden rounded-lg bg-muted">
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Distribución de las horas perdidas por grupo</span>
+            <div className="flex h-12 w-full overflow-hidden rounded-lg bg-muted">
               {a.grupos.map((g) =>
                 g.partePerdidas ? (
-                  <div key={g.grupo} style={{ ...colorGrupo(g.grupo), width: `${g.partePerdidas}%` }} className="grid place-items-center bg-[var(--c)] text-xs font-bold text-white" title={`Grupo ${g.grupo}: ${fmt(g.partePerdidas, 2)} %`}>
-                    {g.partePerdidas >= 8 && `G${g.grupo} · ${fmt(g.partePerdidas, 1)} %`}
+                  <div key={g.grupo} style={{ ...colorGrupo(g.grupo), width: `${g.partePerdidas}%` }} className="grid place-items-center bg-[var(--c)] text-sm font-bold text-white" title={`Grupo ${g.grupo}: ${fmt(g.partePerdidas, 2)} %`}>
+                    {g.partePerdidas >= 8 && `Grupo ${g.grupo} · ${fmt(g.partePerdidas, 2)} %`}
                   </div>
                 ) : null,
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
     </section>
   )
