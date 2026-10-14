@@ -54,13 +54,13 @@ export interface Ausentismo {
 }
 
 /**
- * Una incidencia o un seguimiento del mes (siempre a mano). La INCIDENCIA es
- * solo un recuadro con `texto`; el SEGUIMIENTO lleva evento, qué pasó, cómo
- * pasó y acción correctiva (dueña, 2026-10-14).
+ * Una incidencia o un seguimiento del mes (siempre a mano). Los dos llevan
+ * `evento` de título. La INCIDENCIA lleva qué pasó, cómo pasó y acción
+ * correctiva; el SEGUIMIENTO, solo un recuadro con `texto` (dueña, 2026-10-14).
  */
 export interface Incidencia {
   tipo: "INCIDENCIA" | "SEGUIMIENTO"
-  /** Solo INCIDENCIA. */
+  /** Solo SEGUIMIENTO. */
   texto?: string
   evento: string
   quePaso: string

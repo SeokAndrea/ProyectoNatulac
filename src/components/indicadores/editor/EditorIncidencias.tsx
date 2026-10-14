@@ -2,6 +2,7 @@ import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { textoSeguimiento } from "@/lib/indicadores/calculos"
 import { incidenciaVacia, TITULO_INCIDENCIAS, type DatosMes, type Incidencia } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
 
@@ -11,7 +12,7 @@ const TEXTOS: { campo: keyof Pick<Incidencia, "quePaso" | "comoPaso" | "accionCo
   { campo: "accionCorrectiva", titulo: "Acción correctiva" },
 ]
 
-/** Pestaña de incidencias y seguimientos: una o varias. Incidencia = un texto; seguimiento = formato del informe. */
+/** Pestaña de incidencias y seguimientos: una o varias, con evento. Incidencia = formato del informe; seguimiento = un texto. */
 export function EditorIncidencias({ datos, onCambio }: { datos: DatosMes; onCambio: (d: DatosMes) => void }) {
   const lista = datos.incidencias ?? []
   const guardar = (nueva: Incidencia[]) => onCambio({ ...datos, incidencias: nueva })
@@ -48,27 +49,26 @@ export function EditorIncidencias({ datos, onCambio }: { datos: DatosMes; onCamb
               <X className="size-4" /> Quitar
             </Button>
           </div>
-          {/* La incidencia es un recuadro con su texto; el seguimiento, el formato del informe (dueña, 2026-10-14). */}
+          {/* Los dos llevan evento. Incidencia: el formato del informe; seguimiento: un texto (dueña, 2026-10-14). */}
+          <label className="flex flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+            Evento
+            <Input value={inc.evento} onChange={(e) => cambiar(i, { evento: e.target.value })} placeholder="Ej.: Bobina TPA-200 en llenadora con formato TPA-250" />
+          </label>
           {inc.tipo === "INCIDENCIA" ? (
+            <div className="grid gap-2 md:grid-cols-3">
+              {TEXTOS.map((t) => (
+                <label key={t.campo} className="flex flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+                  {t.titulo}
+                  <Textarea value={inc[t.campo]} onChange={(e) => cambiar(i, { [t.campo]: e.target.value })} className="min-h-28 text-sm" />
+                </label>
+              ))}
+            </div>
+          ) : (
             <label className="flex flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
               Texto
-              <Textarea value={inc.texto ?? ""} onChange={(e) => cambiar(i, { texto: e.target.value })} className="min-h-36 text-sm" />
+              {/* Uno cargado antes con qué pasó / cómo pasó / acción arranca con eso junto. */}
+              <Textarea value={inc.texto ?? textoSeguimiento(inc)} onChange={(e) => cambiar(i, { texto: e.target.value })} className="min-h-36 text-sm" />
             </label>
-          ) : (
-            <>
-              <label className="flex flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
-                Evento
-                <Input value={inc.evento} onChange={(e) => cambiar(i, { evento: e.target.value })} placeholder="Ej.: Bobina TPA-200 en llenadora con formato TPA-250" />
-              </label>
-              <div className="grid gap-2 md:grid-cols-3">
-                {TEXTOS.map((t) => (
-                  <label key={t.campo} className="flex flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
-                    {t.titulo}
-                    <Textarea value={inc[t.campo]} onChange={(e) => cambiar(i, { [t.campo]: e.target.value })} className="min-h-28 text-sm" />
-                  </label>
-                ))}
-              </div>
-            </>
           )}
         </section>
       ))}

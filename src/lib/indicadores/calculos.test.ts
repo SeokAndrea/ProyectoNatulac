@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ausentismoTotal, conGeneralesDeLinea, generalesDeLinea, totalAseptico, cumplimiento, extremos, finDeMes, leerNumero, mesesVentana, presentacionesDeLinea, sumarMeses, tieneDatos, topParadas } from "./calculos"
+import { ausentismoTotal, conGeneralesDeLinea, textoSeguimiento, generalesDeLinea, totalAseptico, cumplimiento, extremos, finDeMes, leerNumero, mesesVentana, presentacionesDeLinea, sumarMeses, tieneDatos, topParadas } from "./calculos"
 import { mesVacio, presentacionVacia } from "./tipos"
 
 describe("meses", () => {
@@ -133,5 +133,14 @@ describe("paradas generales por línea (dueña, 2026-10-14)", () => {
     expect(generalesDeLinea(viejo, "3")).toEqual([luz])
     const d = conGeneralesDeLinea(viejo, "1", [])
     expect([generalesDeLinea(d, "1"), generalesDeLinea(d, "2"), generalesDeLinea(d, "3")]).toEqual([[], [luz], [luz]])
+  })
+})
+
+describe("textoSeguimiento (dueña, 2026-10-14)", () => {
+  const base = { quePaso: "", comoPaso: "", accionCorrectiva: "" }
+  it("el texto del seguimiento; si no tiene, lo que se cargó en el formato viejo, junto", () => {
+    expect(textoSeguimiento({ ...base, texto: "Se cambió el kit." })).toBe("Se cambió el kit.")
+    expect(textoSeguimiento({ ...base, accionCorrectiva: "Se valida el kit." })).toBe("Se valida el kit.")
+    expect(textoSeguimiento(base)).toBe("")
   })
 })

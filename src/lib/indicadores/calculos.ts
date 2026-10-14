@@ -1,4 +1,4 @@
-import type { DatosMes, DatosPresentacion, ModoMes, ParadaMes, TotalAseptico } from "@/lib/indicadores/tipos"
+import type { DatosMes, DatosPresentacion, Incidencia, ModoMes, ParadaMes, TotalAseptico } from "@/lib/indicadores/tipos"
 
 /*
  * Cuentas puras de Indicadores (sin Supabase). Los indicadores se miran en
@@ -147,6 +147,15 @@ export function conGeneralesDeLinea(d: DatosMes, linea: string, lista: ParadaMes
   const g = d.paradasGenerales as Record<string, ParadaMes[]> | ParadaMes[] | undefined
   const porLinea = Array.isArray(g) ? { "1": g, "2": g, "3": g } : (g ?? {})
   return { ...d, paradasGenerales: { ...porLinea, [linea]: lista } }
+}
+
+/**
+ * Texto de un seguimiento. Los cargados cuando el seguimiento tenía qué pasó,
+ * cómo pasó y acción correctiva no tienen `texto`: se muestran esas partes juntas.
+ */
+export function textoSeguimiento(inc: Pick<Incidencia, "texto" | "quePaso" | "comoPaso" | "accionCorrectiva">): string {
+  if (inc.texto?.trim()) return inc.texto.trim()
+  return [inc.quePaso, inc.comoPaso, inc.accionCorrectiva].map((x) => x.trim()).filter(Boolean).join("\n\n")
 }
 
 /** Si el mes tiene algo de las líneas o del semielaborado (no solo ausentismo o incidencias). */

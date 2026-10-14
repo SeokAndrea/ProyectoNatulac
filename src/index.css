@@ -520,7 +520,8 @@
   --ind-l2: #7553d1; --ind-l2-texto: #7553d1; --ind-l2-cab: #ffffff;
   --ind-l3: #1baf7a; --ind-l3-texto: #11865c; --ind-l3-cab: #ffffff;
   --ind-clasicos: #2d3b8f; --ind-clasicos-texto: #2d3b8f; --ind-clasicos-cab: #ffffff;
-  --ind-selecto: #a9cdea; --ind-selecto-texto: #2f6ea3; --ind-selecto-cab: #1b2260;
+  /* Selecto un poco más oscuro que su envase, sin parecerse al Clásico (dueña, 2026-10-14). */
+  --ind-selecto: #6fa8d8; --ind-selecto-texto: #2f6ea3; --ind-selecto-cab: #1b2260;
   --ind-jucosa: #b9d44a; --ind-jucosa-texto: #4f6b12; --ind-jucosa-cab: #2e4a1a;
   --ind-premium: #1f2a5c; --ind-premium-texto: #1f2a5c; --ind-premium-cab: #e8e4d0;
   --ind-especiales: #1f1f1f; --ind-especiales-texto: #1f1f1f; --ind-especiales-cab: #ffffff;
@@ -533,7 +534,7 @@
   --ind-l2: #9d84ef; --ind-l2-texto: #9d84ef; --ind-l2-cab: #0b1220;
   --ind-l3: #199e70; --ind-l3-texto: #2cc28c; --ind-l3-cab: #0b1220;
   --ind-clasicos: #7d8ce0; --ind-clasicos-texto: #9aa6ec; --ind-clasicos-cab: #0b1220;
-  --ind-selecto-texto: #a9cdea; --ind-selecto-cab: #0b1220;
+  --ind-selecto: #a9cdea; --ind-selecto-texto: #a9cdea; --ind-selecto-cab: #0b1220;
   --ind-jucosa-texto: #b9d44a; --ind-jucosa-cab: #0b1220;
   --ind-premium: #5d6bb0; --ind-premium-texto: #aab4e4;
   --ind-especiales: #d9d9d9; --ind-especiales-texto: #d9d9d9; --ind-especiales-cab: #0b1220;
