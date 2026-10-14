@@ -71,7 +71,11 @@ export interface DatosMes {
   ausentismo?: Ausentismo | null
   /** Siempre a mano, también en los meses automáticos. */
   incidencias?: Incidencia[]
+  /** Título de esa pantalla, escrito por la analista ("INCIDENCIAS", "SEGUIMIENTO"…). Vacío = TITULO_INCIDENCIAS. */
+  tituloIncidencias?: string
 }
+
+export const TITULO_INCIDENCIAS = "INCIDENCIAS Y SEGUIMIENTO"
 
 /** Lo guardado de un mes (tabla indicadores_mes). */
 export interface RegistroMes {

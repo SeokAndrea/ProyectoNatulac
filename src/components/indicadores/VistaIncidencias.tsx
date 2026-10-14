@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { nombreMes } from "@/lib/indicadores/calculos"
-import type { Incidencia } from "@/lib/indicadores/tipos"
+import { TITULO_INCIDENCIAS, type Incidencia } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
 
 const PARTES: { campo: keyof Pick<Incidencia, "quePaso" | "comoPaso" | "accionCorrectiva">; titulo: string }[] = [
@@ -12,13 +12,14 @@ const PARTES: { campo: keyof Pick<Incidencia, "quePaso" | "comoPaso" | "accionCo
 /*
  * Incidencias y seguimientos del mes, con el formato del informe: evento,
  * qué pasó, cómo pasó y acción correctiva. Pueden ser varias; cada una dice
- * si es incidencia o seguimiento. Siempre se cargan a mano (dueña, 2026-10-14).
+ * si es incidencia o seguimiento. El título lo escribe la analista (a veces es
+ * "Incidencias", a veces "Seguimiento"). Siempre se cargan a mano (dueña, 2026-10-14).
  */
-export function VistaIncidencias({ mes, incidencias, editar }: { mes: string; incidencias: Incidencia[]; editar: ReactNode }) {
+export function VistaIncidencias({ mes, titulo, incidencias, editar }: { mes: string; titulo: string | undefined; incidencias: Incidencia[]; editar: ReactNode }) {
   return (
     <section aria-label="Incidencias y seguimiento" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border bg-card p-3">
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
-        <h2 className="text-[28px] font-bold tracking-wide">INCIDENCIAS Y SEGUIMIENTO</h2>
+        <h2 className="text-[28px] font-bold uppercase tracking-wide">{titulo?.trim() || TITULO_INCIDENCIAS}</h2>
         <span className="ml-auto">{editar}</span>
       </div>
       {incidencias.length === 0 && <p className="m-auto text-muted-foreground">Sin incidencias ni seguimientos en {nombreMes(mes)}.</p>}

@@ -127,7 +127,12 @@ export default function Indicadores() {
           ) : seccion === "aus" ? (
             <VistaAusentismo meses={ind.aMano} editar={botonEditar} />
           ) : (
-            <VistaIncidencias mes={mes} incidencias={ind.aMano[ind.aMano.length - 1].datos?.incidencias ?? []} editar={botonEditar} />
+            <VistaIncidencias
+              mes={mes}
+              titulo={ind.aMano[ind.aMano.length - 1].datos?.tituloIncidencias}
+              incidencias={ind.aMano[ind.aMano.length - 1].datos?.incidencias ?? []}
+              editar={botonEditar}
+            />
           )
         ) : calculando ? (
           <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">

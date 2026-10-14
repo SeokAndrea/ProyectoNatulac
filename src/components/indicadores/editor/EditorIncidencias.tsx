@@ -2,7 +2,7 @@ import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { incidenciaVacia, type DatosMes, type Incidencia } from "@/lib/indicadores/tipos"
+import { incidenciaVacia, TITULO_INCIDENCIAS, type DatosMes, type Incidencia } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
 
 const TEXTOS: { campo: keyof Pick<Incidencia, "quePaso" | "comoPaso" | "accionCorrectiva">; titulo: string }[] = [
@@ -19,6 +19,15 @@ export function EditorIncidencias({ datos, onCambio }: { datos: DatosMes; onCamb
 
   return (
     <div className="flex flex-col gap-3">
+      <label className="flex max-w-md flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+        Título de la pantalla
+        <Input
+          value={datos.tituloIncidencias ?? ""}
+          onChange={(e) => onCambio({ ...datos, tituloIncidencias: e.target.value })}
+          placeholder={TITULO_INCIDENCIAS}
+          maxLength={60}
+        />
+      </label>
       {lista.map((inc, i) => (
         <section key={i} className="flex flex-col gap-2.5 rounded-xl border-2 bg-card p-3">
           <div className="flex flex-wrap items-center gap-2">

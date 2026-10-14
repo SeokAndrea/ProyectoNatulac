@@ -55,7 +55,7 @@ export function EditorManual({
     const r = await obtenerAuto()
     if ("error" in r) return setError(r.error)
     // Ausentismo e incidencias no vienen de la app: se conservan.
-    setBorrador((b) => ({ ...structuredClone(r), ausentismo: b.ausentismo, incidencias: b.incidencias }))
+    setBorrador((b) => ({ ...structuredClone(r), ausentismo: b.ausentismo, incidencias: b.incidencias, tituloIncidencias: b.tituloIncidencias }))
     setVersion((v) => v + 1)
   }
 
