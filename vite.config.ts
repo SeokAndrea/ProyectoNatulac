@@ -24,6 +24,19 @@ function versionDeBuild(): string {
   }
 }
 const appVersion = versionDeBuild()
+/**
+ * Fecha y hora (planta) en que se armó: se ve en el encabezado para saber
+ * si el servidor ya sirve lo último (dueña, 2026-10-14). En Docker no hay
+ * .git (ver .dockerignore), así que ahí la versión es solo esta hora.
+ */
+const appBuild = new Intl.DateTimeFormat("es-VE", {
+  timeZone: "America/Caracas",
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+}).format(new Date())
 
 function escribirVersionJson(): Plugin {
   return {
@@ -40,6 +53,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), escribirVersionJson()],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
+    __APP_BUILD__: JSON.stringify(appBuild),
   },
   resolve: {
     alias: {

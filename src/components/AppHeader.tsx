@@ -87,6 +87,12 @@ export function AppHeader({
             <IconoTema className="size-4.5" />
           </Button>
 
+          {/* Versión armada: el commit (si se conoce) y cuándo se armó. Así se ve si el servidor ya tiene lo último. */}
+          <span className="hidden shrink-0 font-mono text-[10.5px] leading-tight text-muted-foreground sm:block" title="Versión de la app (commit · cuándo se armó)">
+            {/^[0-9a-f]{7,10}$/.test(__APP_VERSION__) ? `${__APP_VERSION__} · ` : ""}
+            {__APP_BUILD__}
+          </span>
+
           {session && (
             <div className="flex items-center gap-2">
               <Avatar className="size-8">
