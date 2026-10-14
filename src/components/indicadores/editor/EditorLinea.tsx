@@ -47,25 +47,21 @@ export function EditorLinea({
                   Se corrió en {nombreMes}
                 </label>
               </header>
-              {x.corrio ? (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <CampoNumero etiqueta="Cajas producidas" entero valor={x.prod} onCambio={(v) => cambiarPres(p.clave, { prod: v })} />
-                    <CampoNumero etiqueta="Cajas planeadas" entero valor={x.plan} onCambio={(v) => cambiarPres(p.clave, { plan: v })} />
-                    <CampoNumero etiqueta="Merma de envases" valor={x.merma} onCambio={(v) => cambiarPres(p.clave, { merma: v })} sufijo="%" />
-                    <CampoNumero etiqueta="Envases perdidos (unidades)" entero valor={x.mermaUnidades ?? null} onCambio={(v) => cambiarPres(p.clave, { mermaUnidades: v })} />
-                    {/* Con cajas, el cumplimiento sale solo (producidas ÷ planeadas); sin cajas, se escribe. */}
-                    {x.prod != null && x.plan ? (
-                      <DatoCalculado etiqueta="Cumplimiento" texto={fmtPct(cumplimiento(x), 1)} />
-                    ) : (
-                      <CampoNumero etiqueta="Cumplimiento (sin cajas)" valor={x.cumplimiento ?? null} onCambio={(v) => cambiarPres(p.clave, { cumplimiento: v })} sufijo="%" />
-                    )}
-                  </div>
-                  <EditorParadas paradas={x.paradas} onCambio={(paradas) => cambiarPres(p.clave, { paradas })} />
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground">No se corrió: no aparece en los indicadores de {nombreMes}.</p>
-              )}
+              {/* Los campos se ven siempre: una presentación planeada que no se corrió igual lleva su plan. */}
+              {!x.corrio && <p className="text-xs text-muted-foreground">Sin correr en {nombreMes}: aparece solo si tiene cajas planeadas.</p>}
+              <div className="grid grid-cols-2 gap-2">
+                <CampoNumero etiqueta="Cajas producidas" entero valor={x.prod} onCambio={(v) => cambiarPres(p.clave, { prod: v, corrio: x.corrio || (v ?? 0) > 0 })} />
+                <CampoNumero etiqueta="Cajas planeadas" entero valor={x.plan} onCambio={(v) => cambiarPres(p.clave, { plan: v })} />
+                <CampoNumero etiqueta="Merma de envases" valor={x.merma} onCambio={(v) => cambiarPres(p.clave, { merma: v })} sufijo="%" />
+                <CampoNumero etiqueta="Envases perdidos (unidades)" entero valor={x.mermaUnidades ?? null} onCambio={(v) => cambiarPres(p.clave, { mermaUnidades: v })} />
+                {/* Con cajas, el cumplimiento sale solo (producidas ÷ planeadas); sin cajas, se escribe. */}
+                {x.prod != null && x.plan ? (
+                  <DatoCalculado etiqueta="Cumplimiento" texto={fmtPct(cumplimiento(x), 1)} />
+                ) : (
+                  <CampoNumero etiqueta="Cumplimiento (sin cajas)" valor={x.cumplimiento ?? null} onCambio={(v) => cambiarPres(p.clave, { cumplimiento: v })} sufijo="%" />
+                )}
+              </div>
+              <EditorParadas paradas={x.paradas} onCambio={(paradas) => cambiarPres(p.clave, { paradas })} />
             </section>
           )
         })}
