@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { cumplimiento, extremos, finDeMes, leerNumero, mesesVentana, presentacionesDeLinea, sumarMeses, tieneDatos, topParadas } from "./calculos"
+import { ausentismoTotal, cumplimiento, extremos, finDeMes, leerNumero, mesesVentana, presentacionesDeLinea, sumarMeses, tieneDatos, topParadas } from "./calculos"
 import { presentacionVacia } from "./tipos"
 
 describe("meses", () => {
@@ -35,6 +35,17 @@ describe("presentaciones", () => {
   it("cumplimiento = producidas ÷ planeadas", () => {
     expect(cumplimiento({ ...presentacionVacia(), prod: 10443, plan: 9451 })).toBeCloseTo(110.5, 1)
     expect(cumplimiento({ ...presentacionVacia(), prod: 100, plan: null })).toBeNull()
+  })
+
+  it("sin cajas, usa el % cargado a mano (julio y agosto del Excel); con cajas, manda producidas ÷ planeadas", () => {
+    expect(cumplimiento({ ...presentacionVacia(), cumplimiento: 105 })).toBe(105)
+    expect(cumplimiento({ ...presentacionVacia(), prod: 50, plan: 100, cumplimiento: 105 })).toBe(50)
+  })
+
+  it("ausentismo total = horas perdidas ÷ horas teóricas", () => {
+    expect(ausentismoTotal(562, 7418.5)).toBeCloseTo(7.58, 2)
+    expect(ausentismoTotal(null, 7418.5)).toBeNull()
+    expect(ausentismoTotal(562, 0)).toBeNull()
   })
 
   it("aparece si se corrió o tenía plan", () => {

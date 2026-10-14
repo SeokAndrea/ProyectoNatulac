@@ -524,6 +524,8 @@
   --ind-jucosa: #b9d44a; --ind-jucosa-texto: #4f6b12; --ind-jucosa-cab: #2e4a1a;
   --ind-premium: #1f2a5c; --ind-premium-texto: #1f2a5c; --ind-premium-cab: #e8e4d0;
   --ind-especiales: #1f1f1f; --ind-especiales-texto: #1f1f1f; --ind-especiales-cab: #ffffff;
+  /* Grupos de trabajo (Ausentismo). */
+  --ind-g1: #0f8b8d; --ind-g2: #c8435a; --ind-g3: #d48a12;
 }
 .dark {
   --ind-mezcla: #ffffff;
@@ -535,4 +537,5 @@
   --ind-jucosa-texto: #b9d44a; --ind-jucosa-cab: #0b1220;
   --ind-premium: #5d6bb0; --ind-premium-texto: #aab4e4;
   --ind-especiales: #d9d9d9; --ind-especiales-texto: #d9d9d9; --ind-especiales-cab: #0b1220;
+  --ind-g1: #2bb3b5; --ind-g2: #e8697e; --ind-g3: #eaa83a;
 }

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, Pencil } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { MensajeError } from "@/components/MensajeError"
 import { BarraIndicadores } from "@/components/indicadores/BarraIndicadores"
-import { useFlechas, type Seccion } from "@/components/indicadores/secciones"
+import { SECCIONES, SIEMPRE_A_MANO, useFlechas, type Seccion } from "@/components/indicadores/secciones"
+import { VistaAusentismo } from "@/components/indicadores/VistaAusentismo"
+import { VistaIncidencias } from "@/components/indicadores/VistaIncidencias"
+import { Button } from "@/components/ui/button"
 import { EditorManual } from "@/components/indicadores/editor/EditorManual"
 import { Observacion } from "@/components/indicadores/Observacion"
 import { useIndicadores } from "@/components/indicadores/useIndicadores"
@@ -64,13 +67,23 @@ export default function Indicadores() {
   const opcionesMes = Array.from({ length: 12 }, (_, i) => sumarMeses(mesActual, -i))
   const familias = [...new Set([...(sabores ?? []).filter((s) => s.activo).map((s) => s.familiaNombre), ...Object.keys(elegido.datos?.semielaborado ?? {})])]
   const claves = ind.meses.flatMap((m) => Object.keys(m.datos?.presentaciones ?? {}))
+  // Ausentismo e incidencias: siempre a mano, se editan aunque el mes sea automático.
+  const aMano = SIEMPRE_A_MANO.includes(seccion)
+  const seccionesEditor = elegido.modo === "MANUAL" ? SECCIONES.map((s) => s.valor) : SIEMPRE_A_MANO
+  const botonEditar = puedeCargar ? (
+    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditando(true)}>
+      <Pencil className="size-3.5" /> Editar
+    </Button>
+  ) : null
 
   async function cambiarModo(modo: ModoMes) {
     let datos: DatosMes | null = null
     // La primera vez que un mes pasa a manual, arranca con lo que calculó la app.
-    if (modo === "MANUAL" && !ind.manualDelMes) {
+    // Si solo tenía ausentismo o incidencias, esas se conservan.
+    const m = ind.manualDelMes
+    if (modo === "MANUAL" && !(m && [m.eficiencia, m.presentaciones, m.semielaborado].some((x) => Object.keys(x).length > 0))) {
       const auto = await ind.obtenerAuto(mes)
-      datos = "error" in auto ? mesVacio() : auto
+      datos = { ...("error" in auto ? mesVacio() : auto), ausentismo: m?.ausentismo ?? null, incidencias: m?.incidencias ?? [] }
     }
     if (await accionModo.ejecutar(() => guardarMes(usuario, area, mes, modo, datos))) ind.recargar()
   }
@@ -107,8 +120,16 @@ export default function Indicadores() {
           puedeEditar={puedeCargar}
           cambiandoModo={accionModo.enviando}
         />
-        <MensajeError error={ind.error ?? elegido.error ?? accionModo.error} />
-        {calculando ? (
+        <MensajeError error={ind.error ?? (aMano ? null : elegido.error) ?? accionModo.error} />
+        {aMano ? (
+          ind.cargando ? (
+            <Loader2 className="m-auto size-5 animate-spin text-muted-foreground" />
+          ) : seccion === "aus" ? (
+            <VistaAusentismo meses={ind.aMano} editar={botonEditar} />
+          ) : (
+            <VistaIncidencias mes={mes} incidencias={ind.aMano[ind.aMano.length - 1].datos?.incidencias ?? []} editar={botonEditar} />
+          )
+        ) : calculando ? (
           <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con las jornadas validadas…
           </p>
@@ -135,13 +156,14 @@ export default function Indicadores() {
       {editando && (
         <EditorManual
           mes={mes}
-          inicial={ind.manualDelMes ?? elegido.datos ?? mesVacio()}
-          seccionInicial={seccion}
+          inicial={ind.manualDelMes ?? (elegido.modo === "MANUAL" ? elegido.datos : null) ?? mesVacio()}
+          seccionInicial={seccionesEditor.includes(seccion) ? seccion : seccionesEditor[0]}
+          secciones={seccionesEditor}
           presentacionesDe={(l) => presentacionesDeLinea(l, velocidades, claves)}
           familias={familias}
           obtenerAuto={() => ind.obtenerAuto(mes)}
           onGuardar={async (datos) => {
-            const r = await guardarMes(usuario, area, mes, "MANUAL", datos)
+            const r = await guardarMes(usuario, area, mes, elegido.modo, datos)
             if (r.ok) ind.recargar()
             return r
           }}

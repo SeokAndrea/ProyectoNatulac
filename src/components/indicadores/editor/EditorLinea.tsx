@@ -48,10 +48,12 @@ export function EditorLinea({
               </header>
               {x.corrio ? (
                 <>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <CampoNumero etiqueta="Cajas producidas" entero valor={x.prod} onCambio={(v) => cambiarPres(p.clave, { prod: v })} />
                     <CampoNumero etiqueta="Cajas planeadas" entero valor={x.plan} onCambio={(v) => cambiarPres(p.clave, { plan: v })} />
                     <CampoNumero etiqueta="Merma de envases" valor={x.merma} onCambio={(v) => cambiarPres(p.clave, { merma: v })} sufijo="%" />
+                    {/* Solo cuenta si faltan las cajas: con cajas, el cumplimiento sale de producidas ÷ planeadas. */}
+                    <CampoNumero etiqueta="Cumplimiento (sin cajas)" valor={x.cumplimiento ?? null} onCambio={(v) => cambiarPres(p.clave, { cumplimiento: v })} sufijo="%" />
                   </div>
                   <EditorParadas paradas={x.paradas} onCambio={(paradas) => cambiarPres(p.clave, { paradas })} />
                 </>

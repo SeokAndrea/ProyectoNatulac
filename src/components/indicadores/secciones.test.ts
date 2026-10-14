@@ -5,12 +5,12 @@ import { useFlechas } from "./secciones"
 describe("useFlechas — cambiar de pantalla con el teclado", () => {
   it("→ pasa a la siguiente y ← a la anterior; en los extremos no hace nada", () => {
     const onSeccion = vi.fn()
-    const { rerender } = renderHook(({ s }) => useFlechas(s, onSeccion, true), { initialProps: { s: "1" as const } as { s: "1" | "semi" } })
+    const { rerender } = renderHook(({ s }) => useFlechas(s, onSeccion, true), { initialProps: { s: "1" as const } as { s: "1" | "inc" } })
     fireEvent.keyDown(window, { key: "ArrowRight" })
     expect(onSeccion).toHaveBeenLastCalledWith("2")
     fireEvent.keyDown(window, { key: "ArrowLeft" })
     expect(onSeccion).toHaveBeenCalledTimes(1)
-    rerender({ s: "semi" })
+    rerender({ s: "inc" })
     fireEvent.keyDown(window, { key: "ArrowRight" })
     expect(onSeccion).toHaveBeenCalledTimes(1)
   })

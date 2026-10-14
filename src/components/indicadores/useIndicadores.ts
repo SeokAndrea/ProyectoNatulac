@@ -88,6 +88,8 @@ export function useIndicadores(usuario: string, area: string, mes: string, cat: 
     cargando: vigentes === null,
     error: errorRegistros,
     observaciones: registroDe(mes)?.observaciones ?? {},
+    /** Lo guardado a mano de cada mes de la ventana. Ausentismo e incidencias salen siempre de acá, aunque el mes sea automático. */
+    aMano: ventana.map((m) => ({ mes: m, datos: registroDe(m)?.datos ?? null })),
     /** Lo cargado a mano del mes elegido (aunque esté en AUTO), para el editor. */
     manualDelMes: registroDe(mes)?.datos ?? null,
     obtenerAuto,

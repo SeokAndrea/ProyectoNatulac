@@ -35,7 +35,7 @@ export function BarraIndicadores({
     <div role="group" aria-label="Filtros" className="flex flex-wrap items-center gap-x-3 gap-y-2">
       {SECCIONES.map((s) => (
         <button key={s.valor} type="button" aria-pressed={seccion === s.valor} onClick={() => onSeccion(s.valor)} className={cn(chip, seccion === s.valor && activo)}>
-          {s.valor !== "semi" && <span className="size-2.5 rounded-full" style={{ background: `var(--ind-l${s.valor})` }} />}
+          {["1", "2", "3"].includes(s.valor) && <span className="size-2.5 rounded-full" style={{ background: `var(--ind-l${s.valor})` }} />}
           {s.texto}
         </button>
       ))}

@@ -64,11 +64,16 @@ export function presentacionesDeLinea(
     .map((ml, indice) => ({ clave: `${linea}|${ml}`, ml, indice, nombre: nombrePresentacion(deLinea.find((v) => v.presentacion === ml)?.maquina ?? (linea === "1" ? "TB" : "TP"), ml) }))
 }
 
-/** Producidas ÷ planeadas, %. null sin alguno de los dos. */
+/** Producidas ÷ planeadas, %. Sin cajas, el % cargado a mano; si no hay nada, null. */
 export function cumplimiento(p: DatosPresentacion | undefined): number | null {
-  if (!p || p.prod == null || !p.plan) return null
-  return (p.prod / p.plan) * 100
+  if (!p) return null
+  if (p.prod != null && p.plan) return (p.prod / p.plan) * 100
+  return p.cumplimiento ?? null
 }
+
+/** Ausentismo total del mes: horas perdidas ÷ horas teóricas, %. */
+export const ausentismoTotal = (horasPerdidas: number | null, horasTeoricas: number | null) =>
+  horasPerdidas == null || !horasTeoricas ? null : (horasPerdidas / horasTeoricas) * 100
 
 /** Una presentación aparece si se corrió o tenía plan. */
 export const tieneDatos = (p: DatosPresentacion | undefined) => !!p && (p.corrio || (p.plan ?? 0) > 0)
