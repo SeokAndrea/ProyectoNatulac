@@ -44,8 +44,8 @@ function ListaNombres({ paradas }: { paradas: ParadaMes[] }) {
 
 /**
  * Paradas del mes, por presentación. Automático: 3 por tiempo y 3 por veces.
- * Manual: la lista de lo cargado, solo los nombres, con las GENERALES (las
- * mismas en las 3 líneas) arriba. Los bloques se reparten todo el alto.
+ * Manual: la lista de lo cargado, solo los nombres, con las GENERALES de la
+ * línea arriba. Los bloques se reparten todo el alto.
  * Solo llegan las presentaciones con paradas (VistaLinea filtra con hayParadas).
  */
 /** Si hay alguna parada con nombre. Sin paradas, el bloque no aparece (dueña, 2026-10-14). */

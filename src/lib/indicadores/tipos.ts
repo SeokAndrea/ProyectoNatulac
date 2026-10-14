@@ -53,9 +53,15 @@ export interface Ausentismo {
   grupos: AusentismoGrupo[]
 }
 
-/** Una incidencia o un seguimiento del mes (formato del informe, siempre a mano). */
+/**
+ * Una incidencia o un seguimiento del mes (siempre a mano). La INCIDENCIA es
+ * solo un recuadro con `texto`; el SEGUIMIENTO lleva evento, qué pasó, cómo
+ * pasó y acción correctiva (dueña, 2026-10-14).
+ */
 export interface Incidencia {
   tipo: "INCIDENCIA" | "SEGUIMIENTO"
+  /** Solo INCIDENCIA. */
+  texto?: string
   evento: string
   quePaso: string
   comoPaso: string
@@ -69,8 +75,12 @@ export interface DatosMes {
   presentaciones: Record<string, DatosPresentacion>
   /** Rendimiento del semielaborado, %. Clave: nombre de la familia (familias_producto). */
   semielaborado: Record<string, number | null>
-  /** Modo MANUAL: paradas que afectan a todas (ej. suministro eléctrico). Una lista para las 3 líneas; sale arriba como GENERALES (dueña, 2026-10-14). */
-  paradasGenerales?: ParadaMes[]
+  /**
+   * Modo MANUAL: paradas que afectan a toda una línea (ej. suministro
+   * eléctrico), arriba de sus presentaciones como GENERALES. Clave: número de
+   * línea ("1", "2", "3"); cada línea la suya (dueña, 2026-10-14).
+   */
+  paradasGenerales?: Record<string, ParadaMes[]>
   /** Siempre a mano, también en los meses automáticos. */
   ausentismo?: Ausentismo | null
   /** Siempre a mano, también en los meses automáticos. */

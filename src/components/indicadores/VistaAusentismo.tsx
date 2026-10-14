@@ -1,31 +1,12 @@
-import type { CSSProperties, ReactNode } from "react"
-import { Star } from "lucide-react"
+import type { ReactNode } from "react"
 import { ausentismoTotal, nombreMes } from "@/lib/indicadores/calculos"
 import type { Ausentismo, DatosMes } from "@/lib/indicadores/tipos"
+import { GruposAusentismo } from "@/components/indicadores/GruposAusentismo"
 import { Kpi } from "@/components/indicadores/Kpi"
 import { fmt } from "@/components/indicadores/formato"
 
 /** Horas como en el informe: con decimal solo si lo tiene (7.418,5 · 562). */
 const horas = (h: number | null) => fmt(h, h != null && !Number.isInteger(h) ? 1 : 0)
-
-const colorGrupo = (g: string) => ({ "--c": `var(--ind-g${g})` }) as CSSProperties
-
-/** Anillo con el % del grupo, como en el informe. */
-function Dona({ pct }: { pct: number | null }) {
-  const r = 42, c = 2 * Math.PI * r
-  const parte = Math.max(0, Math.min(100, pct ?? 0)) / 100
-  return (
-    <svg viewBox="0 0 110 110" className="size-36 shrink-0" role="img" aria-label={pct == null ? "Sin dato" : `${fmt(pct, 2)} %`}>
-      <circle cx="55" cy="55" r={r} fill="none" strokeWidth="14" className="stroke-muted" />
-      {pct != null && (
-        <circle cx="55" cy="55" r={r} fill="none" stroke="var(--c)" strokeWidth="14" strokeDasharray={`${c * parte} ${c}`} transform="rotate(-90 55 55)" />
-      )}
-      <text x="55" y="61" textAnchor="middle" className="fill-foreground font-mono text-base font-bold">
-        {pct == null ? "—" : `${fmt(pct, 2)}%`}
-      </text>
-    </svg>
-  )
-}
 
 function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detalle: string }) {
   return (
@@ -39,16 +20,13 @@ function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detal
 
 /*
  * Ausentismo del mes, con la estructura del informe: horas teóricas, % total,
- * horas perdidas, el % de cada grupo con quién incidió más, y cómo se
- * reparten las horas perdidas. Siempre se carga a mano (dueña, 2026-10-14).
+ * horas perdidas y, por grupo (GruposAusentismo), el % de ausentismo, la parte de
+ * las horas perdidas y quién incidió más. Siempre se carga a mano (dueña, 2026-10-14).
  */
 export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos: DatosMes | null }[]; editar: ReactNode }) {
   const elegido = meses[meses.length - 1]
   const a: Ausentismo | null = elegido.datos?.ausentismo ?? null
   const serie = meses.map((m) => ({ mes: m.mes, valor: ausentismoTotal(m.datos?.ausentismo?.horasPerdidas ?? null, m.datos?.ausentismo?.horasTeoricas ?? null) }))
-  // El grupo con más ausentismo lleva la estrella, como en el informe.
-  const conDato = (a?.grupos ?? []).filter((g) => g.porcentaje != null)
-  const mayor = conDato.length ? conDato.reduce((x, y) => (y.porcentaje! > x.porcentaje! ? y : x)).grupo : null
 
   return (
     <section aria-label="Ausentismo" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border bg-card p-3">
@@ -81,36 +59,7 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
             <Dato titulo="Horas perdidas" valor={horas(a.horasPerdidas)} detalle="En el mes" />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            {a.grupos.map((g) => (
-              <div key={g.grupo} style={colorGrupo(g.grupo)} className="flex flex-col items-center gap-2 rounded-xl border-2 border-[var(--c)] p-4 text-center">
-                <b className="text-2xl">Grupo {g.grupo}</b>
-                <Dona pct={g.porcentaje} />
-                <span className="text-base text-muted-foreground">
-                  Quien incidió más: <b className="text-foreground">{g.quien || "—"}</b>
-                  {g.dias != null && ` (${fmt(g.dias)} ${g.dias === 1 ? "día" : "días"})`}
-                </span>
-                {mayor === g.grupo && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2.5 py-0.5 text-sm font-semibold text-danger">
-                    <Star className="size-4 fill-current" /> Mayor incidencia del período
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Distribución de las horas perdidas por grupo</span>
-            <div className="flex h-12 w-full overflow-hidden rounded-lg bg-muted">
-              {a.grupos.map((g) =>
-                g.partePerdidas ? (
-                  <div key={g.grupo} style={{ ...colorGrupo(g.grupo), width: `${g.partePerdidas}%` }} className="grid place-items-center bg-[var(--c)] text-sm font-bold text-white" title={`Grupo ${g.grupo}: ${fmt(g.partePerdidas, 2)} %`}>
-                    {g.partePerdidas >= 8 && `Grupo ${g.grupo} · ${fmt(g.partePerdidas, 2)} %`}
-                  </div>
-                ) : null,
-              )}
-            </div>
-          </div>
+          <GruposAusentismo grupos={a.grupos} />
         </div>
       )}
     </section>

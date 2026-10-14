@@ -133,6 +133,22 @@ export function totalAseptico(d: DatosMes | null | undefined, modo: ModoMes = "A
   return { prod, plan, cumplimiento: prod != null && plan ? (prod / plan) * 100 : (d?.totalAseptico?.cumplimiento ?? null) }
 }
 
+/**
+ * Paradas generales de una línea. Por un rato fueron una sola lista para
+ * las 3 (un arreglo): esa se ve en todas hasta que se edite alguna línea.
+ */
+export const generalesDeLinea = (d: DatosMes | null | undefined, linea: string): ParadaMes[] => {
+  const g = d?.paradasGenerales as Record<string, ParadaMes[]> | ParadaMes[] | undefined
+  return Array.isArray(g) ? g : (g?.[linea] ?? [])
+}
+
+/** Cambia las generales de una línea. Si eran la lista vieja de las 3, cada línea se queda con su copia. */
+export function conGeneralesDeLinea(d: DatosMes, linea: string, lista: ParadaMes[]): DatosMes {
+  const g = d.paradasGenerales as Record<string, ParadaMes[]> | ParadaMes[] | undefined
+  const porLinea = Array.isArray(g) ? { "1": g, "2": g, "3": g } : (g ?? {})
+  return { ...d, paradasGenerales: { ...porLinea, [linea]: lista } }
+}
+
 /** Si el mes tiene algo de las líneas o del semielaborado (no solo ausentismo o incidencias). */
 export const tieneCargaDeLineas = (d: DatosMes | null | undefined) =>
   !!d && [d.eficiencia, d.presentaciones, d.semielaborado].some((x) => Object.keys(x).length > 0)

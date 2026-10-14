@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react"
-import { capital, nombreMes, presentacionesDeLinea, tieneDatos } from "@/lib/indicadores/calculos"
+import { capital, generalesDeLinea, nombreMes, presentacionesDeLinea, tieneDatos } from "@/lib/indicadores/calculos"
 import { claveP } from "@/lib/indicadores/tipos"
 import type { VelocidadLive } from "@/lib/catalogosLive"
 import { colorLinea, colorPresentacion } from "@/components/indicadores/colores"
@@ -34,7 +34,7 @@ export function VistaLinea({
   const visibles = presentacionesDeLinea(linea, velocidades, claves).filter((p) => tieneDatos(elegido.datos?.presentaciones[p.clave], elegido.modo))
   const color = colorLinea(linea)
   const manual = elegido.modo === "MANUAL"
-  const generales = manual ? (elegido.datos?.paradasGenerales ?? []) : []
+  const generales = manual ? generalesDeLinea(elegido.datos, linea) : []
   // Sin paradas cargadas, la presentación no aparece en Paradas; sin ninguna, tampoco el bloque (dueña, 2026-10-14).
   const conParadas = visibles
     .map((p) => ({ clave: p.clave, nombre: p.nombre, color: colorPresentacion(linea, p.indice), paradas: elegido.datos?.presentaciones[p.clave]?.paradas ?? [] }))

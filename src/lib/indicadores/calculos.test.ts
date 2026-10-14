@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ausentismoTotal, totalAseptico, cumplimiento, extremos, finDeMes, leerNumero, mesesVentana, presentacionesDeLinea, sumarMeses, tieneDatos, topParadas } from "./calculos"
+import { ausentismoTotal, conGeneralesDeLinea, generalesDeLinea, totalAseptico, cumplimiento, extremos, finDeMes, leerNumero, mesesVentana, presentacionesDeLinea, sumarMeses, tieneDatos, topParadas } from "./calculos"
 import { mesVacio, presentacionVacia } from "./tipos"
 
 describe("meses", () => {
@@ -116,5 +116,22 @@ describe("totalAseptico — la franja de arriba", () => {
     const t = totalAseptico({ ...sep, totalAseptico: { prod: 1, plan: 2, cumplimiento: 44 } })
     expect([t.prod, t.plan]).toEqual([135793, 172568])
     expect(t.cumplimiento).toBeCloseTo(78.69, 2)
+  })
+})
+
+describe("paradas generales por línea (dueña, 2026-10-14)", () => {
+  const luz = { causa: "Falla en Suministro Eléctrico", minutos: null, veces: null }
+
+  it("cada línea la suya", () => {
+    const d = conGeneralesDeLinea(mesVacio(), "2", [luz])
+    expect(generalesDeLinea(d, "2")).toEqual([luz])
+    expect(generalesDeLinea(d, "1")).toEqual([])
+  })
+
+  it("la lista vieja de las 3 se ve en todas; al editar una línea, cada una queda con su copia", () => {
+    const viejo = { ...mesVacio(), paradasGenerales: [luz] as unknown as Record<string, typeof luz[]> }
+    expect(generalesDeLinea(viejo, "3")).toEqual([luz])
+    const d = conGeneralesDeLinea(viejo, "1", [])
+    expect([generalesDeLinea(d, "1"), generalesDeLinea(d, "2"), generalesDeLinea(d, "3")]).toEqual([[], [luz], [luz]])
   })
 })

@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MensajeError } from "@/components/MensajeError"
-import { capital, nombreMes, type PresentacionDeLinea } from "@/lib/indicadores/calculos"
+import { capital, conGeneralesDeLinea, generalesDeLinea, nombreMes, type PresentacionDeLinea } from "@/lib/indicadores/calculos"
 import type { DatosMes, ModoMes } from "@/lib/indicadores/tipos"
 import { useTiposActivos } from "@/lib/paradasCatalogo"
 import { useAccion } from "@/lib/useAccion"
@@ -164,12 +164,12 @@ export function EditorManual({
           ) : (
             <div className="flex flex-col gap-3">
               <EditorTotal datos={borrador} onCambio={cambiar} />
-              {/* Una sola lista para las 3 líneas: es la misma en cada pestaña de línea. */}
+              {/* Generales de esta línea: arriba de sus presentaciones (dueña, 2026-10-14). */}
               <div className="rounded-xl border border-dashed p-3">
                 <EditorParadas
-                  titulo="Paradas generales · se ven en las 3 líneas"
-                  paradas={borrador.paradasGenerales ?? []}
-                  onCambio={(paradasGenerales) => cambiar({ ...borrador, paradasGenerales })}
+                  titulo={`Paradas generales de la Línea ${tab} · arriba de sus presentaciones`}
+                  paradas={generalesDeLinea(borrador, tab)}
+                  onCambio={(lista) => cambiar(conGeneralesDeLinea(borrador, tab, lista))}
                 />
               </div>
               <EditorLinea linea={tab} presentaciones={presentacionesDe(tab)} datos={borrador} nombreMes={nombreMes(mes)} onCambio={cambiar} />
