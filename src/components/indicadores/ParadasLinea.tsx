@@ -7,8 +7,8 @@ function Lista({ titulo, paradas, por }: { titulo: string; paradas: ParadaMes[];
   const top = topParadas(paradas, por)
   return (
     <div className="flex min-w-0 flex-col justify-evenly gap-0.5">
-      <span className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</span>
-      {top.length === 0 && <span className="text-sm text-muted-foreground">—</span>}
+      <span className="text-[10.5px] font-semibold uppercase tracking-wider text-foreground">{titulo}</span>
+      {top.length === 0 && <span className="text-sm text-foreground">—</span>}
       {top.map((p, i) => (
         <div
           key={p.causa}
@@ -17,7 +17,7 @@ function Lista({ titulo, paradas, por }: { titulo: string; paradas: ParadaMes[];
         >
           <span className="grid size-[17px] place-items-center rounded-full bg-muted text-[10.5px] font-bold">{i + 1}</span>
           <span className="truncate">{p.causa}</span>
-          <span className="font-mono text-xs text-muted-foreground">{por === "tiempo" ? fmtHoras(p.minutos) : p.veces == null ? "—" : `${p.veces}×`}</span>
+          <span className="font-mono text-xs text-foreground">{por === "tiempo" ? fmtHoras(p.minutos) : p.veces == null ? "—" : `${p.veces}×`}</span>
         </div>
       ))}
     </div>
@@ -27,7 +27,7 @@ function Lista({ titulo, paradas, por }: { titulo: string; paradas: ParadaMes[];
 /** Cargadas a mano: solo los nombres, numerados, sin tiempo ni veces (dueña, 2026-10-14). */
 function ListaNombres({ paradas }: { paradas: ParadaMes[] }) {
   const nombres = paradas.map((p) => p.causa.trim()).filter(Boolean)
-  if (nombres.length === 0) return <span className="text-sm text-muted-foreground">—</span>
+  if (nombres.length === 0) return <span className="text-sm text-foreground">—</span>
   return (
     <ol className="flex flex-col gap-0.5 text-[12.5px]">
       {nombres.map((n, i) => (
@@ -63,7 +63,7 @@ export function ParadasLinea({
 }) {
   return (
     <section aria-label="Paradas" className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2.5 max-lg:flex-none">
-      <h2 className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">{manual ? "Paradas" : "Paradas no programadas"}</h2>
+      <h2 className="text-[11.5px] font-semibold uppercase tracking-wider text-foreground">{manual ? "Paradas" : "Paradas no programadas"}</h2>
       {manual && hayParadas(generales) && (
         <div className="flex min-h-0 flex-[1_1_0] flex-col justify-evenly gap-1 border-l-4 border-muted-foreground py-1 pl-2.5 max-lg:flex-none">
           <span className="text-[15px] font-bold">GENERALES</span>

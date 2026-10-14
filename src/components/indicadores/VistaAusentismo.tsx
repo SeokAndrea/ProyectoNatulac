@@ -11,9 +11,9 @@ const horas = (h: number | null) => fmt(h, h != null && !Number.isInteger(h) ? 1
 function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detalle: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border bg-card px-4 py-2 text-center">
-      <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</span>
+      <span className="text-sm font-semibold uppercase tracking-wider text-foreground">{titulo}</span>
       <span className="font-mono text-[clamp(36px,6.5vh,60px)] font-semibold leading-none tabular-nums">{valor}</span>
-      <span className="text-sm text-muted-foreground">{detalle}</span>
+      <span className="text-sm text-foreground">{detalle}</span>
     </div>
   )
 }
@@ -32,12 +32,12 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
     <section aria-label="Ausentismo" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border bg-card p-3">
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
         <h2 className="text-[28px] font-bold tracking-wide">AUSENTISMO</h2>
-        <span className="text-sm text-muted-foreground">Índice de ausentismo laboral</span>
+        <span className="text-sm text-foreground">Índice de ausentismo laboral</span>
         <span className="ml-auto">{editar}</span>
       </div>
 
       {!a ? (
-        <p className="m-auto text-muted-foreground">Sin datos de ausentismo en {nombreMes(elegido.mes)}.</p>
+        <p className="m-auto text-foreground">Sin datos de ausentismo en {nombreMes(elegido.mes)}.</p>
       ) : (
         // Todo centrado y grande, repartido en el alto de la pantalla (dueña, 2026-10-14).
         <div className="flex flex-1 flex-col justify-evenly gap-3">
@@ -45,7 +45,7 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
             <Dato titulo="Horas teóricas" valor={horas(a.horasTeoricas)} detalle="Horas planificadas del período" />
             <div className="flex flex-col justify-center rounded-xl border py-1">
               <Kpi
-                titulo={<span className="text-sm tracking-wider text-muted-foreground">% AUSENTISMO TOTAL</span>}
+                titulo={<span className="text-sm tracking-wider text-foreground">% AUSENTISMO TOTAL</span>}
                 serie={serie}
                 decimales={2}
                 unidad=" %"

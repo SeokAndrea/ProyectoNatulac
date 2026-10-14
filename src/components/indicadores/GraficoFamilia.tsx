@@ -25,7 +25,7 @@ export function GraficoFamilia({ serie }: { serie: PuntoSerie[] }) {
           {[lo, (lo + 100) / 2, 100].map((t) => (
             <g key={t}>
               <line x1={ml} x2={W - mr} y1={y(t)} y2={y(t)} className="stroke-border" />
-              <text x={ml - 5} y={y(t) + 3.5} textAnchor="end" className="fill-muted-foreground font-mono text-[10px]">
+              <text x={ml - 5} y={y(t) + 3.5} textAnchor="end" className="fill-foreground font-mono text-[10px]">
                 {fmt(t)}
               </text>
             </g>
@@ -34,7 +34,7 @@ export function GraficoFamilia({ serie }: { serie: PuntoSerie[] }) {
             const elegido = i === serie.length - 1
             const cx = ml + i * paso + paso / 2
             const etiqueta = (
-              <text x={cx} y={H - 7} textAnchor="middle" className={elegido ? "fill-foreground text-xs font-bold" : "fill-muted-foreground text-[10.5px]"}>
+              <text x={cx} y={H - 7} textAnchor="middle" className={elegido ? "fill-foreground text-xs font-bold" : "fill-foreground text-[10.5px]"}>
                 {capital(nombreMes(p.mes))}
               </text>
             )
@@ -43,7 +43,7 @@ export function GraficoFamilia({ serie }: { serie: PuntoSerie[] }) {
               return (
                 <g key={p.mes}>
                   <rect x={cx - bw / 2} y={tope} width={bw} height={y(lo) - tope} rx={4} fill="none" strokeDasharray="4 4" className="stroke-muted-foreground opacity-60" />
-                  <text x={cx} y={(tope + y(lo)) / 2 + 6} textAnchor="middle" className="fill-muted-foreground font-mono text-lg">
+                  <text x={cx} y={(tope + y(lo)) / 2 + 6} textAnchor="middle" className="fill-foreground font-mono text-lg">
                     —
                   </text>
                   {etiqueta}
@@ -71,7 +71,7 @@ export function GraficoFamilia({ serie }: { serie: PuntoSerie[] }) {
             )
           })}
           <line x1={ml} x2={W - mr} y1={y(100)} y2={y(100)} strokeDasharray="5 4" className="stroke-muted-foreground" />
-          <text x={W - mr} y={12} textAnchor="end" className="fill-muted-foreground text-[10.5px]">
+          <text x={W - mr} y={12} textAnchor="end" className="fill-foreground text-[10.5px]">
             - - Estándar 100 %
           </text>
         </svg>

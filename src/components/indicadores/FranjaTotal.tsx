@@ -3,7 +3,7 @@ import type { DatosMes, ModoMes } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
 import { fmt } from "@/components/indicadores/formato"
 
-const tono = (pct: number | null) => (pct == null ? "text-muted-foreground" : pct >= 100 ? "text-success-foreground" : "text-foreground")
+const tono = (pct: number | null) => (pct == null ? "text-foreground" : pct >= 100 ? "text-success-foreground" : "text-foreground")
 
 /**
  * TOTAL ASÉPTICO, fijo bajo los filtros en todas las pantallas (dueña,
@@ -18,17 +18,17 @@ export function FranjaTotal({ meses }: { meses: { mes: string; modo: ModoMes; da
   return (
     <div className="flex flex-wrap items-baseline gap-x-5 gap-y-0.5 rounded-xl border bg-card px-4 py-1">
       <span className="text-sm font-bold tracking-wider">TOTAL ASÉPTICO</span>
-      <span className="text-sm text-muted-foreground">
+      <span className="text-sm text-foreground">
         {capital(nombreMes(elegido.mes))}:{" "}
         <b className="font-mono text-base text-foreground">{fmt(t.prod)}</b> de <b className="font-mono text-base text-foreground">{fmt(t.plan)}</b> cajas
       </span>
-      <span className="text-sm text-muted-foreground">
+      <span className="text-sm text-foreground">
         Cumplimiento <b className={cn("font-mono text-lg", tono(t.cumplimiento))}>{t.cumplimiento == null ? "—" : `${fmt(t.cumplimiento)} %`}</b>
       </span>
       {anteriores.map((m) => {
         const c = totalAseptico(m.datos, m.modo).cumplimiento
         return (
-          <span key={m.mes} className="text-sm text-muted-foreground">
+          <span key={m.mes} className="text-sm text-foreground">
             {capital(nombreMes(m.mes))} <b className={cn("font-mono", tono(c))}>{c == null ? "—" : `${fmt(c)} %`}</b>
           </span>
         )

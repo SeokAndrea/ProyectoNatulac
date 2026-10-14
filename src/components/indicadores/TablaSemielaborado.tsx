@@ -7,7 +7,7 @@ import type { MesIndicadores } from "@/components/indicadores/useIndicadores"
 import type { PropsFamilias } from "@/components/indicadores/VistaSemielaborado"
 
 function Celda({ v }: { v: number | null }) {
-  if (v == null) return <span className="text-muted-foreground">—</span>
+  if (v == null) return <span className="text-foreground">—</span>
   const bien = v >= 99
   return (
     <span className="inline-flex min-w-24 flex-col items-center gap-1">
@@ -27,7 +27,7 @@ export function TablaSemielaborado({ familias, meses, renderObservacion }: Props
       <div className="min-h-0 flex-1 overflow-x-auto">
         <table className="h-full max-h-[520px] w-full min-w-[640px] border-separate border-spacing-0 text-[15px]">
           <thead>
-            <tr className="text-[11.5px] uppercase tracking-wider text-muted-foreground">
+            <tr className="text-[11.5px] uppercase tracking-wider text-foreground">
               <th className="border-b-2 px-3.5 py-2.5 text-left">Producto</th>
               <th className="border-b-2 px-3.5 py-2.5">Estándar</th>
               {meses.map((m) => (
@@ -64,7 +64,7 @@ export function TablaSemielaborado({ familias, meses, renderObservacion }: Props
           </tbody>
         </table>
       </div>
-      <p className="flex flex-wrap gap-x-4 px-3.5 pt-2 text-[11.5px] text-muted-foreground">
+      <p className="flex flex-wrap gap-x-4 px-3.5 pt-2 text-[11.5px] text-foreground">
         <span>Verde: 99 % o más · Rojo: menos de 99 %</span>
         <span>La barrita va de 90 % (vacía) a 100 % (llena)</span>
         <span>— = sin datos</span>

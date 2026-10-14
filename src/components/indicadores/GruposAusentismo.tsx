@@ -35,21 +35,21 @@ function Flecha() {
 
 /**
  * Cómo se reparten las horas perdidas: una barra con un tramo por grupo,
- * separados por un borde, y sobre cada tramo una flecha de punta a punta con
- * el grupo y su %. Así se ve cuánto ocupa cada uno (dueña, 2026-10-14).
+ * separados por un borde y con su % adentro; encima, una flecha de punta a
+ * punta con el grupo. Así se ve cuánto ocupa cada uno (dueña, 2026-10-14).
  */
 function DistribucionPerdidas({ grupos }: { grupos: AusentismoGrupo[] }) {
   const tramos = grupos.filter((g) => (g.partePerdidas ?? 0) > 0)
   if (tramos.length === 0) return null
   return (
     <div className="flex flex-col items-center gap-2">
-      <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Distribución de las horas perdidas por grupo</span>
+      <span className="text-sm font-semibold uppercase tracking-wider text-foreground">Distribución de las horas perdidas por grupo</span>
       <div className="flex w-full flex-col gap-1.5">
         <div className="flex w-full gap-1.5">
           {tramos.map((g) => (
             <div key={g.grupo} style={{ ...colorGrupo(g.grupo), flexGrow: g.partePerdidas!, flexBasis: 0 }} className="flex min-w-0 flex-col gap-1">
               <span className="truncate text-center text-[clamp(14px,1.2vw,20px)] font-bold">
-                Grupo {g.grupo} · <span className="font-mono">{fmt(g.partePerdidas, 2)} %</span>
+                Grupo {g.grupo}
               </span>
               <Flecha />
             </div>
@@ -60,9 +60,13 @@ function DistribucionPerdidas({ grupos }: { grupos: AusentismoGrupo[] }) {
             <div
               key={g.grupo}
               style={{ ...colorGrupo(g.grupo), flexGrow: g.partePerdidas!, flexBasis: 0 }}
-              className="min-w-0 rounded-md border-2 border-foreground/25 bg-[var(--c)]"
+              className="grid min-w-0 place-items-center rounded-md border-2 border-foreground/25 bg-[var(--c)]"
               title={`Grupo ${g.grupo}: ${fmt(g.partePerdidas, 2)} %`}
-            />
+            >
+              <span className="truncate font-mono text-[clamp(18px,1.7vw,30px)] font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+                {fmt(g.partePerdidas, 2)} %
+              </span>
+            </div>
           ))}
         </div>
       </div>
@@ -87,7 +91,7 @@ export function GruposAusentismo({ grupos }: { grupos: AusentismoGrupo[] }) {
           <div key={g.grupo} style={colorGrupo(g.grupo)} className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-[var(--c)] p-3 text-center">
             <b className="text-2xl">Grupo {g.grupo}</b>
             <Dona pct={g.porcentaje} />
-            <span className="text-base text-muted-foreground">
+            <span className="text-base text-foreground">
               Quien incidió más: <b className="text-foreground">{g.quien || "—"}</b>
               {g.dias != null && ` (${fmt(g.dias)} ${g.dias === 1 ? "día" : "días"})`}
             </span>

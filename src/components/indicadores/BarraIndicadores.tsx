@@ -56,7 +56,7 @@ export function BarraIndicadores({
               aria-pressed={modo === m}
               disabled={cambiandoModo}
               onClick={() => modo !== m && onModo(m)}
-              className={cn("rounded-full px-3 py-1 text-[11.5px] font-semibold tracking-wide text-muted-foreground disabled:cursor-default", modo === m && activo)}
+              className={cn("rounded-full px-3 py-1 text-[11.5px] font-semibold tracking-wide text-foreground disabled:cursor-default", modo === m && activo)}
             >
               {m === "AUTO" ? "AUTOMÁTICO" : "MANUAL"}
             </button>

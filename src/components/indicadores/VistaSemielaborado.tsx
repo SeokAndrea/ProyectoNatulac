@@ -47,7 +47,7 @@ export function VistaSemielaborado({
     <section aria-label="Semielaborado" className="flex min-h-0 flex-1 flex-col gap-2.5 rounded-xl border bg-card p-3" style={colorFamilia("Clasicos")}>
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
         <h2 className="text-[28px] font-bold tracking-wide text-[var(--c-texto)]">SEMIELABORADO</h2>
-        <span className="text-sm text-muted-foreground">Rendimiento por producto · estándar 100 %</span>
+        <span className="text-sm text-foreground">Rendimiento por producto · estándar 100 %</span>
         <div role="group" aria-label="Ver como" className="ml-auto inline-flex rounded-full border bg-card p-0.5">
           {(["graficas", "tabla"] as const).map((v) => (
             <button
@@ -55,7 +55,7 @@ export function VistaSemielaborado({
               type="button"
               aria-pressed={vista === v}
               onClick={() => onVista(v)}
-              className={cn("rounded-full px-3.5 py-1 text-[12.5px] font-semibold text-muted-foreground", vista === v && "bg-[var(--c)] text-[var(--c-cab)]")}
+              className={cn("rounded-full px-3.5 py-1 text-[12.5px] font-semibold text-foreground", vista === v && "bg-[var(--c)] text-[var(--c-cab)]")}
             >
               {v === "graficas" ? "Gráficas" : "Tabla"}
             </button>
@@ -64,7 +64,7 @@ export function VistaSemielaborado({
       </div>
 
       {familias.length === 0 ? (
-        <p className="m-auto text-muted-foreground">Sin datos de semielaborado en {nombreMes(elegido.mes)}.</p>
+        <p className="m-auto text-foreground">Sin datos de semielaborado en {nombreMes(elegido.mes)}.</p>
       ) : vista === "tabla" ? (
         <TablaSemielaborado familias={familias} meses={meses} renderObservacion={renderObservacion} />
       ) : (

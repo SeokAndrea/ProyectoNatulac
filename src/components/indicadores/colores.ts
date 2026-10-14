@@ -28,5 +28,6 @@ const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, 
 /** Color del envase de la familia (familias_producto). Una familia nueva usa el de Especiales. */
 export const colorFamilia = (familia: string) => vars(`--ind-${CLAVE_FAMILIA[sinTildes(familia)] ?? "especiales"}`)
 
-/** "Clasicos" → "Néctar clásico", como en el informe. */
-export const nombreFamilia = (familia: string) => (sinTildes(familia) === "clasicos" ? "Néctar clásico" : familia)
+/** Nombres para la pantalla: "Clasicos" → "Néctar clásico", como en el informe; "Especiales" → "Té" (dueña, 2026-10-14). */
+const NOMBRES_FAMILIA: Record<string, string> = { clasicos: "Néctar clásico", especiales: "Té" }
+export const nombreFamilia = (familia: string) => NOMBRES_FAMILIA[sinTildes(familia)] ?? familia

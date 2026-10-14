@@ -49,9 +49,9 @@ export function VistaLinea({
       <div className="flex min-h-0 min-w-0 flex-col gap-2.5">
         <section aria-label="Eficiencia de la línea" className={cn("flex min-h-[190px] flex-col gap-1.5 rounded-xl border bg-card px-3 py-2.5", verParadas ? "h-[38%]" : "flex-1")}>
           <h2 className="flex items-baseline gap-2 text-base font-bold tracking-wider text-[var(--c-texto)]">
-            EFICIENCIA <span className="text-xs font-medium tracking-normal text-muted-foreground">Línea {linea}</span>
+            EFICIENCIA <span className="text-xs font-medium tracking-normal text-foreground">Línea {linea}</span>
           </h2>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground">
             <span className="inline-flex items-center gap-1.5">
               <i className="inline-block size-2.5 rounded-sm bg-[var(--c)]" />
               {capital(nombreMes(elegido.mes))}
@@ -70,7 +70,7 @@ export function VistaLinea({
         {verParadas && <ParadasLinea manual={manual} generales={generales} presentaciones={conParadas} />}
       </div>
       {visibles.length === 0 && (
-        <p className="self-center text-center text-sm text-muted-foreground">Sin datos de la Línea {linea} en {nombreMes(elegido.mes)}.</p>
+        <p className="self-center text-center text-sm text-foreground">Sin datos de la Línea {linea} en {nombreMes(elegido.mes)}.</p>
       )}
       {visibles.map((p) => (
         <ColumnaPresentacion

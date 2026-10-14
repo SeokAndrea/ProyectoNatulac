@@ -49,7 +49,7 @@ export function Observacion({
 
   return (
     <div className="flex min-h-14 flex-1 flex-col gap-1.5 rounded-lg bg-card p-2">
-      {texto ? <p className="flex-1 whitespace-pre-wrap text-sm">{texto}</p> : <p className="flex-1 text-xs italic text-muted-foreground">Sin observaciones para {nombreMes}.</p>}
+      {texto ? <p className="flex-1 whitespace-pre-wrap text-sm">{texto}</p> : <p className="flex-1 text-xs italic text-foreground">Sin observaciones para {nombreMes}.</p>}
       {puedeEditar && (
         <Button
           size="sm"

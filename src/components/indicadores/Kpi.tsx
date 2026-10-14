@@ -60,7 +60,7 @@ export function Kpi({
         </div>
       )}
       <span className={cn("font-mono font-semibold tabular-nums leading-tight", claseValor ?? (grande ? "text-3xl" : "text-xl"))}>{texto(actual.valor)}</span>
-      <span className="truncate text-[11px] text-muted-foreground">
+      <span className="truncate text-[11px] text-foreground">
         {detalle}
         {detalle && " · "}
         {actual.valor == null ? (
@@ -81,10 +81,10 @@ export function Kpi({
       </span>
       {verExtremos && ext && (
         <>
-          <span className="truncate text-[10.5px] text-muted-foreground">
+          <span className="truncate text-[10.5px] text-foreground">
             ▲ Más alto <b className="text-foreground">{`${mesCorto(ext.alto.mes)} ${texto(ext.alto.valor)}`}</b>
           </span>
-          <span className="truncate text-[10.5px] text-muted-foreground">
+          <span className="truncate text-[10.5px] text-foreground">
             ▼ Más bajo <b className="text-foreground">{`${mesCorto(ext.bajo.mes)} ${texto(ext.bajo.valor)}`}</b>
           </span>
         </>

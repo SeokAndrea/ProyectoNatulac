@@ -42,7 +42,7 @@ export function VistaIncidencias({ mes, titulo, incidencias, editar }: { mes: st
         <h2 className="text-[clamp(26px,2.4vw,44px)] font-bold uppercase tracking-wide">{titulo?.trim() || TITULO_INCIDENCIAS}</h2>
         <span className="ml-auto">{editar}</span>
       </div>
-      {incidencias.length === 0 && <p className={cn("m-auto text-muted-foreground", TEXTO)}>Sin incidencias ni seguimientos en {nombreMes(mes)}.</p>}
+      {incidencias.length === 0 && <p className={cn("m-auto text-foreground", TEXTO)}>Sin incidencias ni seguimientos en {nombreMes(mes)}.</p>}
       {incidencias.map((inc, i) =>
         inc.tipo === "INCIDENCIA" ? (
           <article key={i} className="flex flex-col gap-3 rounded-xl border-2 border-danger/40 p-5">
@@ -54,7 +54,7 @@ export function VistaIncidencias({ mes, titulo, incidencias, editar }: { mes: st
             <header className="flex flex-col gap-2">
               <Etiqueta tipo={inc.tipo} />
               <h3 className="text-[clamp(22px,2vw,36px)] font-bold leading-tight">
-                <span className="text-muted-foreground">Evento: </span>
+                <span className="text-foreground">Evento: </span>
                 {inc.evento || "—"}
               </h3>
             </header>
@@ -62,7 +62,7 @@ export function VistaIncidencias({ mes, titulo, incidencias, editar }: { mes: st
             <div className="grid flex-1 grid-cols-1 gap-4 lg:[grid-template-columns:repeat(var(--n),minmax(0,1fr))]" style={{ "--n": Math.max(1, partesDe(inc).length) } as CSSProperties}>
               {partesDe(inc).map((p) => (
                 <div key={p.campo} className="flex flex-col gap-2 rounded-lg bg-muted/60 p-4">
-                  <span className="text-[clamp(13px,1vw,18px)] font-bold tracking-wider text-muted-foreground">{p.titulo}</span>
+                  <span className="text-[clamp(13px,1vw,18px)] font-bold tracking-wider text-foreground">{p.titulo}</span>
                   <p className={cn("whitespace-pre-wrap", TEXTO)}>{inc[p.campo]}</p>
                 </div>
               ))}
