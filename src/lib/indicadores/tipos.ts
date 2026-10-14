@@ -26,6 +26,8 @@ export interface DatosPresentacion {
   plan: number | null
   /** Merma de envases, %. */
   merma: number | null
+  /** Envases perdidos ("Equivalencia en unidades" del Excel). */
+  mermaUnidades?: number | null
   /** % de cumplimiento cargado a mano cuando no hay cajas (ej. julio y agosto del Excel). Con cajas, manda prod ÷ plan. */
   cumplimiento?: number | null
   paradas: ParadaMes[]

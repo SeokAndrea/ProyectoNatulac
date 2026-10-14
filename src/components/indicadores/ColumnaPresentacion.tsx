@@ -4,6 +4,7 @@ import type { DatosPresentacion } from "@/lib/indicadores/tipos"
 import { AnillosCumplimiento } from "@/components/indicadores/AnillosCumplimiento"
 import { Kpi } from "@/components/indicadores/Kpi"
 import { Observacion } from "@/components/indicadores/Observacion"
+import { fmt } from "@/components/indicadores/formato"
 import type { MesIndicadores } from "@/components/indicadores/useIndicadores"
 
 const Subtitulo = ({ children }: { children: string }) => <h3 className="text-[13px] font-bold tracking-wide text-[var(--c-texto)]">{children}</h3>
@@ -32,6 +33,7 @@ export function ColumnaPresentacion({
     meses.map((m) => ({ mes: m.mes, valor: m.datos?.presentaciones[clave]?.[campo] ?? null }))
   const merma = de("merma")
   const mermaMes = merma[merma.length - 1].valor
+  const unidades = meses[meses.length - 1].datos?.presentaciones[clave]?.mermaUnidades ?? null
   const elegido = meses[meses.length - 1].mes
 
   return (
@@ -44,7 +46,15 @@ export function ColumnaPresentacion({
         {nombre} <span className="text-xs font-semibold opacity-85">Línea {linea}</span>
       </h2>
       <Subtitulo>MERMA DE ENVASES</Subtitulo>
-      <Kpi serie={merma} decimales={2} unidad=" %" mayorEsMejor={false} centrado estado={mermaMes == null ? null : { ok: mermaMes <= 3, texto: mermaMes <= 3 ? "≤3 %" : ">3 %" }} />
+      <Kpi
+        serie={merma}
+        decimales={2}
+        unidad=" %"
+        mayorEsMejor={false}
+        centrado
+        estado={mermaMes == null ? null : { ok: mermaMes <= 3, texto: mermaMes <= 3 ? "≤3 %" : ">3 %" }}
+        detalle={unidades == null ? undefined : `${fmt(unidades)} envases`}
+      />
       <div className="grid grid-cols-2 gap-2">
         <Kpi titulo="CAJAS PRODUCIDAS" serie={de("prod")} mayorEsMejor />
         <Kpi titulo="CAJAS PLANEADAS" serie={de("plan")} mayorEsMejor />
