@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Pencil } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { MensajeError } from "@/components/MensajeError"
 import { BarraIndicadores } from "@/components/indicadores/BarraIndicadores"
+import { BotonPdf } from "@/components/indicadores/BotonPdf"
 import { FranjaTotal } from "@/components/indicadores/FranjaTotal"
 import { SECCIONES, SIEMPRE_A_MANO, useFlechas, type Seccion } from "@/components/indicadores/secciones"
 import { VistaAusentismo } from "@/components/indicadores/VistaAusentismo"
@@ -49,6 +50,8 @@ export default function Indicadores() {
   const [editando, setEditando] = useState(false)
   const [sabores, setSabores] = useState<Sabor[] | null>(null)
   const accionModo = useAccion()
+  // La franja y la pantalla: lo que se fotografía para el PDF.
+  const lamina = useRef<HTMLDivElement>(null)
   // ← → cambian de pantalla, para exponer.
   useFlechas(seccion, setSeccion, !editando)
 
@@ -144,46 +147,49 @@ export default function Indicadores() {
           onCargar={() => setEditando(true)}
           puedeEditar={puedeCargar}
           cambiandoModo={accionModo.enviando}
+          extra={<BotonPdf mes={mes} seccion={seccion} onSeccion={setSeccion} lamina={lamina} />}
         />
-        {/* Solo en las pantallas de línea (dueña, 2026-10-14). */}
-        {esLinea && !ind.cargando && !calculando && <FranjaTotal meses={ind.meses} />}
-        <MensajeError error={ind.error ?? (aMano ? null : elegido.error) ?? accionModo.error} />
-        {aMano ? (
-          ind.cargando ? (
-            <Loader2 className="m-auto size-5 animate-spin text-muted-foreground" />
-          ) : seccion === "aus" ? (
-            <VistaAusentismo meses={ind.aMano} editar={botonEditar} />
+        <div ref={lamina} className="flex min-h-0 flex-1 flex-col gap-2.5">
+          {/* Solo en las pantallas de línea (dueña, 2026-10-14). */}
+          {esLinea && !ind.cargando && !calculando && <FranjaTotal meses={ind.meses} />}
+          <MensajeError error={ind.error ?? (aMano ? null : elegido.error) ?? accionModo.error} />
+          {aMano ? (
+            ind.cargando ? (
+              <Loader2 className="m-auto size-5 animate-spin text-muted-foreground" />
+            ) : seccion === "aus" ? (
+              <VistaAusentismo meses={ind.aMano} editar={botonEditar} />
+            ) : (
+              <VistaIncidencias
+                mes={mes}
+                titulo={ind.aMano[ind.aMano.length - 1].datos?.tituloIncidencias}
+                incidencias={ind.aMano[ind.aMano.length - 1].datos?.incidencias ?? []}
+                editar={botonEditar}
+              />
+            )
+          ) : calculando ? (
+            <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con las jornadas validadas…
+            </p>
+          ) : sinValidadas ? (
+            <p className="m-auto max-w-md text-center text-sm text-muted-foreground">
+              {/* Quien no carga datos no ve nada del modo manual (se expone en reuniones, dueña 2026-10-14). */}
+              {puedeCargar
+                ? `${capital(nombreMes(mes))} no tiene jornadas validadas todavía. El modo automático cuenta solo lo validado en Validar jornada; mientras tanto, se puede pasar el mes a MANUAL.`
+                : `${capital(nombreMes(mes))} todavía no tiene datos.`}
+            </p>
+          ) : seccion === "semi" ? (
+            <VistaSemielaborado meses={ind.meses} vista={vistaSemi} onVista={setVistaSemi} renderObservacion={observacion} />
           ) : (
-            <VistaIncidencias
-              mes={mes}
-              titulo={ind.aMano[ind.aMano.length - 1].datos?.tituloIncidencias}
-              incidencias={ind.aMano[ind.aMano.length - 1].datos?.incidencias ?? []}
-              editar={botonEditar}
+            <VistaLinea
+              linea={seccion}
+              meses={ind.meses}
+              velocidades={velocidades}
+              observaciones={ind.observaciones}
+              puedeEditar={puedeEditar}
+              onGuardarObservacion={guardarObs}
             />
-          )
-        ) : calculando ? (
-          <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con las jornadas validadas…
-          </p>
-        ) : sinValidadas ? (
-          <p className="m-auto max-w-md text-center text-sm text-muted-foreground">
-            {/* Quien no carga datos no ve nada del modo manual (se expone en reuniones, dueña 2026-10-14). */}
-            {puedeCargar
-              ? `${capital(nombreMes(mes))} no tiene jornadas validadas todavía. El modo automático cuenta solo lo validado en Validar jornada; mientras tanto, se puede pasar el mes a MANUAL.`
-              : `${capital(nombreMes(mes))} todavía no tiene datos.`}
-          </p>
-        ) : seccion === "semi" ? (
-          <VistaSemielaborado meses={ind.meses} vista={vistaSemi} onVista={setVistaSemi} renderObservacion={observacion} />
-        ) : (
-          <VistaLinea
-            linea={seccion}
-            meses={ind.meses}
-            velocidades={velocidades}
-            observaciones={ind.observaciones}
-            puedeEditar={puedeEditar}
-            onGuardarObservacion={guardarObs}
-          />
-        )}
+          )}
+        </div>
       </div>
       {editando && (
         <EditorManual

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { Pencil } from "lucide-react"
 import { nombreMes } from "@/lib/indicadores/calculos"
 import type { ModoMes } from "@/lib/indicadores/tipos"
@@ -19,6 +20,7 @@ export function BarraIndicadores({
   onCargar,
   puedeEditar,
   cambiandoModo,
+  extra,
 }: {
   seccion: Seccion
   onSeccion: (s: Seccion) => void
@@ -30,6 +32,8 @@ export function BarraIndicadores({
   onCargar: () => void
   puedeEditar: boolean
   cambiandoModo: boolean
+  /** Al final de la barra (ej. el botón PDF). */
+  extra?: ReactNode
 }) {
   return (
     <div role="group" aria-label="Filtros" className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -68,6 +72,7 @@ export function BarraIndicadores({
           <Pencil className="size-3.5" /> Cargar datos de {nombreMes(mes)}
         </button>
       )}
+      {extra && <span className="ml-auto">{extra}</span>}
     </div>
   )
 }
