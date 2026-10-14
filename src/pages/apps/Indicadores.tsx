@@ -3,6 +3,7 @@ import { Loader2, Pencil } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { MensajeError } from "@/components/MensajeError"
 import { BarraIndicadores } from "@/components/indicadores/BarraIndicadores"
+import { FranjaTotal } from "@/components/indicadores/FranjaTotal"
 import { SECCIONES, SIEMPRE_A_MANO, useFlechas, type Seccion } from "@/components/indicadores/secciones"
 import { VistaAusentismo } from "@/components/indicadores/VistaAusentismo"
 import { VistaIncidencias } from "@/components/indicadores/VistaIncidencias"
@@ -120,6 +121,8 @@ export default function Indicadores() {
           puedeEditar={puedeCargar}
           cambiandoModo={accionModo.enviando}
         />
+        {/* Fijo en todas las pantallas (dueña, 2026-10-14). */}
+        {!ind.cargando && !calculando && <FranjaTotal meses={ind.meses} />}
         <MensajeError error={ind.error ?? (aMano ? null : elegido.error) ?? accionModo.error} />
         {aMano ? (
           ind.cargando ? (

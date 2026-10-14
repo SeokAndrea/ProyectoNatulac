@@ -73,8 +73,16 @@ export interface DatosMes {
   ausentismo?: Ausentismo | null
   /** Siempre a mano, también en los meses automáticos. */
   incidencias?: Incidencia[]
+  /** Total Aséptico cargado a mano (ej. julio y agosto, que vienen de otro Excel). Vacío = suma de las presentaciones. */
+  totalAseptico?: TotalAseptico | null
   /** Título de esa pantalla, escrito por la analista ("INCIDENCIAS", "SEGUIMIENTO"…). Vacío = TITULO_INCIDENCIAS. */
   tituloIncidencias?: string
+}
+
+export interface TotalAseptico {
+  prod: number | null
+  plan: number | null
+  cumplimiento: number | null
 }
 
 export const TITULO_INCIDENCIAS = "INCIDENCIAS Y SEGUIMIENTO"

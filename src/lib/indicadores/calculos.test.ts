@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { ausentismoTotal, cumplimiento, extremos, finDeMes, leerNumero, mesesVentana, presentacionesDeLinea, sumarMeses, tieneDatos, topParadas } from "./calculos"
-import { presentacionVacia } from "./tipos"
+import { ausentismoTotal, totalAseptico, cumplimiento, extremos, finDeMes, leerNumero, mesesVentana, presentacionesDeLinea, sumarMeses, tieneDatos, topParadas } from "./calculos"
+import { mesVacio, presentacionVacia } from "./tipos"
 
 describe("meses", () => {
   it("ventana de 3 meses, también cruzando el año", () => {
@@ -83,5 +83,21 @@ describe("leerNumero — lo escrito en el editor", () => {
     expect(leerNumero("69.157", true)).toBe(69157)
     expect(leerNumero("3,04", false)).toBe(3.04)
     expect(leerNumero("3.04", false)).toBe(3.04)
+  })
+})
+
+describe("totalAseptico — la franja de arriba", () => {
+  const sep = { ...mesVacio(), presentaciones: { "1|1000": { ...presentacionVacia(), prod: 69157, plan: 98085 }, "2|250": { ...presentacionVacia(), prod: 66636, plan: 74483 } } }
+
+  it("sin total cargado, suma las presentaciones", () => {
+    const t = totalAseptico(sep)
+    expect(t.prod).toBe(135793)
+    expect(t.plan).toBe(172568)
+    expect(t.cumplimiento).toBeCloseTo(78.69, 2)
+  })
+
+  it("lo cargado a mano manda (julio y agosto vienen de otro Excel)", () => {
+    expect(totalAseptico({ ...mesVacio(), totalAseptico: { prod: null, plan: null, cumplimiento: 44 } }).cumplimiento).toBe(44)
+    expect(totalAseptico(null)).toEqual({ prod: null, plan: null, cumplimiento: null })
   })
 })

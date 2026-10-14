@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { SECCIONES, SIEMPRE_A_MANO, type Seccion } from "@/components/indicadores/secciones"
 import { EditorAusentismo } from "@/components/indicadores/editor/EditorAusentismo"
 import { EditorIncidencias } from "@/components/indicadores/editor/EditorIncidencias"
+import { EditorTotal } from "@/components/indicadores/editor/EditorTotal"
 import { EditorLinea } from "@/components/indicadores/editor/EditorLinea"
 import { LISTA_CAUSAS } from "@/components/indicadores/editor/EditorParadas"
 import { EditorSemielaborado } from "@/components/indicadores/editor/EditorSemielaborado"
@@ -55,7 +56,7 @@ export function EditorManual({
     const r = await obtenerAuto()
     if ("error" in r) return setError(r.error)
     // Ausentismo e incidencias no vienen de la app: se conservan.
-    setBorrador((b) => ({ ...structuredClone(r), ausentismo: b.ausentismo, incidencias: b.incidencias, tituloIncidencias: b.tituloIncidencias }))
+    setBorrador((b) => ({ ...structuredClone(r), ausentismo: b.ausentismo, incidencias: b.incidencias, tituloIncidencias: b.tituloIncidencias, totalAseptico: b.totalAseptico }))
     setVersion((v) => v + 1)
   }
 
@@ -97,7 +98,10 @@ export function EditorManual({
           ) : tab === "inc" ? (
             <EditorIncidencias datos={borrador} onCambio={setBorrador} />
           ) : (
-            <EditorLinea linea={tab} presentaciones={presentacionesDe(tab)} datos={borrador} nombreMes={nombreMes(mes)} onCambio={setBorrador} />
+            <div className="flex flex-col gap-3">
+              <EditorTotal datos={borrador} onCambio={setBorrador} />
+              <EditorLinea linea={tab} presentaciones={presentacionesDe(tab)} datos={borrador} nombreMes={nombreMes(mes)} onCambio={setBorrador} />
+            </div>
           )}
         </div>
 

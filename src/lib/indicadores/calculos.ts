@@ -1,4 +1,4 @@
-import type { DatosPresentacion, ParadaMes } from "@/lib/indicadores/tipos"
+import type { DatosMes, DatosPresentacion, ParadaMes, TotalAseptico } from "@/lib/indicadores/tipos"
 
 /*
  * Cuentas puras de Indicadores (sin Supabase). Los indicadores se miran en
@@ -114,4 +114,16 @@ export function leerNumero(texto: string, entero: boolean): number | null {
   if (!limpio) return null
   const n = Number(limpio)
   return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Total Aséptico del mes: lo cargado a mano y, lo que falte, la suma de las
+ * presentaciones. Cumplimiento: el cargado, o producidas ÷ planeadas.
+ */
+export function totalAseptico(d: DatosMes | null | undefined): TotalAseptico {
+  const pres = Object.values(d?.presentaciones ?? {})
+  const suma = (campo: "prod" | "plan") => (pres.some((p) => p[campo] != null) ? pres.reduce((s, p) => s + (p[campo] ?? 0), 0) : null)
+  const prod = d?.totalAseptico?.prod ?? suma("prod")
+  const plan = d?.totalAseptico?.plan ?? suma("plan")
+  return { prod, plan, cumplimiento: d?.totalAseptico?.cumplimiento ?? (prod != null && plan ? (prod / plan) * 100 : null) }
 }
