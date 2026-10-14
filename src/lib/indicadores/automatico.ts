@@ -3,22 +3,25 @@ import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { mapearTurnoHistorial, type TurnoHistorial } from "@/lib/historialTurnos"
 import { duracionMin, mapearFilaParada, type FilaParada, type Parada } from "@/lib/paradas"
-import { consumoLote, filasEnvases, filasLotes, type TurnoJornada } from "@/lib/validarJornada"
+import { aValidacion, consumoLote, filasEnvases, filasLotes, type FilaValidacion, type TurnoJornada, type Validacion } from "@/lib/validarJornada"
 import { finDeMes, numeroLinea } from "@/lib/indicadores/calculos"
 import { claveP, mesVacio, presentacionVacia, type DatosMes, type DatosPresentacion } from "@/lib/indicadores/tipos"
 
 /*
- * Modo AUTOMÁTICO: el mes calculado con los turnos CERRADOS (todavía no
- * solo las jornadas validadas: falta que la dueña lo decida). Usa las
- * mismas cuentas que el resto de la app, no fórmulas nuevas:
+ * Modo AUTOMÁTICO: el mes calculado SOLO con las jornadas VALIDADAS y con lo
+ * que corrigió la Analista en Validar jornada (dueña, 2026-10-14). Usa las
+ * mismas cuentas que el resto de la app, no fórmulas nuevas; todo se arma
+ * día por día (como en Validar jornada) y después se suma:
  *
  *   Eficiencia      eficienciaDelTurno() turno por turno; Σ operativo ÷ Σ disponible.
- *   Cajas y merma   filasEnvases() de Validar jornada: PT contra contador, por corrida.
- *   Paradas         las NO programadas, a la presentación que corría a esa hora;
- *                   las de entre corridas no van a ninguna.
+ *   Cajas           PT de cada corrida; si la Analista corrigió las cajas del turno
+ *                   (sabor + presentación), se reparten entre sus corridas.
+ *   Merma           filasEnvases(): PT contra el contador (el corregido, si lo hay).
+ *   Paradas         las NO programadas que cuentan, con sus minutos corregidos, a la
+ *                   presentación que corría a esa hora; las de entre corridas, a ninguna.
  *   Plan            Programación del mes, por presentación (ml). Si la corrieron
  *                   dos líneas, se reparte según lo que produjo cada una.
- *   Semielaborado   filasLotes() de Validar jornada: Σ PT ÷ Σ consumo por familia.
+ *   Semielaborado   filasLotes() con el final corregido: Σ PT ÷ Σ consumo por familia.
  */
 
 export interface CatalogosIndicadores {
@@ -35,7 +38,48 @@ export interface TurnoConParadas {
   paradas: Parada[]
 }
 
+/** Lo validado de un día (validacion_jornada_de). */
+export interface ValidacionesDia {
+  contadores: Map<string, Validacion>
+  lotes: Map<string, Validacion>
+  paradas: Map<string, Validacion>
+}
+
+/** Cajas corregidas de un turno, sabor y presentación (validacion_turno). */
+export interface CajasValidadas {
+  turnoId: string
+  saborId: string
+  volumenMl: number
+  cajas: number
+}
+
+export interface EntradaMes {
+  /** Turnos cerrados de las jornadas validadas. */
+  turnos: TurnoConParadas[]
+  /** Por fecha ('YYYY-MM-DD'). */
+  validaciones: Map<string, ValidacionesDia>
+  cajas: CajasValidadas[]
+  plan: { volumenMl: number; cajas: number }[]
+}
+
 const redondear = (n: number, decimales: number) => Math.round(n * 10 ** decimales) / 10 ** decimales
+const sinValidaciones = (): ValidacionesDia => ({ contadores: new Map(), lotes: new Map(), paradas: new Map() })
+
+/** 'YYYY-MM-DDTHH:MM:SS' (hora de planta, como listar_paradas) corrido n minutos. */
+function sumarMinutos(iso: string, minutos: number): string {
+  const d = new Date(new Date(iso).getTime() + minutos * 60000)
+  const dos = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`
+}
+
+/** Las paradas como quedaron validadas: sin las que "no cuentan" y con los minutos corregidos. */
+function paradasValidadas(paradas: Parada[], validadas: Map<string, Validacion>): Parada[] {
+  return paradas.flatMap((p) => {
+    const v = validadas.get(p.id)
+    if (v?.estado === "EXCLUIDA") return []
+    return v?.valor != null ? [{ ...p, fin: sumarMinutos(p.inicio, v.valor) }] : [p]
+  })
+}
 
 function eficienciaPorLinea(turnos: TurnoConParadas[], cat: CatalogosIndicadores): DatosMes["eficiencia"] {
   const suma = new Map<string, { disponible: number; operativo: number }>()
@@ -63,20 +107,49 @@ function eficienciaPorLinea(turnos: TurnoConParadas[], cat: CatalogosIndicadores
   return Object.fromEntries([...suma].map(([l, s]) => [l, s.disponible > 0 ? Math.round((s.operativo / s.disponible) * 100) : null]))
 }
 
-/** Cajas producidas y merma de envases por presentación. */
-function cajasYMerma(turnos: TurnoJornada[], cat: CatalogosIndicadores, pres: Record<string, DatosPresentacion>) {
+/**
+ * Cajas de cada corrida en cada turno del día: las del PT, o las corregidas del
+ * turno (sabor + presentación) repartidas entre sus corridas según su PT.
+ */
+function cajasDelDia(turnos: TurnoJornada[], cat: CatalogosIndicadores, corregidas: CajasValidadas[]): { clave: string; cajas: number }[] {
+  const salida: { clave: string; cajas: number }[] = []
+  for (const { turno } of turnos) {
+    const grupos = new Map<string, { clave: string; cajas: number }[]>()
+    for (const c of turno.corridas) {
+      const pres = cat.presentaciones.find((p) => p.codigo === c.presentacion)
+      const pt = turno.productoTerminado.find((p) => p.corridaId === c.id)
+      if (!pres || !pt) continue
+      const grupo = `${c.saborId}|${pres.volumenMl}`
+      grupos.set(grupo, [...(grupos.get(grupo) ?? []), { clave: claveP(numeroLinea(c.linea), c.presentacion), cajas: pt.paletas * pres.cajasXPaleta + pt.cajasSueltas }])
+    }
+    for (const [grupo, filas] of grupos) {
+      const v = corregidas.find((x) => x.turnoId === turno.id && `${x.saborId}|${x.volumenMl}` === grupo)
+      const total = filas.reduce((s, f) => s + f.cajas, 0)
+      for (const f of filas) salida.push({ clave: f.clave, cajas: !v ? f.cajas : total > 0 ? (v.cajas * f.cajas) / total : v.cajas / filas.length })
+    }
+  }
+  return salida
+}
+
+/** Cajas producidas y merma de envases por presentación, día por día. */
+function cajasYMerma(dias: { turnos: TurnoJornada[]; v: ValidacionesDia }[], cat: CatalogosIndicadores, corregidas: CajasValidadas[], pres: Record<string, DatosPresentacion>) {
   const merma = new Map<string, { pt: number; contador: number }>()
-  for (const f of filasEnvases(turnos, cat.presentaciones, new Map())) {
-    const clave = claveP(numeroLinea(f.lineaCodigo), f.presentacion)
-    const p = (pres[clave] ??= presentacionVacia())
-    p.corrio = true
-    const porCaja = cat.presentaciones.find((x) => x.codigo === f.presentacion)?.envasesXCaja ?? 0
-    if (f.envasesPt != null && porCaja > 0) p.prod = (p.prod ?? 0) + f.envasesPt / porCaja
-    if (f.envasesPt != null && f.contador > 0) {
-      const m = merma.get(clave) ?? { pt: 0, contador: 0 }
-      m.pt += f.envasesPt
-      m.contador += f.contador
-      merma.set(clave, m)
+  for (const { turnos, v } of dias) {
+    for (const { clave, cajas } of cajasDelDia(turnos, cat, corregidas)) {
+      const p = (pres[clave] ??= presentacionVacia())
+      p.corrio = true
+      p.prod = (p.prod ?? 0) + cajas
+    }
+    for (const f of filasEnvases(turnos, cat.presentaciones, v.contadores)) {
+      const clave = claveP(numeroLinea(f.lineaCodigo), f.presentacion)
+      ;(pres[clave] ??= presentacionVacia()).corrio = true
+      const contador = f.validacion?.valor ?? f.contador
+      if (f.envasesPt != null && contador > 0) {
+        const m = merma.get(clave) ?? { pt: 0, contador: 0 }
+        m.pt += f.envasesPt
+        m.contador += contador
+        merma.set(clave, m)
+      }
     }
   }
   for (const [clave, p] of Object.entries(pres)) {
@@ -121,10 +194,10 @@ function paradasPorPresentacion(turnos: TurnoConParadas[], pres: Record<string, 
 }
 
 /** Cajas programadas de cada presentación (ml) a la línea que la corrió; si fueron dos, según lo producido. */
-function repartirPlan(plan: { volumenMl: number; cajas: number }[], cat: CatalogosIndicadores, pres: Record<string, DatosPresentacion>) {
+function repartirPlan(plan: EntradaMes["plan"], cat: CatalogosIndicadores, pres: Record<string, DatosPresentacion>) {
+  const lineas = [...new Set(cat.lineas.map(numeroLinea))]
   for (const { volumenMl, cajas } of plan) {
     const ml = String(volumenMl)
-    const lineas = [...new Set(cat.lineas.map(numeroLinea))]
     const corrieron = lineas.filter((l) => (pres[claveP(l, ml)]?.prod ?? 0) > 0)
     const total = corrieron.reduce((a, l) => a + pres[claveP(l, ml)].prod!, 0)
     const destino = corrieron.length
@@ -140,45 +213,75 @@ function repartirPlan(plan: { volumenMl: number; cajas: number }[], cat: Catalog
   }
 }
 
-function semielaboradoPorFamilia(turnos: TurnoJornada[], cat: CatalogosIndicadores): DatosMes["semielaborado"] {
+function semielaboradoPorFamilia(dias: { turnos: TurnoJornada[]; v: ValidacionesDia }[], cat: CatalogosIndicadores): DatosMes["semielaborado"] {
   const suma = new Map<string, { pt: number; consumo: number }>()
-  for (const f of filasLotes(turnos, cat.presentaciones, new Map())) {
-    const familia = f.saborId ? cat.familiaDeSabor.get(f.saborId) : undefined
-    const consumo = consumoLote(f)
-    if (!familia || f.sinContraste || consumo <= 0) continue
-    const s = suma.get(familia) ?? { pt: 0, consumo: 0 }
-    s.pt += f.pt
-    s.consumo += consumo
-    suma.set(familia, s)
+  for (const { turnos, v } of dias) {
+    for (const f of filasLotes(turnos, cat.presentaciones, v.lotes)) {
+      const familia = f.saborId ? cat.familiaDeSabor.get(f.saborId) : undefined
+      const consumo = consumoLote(f)
+      if (!familia || f.sinContraste || consumo <= 0) continue
+      const s = suma.get(familia) ?? { pt: 0, consumo: 0 }
+      s.pt += f.pt
+      s.consumo += consumo
+      suma.set(familia, s)
+    }
   }
   return Object.fromEntries([...suma].map(([fam, s]) => [fam, redondear((s.pt / s.consumo) * 100, 1)]))
 }
 
-/** El mes completo, a partir de sus turnos cerrados y lo programado. Pura (se prueba sin Supabase). */
-export function calcularMesAutomatico(turnos: TurnoConParadas[], plan: { volumenMl: number; cajas: number }[], cat: CatalogosIndicadores): DatosMes {
+/** El mes completo, a partir de sus jornadas validadas. Pura (se prueba sin Supabase). */
+export function calcularMesAutomatico(e: EntradaMes, cat: CatalogosIndicadores): DatosMes {
   const datos = mesVacio()
-  const jornada: TurnoJornada[] = turnos.map((t) => ({ turno: t.turno, etiqueta: "" }))
+  const validadasDe = (fecha: string) => e.validaciones.get(fecha) ?? sinValidaciones()
+  const turnos = e.turnos.map((t) => ({ turno: t.turno, paradas: paradasValidadas(t.paradas, validadasDe(t.turno.fecha).paradas) }))
+  const fechas = [...new Set(turnos.map((t) => t.turno.fecha))]
+  const dias = fechas.map((fecha) => ({
+    turnos: turnos.filter((t) => t.turno.fecha === fecha).map((t): TurnoJornada => ({ turno: t.turno, etiqueta: "" })),
+    v: validadasDe(fecha),
+  }))
   datos.eficiencia = eficienciaPorLinea(turnos, cat)
-  cajasYMerma(jornada, cat, datos.presentaciones)
+  cajasYMerma(dias, cat, e.cajas, datos.presentaciones)
   paradasPorPresentacion(turnos, datos.presentaciones)
-  repartirPlan(plan, cat, datos.presentaciones)
-  datos.semielaborado = semielaboradoPorFamilia(jornada, cat)
+  repartirPlan(e.plan, cat, datos.presentaciones)
+  datos.semielaborado = semielaboradoPorFamilia(dias, cat)
   return datos
 }
 
+type FilaValidada<T> = FilaValidacion & T
+
 interface RespuestaTurnos {
   turnos: { turno: Parameters<typeof mapearTurnoHistorial>[0]; paradas: FilaParada[] }[]
+  validaciones: {
+    fecha: string
+    contadores: FilaValidada<{ turno_linea_id: string; envases_llenadora: number | null }>[]
+    lotes: FilaValidada<{ preparacion_id: string; volumen_final: number | null }>[]
+    paradas: FilaValidada<{ parada_id: string; minutos: number | null }>[]
+  }[]
+  cajas: { turno_id: string; sabor_id: string; volumen_ml: number; cajas: number }[]
   plan: { volumen_ml: number; cajas: number }[]
 }
 
 /** Lee el mes con indicadores_turnos (una sola consulta) y lo calcula. */
 export async function cargarMesAutomatico(usuario: string, area: string, mes: string, cat: CatalogosIndicadores): Promise<DatosMes | { error: string }> {
   const { data, error } = await supabase.rpc("indicadores_turnos", { p_usuario: usuario, p_area_codigo: area, p_desde: mes, p_hasta: finDeMes(mes) })
-  if (error || !data) return { error: error?.message || "No se pudieron leer los turnos del mes." }
+  if (error || !data) return { error: error?.message || "No se pudieron leer las jornadas del mes." }
   const r = data as RespuestaTurnos
   return calcularMesAutomatico(
-    r.turnos.map((t) => ({ turno: mapearTurnoHistorial(t.turno), paradas: t.paradas.map(mapearFilaParada) })),
-    r.plan.map((p) => ({ volumenMl: p.volumen_ml, cajas: Number(p.cajas) })),
+    {
+      turnos: r.turnos.map((t) => ({ turno: mapearTurnoHistorial(t.turno), paradas: t.paradas.map(mapearFilaParada) })),
+      validaciones: new Map(
+        r.validaciones.map((v) => [
+          v.fecha,
+          {
+            contadores: new Map(v.contadores.map((x) => [x.turno_linea_id, aValidacion(x, x.envases_llenadora)])),
+            lotes: new Map(v.lotes.map((x) => [x.preparacion_id, aValidacion(x, x.volumen_final)])),
+            paradas: new Map(v.paradas.map((x) => [x.parada_id, aValidacion(x, x.minutos)])),
+          },
+        ]),
+      ),
+      cajas: r.cajas.map((c) => ({ turnoId: c.turno_id, saborId: c.sabor_id, volumenMl: c.volumen_ml, cajas: Number(c.cajas) })),
+      plan: r.plan.map((p) => ({ volumenMl: p.volumen_ml, cajas: Number(p.cajas) })),
+    },
     cat,
   )
 }

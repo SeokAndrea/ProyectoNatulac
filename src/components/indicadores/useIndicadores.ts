@@ -6,7 +6,7 @@ import { mesVacio, type DatosMes, type ModoMes, type RegistroMes } from "@/lib/i
 
 /*
  * Los 3 meses de la ventana (el elegido y los 2 anteriores), cada uno con
- * su modo: MANUAL lee lo guardado; AUTO lo calcula con los turnos del mes.
+ * su modo: MANUAL lee lo guardado; AUTO lo calcula con las jornadas validadas del mes.
  * Lo automático se guarda en memoria mientras la app está abierta: un mes
  * se calcula una sola vez.
  */

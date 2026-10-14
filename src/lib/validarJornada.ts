@@ -73,13 +73,13 @@ export function etiquetarTurnos(turnos: TurnoHistorial[]): TurnoJornada[] {
   })
 }
 
-interface FilaValidacion {
+export interface FilaValidacion {
   estado: EstadoValidacion
   nota: string | null
   validado_por_nombre: string | null
 }
 
-function aValidacion(f: FilaValidacion, valor: number | null): Validacion {
+export function aValidacion(f: FilaValidacion, valor: number | null): Validacion {
   return { estado: f.estado, valor: valor === null ? null : Number(valor), nota: f.nota, validadoPorNombre: f.validado_por_nombre }
 }
 

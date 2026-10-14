@@ -4,10 +4,11 @@
 -- Dueña, 2026-10-14 (prototipo aprobado): una pantalla de Indicadores en
 -- Auditoría. Cada MES tiene su modo:
 --
---   * AUTOMÁTICO: la app lo calcula con los turnos cerrados del mes
---     (src/lib/indicadores/automatico.ts). Para eso, indicadores_turnos()
---     trae en UNA consulta los turnos del rango con sus paradas y lo
---     programado (si no, eran cientos de consultas por mes).
+--   * AUTOMÁTICO: la app lo calcula con las jornadas VALIDADAS del mes y
+--     lo corregido en Validar jornada (src/lib/indicadores/automatico.ts).
+--     Para eso, indicadores_turnos() trae en UNA consulta los turnos de esos
+--     días con sus paradas, las correcciones y lo programado (si no, eran
+--     cientos de consultas por mes).
 --   * MANUAL: el jefe o la analista cargan los números a mano (la app
 --     todavía no tenía todo, ej. septiembre de 2026). Se guardan enteros
 --     en `datos` (jsonb, forma DatosMes de src/lib/indicadores/tipos.ts).
@@ -57,10 +58,16 @@ end;
 $$;
 grant execute on function indicadores_meses(text, text, date, date) to anon, authenticated;
 
--- Para el modo AUTOMÁTICO: los turnos CERRADOS del rango (turno_json, igual
--- que turnos_de_fecha_tipo) con sus paradas (listar_paradas por turno, así
--- las de Mantenimiento vienen recortadas a la ventana del turno, igual que
--- el Panel de Producción) y las cajas programadas por presentación.
+-- Para el modo AUTOMÁTICO: SOLO las jornadas VALIDADAS (dueña, 2026-10-14),
+-- con lo que corrigió la Analista en Validar jornada (20261109590000):
+--   * turnos: los CERRADOS de esos días (turno_json, igual que
+--     turnos_de_fecha_tipo) con sus paradas (listar_paradas por turno, así las
+--     de Mantenimiento vienen recortadas a la ventana del turno).
+--   * validaciones: por día, lo de validacion_jornada_de (contadores, lotes y
+--     paradas corregidos o que no cuentan).
+--   * cajas: las cajas corregidas por turno (validacion_turno), con el
+--     sabor_id del sabor (se guardaron con el nombre del Resumen).
+--   * plan: las cajas programadas del rango, por presentación.
 create or replace function indicadores_turnos(p_usuario text, p_area_codigo text, p_desde date, p_hasta date)
 returns jsonb
 language plpgsql
@@ -68,10 +75,18 @@ security definer
 set search_path = public
 stable
 as $$
+declare
+  v_area_id uuid;
+  v_dias date[];
 begin
   if not puede_ver_resumen_dia(p_usuario) then
     raise exception 'No tienes permiso para ver los indicadores.';
   end if;
+  select id into v_area_id from areas where codigo = p_area_codigo;
+  select coalesce(array_agg(vj.fecha), '{}') into v_dias
+  from validacion_jornada vj
+  where vj.area_id = v_area_id and vj.estado = 'VALIDADA' and vj.fecha between p_desde and p_hasta;
+
   return jsonb_build_object(
     'turnos', (
       select coalesce(jsonb_agg(
@@ -85,17 +100,26 @@ begin
         order by t.fecha, t.hora_inicio
       ), '[]'::jsonb)
       from turnos t
-      join areas a on a.id = t.area_id
-      where a.codigo = p_area_codigo and t.fecha between p_desde and p_hasta and t.estado = 'CERRADO'
+      where t.area_id = v_area_id and t.fecha = any (v_dias) and t.estado = 'CERRADO'
+    ),
+    'validaciones', (
+      select coalesce(jsonb_agg(validacion_jornada_de(p_usuario, p_area_codigo, d) || jsonb_build_object('fecha', d)), '[]'::jsonb)
+      from unnest(v_dias) d
+    ),
+    'cajas', (
+      select coalesce(jsonb_agg(jsonb_build_object('turno_id', vt.turno_id, 'sabor_id', s.id, 'volumen_ml', vt.volumen_ml, 'cajas', vt.cajas)), '[]'::jsonb)
+      from validacion_turno vt
+      join turnos t on t.id = vt.turno_id
+      join sabores s on nombre_sabor_resumen(s.id) = vt.sabor_nombre
+      where t.area_id = v_area_id and t.fecha = any (v_dias) and vt.cajas is not null
     ),
     'plan', (
       select coalesce(jsonb_agg(jsonb_build_object('volumen_ml', x.volumen_ml, 'cajas', x.cajas)), '[]'::jsonb)
       from (
         select p.volumen_ml, sum(pd.cajas_plan) as cajas
         from programacion_dia pd
-        join areas a on a.id = pd.area_id
         join presentaciones p on p.id = pd.presentacion_id
-        where a.codigo = p_area_codigo and pd.fecha between p_desde and p_hasta
+        where pd.area_id = v_area_id and pd.fecha between p_desde and p_hasta
         group by p.volumen_ml
       ) x
     )

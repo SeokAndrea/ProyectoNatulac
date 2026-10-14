@@ -74,7 +74,7 @@ export function BarraIndicadores({
         </button>
       )}
       <span className="ml-auto text-[11px] text-muted-foreground">
-        {capital(nombreMes(mes))}: {modo === "MANUAL" ? "datos cargados a mano" : "calculado por la app con los turnos cerrados"}
+        {capital(nombreMes(mes))}: {modo === "MANUAL" ? "datos cargados a mano" : "calculado con las jornadas validadas"}
       </span>
     </div>
   )

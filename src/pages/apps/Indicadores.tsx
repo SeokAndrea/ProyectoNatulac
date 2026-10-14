@@ -10,7 +10,7 @@ import { VistaLinea } from "@/components/indicadores/VistaLinea"
 import { VistaSemielaborado, type VistaSemi } from "@/components/indicadores/VistaSemielaborado"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { nombreMes, presentacionesDeLinea, sumarMeses } from "@/lib/indicadores/calculos"
+import { capital, nombreMes, presentacionesDeLinea, sumarMeses } from "@/lib/indicadores/calculos"
 import { guardarMes, guardarObservacion } from "@/lib/indicadores/datos"
 import { mesVacio, type DatosMes, type ModoMes } from "@/lib/indicadores/tipos"
 import { esSoloLectura } from "@/lib/rolVista"
@@ -21,7 +21,7 @@ import { useAccion } from "@/lib/useAccion"
 /*
  * Indicadores (prototipo aprobado 2026-10-14): una pantalla, sin scroll en
  * PC. Por línea (eficiencia, paradas y una columna por presentación) o
- * semielaborado; cada mes AUTOMÁTICO o MANUAL. Cuentas en
+ * semielaborado; cada mes AUTOMÁTICO (solo jornadas validadas) o MANUAL. Cuentas en
  * src/lib/indicadores/, piezas en src/components/indicadores/.
  */
 export default function Indicadores() {
@@ -53,6 +53,8 @@ export default function Indicadores() {
   const ind = useIndicadores(usuario, area, mes, cat)
   const elegido = ind.meses[ind.meses.length - 1]
   const calculando = ind.cargando || (elegido.modo === "AUTO" && !elegido.datos && !elegido.error)
+  const d = elegido.datos
+  const sinValidadas = elegido.modo === "AUTO" && !!d && [d.eficiencia, d.presentaciones, d.semielaborado].every((x) => Object.keys(x).length === 0)
   const opcionesMes = Array.from({ length: 12 }, (_, i) => sumarMeses(mesActual, -i))
   const familias = [...new Set([...(sabores ?? []).filter((s) => s.activo).map((s) => s.familiaNombre), ...Object.keys(elegido.datos?.semielaborado ?? {})])]
   const claves = ind.meses.flatMap((m) => Object.keys(m.datos?.presentaciones ?? {}))
@@ -102,7 +104,11 @@ export default function Indicadores() {
         <MensajeError error={ind.error ?? elegido.error ?? accionModo.error} />
         {calculando ? (
           <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con los turnos cerrados…
+            <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con las jornadas validadas…
+          </p>
+        ) : sinValidadas ? (
+          <p className="m-auto max-w-md text-center text-sm text-muted-foreground">
+            {capital(nombreMes(mes))} no tiene jornadas validadas todavía. El modo automático cuenta solo lo validado en Validar jornada; mientras tanto, se puede pasar el mes a MANUAL.
           </p>
         ) : seccion === "semi" ? (
           <VistaSemielaborado meses={ind.meses} vista={vistaSemi} onVista={setVistaSemi} renderObservacion={observacion} />
