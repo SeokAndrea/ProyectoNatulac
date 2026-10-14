@@ -15,7 +15,7 @@ import { VistaLinea } from "@/components/indicadores/VistaLinea"
 import { VistaSemielaborado, type VistaSemi } from "@/components/indicadores/VistaSemielaborado"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { capital, nombreMes, presentacionesDeLinea, sumarMeses } from "@/lib/indicadores/calculos"
+import { capital, nombreMes, presentacionesDeLinea, sumarMeses, tieneCargaDeLineas } from "@/lib/indicadores/calculos"
 import { guardarMes, guardarObservacion } from "@/lib/indicadores/datos"
 import { mesVacio, type DatosMes, type ModoMes } from "@/lib/indicadores/tipos"
 import { esSoloLectura } from "@/lib/rolVista"
@@ -70,6 +70,7 @@ export default function Indicadores() {
   const claves = ind.meses.flatMap((m) => Object.keys(m.datos?.presentaciones ?? {}))
   // Ausentismo e incidencias: siempre a mano, se editan aunque el mes sea automático.
   const aMano = SIEMPRE_A_MANO.includes(seccion)
+  const esLinea = seccion === "1" || seccion === "2" || seccion === "3"
   const seccionesEditor = elegido.modo === "MANUAL" ? SECCIONES.map((s) => s.valor) : SIEMPRE_A_MANO
   const botonEditar = puedeCargar ? (
     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditando(true)}>
@@ -77,16 +78,35 @@ export default function Indicadores() {
     </Button>
   ) : null
 
-  async function cambiarModo(modo: ModoMes) {
-    let datos: DatosMes | null = null
-    // La primera vez que un mes pasa a manual, arranca con lo que calculó la app.
-    // Si solo tenía ausentismo o incidencias, esas se conservan.
-    const m = ind.manualDelMes
-    if (modo === "MANUAL" && !(m && [m.eficiencia, m.presentaciones, m.semielaborado].some((x) => Object.keys(x).length > 0))) {
-      const auto = await ind.obtenerAuto(mes)
-      datos = { ...("error" in auto ? mesVacio() : auto), ausentismo: m?.ausentismo ?? null, incidencias: m?.incidencias ?? [] }
+  const manualDe = (m: string) => ind.aMano.find((x) => x.mes === m)?.datos ?? null
+  const modoDe = (m: string) => ind.meses.find((x) => x.mes === m)?.modo ?? "AUTO"
+
+  /** Lo que calculó la app para el mes, con lo que siempre es a mano (ausentismo, incidencias, % total sin cajas). */
+  async function autoConLoAMano(m: string): Promise<DatosMes> {
+    const manual = manualDe(m)
+    const auto = await ind.obtenerAuto(m)
+    return {
+      ...("error" in auto ? mesVacio() : auto),
+      ausentismo: manual?.ausentismo ?? null,
+      incidencias: manual?.incidencias ?? [],
+      tituloIncidencias: manual?.tituloIncidencias,
+      totalAseptico: manual?.totalAseptico,
     }
+  }
+
+  // La primera vez que un mes pasa a manual, arranca con lo que calculó la app.
+  // Si solo tenía ausentismo o incidencias, esas se conservan.
+  const arrancaConAuto = (m: string) => !tieneCargaDeLineas(manualDe(m))
+
+  async function cambiarModo(modo: ModoMes) {
+    const datos = modo === "MANUAL" && arrancaConAuto(mes) ? await autoConLoAMano(mes) : null
     if (await accionModo.ejecutar(() => guardarMes(usuario, area, mes, modo, datos))) ind.recargar()
+  }
+
+  /** Con qué arranca cada mes en el editor. Un mes anterior en AUTO, con lo automático (al guardarlo pasa a MANUAL). */
+  async function inicialDe(m: string): Promise<DatosMes> {
+    if (m !== mes && modoDe(m) === "AUTO" && arrancaConAuto(m)) return autoConLoAMano(m)
+    return manualDe(m) ?? mesVacio()
   }
 
   async function guardarObs(clave: string, texto: string) {
@@ -121,8 +141,8 @@ export default function Indicadores() {
           puedeEditar={puedeCargar}
           cambiandoModo={accionModo.enviando}
         />
-        {/* Fijo en todas las pantallas (dueña, 2026-10-14). */}
-        {!ind.cargando && !calculando && <FranjaTotal meses={ind.meses} />}
+        {/* Solo en las pantallas de línea (dueña, 2026-10-14). */}
+        {esLinea && !ind.cargando && !calculando && <FranjaTotal meses={ind.meses} />}
         <MensajeError error={ind.error ?? (aMano ? null : elegido.error) ?? accionModo.error} />
         {aMano ? (
           ind.cargando ? (
@@ -163,15 +183,17 @@ export default function Indicadores() {
       </div>
       {editando && (
         <EditorManual
-          mes={mes}
-          inicial={ind.manualDelMes ?? (elegido.modo === "MANUAL" ? elegido.datos : null) ?? mesVacio()}
+          // En MANUAL se cargan también los 2 meses anteriores (dueña, 2026-10-14); en AUTO, solo ausentismo e incidencias del elegido.
+          meses={(elegido.modo === "MANUAL" ? [...ind.meses].reverse() : [elegido]).map((m) => ({ mes: m.mes, modo: m.modo }))}
           seccionInicial={seccionesEditor.includes(seccion) ? seccion : seccionesEditor[0]}
           secciones={seccionesEditor}
           presentacionesDe={(l) => presentacionesDeLinea(l, velocidades, claves)}
           familias={familias}
-          obtenerAuto={() => ind.obtenerAuto(mes)}
-          onGuardar={async (datos) => {
-            const r = await guardarMes(usuario, area, mes, elegido.modo, datos)
+          inicialDe={inicialDe}
+          obtenerAuto={ind.obtenerAuto}
+          onGuardar={async (m, datos) => {
+            // Un mes anterior que se carga a mano pasa a MANUAL; el elegido conserva su modo.
+            const r = await guardarMes(usuario, area, m, m === mes ? elegido.modo : "MANUAL", datos)
             if (r.ok) ind.recargar()
             return r
           }}

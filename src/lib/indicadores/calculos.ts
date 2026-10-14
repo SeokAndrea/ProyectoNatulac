@@ -117,13 +117,18 @@ export function leerNumero(texto: string, entero: boolean): number | null {
 }
 
 /**
- * Total Aséptico del mes: lo cargado a mano y, lo que falte, la suma de las
- * presentaciones. Cumplimiento: el cargado, o producidas ÷ planeadas.
+ * Total Aséptico del mes: las cajas son siempre la suma de las
+ * presentaciones. Cumplimiento: producidas ÷ planeadas; sin cajas, el %
+ * cargado a mano (julio y agosto vienen de otro Excel).
  */
 export function totalAseptico(d: DatosMes | null | undefined): TotalAseptico {
   const pres = Object.values(d?.presentaciones ?? {})
   const suma = (campo: "prod" | "plan") => (pres.some((p) => p[campo] != null) ? pres.reduce((s, p) => s + (p[campo] ?? 0), 0) : null)
-  const prod = d?.totalAseptico?.prod ?? suma("prod")
-  const plan = d?.totalAseptico?.plan ?? suma("plan")
-  return { prod, plan, cumplimiento: d?.totalAseptico?.cumplimiento ?? (prod != null && plan ? (prod / plan) * 100 : null) }
+  const prod = suma("prod")
+  const plan = suma("plan")
+  return { prod, plan, cumplimiento: prod != null && plan ? (prod / plan) * 100 : (d?.totalAseptico?.cumplimiento ?? null) }
 }
+
+/** Si el mes tiene algo de las líneas o del semielaborado (no solo ausentismo o incidencias). */
+export const tieneCargaDeLineas = (d: DatosMes | null | undefined) =>
+  !!d && [d.eficiencia, d.presentaciones, d.semielaborado].some((x) => Object.keys(x).length > 0)

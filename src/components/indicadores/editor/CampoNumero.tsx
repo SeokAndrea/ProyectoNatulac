@@ -43,3 +43,15 @@ export function CampoNumero({
     </label>
   )
 }
+
+/** Lo que el editor calcula solo (no se escribe): mismo lugar y etiqueta que un campo. */
+export function DatoCalculado({ etiqueta, texto, className }: { etiqueta: string; texto: string; className?: string }) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground", className)}>
+      {etiqueta}
+      <span title="Se calcula solo" className="flex h-9 items-center rounded-md border border-dashed bg-muted/40 px-3 font-mono text-sm text-foreground">
+        {texto}
+      </span>
+    </div>
+  )
+}

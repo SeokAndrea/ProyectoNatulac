@@ -96,8 +96,14 @@ describe("totalAseptico — la franja de arriba", () => {
     expect(t.cumplimiento).toBeCloseTo(78.69, 2)
   })
 
-  it("lo cargado a mano manda (julio y agosto vienen de otro Excel)", () => {
+  it("sin cajas, manda el % cargado a mano (julio y agosto vienen de otro Excel)", () => {
     expect(totalAseptico({ ...mesVacio(), totalAseptico: { prod: null, plan: null, cumplimiento: 44 } }).cumplimiento).toBe(44)
     expect(totalAseptico(null)).toEqual({ prod: null, plan: null, cumplimiento: null })
+  })
+
+  it("con cajas, todo sale de la suma: lo cargado a mano no pisa", () => {
+    const t = totalAseptico({ ...sep, totalAseptico: { prod: 1, plan: 2, cumplimiento: 44 } })
+    expect([t.prod, t.plan]).toEqual([135793, 172568])
+    expect(t.cumplimiento).toBeCloseTo(78.69, 2)
   })
 })

@@ -1,8 +1,9 @@
 import { Checkbox } from "@/components/ui/checkbox"
-import type { PresentacionDeLinea } from "@/lib/indicadores/calculos"
+import { cumplimiento, type PresentacionDeLinea } from "@/lib/indicadores/calculos"
 import { presentacionVacia, type DatosMes, type DatosPresentacion } from "@/lib/indicadores/tipos"
 import { colorLinea, colorPresentacion } from "@/components/indicadores/colores"
-import { CampoNumero } from "@/components/indicadores/editor/CampoNumero"
+import { CampoNumero, DatoCalculado } from "@/components/indicadores/editor/CampoNumero"
+import { fmtPct } from "@/components/indicadores/formato"
 import { EditorParadas } from "@/components/indicadores/editor/EditorParadas"
 
 /** Pestaña de una línea en el editor manual: la eficiencia y, por presentación, si se corrió, cajas, merma y paradas. */
@@ -52,9 +53,13 @@ export function EditorLinea({
                     <CampoNumero etiqueta="Cajas producidas" entero valor={x.prod} onCambio={(v) => cambiarPres(p.clave, { prod: v })} />
                     <CampoNumero etiqueta="Cajas planeadas" entero valor={x.plan} onCambio={(v) => cambiarPres(p.clave, { plan: v })} />
                     <CampoNumero etiqueta="Merma de envases" valor={x.merma} onCambio={(v) => cambiarPres(p.clave, { merma: v })} sufijo="%" />
-                    {/* Solo cuenta si faltan las cajas: con cajas, el cumplimiento sale de producidas ÷ planeadas. */}
                     <CampoNumero etiqueta="Envases perdidos (unidades)" entero valor={x.mermaUnidades ?? null} onCambio={(v) => cambiarPres(p.clave, { mermaUnidades: v })} />
-                    <CampoNumero etiqueta="Cumplimiento (sin cajas)" valor={x.cumplimiento ?? null} onCambio={(v) => cambiarPres(p.clave, { cumplimiento: v })} sufijo="%" />
+                    {/* Con cajas, el cumplimiento sale solo (producidas ÷ planeadas); sin cajas, se escribe. */}
+                    {x.prod != null && x.plan ? (
+                      <DatoCalculado etiqueta="Cumplimiento" texto={fmtPct(cumplimiento(x), 1)} />
+                    ) : (
+                      <CampoNumero etiqueta="Cumplimiento (sin cajas)" valor={x.cumplimiento ?? null} onCambio={(v) => cambiarPres(p.clave, { cumplimiento: v })} sufijo="%" />
+                    )}
                   </div>
                   <EditorParadas paradas={x.paradas} onCambio={(paradas) => cambiarPres(p.clave, { paradas })} />
                 </>
