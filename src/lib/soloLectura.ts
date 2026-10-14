@@ -29,6 +29,7 @@ const RPC_LECTURA = new Set([
   "permisos_de_rol",
   "produccion_dia_de",
   "programacion_dia_de",
+  "programacion_semanal_de",
   "resumen_produccion_dia",
   "resumen_produccion_dia_por_turno",
   "turno_activo_de",

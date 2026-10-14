@@ -1,277 +1,166 @@
-import { useEffect, useMemo, useState } from "react"
-import { CalendarRange, Loader2, Plus, Save, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
-import { EmptyState } from "@/components/EmptyState"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { MensajeError } from "@/components/MensajeError"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { VistaDiaria } from "@/components/programacion/VistaDiaria"
+import { VistaSemanal } from "@/components/programacion/VistaSemanal"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { AREA_QUE_MIRA_EL_APOYO, AREAS, esAreaDeApoyo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
-import {
-  fechaJornada,
-  guardarProgramacionDia,
-  obtenerProgramacionDia,
-  type ProgramacionItem,
-} from "@/lib/programacion"
-import { listarSabores, nombreSaborConFamilia, type Sabor } from "@/lib/sabores"
+import { eliminarItemSemana, fechaJornada, guardarItemSemana, leerSemana, programarItemDia } from "@/lib/programacion"
+import { diasDeSemana, lunesDe, semanaCerrada, type ItemSemana, type Semana } from "@/lib/programacionSemanal"
+import { listarSabores, type Sabor } from "@/lib/sabores"
+import { restarDias } from "@/lib/tiempoPlanta"
+import { useAccion } from "@/lib/useAccion"
 import { cn } from "@/lib/utils"
 
+type Vista = "SEMANAL" | "DIARIO"
+
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+/** "Semana del 12 al 16 de octubre". */
+function nombreSemana(lunes: string) {
+  const viernes = restarDias(lunes, -4)
+  const d = (f: string) => Number(f.slice(8, 10))
+  const m = (f: string) => MESES[Number(f.slice(5, 7)) - 1]
+  return m(lunes) === m(viernes) ? `Semana del ${d(lunes)} al ${d(viernes)} de ${m(viernes)}` : `Semana del ${d(lunes)} de ${m(lunes)} al ${d(viernes)} de ${m(viernes)}`
+}
+
 /*
- * Programación (versión mínima): sabor + presentación + cajas para la
- * jornada de hoy. El sabor se escribe con autocompletado (datalist). La
- * edita quien tenga PROGRAMACION_EDITAR; el resto la ve de solo lectura.
- * Ver src/lib/programacion.ts y las migraciones 20260970..20260973.
+ * Programación SEMANAL + DIARIA (prototipo aprobado, dueña 2026-10-14):
+ * el plan de la semana por sabor + presentación y, cada día, qué entra y en
+ * qué línea; lo pendiente pasa solo al día siguiente y el viernes cierra.
+ * Cuentas en src/lib/programacionSemanal.ts; piezas en
+ * src/components/programacion/. Edita quien tenga PROGRAMACION_EDITAR.
  */
-type Fila = { key: string; saborTexto: string; presentacionId: string; cajas: string }
-
-const SABORES_LIST_ID = "programacion-sabores"
-
 export default function Programacion() {
   const { session } = useAuth()
-  const { presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
-  const editable = puede(session ?? null, "PROGRAMACION_EDITAR")
-  const fecha = fechaJornada()
+  const usuario = session?.username ?? ""
+  const { presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
+  const puedeEditar = puede(session ?? null, "PROGRAMACION_EDITAR")
+  const hoy = fechaJornada()
 
   // Las áreas de apoyo (Calidad, Servicios Industriales, Mantenimiento) no tienen plan propio: ven el de Aséptico.
-  const [area, setArea] = useState<AreaCodigo>(
-    !session?.area || esAreaDeApoyo(session.area) ? AREA_QUE_MIRA_EL_APOYO : session.area,
-  )
+  const [area, setArea] = useState<AreaCodigo>(!session?.area || esAreaDeApoyo(session.area) ? AREA_QUE_MIRA_EL_APOYO : session.area)
+  const [vista, setVista] = useState<Vista>("DIARIO")
+  const [lunes, setLunes] = useState(() => lunesDe(hoy))
+  const [dia, setDia] = useState(() => (diasDeSemana(lunesDe(hoy)).includes(hoy) ? hoy : lunesDe(hoy)))
+  const [semana, setSemana] = useState<Semana | null>(null)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [sabores, setSabores] = useState<Sabor[]>([])
-  const [plan, setPlan] = useState<ProgramacionItem[]>([])
-  const [filas, setFilas] = useState<Fila[]>([])
-  const [cargando, setCargando] = useState(true)
-  const [guardando, setGuardando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [okMsg, setOkMsg] = useState(false)
+  const accion = useAccion()
 
   useEffect(() => {
     listarSabores().then((lista) => setSabores(lista.filter((s) => s.activo)))
   }, [])
 
-  /** Nombre para mostrar (con familia si corresponde) ↔ sabor. Para resolver lo que se escribe en el autocompletado. */
-  const saborPorNombre = useMemo(() => {
-    const m = new Map<string, Sabor>()
-    for (const s of sabores) m.set(nombreSaborConFamilia(s.nombre, s.familiaNombre), s)
-    return m
-  }, [sabores])
-  const nombrePorSaborId = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const s of sabores) m.set(s.id, nombreSaborConFamilia(s.nombre, s.familiaNombre))
-    return m
-  }, [sabores])
-
-  const saborIdDe = (texto: string) => saborPorNombre.get(texto.trim())?.id ?? ""
-  const filaDesdeItem = (i: ProgramacionItem, idx: number): Fila => ({
-    key: `${i.saborId}-${i.presentacionId}-${idx}`,
-    saborTexto: nombrePorSaborId.get(i.saborId) ?? i.saborNombre,
-    presentacionId: i.presentacionId,
-    cajas: String(i.cajasPlan),
-  })
+  const cargar = useCallback(async () => {
+    const r = await leerSemana(area, lunes)
+    setErrorCarga("error" in r ? r.error : null)
+    setSemana("error" in r ? null : r)
+  }, [area, lunes])
 
   useEffect(() => {
-    let vivo = true
-    setCargando(true)
-    obtenerProgramacionDia(area, fecha).then((items) => {
-      if (!vivo) return
-      setPlan(items)
-      setFilas(items.map(filaDesdeItem))
-      setCargando(false)
-    })
-    return () => {
-      vivo = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [area, fecha, nombrePorSaborId])
+    setSemana(null)
+    void cargar()
+  }, [cargar])
 
-  const claves = filas.map((f) => (saborIdDe(f.saborTexto) && f.presentacionId ? `${saborIdDe(f.saborTexto)}|${f.presentacionId}` : ""))
-  const clavesLlenas = claves.filter(Boolean)
-  const hayDuplicados = new Set(clavesLlenas).size !== clavesLlenas.length
-  const validas = filas.filter((f) => saborIdDe(f.saborTexto) && f.presentacionId && f.cajas !== "" && Number(f.cajas) >= 0)
-  const puedeGuardar = editable && !guardando && !hayDuplicados && validas.length === filas.length
-
-  async function guardar() {
-    if (!session || !puedeGuardar) return
-    setGuardando(true)
-    setError(null)
-    const resultado = await guardarProgramacionDia(
-      session.username,
-      area,
-      fecha,
-      validas.map((f) => ({ saborId: saborIdDe(f.saborTexto), presentacionId: f.presentacionId, cajasPlan: Number(f.cajas) })),
-      "Programación",
-    )
-    setGuardando(false)
-    if (!resultado.ok) {
-      setError(resultado.error)
-      return
-    }
-    setPlan(resultado.items)
-    setFilas(resultado.items.map(filaDesdeItem))
-    setOkMsg(true)
+  function irASemana(n: number) {
+    const nuevo = restarDias(lunes, -7 * n)
+    setLunes(nuevo)
+    const dias = diasDeSemana(nuevo)
+    setDia(dias.includes(hoy) ? hoy : dias[0])
   }
 
-  function agregarFila() {
-    setFilas((f) => [...f, { key: `nueva-${Date.now()}-${f.length}`, saborTexto: "", presentacionId: "", cajas: "" }])
-    setOkMsg(false)
-  }
-  function actualizarFila(key: string, campo: keyof Omit<Fila, "key">, valor: string) {
-    setFilas((f) => f.map((fila) => (fila.key === key ? { ...fila, [campo]: valor } : fila)))
-    setOkMsg(false)
-  }
-  function quitarFila(key: string) {
-    setFilas((f) => f.filter((fila) => fila.key !== key))
-    setOkMsg(false)
+  async function hacer(fn: () => Promise<{ ok: true } | { ok: false; error: string }>) {
+    const ok = await accion.ejecutar(fn)
+    if (ok) await cargar()
+    return ok
   }
 
-  const totalCajas = (editable ? validas.map((f) => Number(f.cajas)) : plan.map((p) => p.cajasPlan)).reduce((a, n) => a + n, 0)
+  const editable = puedeEditar && !semanaCerrada(lunes, hoy)
+  // Solo las líneas del área elegida: Pruebas usa LINEA_T1…, Aséptico LINEA_1… (el catálogo puede traer las dos).
+  const velocidadesDelArea = velocidades.filter((v) => (area === "PRUEBAS" ? /^LINEA_T/.test(v.linea) : /^LINEA_\d/.test(v.linea)))
 
   return (
-    <AppShell title="Programación" description="Qué se planificó producir en la jornada">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarRange className="size-4 text-primary" />
-                  Jornada del {fecha}
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  {editable
-                    ? "Escribe el sabor, elige la presentación y la cantidad de cajas."
-                    : "Plan de hoy — solo lectura."}
-                </CardDescription>
-              </div>
-              {editable ? (
-                <Select value={area} onValueChange={(v) => setArea(v as AreaCodigo)}>
-                  <SelectTrigger className="w-[190px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AREAS.map((a) => (
-                      <SelectItem key={a.codigo} value={a.codigo}>
-                        {a.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <span className="text-xs text-muted-foreground">{nombrePorCodigo(AREAS, area)}</span>
-              )}
-            </div>
-          </CardHeader>
-
-          <CardContent className="flex flex-col gap-3">
-            {cargando || cargandoCatalogos ? (
-              <div className="flex justify-center py-10 text-muted-foreground">
-                <Loader2 className="size-5 animate-spin" />
-              </div>
-            ) : editable ? (
-              <>
-                <datalist id={SABORES_LIST_ID}>
-                  {[...saborPorNombre.keys()].map((nombre) => (
-                    <option key={nombre} value={nombre} />
+    <AppShell title="Programación" description="Plan de la semana y de cada día, por línea" fullWidth>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-3.5">
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+          <div role="group" aria-label="Vista" className="inline-flex rounded-full border bg-card p-0.5">
+            {(["SEMANAL", "DIARIO"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={vista === v}
+                onClick={() => setVista(v)}
+                className={cn("rounded-full px-3.5 py-1 text-xs font-semibold tracking-wide text-muted-foreground", vista === v && "bg-primary text-primary-foreground")}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <div role="group" aria-label="Semana" className="inline-flex items-center gap-1 rounded-full border bg-card px-1 py-0.5">
+            <button type="button" aria-label="Semana anterior" onClick={() => irASemana(-1)} className="grid size-7 place-items-center rounded-full hover:bg-muted">
+              <ChevronLeft className="size-4" />
+            </button>
+            <span className="px-1.5 text-sm font-semibold">{nombreSemana(lunes)}</span>
+            <button type="button" aria-label="Semana siguiente" onClick={() => irASemana(1)} className="grid size-7 place-items-center rounded-full hover:bg-muted">
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+          {lunes !== lunesDe(hoy) && (
+            <button type="button" onClick={() => irASemana((Date.parse(lunesDe(hoy)) - Date.parse(lunes)) / (7 * 86_400_000))} className="text-xs font-semibold text-primary underline-offset-2 hover:underline">
+              Volver a esta semana
+            </button>
+          )}
+          <div className="ml-auto">
+            {puedeEditar ? (
+              <Select value={area} onValueChange={(v) => setArea(v as AreaCodigo)}>
+                <SelectTrigger className="w-[190px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AREAS.map((a) => (
+                    <SelectItem key={a.codigo} value={a.codigo}>
+                      {a.nombre}
+                    </SelectItem>
                   ))}
-                </datalist>
-
-                {filas.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Todavía no hay renglones cargados para hoy.</p>
-                )}
-
-                {filas.map((fila, idx) => {
-                  const saborNoValido = fila.saborTexto.trim() !== "" && !saborIdDe(fila.saborTexto)
-                  const repetida = claves[idx] !== "" && claves.indexOf(claves[idx]) !== idx
-                  return (
-                    <div key={fila.key} className="flex items-center gap-2">
-                      <Input
-                        list={SABORES_LIST_ID}
-                        placeholder="Sabor"
-                        value={fila.saborTexto}
-                        onChange={(e) => actualizarFila(fila.key, "saborTexto", e.target.value)}
-                        className={cn((saborNoValido || repetida) && "border-destructive focus-visible:ring-destructive/30")}
-                      />
-                      <Select value={fila.presentacionId} onValueChange={(v) => actualizarFila(fila.key, "presentacionId", v)}>
-                        <SelectTrigger className="w-[118px] shrink-0">
-                          <SelectValue placeholder="Present." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {presentaciones.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        placeholder="Cajas"
-                        value={fila.cajas}
-                        onChange={(e) => actualizarFila(fila.key, "cajas", e.target.value)}
-                        className="w-24 shrink-0"
-                      />
-                      <Button variant="ghost" size="icon" className="shrink-0" onClick={() => quitarFila(fila.key)} aria-label="Quitar">
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  )
-                })}
-
-                <Button variant="outline" size="sm" className="self-start" onClick={agregarFila}>
-                  <Plus className="size-4" />
-                  Agregar renglón
-                </Button>
-
-                {hayDuplicados && <p className="text-xs text-destructive">Hay un sabor + presentación repetido.</p>}
-                {error && (
-                  <p className="text-xs text-destructive" role="alert">
-                    {error}
-                  </p>
-                )}
-                {okMsg && <p className="text-xs text-success-foreground">Programación guardada.</p>}
-
-                <div className="flex items-center justify-between border-t border-border pt-3">
-                  <span className="text-sm text-muted-foreground">
-                    Total: <span className="num font-semibold text-foreground">{totalCajas.toLocaleString("es-CO")}</span> cajas
-                  </span>
-                  <Button size="sm" disabled={!puedeGuardar} onClick={guardar}>
-                    {guardando ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                    Guardar
-                  </Button>
-                </div>
-              </>
-            ) : plan.length === 0 ? (
-              <EmptyState
-                icon={CalendarRange}
-                title="Sin programación para hoy"
-                description="El Super Administrador todavía no cargó el plan de la jornada."
-              />
+                </SelectContent>
+              </Select>
             ) : (
-              <>
-                {plan.map((p) => (
-                  <div
-                    key={`${p.saborId}-${p.presentacionId}`}
-                    className="flex items-center justify-between border-b border-border/60 py-2 last:border-b-0"
-                  >
-                    <span className="text-sm font-medium text-foreground">
-                      {nombrePorSaborId.get(p.saborId) ?? p.saborNombre}
-                      <span className="text-muted-foreground"> · {p.presentacionMl} ml</span>
-                    </span>
-                    <span className="num font-semibold text-foreground">{p.cajasPlan.toLocaleString("es-CO")} cajas</span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between border-t border-border pt-3 text-sm text-muted-foreground">
-                  Total
-                  <span className="num font-semibold text-foreground">{totalCajas.toLocaleString("es-CO")} cajas</span>
-                </div>
-              </>
+              <span className="text-xs text-muted-foreground">{nombrePorCodigo(AREAS, area)}</span>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        <MensajeError error={errorCarga ?? accion.error} />
+
+        {!semana || cargandoCatalogos ? (
+          !errorCarga && <Loader2 className="mx-auto my-10 size-5 animate-spin text-muted-foreground" />
+        ) : vista === "SEMANAL" ? (
+          <VistaSemanal
+            key={`${area}-${lunes}`}
+            semana={semana}
+            hoy={hoy}
+            editable={editable}
+            sabores={sabores}
+            presentaciones={presentaciones}
+            onGuardarCajas={(it: ItemSemana, n) => void hacer(() => guardarItemSemana(usuario, area, lunes, it.saborId, it.presentacionId, n))}
+            onEliminar={(it) => void hacer(() => eliminarItemSemana(usuario, it.id))}
+            onAgregar={(saborId, presentacionId, cajas) => hacer(() => guardarItemSemana(usuario, area, lunes, saborId, presentacionId, cajas))}
+          />
+        ) : (
+          <VistaDiaria
+            semana={semana}
+            hoy={hoy}
+            dia={dia}
+            onDia={setDia}
+            puedeEditar={puedeEditar}
+            velocidades={velocidadesDelArea}
+            onProgramar={(it, linea) => void hacer(() => programarItemDia(usuario, it.id, dia, linea))}
+          />
+        )}
       </div>
     </AppShell>
   )

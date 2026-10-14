@@ -136,6 +136,7 @@ vi.mock("@/lib/panelProduccion", async (importOriginal) => ({
 vi.mock("@/lib/programacion", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/programacion")>()),
   obtenerProgramacionDia: (...a: unknown[]) => api.programacionDia(...a),
+  obtenerPlanDelDia: (...a: unknown[]) => api.programacionDia(...a),
 }))
 vi.mock("@/lib/paradas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/paradas")>()),

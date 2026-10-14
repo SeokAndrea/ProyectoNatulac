@@ -16,7 +16,7 @@ import { useCatalogoParadas } from "@/lib/paradasCatalogo"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
-import { fechaJornada, obtenerProgramacionDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
+import { fechaJornada, obtenerPlanDelDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { franjaDeHora } from "@/lib/tiempoPlanta"
 import type { TurnoActivo } from "@/lib/turno"
 
@@ -166,7 +166,8 @@ export function usePanelTurno() {
       setPlanDia([])
       return
     }
-    obtenerProgramacionDia(areaEfectiva, fechaJornadaPanel).then((items) => {
+    // El plan del día sale de la programación semanal; las semanas viejas, de la diaria de antes.
+    obtenerPlanDelDia(areaEfectiva, fechaJornadaPanel).then((items) => {
       if (vivo) setPlanDia(items)
     })
     return () => {

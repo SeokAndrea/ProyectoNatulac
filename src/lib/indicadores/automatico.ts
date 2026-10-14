@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase"
+import { leerSemanas } from "@/lib/programacion"
+import { planDelMes } from "@/lib/programacionSemanal"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { mapearTurnoHistorial, type TurnoHistorial } from "@/lib/historialTurnos"
@@ -59,7 +61,10 @@ export interface EntradaMes {
   /** Por fecha ('YYYY-MM-DD'). */
   validaciones: Map<string, ValidacionesDia>
   cajas: CajasValidadas[]
+  /** Plan sin línea (programación diaria de antes, o productos de la semana que nunca se programaron): se reparte. */
   plan: { volumenMl: number; cajas: number }[]
+  /** Plan de la programación semanal, con la línea con que se programó (migración 20261110790000). */
+  planConLinea?: { linea: string; volumenMl: number; cajas: number }[]
 }
 
 const redondear = (n: number, decimales: number) => Math.round(n * 10 ** decimales) / 10 ** decimales
@@ -243,6 +248,10 @@ export function calcularMesAutomatico(e: EntradaMes, cat: CatalogosIndicadores):
   cajasYMerma(dias, cat, e.cajas, datos.presentaciones)
   paradasPorPresentacion(turnos, datos.presentaciones)
   repartirPlan(e.plan, cat, datos.presentaciones)
+  for (const { linea, volumenMl, cajas } of e.planConLinea ?? []) {
+    const p = (datos.presentaciones[claveP(linea, String(volumenMl))] ??= presentacionVacia())
+    p.plan = (p.plan ?? 0) + cajas
+  }
   datos.semielaborado = semielaboradoPorFamilia(dias, cat)
   return datos
 }
@@ -263,9 +272,16 @@ interface RespuestaTurnos {
 
 /** Lee el mes con indicadores_turnos (una sola consulta) y lo calcula. */
 export async function cargarMesAutomatico(usuario: string, area: string, mes: string, cat: CatalogosIndicadores): Promise<DatosMes | { error: string }> {
-  const { data, error } = await supabase.rpc("indicadores_turnos", { p_usuario: usuario, p_area_codigo: area, p_desde: mes, p_hasta: finDeMes(mes) })
+  const [{ data, error }, prog] = await Promise.all([
+    supabase.rpc("indicadores_turnos", { p_usuario: usuario, p_area_codigo: area, p_desde: mes, p_hasta: finDeMes(mes) }),
+    leerSemanas(area, mes, finDeMes(mes)),
+  ])
   if (error || !data) return { error: error?.message || "No se pudieron leer las jornadas del mes." }
   const r = data as RespuestaTurnos
+  // Cajas planeadas: de la programación semanal (con su línea) y, para las semanas sin plan semanal,
+  // de la diaria de antes. Si la base todavía no tiene la semanal, todo como antes.
+  const planes = "error" in prog ? null : planDelMes(prog.semanas, mes)
+  const viejoDelMes = "error" in prog ? [] : prog.viejo.filter((v) => v.fecha.slice(0, 7) === mes.slice(0, 7)).map((v) => ({ volumenMl: v.presentacionMl, cajas: v.cajasPlan }))
   return calcularMesAutomatico(
     {
       turnos: r.turnos.map((t) => ({ turno: mapearTurnoHistorial(t.turno), paradas: t.paradas.map(mapearFilaParada) })),
@@ -280,7 +296,8 @@ export async function cargarMesAutomatico(usuario: string, area: string, mes: st
         ]),
       ),
       cajas: r.cajas.map((c) => ({ turnoId: c.turno_id, saborId: c.sabor_id, volumenMl: c.volumen_ml, cajas: Number(c.cajas) })),
-      plan: r.plan.map((p) => ({ volumenMl: p.volumen_ml, cajas: Number(p.cajas) })),
+      plan: planes ? [...viejoDelMes, ...planes.sinLinea] : r.plan.map((p) => ({ volumenMl: p.volumen_ml, cajas: Number(p.cajas) })),
+      planConLinea: planes?.conLinea ?? [],
     },
     cat,
   )
