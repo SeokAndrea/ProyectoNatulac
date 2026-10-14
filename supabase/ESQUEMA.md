@@ -210,6 +210,7 @@ números para ambas.
 | Línea 2 / 3 | 330 ml | TP | 9000 | 2970 |
 
 La Línea 3 llena **330, 250 y 200 ml**. `20261109790000_linea3_tres_presentaciones.sql` reactiva las que estén apagadas.
+La Línea 2 llena **250 y 200 ml**: `20261109890000_linea2_sin_330.sql` desactiva sus velocidades de 330 ml (también en LINEA_T2).
 
 ---
 
