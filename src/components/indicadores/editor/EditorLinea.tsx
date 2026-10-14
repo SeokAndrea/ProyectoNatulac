@@ -47,8 +47,8 @@ export function EditorLinea({
                   Se corrió en {nombreMes}
                 </label>
               </header>
-              {/* Los campos se ven siempre: una presentación planeada que no se corrió igual lleva su plan. */}
-              {!x.corrio && <p className="text-xs text-muted-foreground">Sin correr en {nombreMes}: aparece solo si tiene cajas planeadas.</p>}
+              {/* Los campos se ven siempre; en MANUAL solo aparece si se marca "Se corrió" (dueña, 2026-10-14). */}
+              {!x.corrio && <p className="text-xs text-muted-foreground">Sin marcar "Se corrió": no aparece en los indicadores de {nombreMes} ni suma al total.</p>}
               <div className="grid grid-cols-2 gap-2">
                 <CampoNumero etiqueta="Cajas producidas" entero valor={x.prod} onCambio={(v) => cambiarPres(p.clave, { prod: v, corrio: x.corrio || (v ?? 0) > 0 })} />
                 <CampoNumero etiqueta="Cajas planeadas" entero valor={x.plan} onCambio={(v) => cambiarPres(p.clave, { plan: v })} />

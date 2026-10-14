@@ -8,7 +8,8 @@ import { fmt, fmtPct } from "@/components/indicadores/formato"
  * El cumplimiento se escribe solo si no hay cajas (julio y agosto vienen de otro Excel).
  */
 export function EditorTotal({ datos, onCambio }: { datos: DatosMes; onCambio: (d: DatosMes) => void }) {
-  const t = totalAseptico(datos)
+  // El editor de líneas es solo para meses en MANUAL (o que pasan a MANUAL al guardar).
+  const t = totalAseptico(datos, "MANUAL")
   const conCajas = t.prod != null && !!t.plan
 
   return (
@@ -27,7 +28,7 @@ export function EditorTotal({ datos, onCambio }: { datos: DatosMes; onCambio: (d
           className="w-44"
         />
       )}
-      <span className="pb-2 text-xs text-muted-foreground">Sale solo de sumar las presentaciones de las 3 líneas.</span>
+      <span className="pb-2 text-xs text-muted-foreground">Sale solo de sumar las presentaciones marcadas "Se corrió" de las 3 líneas.</span>
     </div>
   )
 }

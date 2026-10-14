@@ -1,4 +1,4 @@
-import type { DatosMes, DatosPresentacion, ParadaMes, TotalAseptico } from "@/lib/indicadores/tipos"
+import type { DatosMes, DatosPresentacion, ModoMes, ParadaMes, TotalAseptico } from "@/lib/indicadores/tipos"
 
 /*
  * Cuentas puras de Indicadores (sin Supabase). Los indicadores se miran en
@@ -75,8 +75,12 @@ export function cumplimiento(p: DatosPresentacion | undefined): number | null {
 export const ausentismoTotal = (horasPerdidas: number | null, horasTeoricas: number | null) =>
   horasPerdidas == null || !horasTeoricas ? null : (horasPerdidas / horasTeoricas) * 100
 
-/** Una presentación aparece si se corrió o tenía plan. */
-export const tieneDatos = (p: DatosPresentacion | undefined) => !!p && (p.corrio || (p.plan ?? 0) > 0)
+/**
+ * Si una presentación aparece. AUTO: si se corrió o tenía plan. MANUAL: solo
+ * si se marcó "Se corrió" (dueña, 2026-10-14: un plan que trajo lo automático no la muestra).
+ */
+export const tieneDatos = (p: DatosPresentacion | undefined, modo: ModoMes = "AUTO") =>
+  !!p && (p.corrio || (modo === "AUTO" && (p.plan ?? 0) > 0))
 
 export interface PuntoSerie {
   mes: string
@@ -117,12 +121,12 @@ export function leerNumero(texto: string, entero: boolean): number | null {
 }
 
 /**
- * Total Aséptico del mes: las cajas son siempre la suma de las
- * presentaciones. Cumplimiento: producidas ÷ planeadas; sin cajas, el %
+ * Total Aséptico del mes: las cajas son siempre la suma de las que aparecen
+ * (tieneDatos). Cumplimiento: producidas ÷ planeadas; sin cajas, el %
  * cargado a mano (julio y agosto vienen de otro Excel).
  */
-export function totalAseptico(d: DatosMes | null | undefined): TotalAseptico {
-  const pres = Object.values(d?.presentaciones ?? {})
+export function totalAseptico(d: DatosMes | null | undefined, modo: ModoMes = "AUTO"): TotalAseptico {
+  const pres = Object.values(d?.presentaciones ?? {}).filter((p) => tieneDatos(p, modo))
   const suma = (campo: "prod" | "plan") => (pres.some((p) => p[campo] != null) ? pres.reduce((s, p) => s + (p[campo] ?? 0), 0) : null)
   const prod = suma("prod")
   const plan = suma("plan")

@@ -30,7 +30,7 @@ export function VistaLinea({
 }) {
   const elegido = meses[meses.length - 1]
   const claves = meses.flatMap((m) => Object.keys(m.datos?.presentaciones ?? {}))
-  const visibles = presentacionesDeLinea(linea, velocidades, claves).filter((p) => tieneDatos(elegido.datos?.presentaciones[p.clave]))
+  const visibles = presentacionesDeLinea(linea, velocidades, claves).filter((p) => tieneDatos(elegido.datos?.presentaciones[p.clave], elegido.modo))
   const color = colorLinea(linea)
 
   return (

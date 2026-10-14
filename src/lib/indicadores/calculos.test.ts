@@ -55,6 +55,17 @@ describe("presentaciones", () => {
     expect(tieneDatos({ ...presentacionVacia(), corrio: true })).toBe(true)
   })
 
+  it("en MANUAL aparece solo si se marcó 'Se corrió', y solo esas suman al total", () => {
+    expect(tieneDatos({ ...presentacionVacia(), plan: 20000 }, "MANUAL")).toBe(false)
+    expect(tieneDatos({ ...presentacionVacia(), corrio: true }, "MANUAL")).toBe(true)
+    const d = {
+      ...mesVacio(),
+      presentaciones: { "2|250": { ...presentacionVacia(), corrio: true, prod: 18660, plan: 27106 }, "2|200": { ...presentacionVacia(), plan: 20000 } },
+    }
+    expect(totalAseptico(d, "MANUAL").plan).toBe(27106)
+    expect(totalAseptico(d).plan).toBe(47106)
+  })
+
   it("las de la línea según el catálogo activo, de mayor a menor, y las que traen los datos", () => {
     const v = (linea: string, presentacion: string, activo = true) => ({ linea, presentacion, maquina: linea === "LINEA_1" ? "TB" : "TP", activo })
     const r = presentacionesDeLinea("2", [v("LINEA_2", "250"), v("LINEA_2", "200"), v("LINEA_2", "330", false), v("LINEA_1", "1000")], ["2|330"])
