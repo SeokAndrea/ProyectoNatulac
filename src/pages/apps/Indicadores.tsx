@@ -56,11 +56,11 @@ export default function Indicadores() {
   const accionModo = useAccion()
   // La franja y la pantalla: lo que se fotografía para el PDF.
   const lamina = useRef<HTMLDivElement>(null)
-  const escala = useEscala()
   const presentacion = usePresentacion()
+  const escala = useEscala(presentacion.presentando)
   // Alto disponible: la ventana menos el encabezado de la app, o menos solo el margen al presentar.
   const alto = presentacion.presentando ? "100svh - 1.5rem" : "100svh - 7.25rem"
-  const estiloAlto = escala > 1 ? { zoom: escala, height: `calc((${alto}) / ${escala})` } : presentacion.presentando ? { height: `calc(${alto})` } : undefined
+  const estiloAlto = escala !== 1 ? { zoom: escala, height: `calc((${alto}) / ${escala})` } : presentacion.presentando ? { height: `calc(${alto})` } : undefined
   useEffect(() => {
     listarSabores().then(setSabores)
   }, [])
