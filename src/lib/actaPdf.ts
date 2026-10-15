@@ -78,13 +78,13 @@ export function rendimientoActa(e: { realCajas?: number | null; metaCajas?: numb
 }
 
 const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
-const recortar = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
 
 /**
  * La nota de una parada en el acta: sin repetir el nombre del tipo ("Cambio
  * de Lote — CAMBIO DE LOTE") y, si viene del Sheet de Mantenimiento, solo lo
  * que escribieron (sin "Mantenimiento —" ni el código del final, que ya va
- * en el nombre), recortado para que entre en el recuadro.
+ * en el nombre). Completa, sin recortar (dueña, 2026-10-15): el recuadro crece
+ * y, si no entra, sigue en la página siguiente.
  */
 export function notaParadaActa(p: Pick<Parada, "nota" | "tipoNombre" | "origen" | "justificacionDesvio">): string | null {
   let nota = (p.nota ?? "").trim()
@@ -96,7 +96,8 @@ export function notaParadaActa(p: Pick<Parada, "nota" | "tipoNombre" | "origen" 
       .trim()
   }
   if (nota && (sinAcentos(nota) === sinAcentos(p.tipoNombre) || sinAcentos(p.tipoNombre).endsWith(sinAcentos(nota)))) nota = ""
-  const partes = [nota ? recortar(nota, 90) : null, p.justificacionDesvio ? `Justif.: ${recortar(p.justificacionDesvio.trim(), 90)}` : null].filter(
+  const justificacion = p.justificacionDesvio?.trim()
+  const partes = [nota || null, justificacion ? `Justif.: ${justificacion}` : null].filter(
     (x): x is string => !!x,
   )
   return partes.length > 0 ? partes.join(" — ") : null
@@ -247,6 +248,28 @@ export async function generarActaPdf(params: {
   /** Si lo que sigue no entra en la página, pasa a una nueva. */
   const asegurar = (alto: number) => {
     if (y + alto > LIMITE_Y) nuevaPagina()
+  }
+  /**
+   * Un recuadro de renglones de texto sin límite de largo. Si entra entero en
+   * una hoja, hace lo mismo que asegurar(); si es más largo que una hoja, se
+   * parte y sigue en la siguiente. `fijo` = encabezado + márgenes del recuadro;
+   * `dibujar(desde, hasta, alto)` dibuja los renglones [desde, hasta) en un
+   * tramo de ese alto a partir de `y` (sin moverla).
+   */
+  const recuadroEnTramos = (renglones: number, altoRenglon: number, fijo: number, dibujar: (desde: number, hasta: number, alto: number) => void) => {
+    const espacioHojaNueva = LIMITE_Y - (5 + ALTO_FRANJA + 2)
+    let desde = 0
+    do {
+      const altoResto = fijo + (renglones - desde) * altoRenglon
+      // Pasa de hoja si el resto no entra (y entraría en una hoja nueva) o si acá no entran ni 2 renglones.
+      if (y + altoResto > LIMITE_Y && (altoResto <= espacioHojaNueva || y + fijo + 2 * altoRenglon > LIMITE_Y)) nuevaPagina()
+      const caben = Math.max(1, Math.floor((LIMITE_Y - y - fijo) / altoRenglon))
+      const hasta = Math.min(renglones, desde + caben)
+      const alto = fijo + (hasta - desde) * altoRenglon
+      dibujar(desde, hasta, alto)
+      y += alto
+      desde = hasta
+    } while (desde < renglones)
   }
   const miles = (n: number) => Math.round(n).toLocaleString("es-CO")
   const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
@@ -494,21 +517,20 @@ export async function generarActaPdf(params: {
         return doc.splitTextToSize(t, W / lineas.length - 3) as string[]
       }),
     )
-    // Se ajusta a lo escrito (la línea con más texto manda).
-    const altoRecuadro = 2 + Math.max(...envueltos.map((e) => e.length)) * 2.8
-    asegurar(4.5 + altoRecuadro)
-    lineas.forEach((l, i) => {
-      const x = M + (i * W) / lineas.length
-      celda(x, y, W / lineas.length, 4.5, `${l.nombre} · Paradas`, { fondo: CELESTE, negrita: true })
-      celda(x, y + 4.5, W / lineas.length, altoRecuadro)
-      doc.setFontSize(6.5)
-      doc.setTextColor(0)
-      envueltos[i].forEach((t, j) => {
-        doc.setFont("helvetica", t.startsWith("Total:") ? "bold" : "normal")
-        doc.text(t, x + 1.5, y + 4.5 + 3.2 + j * 2.8)
+    // Se ajusta a lo escrito (la línea con más texto manda); si no entra en la hoja, sigue en la siguiente.
+    recuadroEnTramos(Math.max(...envueltos.map((e) => e.length)), 2.8, 4.5 + 2, (desde, hasta, alto) => {
+      lineas.forEach((l, i) => {
+        const x = M + (i * W) / lineas.length
+        celda(x, y, W / lineas.length, 4.5, `${l.nombre} · Paradas${desde > 0 ? " (continuación)" : ""}`, { fondo: CELESTE, negrita: true })
+        celda(x, y + 4.5, W / lineas.length, alto - 4.5)
+        doc.setFontSize(6.5)
+        doc.setTextColor(0)
+        envueltos[i].slice(desde, hasta).forEach((t, j) => {
+          doc.setFont("helvetica", t.startsWith("Total:") ? "bold" : "normal")
+          doc.text(t, x + 1.5, y + 4.5 + 3.2 + j * 2.8)
+        })
       })
     })
-    y += 4.5 + altoRecuadro
   }
 
   // ---------------------------------------------------------------- 2.2 contadores (sigue a continuación; pasa de página solo si no entra)
@@ -713,18 +735,17 @@ export async function generarActaPdf(params: {
     doc.setFontSize(8)
     const envueltas = textos.flatMap((t) => (t.texto ? (doc.splitTextToSize(t.texto, W - 16) as string[]) : [""]).map((l) => ({ texto: l, negrita: t.negrita })))
     const altoLinea = 3.6
-    // Se ajusta a lo escrito.
-    const alto = 2.5 + envueltas.length * altoLinea
-    asegurar(4.2 + alto)
-    barra("2.3 NOVEDADES DEL TURNO")
-    celda(M, y, W, alto)
-    doc.setTextColor(0)
-    envueltas.forEach((l, i) => {
-      doc.setFont("helvetica", l.negrita ? "bold" : "normal")
-      doc.setFontSize(8)
-      doc.text(l.texto, M + 12, y + 4 + i * altoLinea)
+    // Se ajusta a lo escrito; si no entra en la hoja, sigue en la siguiente.
+    recuadroEnTramos(envueltas.length, altoLinea, 4.2 + 2.5, (desde, hasta, alto) => {
+      celda(M, y, W, 4.2, `2.3 NOVEDADES DEL TURNO${desde > 0 ? " (continuación)" : ""}`, { fondo: AZUL, negrita: true, tamano: 8 })
+      celda(M, y + 4.2, W, alto - 4.2)
+      doc.setTextColor(0)
+      envueltas.slice(desde, hasta).forEach((l, i) => {
+        doc.setFont("helvetica", l.negrita ? "bold" : "normal")
+        doc.setFontSize(8)
+        doc.text(l.texto, M + 12, y + 4.2 + 4 + i * altoLinea)
+      })
     })
-    y += alto
   }
 
   return doc.output("blob")
