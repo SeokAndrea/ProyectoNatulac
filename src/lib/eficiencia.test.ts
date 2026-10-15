@@ -69,6 +69,8 @@ describe("calcularEficiencia — ejemplo del plan", () => {
     })
     expect(r.produccionMin).toBeCloseTo(289.2)
     expect(r.eficienciaPct).toBe(84)
+    // Con los 116 min sin reportar de ese turno: 289 ÷ (289 + 55 + 116) = 63 %.
+    expect(calcularEficiencia({ ...BASE, minutosProgramada: 20, minutosOcioso: 0, minutosNoProgramada: 55, velocidadElegidaEnvasesHora: 6000, realEnvases: 2410 * 12, envasesPorCaja: 12, minutosSinReportar: 116 }).eficienciaPct).toBe(63)
   })
   it("el tiempo que nadie explicó no castiga: la misma producción con un turno más largo da lo mismo", () => {
     expect(calcularEficiencia({ ...BASE, turnoMin: 600, transcurridoMin: 600 }).eficienciaPct).toBe(83)
@@ -232,8 +234,10 @@ describe("eficienciaDelTurno", () => {
       paradas: [parada("LINEA_2", "PROGRAMADA", 90), parada("LINEA_2", "OCIOSO", 30, 90), parada("LINEA_2", "NO_PROGRAMADA", 60, 120)],
     })
     expect([...r.porLinea.keys()]).toEqual(["LINEA_2"])
-    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(83)
-    expect(r.total?.eficienciaPct).toBe(83)
+    // 480 − 180 de paradas − 288 produciendo = 12 sin reportar → 288 ÷ (288 + 60 + 12) = 80 %.
+    expect(r.porLinea.get("LINEA_2")?.sinReportarMin).toBe(12)
+    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(80)
+    expect(r.total?.eficienciaPct).toBe(80)
     expect(r.total?.metaCajas).toBe(2250)
     expect(r.total?.realCajas).toBe(1800)
   })
@@ -275,11 +279,10 @@ describe("eficienciaDelTurno", () => {
     expect(r.porLinea.get("LINEA_T1")?.disponibleMin).toBe(450)
   })
 
-  it("línea que arranca su primera corrida tarde, sin parada cargada para el hueco previo: el Ritmo se mide desde su propia activación, no desde el inicio del turno", () => {
-    // Turno de 8 h (07:00→15:00), línea recién activada a las 13:00 (2 h antes del cierre) y
-    // corriendo perfecto desde entonces — sin ninguna Parada que explique las primeras 6 h sin
-    // corrida. Antes de este fix, Disponible tomaba las 8 h completas del turno y el Ritmo se
-    // hundía aunque la línea nunca dejó de cumplir desde que arrancó.
+  it("línea que arranca tarde sin parada para el hueco previo: el hueco es sin reportar y castiga; el OEE se mide desde su activación", () => {
+    // Turno de 8 h (07:00→15:00), línea activada a las 13:00 y corriendo perfecto desde entonces,
+    // sin ninguna Parada que explique las primeras 6 h. Lo sin reportar se cuenta desde el inicio
+    // del turno y castiga como no programada (dueña, 2026-10-15): 120 ÷ (120 + 360) = 25 %.
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_1", 9000, true, "250", "2026-09-21T13:00:00")],
@@ -287,7 +290,8 @@ describe("eficienciaDelTurno", () => {
       paradas: [],
     })
     expect(r.porLinea.get("LINEA_1")?.disponibleAhoraMin).toBe(120)
-    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
+    expect(r.porLinea.get("LINEA_1")?.sinReportarMin).toBe(360)
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(25)
     // La Meta (turno completo) no cambia: sigue siendo contra las 8 h del turno.
     expect(r.porLinea.get("LINEA_1")?.metaEnvases).toBe(72000)
   })
@@ -345,17 +349,42 @@ describe("eficienciaDelTurno", () => {
   })
 
   it("dos líneas: el total suma minutos, no promedia porcentajes", () => {
-    // Cada una reporta 43.200 envases a 9.000 env/h = 288 min. L1 sin paradas (100 %);
-    // L2 con 96 min de falla: 288 ÷ 384 = 75 %. Total 576 ÷ 672 = 86 % (no 87,5 %).
+    // L1 produce las 8 h (72.000 envases a 9.000 env/h = 480 min): 100 %. L2 con 96 min de falla
+    // produce 384 min: 384 ÷ 480 = 80 %. Total 864 ÷ 960 = 90 %. Nada sin reportar.
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_1", 9000), corrida("b", "LINEA_2", 9000)],
-      productoTerminado: [pt("a", 43200), pt("b", 43200)],
+      productoTerminado: [pt("a", 72000), pt("b", 57600)],
       paradas: [parada("LINEA_2", "NO_PROGRAMADA", 96)],
     })
     expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
-    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(75)
-    expect(r.total?.eficienciaPct).toBe(86)
+    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(80)
+    expect(r.total?.sinReportarMin).toBe(0)
+    expect(r.total?.eficienciaPct).toBe(90)
+  })
+
+  it("lo sin reportar castiga como no programada y se sigue informando aparte", () => {
+    // Misma L2 de arriba, pero reporta solo 43.200 envases (288 min): 480 − 96 − 288 = 96 sin reportar.
+    const r = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("b", "LINEA_2", 9000)],
+      productoTerminado: [pt("b", 43200)],
+      paradas: [parada("LINEA_2", "NO_PROGRAMADA", 96)],
+    })
+    expect(r.porLinea.get("LINEA_2")?.noProgramadaMin).toBe(96)
+    expect(r.porLinea.get("LINEA_2")?.sinReportarMin).toBe(96)
+    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(60) // 288 ÷ (288 + 96 + 96)
+  })
+
+  it("si falta el PT de una corrida, lo sin reportar no se puede medir y no castiga", () => {
+    const r = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("a", "LINEA_1", 9000, false), corrida("b", "LINEA_1", 9000, true)],
+      productoTerminado: [pt("a", 43200)],
+      paradas: [parada("LINEA_1", "NO_PROGRAMADA", 60)],
+    })
+    expect(r.porLinea.get("LINEA_1")?.sinReportarMin).toBeNull()
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(83) // 288 ÷ (288 + 60)
   })
 
   it("lo real sale del PT (paletas × cajas por paleta + sueltas), no del contador", () => {

@@ -10,8 +10,10 @@ Estado: **implementado en el navegador** (`src/lib/eficiencia.ts`). Los puntos c
 - Lo REAL es siempre lo reportado en Producto Terminado (paletas × cajas por paleta + sueltas), nunca el contador
   de la llenadora. Vale para la eficiencia, el avance, el rendimiento y las cajas reales del Panel.
 - Tiempo de Producción = cajas reportadas × envases por caja ÷ velocidad ELEGIDA (por corrida, y se suma).
-- Eficiencia = Producción ÷ (Producción + No programadas). El tiempo que nadie explicó no castiga (se ve aparte en
-  «minutos sin reportar», src/lib/minutosSinReportar.ts).
+- Eficiencia = Producción ÷ (Producción + No programadas + Sin reportar). Lo SIN REPORTAR (turno − paradas cargadas −
+  producción, desde el inicio del turno) castiga como una no programada y se sigue mostrando aparte como «sin
+  reportar» (src/lib/minutosSinReportar.ts, misma cuenta: sinReportarDeLinea). Si falta el PT de alguna corrida no se
+  puede medir y no castiga todavía.
 - La Meta no cambia: velocidad elegida × (Turno − Programadas − Ocioso).
 
 **Vigente al 2026-09-28:**

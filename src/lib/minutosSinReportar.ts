@@ -1,4 +1,4 @@
-import { duracionBaseTurnoMin } from "@/lib/eficiencia"
+import { duracionBaseTurnoMin, sinReportarDeLinea, ventanaTurnoMin } from "@/lib/eficiencia"
 import { fmtDuracion, minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import type { Corrida } from "@/lib/produccion/tipos"
@@ -14,6 +14,10 @@ import type { Corrida } from "@/lib/produccion/tipos"
  * mide con el PT (pedido de la dueña), así que una línea con alguna corrida
  * sin PT todavía no se puede medir. La merma y correr más lento que la
  * velocidad elegida también salen como minutos sin reportar.
+ *
+ * Estos minutos castigan la eficiencia como una no programada (eficiencia.ts,
+ * dueña 2026-10-15), con la misma cuenta (sinReportarDeLinea), y se siguen
+ * mostrando acá como "sin reportar".
  */
 
 export interface EntradaSinReportar {
@@ -52,7 +56,7 @@ function envasesPt(pt: ProductoTerminadoRegistro): number {
 export function minutosSinReportar(e: EntradaSinReportar): SinReportarLinea[] {
   const turnoMin = duracionBaseTurnoMin(e.turnoTipo, e)
   if (turnoMin === null) return []
-  const ventanaMin = e.estado === "CERRADO" ? turnoMin : Math.max(0, Math.min(turnoMin, Math.round(e.horasTranscurridas * 60)))
+  const ventanaMin = ventanaTurnoMin(turnoMin, e.estado, e.horasTranscurridas)
   const ahora = e.ahora ?? new Date()
 
   const lineas = [...new Set(e.corridas.map((c) => numero(c.linea)))].sort()
@@ -78,7 +82,7 @@ export function minutosSinReportar(e: EntradaSinReportar): SinReportarLinea[] {
       ventanaMin,
       paradasMin,
       producidoMin,
-      sinReportarMin: faltaPt ? null : Math.max(0, ventanaMin - paradasMin - producidoMin),
+      sinReportarMin: sinReportarDeLinea(ventanaMin, paradasMin, producidoMin, faltaPt),
     }
   })
 }
@@ -93,6 +97,6 @@ export const TOLERANCIA_SIN_REPORTAR_MIN = 10
 export function textoSinReportar(f: SinReportarLinea): { texto: string; alerta: boolean } {
   if (f.sinReportarMin === null) return { texto: "falta cargar el PT", alerta: false }
   if (f.sinReportarMin <= TOLERANCIA_SIN_REPORTAR_MIN) return { texto: "al día", alerta: false }
-  return { texto: `faltan ${fmtDuracion(f.sinReportarMin)} por reportar`, alerta: true }
+  return { texto: `faltan ${fmtDuracion(f.sinReportarMin)} por reportar · cuentan como no programada`, alerta: true }
 }
 

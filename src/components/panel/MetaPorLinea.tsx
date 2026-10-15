@@ -1,6 +1,7 @@
 import { nombrePorCodigo } from "@/lib/catalogos"
 import type { LineaLive } from "@/lib/catalogosLive"
 import type { EficienciaTurno } from "@/lib/eficiencia"
+import { dur, TOLERANCIA_SIN_REPORTAR_MIN } from "@/lib/minutosSinReportar"
 import { cn } from "@/lib/utils"
 
 /** "Meta por línea": cajas reales / meta, avance y eficiencia de cada línea del turno. */
@@ -49,6 +50,11 @@ export function MetaPorLinea({
             <p className="mt-2 text-[11px] text-muted-foreground">
               Producción {horas(m.produccionMin)} h · No prog. {horas(m.noProgramadaMin)} h · Eficiencia {m.eficienciaPct !== null ? m.eficienciaPct + "%" : "—"}
             </p>
+            {m.sinReportarMin !== null && m.sinReportarMin > 0 && (
+              <p className={cn("mt-1 text-[11px]", m.sinReportarMin > TOLERANCIA_SIN_REPORTAR_MIN ? "text-warning" : "text-muted-foreground")}>
+                Sin reportar {dur(m.sinReportarMin)} · cuenta como no programada
+              </p>
+            )}
             {m.paradasExcedenTiempo && (
               <p className="mt-1 text-[11px] text-warning">Las paradas cargadas suman más que el tiempo del turno: revísalas.</p>
             )}

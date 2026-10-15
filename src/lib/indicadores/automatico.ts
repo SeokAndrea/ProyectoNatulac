@@ -16,7 +16,7 @@ import { claveP, mesVacio, presentacionVacia, type DatosMes, type DatosPresentac
  * día por día (como en Validar jornada) y después se suma:
  *
  *   Eficiencia      eficienciaDelTurno() turno por turno, con las cajas corregidas;
- *                   Σ producción ÷ Σ (producción + no programadas).
+ *                   Σ producción ÷ Σ (producción + no programadas + sin reportar).
  *   Cajas           PT de cada corrida; si la Analista corrigió las cajas del turno
  *                   (sabor + presentación), se reparten entre sus corridas.
  *   Merma           filasEnvases(): PT contra el contador (el corregido, si lo hay).
@@ -111,7 +111,7 @@ function eficienciaPorLinea(turnos: TurnoConParadas[], cat: CatalogosIndicadores
     for (const [codigo, r] of ef.porLinea) {
       const s = suma.get(numeroLinea(codigo)) ?? { produccion: 0, noProgramada: 0 }
       s.produccion += r.produccionMin
-      s.noProgramada += r.noProgramadaMin
+      s.noProgramada += r.noProgramadaMin + (r.sinReportarMin ?? 0) // lo sin reportar castiga como no programada
       suma.set(numeroLinea(codigo), s)
     }
   }
