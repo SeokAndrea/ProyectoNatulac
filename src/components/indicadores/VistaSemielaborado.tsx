@@ -83,13 +83,16 @@ export function VistaSemielaborado({
                   decimales={1}
                   unidad=" %"
                   mayorEsMejor
-                  centrado
-                  grande
+                  horizontal
+                  claseValor="text-[clamp(1.8rem,11cqi,3.2rem)]"
                   estado={v == null ? null : { ok: v >= 99, texto: v >= 99 ? "≈100 %" : "<99 %" }}
                   detalle={v == null ? undefined : <>Merma <b>{fmt(100 - v, 1)} %</b></>}
                 />
                 <GraficoFamilia serie={serie} />
-                {renderObservacion(claveSemi(f), <h4 className="text-[13px] font-bold tracking-wide text-[var(--c-texto)]">OBSERVACIONES</h4>)}
+                {/* La observación ocupa solo lo que necesita: el resto del alto es del gráfico. */}
+                <div className="flex shrink-0 flex-col gap-2">
+                  {renderObservacion(claveSemi(f), <h4 className="text-[13px] font-bold tracking-wide text-[var(--c-texto)]">OBSERVACIONES</h4>)}
+                </div>
               </div>
             )
           })}

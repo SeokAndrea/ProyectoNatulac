@@ -6,7 +6,7 @@ import { Observacion } from "@/components/indicadores/Observacion"
 import { fmt } from "@/components/indicadores/formato"
 import type { MesIndicadores } from "@/components/indicadores/useIndicadores"
 
-const Subtitulo = ({ children }: { children: string }) => <h3 className="text-[13px] font-bold tracking-wide text-[var(--c-texto)]">{children}</h3>
+const Subtitulo = ({ children }: { children: string }) => <h3 className="text-[15px] font-bold tracking-wide text-[var(--c-texto)]">{children}</h3>
 
 /** Una presentación: merma de envases, cajas producidas y planeadas, cumplimiento en anillos y observaciones. */
 export function ColumnaPresentacion({
@@ -50,13 +50,13 @@ export function ColumnaPresentacion({
         decimales={2}
         unidad=" %"
         mayorEsMejor={false}
-        centrado
+        horizontal
         estado={mermaMes == null ? null : { ok: mermaMes <= 3, texto: mermaMes <= 3 ? "≤3 %" : ">3 %" }}
         detalle={unidades == null ? undefined : `${fmt(unidades)} envases`}
       />
       <div className="grid grid-cols-2 gap-2">
-        <Kpi titulo="CAJAS PRODUCIDAS" serie={de("prod")} mayorEsMejor />
-        <Kpi titulo="CAJAS PLANEADAS" serie={de("plan")} mayorEsMejor />
+        <Kpi titulo="CAJAS PRODUCIDAS" serie={de("prod")} mayorEsMejor horizontal />
+        <Kpi titulo="CAJAS PLANEADAS" serie={de("plan")} mayorEsMejor horizontal />
       </div>
       <Subtitulo>CUMPLIMIENTO DE PLAN</Subtitulo>
       <AnillosCumplimiento meses={meses.map((m) => ({ mes: m.mes, datos: m.datos?.presentaciones[clave] }))} />
