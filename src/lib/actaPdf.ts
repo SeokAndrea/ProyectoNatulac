@@ -65,14 +65,6 @@ export function mermaPromedioLinea(
   return Math.round((mermas.reduce((a, m) => a + m.pct, 0) / mermas.length) * 100) / 100
 }
 
-/**
- * Rendimiento de la línea en el turno (dueña, 2026-10-08): en el tiempo que
- * SÍ corrió, cuánto sacó contra lo que debía a la velocidad elegida.
- *   Rendimiento = Real (PT) ÷ (velocidad elegida × Operativo), Operativo = Disponible − No programadas
- * La velocidad × Operativo sale de la Meta (velocidad × Disponible) × Operativo ÷ Disponible. Ya no
- * es Avance ÷ Eficiencia: la eficiencia cambió de fórmula el 2026-10-15.
- * null si falta la meta, lo real o la línea no tuvo tiempo operativo.
- */
 const PREFIJO_SIN_REPORTAR = "Sin reportar:"
 
 /**
@@ -81,14 +73,7 @@ const PREFIJO_SIN_REPORTAR = "Sin reportar:"
  */
 export function sinReportarActa(e: Pick<ResultadoEficiencia, "sinReportarMin"> | undefined): string | null {
   if (!e || e.sinReportarMin == null || e.sinReportarMin <= 0) return null
-  return `${PREFIJO_SIN_REPORTAR} ${fmtDuracion(e.sinReportarMin)} · cuenta como no programada`
-}
-
-export function rendimientoActa(
-  e: Pick<ResultadoEficiencia, "realEnvases" | "metaEnvases" | "operativoMin" | "disponibleMin"> | undefined,
-): number | null {
-  if (!e || !e.metaEnvases || !e.disponibleMin || !e.operativoMin) return null
-  return Math.round((e.realEnvases / ((e.metaEnvases * e.operativoMin) / e.disponibleMin)) * 100)
+  return `${PREFIJO_SIN_REPORTAR} ${fmtDuracion(e.sinReportarMin)}`
 }
 
 const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
@@ -504,10 +489,9 @@ export async function generarActaPdf(params: {
       const propias = paradas
         .filter((p) => numeroLinea(p.lineaCodigo) === numeroLinea(l.codigo))
         .sort((a, b) => a.inicio.localeCompare(b.inicio))
-      const rend = rendimientoActa(eficiencia.porLinea.get(l.codigo))
+      // Sin rendimiento por ahora (dueña, 2026-10-15).
       const sinReportar = sinReportarActa(eficiencia.porLinea.get(l.codigo))
-      if (propias.length === 0)
-        return ["Sin paradas registradas.", ...(rend != null ? [`Total: 0 min · Rendimiento ${rend}%`] : []), ...(sinReportar ? [sinReportar] : [])]
+      if (propias.length === 0) return ["Sin paradas registradas.", ...(sinReportar ? [sinReportar] : [])]
       const total = propias.reduce((a, p) => a + duracionMin(p), 0)
       return [
         ...propias.map((p) => {
@@ -516,7 +500,7 @@ export async function generarActaPdf(params: {
           // Sin el tiempo guía (dueña, 2026-10-08).
           return `• ${horaNovedad(p.inicio)} ${p.tipoNombre}: ${min} min${nota ? ` — ${nota}` : ""}`
         }),
-        `Total: ${total} min${rend != null ? ` · Rendimiento ${rend}%` : ""}`,
+        `Total: ${total} min`,
         ...(sinReportar ? [sinReportar] : []),
       ]
     })

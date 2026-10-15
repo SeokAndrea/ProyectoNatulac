@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { generarActaPdf, notaParadaActa, rendimientoActa, sinReportarActa } from "@/lib/actaPdf"
+import { generarActaPdf, notaParadaActa, sinReportarActa } from "@/lib/actaPdf"
 import { LINEAS_DEMO, PRESENTACIONES_DEMO, contador, corrida, prep, pt, tanque } from "@/lib/auditoriaDemoFixture"
 
 const VELOCIDADES_DEMO = (["LINEA_1", "LINEA_2", "LINEA_3"] as const).map((linea, i) => ({
@@ -219,15 +219,9 @@ describe("paradas en el acta", () => {
   })
 })
 
-describe("rendimiento en el acta", () => {
-  it("Real ÷ (velocidad elegida × Operativo) (Línea 1 del T1 del 15/10: 28.920 envases ÷ (6.000 × 405 min) → 71 %)", () => {
-    // Meta 6.000 × 460 min = 46.000 envases; operativo 460 − 55 = 405 → base 40.500.
-    expect(rendimientoActa({ realEnvases: 28920, metaEnvases: 46000, operativoMin: 405, disponibleMin: 460 })).toBe(71)
-    expect(rendimientoActa({ realEnvases: 28920, metaEnvases: 0, operativoMin: 405, disponibleMin: 460 })).toBeNull()
-    expect(rendimientoActa(undefined)).toBeNull()
-  })
+describe("paradas de la línea en el acta", () => {
   it("tiempo sin reportar de la línea: solo si hay y se pudo medir", () => {
-    expect(sinReportarActa({ sinReportarMin: 116 })).toBe("Sin reportar: 1 h 56 min · cuenta como no programada")
+    expect(sinReportarActa({ sinReportarMin: 116 })).toBe("Sin reportar: 1 h 56 min")
     expect(sinReportarActa({ sinReportarMin: 0 })).toBeNull()
     expect(sinReportarActa({ sinReportarMin: null })).toBeNull()
     expect(sinReportarActa(undefined)).toBeNull()

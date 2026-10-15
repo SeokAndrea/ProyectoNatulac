@@ -97,6 +97,6 @@ export const TOLERANCIA_SIN_REPORTAR_MIN = 10
 export function textoSinReportar(f: SinReportarLinea): { texto: string; alerta: boolean } {
   if (f.sinReportarMin === null) return { texto: "falta cargar el PT", alerta: false }
   if (f.sinReportarMin <= TOLERANCIA_SIN_REPORTAR_MIN) return { texto: "al día", alerta: false }
-  return { texto: `faltan ${fmtDuracion(f.sinReportarMin)} por reportar · cuentan como no programada`, alerta: true }
+  return { texto: `faltan ${fmtDuracion(f.sinReportarMin)} por reportar`, alerta: true }
 }
 

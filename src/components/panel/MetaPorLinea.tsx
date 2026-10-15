@@ -52,7 +52,7 @@ export function MetaPorLinea({
             </p>
             {m.sinReportarMin !== null && m.sinReportarMin > 0 && (
               <p className={cn("mt-1 text-[11px]", m.sinReportarMin > TOLERANCIA_SIN_REPORTAR_MIN ? "text-warning" : "text-muted-foreground")}>
-                Sin reportar {dur(m.sinReportarMin)} · cuenta como no programada
+                Sin reportar {dur(m.sinReportarMin)}
               </p>
             )}
             {m.paradasExcedenTiempo && (

@@ -73,6 +73,6 @@ describe("minutosSinReportar", () => {
   it("hasta 10 min es «al día»; más, avisa", () => {
     const fila = (sinReportarMin: number) => ({ linea: "1", ventanaMin: 480, paradasMin: 0, producidoMin: 0, sinReportarMin })
     expect(textoSinReportar(fila(10))).toEqual({ texto: "al día", alerta: false })
-    expect(textoSinReportar(fila(95))).toEqual({ texto: "faltan 1 h 35 min por reportar · cuentan como no programada", alerta: true })
+    expect(textoSinReportar(fila(95))).toEqual({ texto: "faltan 1 h 35 min por reportar", alerta: true })
   })
 })
