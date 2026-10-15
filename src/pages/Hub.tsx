@@ -16,10 +16,7 @@ import { puede } from "@/lib/permisos"
 import { cn } from "@/lib/utils"
 
 /** Emoji del saludo, distinto para algún usuario puntual — por username, en minúscula. */
-const EMOJI_SALUDO_POR_USUARIO: Record<string, string> = {
-  jguerrero: "🐱",
-}
-const EMOJI_SALUDO_DEFAULT = "👋"
+const EMOJI_SALUDO = "👋"
 
 /** «Solo paradas» (jefe y analista, dueña 2026-10-08): oculta el flujo del turno y deja Registrar Paradas. */
 const APPS_DEL_TURNO = new Set(["comenzar-turno", "preparacion", "lineas", "producto-terminado", "finalizar-turno"])
@@ -76,7 +73,7 @@ export default function Hub() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               Hola{session ? `, ${session.nombre}` : ""}{" "}
-              {session ? (EMOJI_SALUDO_POR_USUARIO[session.username.toLowerCase()] ?? EMOJI_SALUDO_DEFAULT) : EMOJI_SALUDO_DEFAULT}
+              {EMOJI_SALUDO}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">
               {turnoPorAsumir
