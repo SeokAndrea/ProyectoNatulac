@@ -8,7 +8,6 @@ import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { useAuth } from "@/lib/auth"
 import { esAreaDeApoyo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
 import { ReportesMantenimiento } from "@/components/paradas/ReportesMantenimiento"
 import { puede } from "@/lib/permisos"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
@@ -155,21 +154,25 @@ export default function PanelParadas() {
   return (
     <AppShell title="Panel de Paradas" fullWidth ocultarEstadoBanner>
       <div className="w-full">
-        {puedeActualizarSheet && (
-          <div className="mx-auto mb-3 max-w-3xl">
-            <ActualizarDesdeSheet usuario={session?.username ?? ""} onListo={() => setVersionParadas((v) => v + 1)} />
-          </div>
-        )}
         <PanelParadasVista
           cargarParadas={cargarParadas}
           estadoLineas={estadoLineas}
           cargarOee={cargandoCatalogos ? OEE_PENDIENTE : cargarOee}
+          mantenimiento={
+            areaParadas === "PRUEBAS"
+              ? undefined
+              : (paradas, ahora) => (
+                  <div className="mx-auto w-full max-w-5xl">
+                    <ReportesMantenimiento
+                      paradas={paradas}
+                      ahora={ahora}
+                      usuarioSheet={puedeActualizarSheet ? (session?.username ?? null) : null}
+                      onActualizado={() => setVersionParadas((v) => v + 1)}
+                    />
+                  </div>
+                )
+          }
         />
-        {areaParadas !== "PRUEBAS" && (
-          <div className="mx-auto mt-4 max-w-5xl">
-            <ReportesMantenimiento />
-          </div>
-        )}
       </div>
     </AppShell>
   )

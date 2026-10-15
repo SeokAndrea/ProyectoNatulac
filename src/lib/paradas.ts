@@ -296,6 +296,21 @@ export interface Parada {
 
 export const paradaAbierta = (p: Parada) => p.fin === null
 
+/** Quién la reportó: Mantenimiento (su Sheet o su app) o el supervisor (Producción). */
+export const esDeMantenimiento = (p: Pick<Parada, "origen">) => p.origen !== "MANUAL"
+
+/**
+ * La nota de una parada del Sheet de Mantenimiento ("Mantenimiento — falla —
+ * EQUIPO · SUBSISTEMA", migración 20261108490000), separada en lo que
+ * escribieron y el equipo.
+ */
+export function partesNotaSheet(nota: string | null): { falla: string; equipo: string } {
+  let falla = (nota ?? "").trim().replace(/^Mantenimiento\s*—\s*/, "").replace(/^Mantenimiento$/, "")
+  const cola = falla.match(/\s*—\s*([^—]*·[^—]*)$/)
+  if (cola) falla = falla.slice(0, cola.index)
+  return { falla: falla.trim(), equipo: cola ? cola[1].trim() : "" }
+}
+
 // ------------------------------------------------------------
 // Duración y desvío
 // ------------------------------------------------------------

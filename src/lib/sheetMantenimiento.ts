@@ -273,13 +273,6 @@ export async function fechaDesdeSheet(): Promise<string> {
   return typeof data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : DESDE_POR_DEFECTO
 }
 
-/** Los reportes de Aséptico tal cual vienen del Sheet (con las fechas ya resueltas), sin guardar nada. Solo desde fechaDesdeSheet(). */
-export async function reportesDelSheet(): Promise<Resultado<FilaSheet[]>> {
-  const [csv, desde] = await Promise.all([leerCsvSheet(), fechaDesdeSheet()])
-  if (!csv.ok) return csv
-  return { ok: true, datos: filasDelSheet(csv.datos, [], `${fechaPlanta()}T${horaPlanta()}`).filas.filter((f) => f.inicio.slice(0, 10) >= desde) }
-}
-
 export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<ResumenSync>> {
   const lectura = await leerCsvSheet()
   if (!lectura.ok) return lectura

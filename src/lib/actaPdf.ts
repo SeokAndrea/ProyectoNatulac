@@ -12,7 +12,7 @@ import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/se
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
 import type { CondicionTanque, TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro, SalidaVacioRegistro, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
-import { duracionMin, type Parada } from "@/lib/paradas"
+import { duracionMin, partesNotaSheet, type Parada } from "@/lib/paradas"
 import type { NovedadTurno } from "@/lib/novedades"
 import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
 import { tramoT2 } from "@/lib/turno12x12"
@@ -88,13 +88,7 @@ const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toL
  */
 export function notaParadaActa(p: Pick<Parada, "nota" | "tipoNombre" | "origen" | "justificacionDesvio">): string | null {
   let nota = (p.nota ?? "").trim()
-  if (p.origen === "SHEET") {
-    nota = nota
-      .replace(/^Mantenimiento\s*—\s*/, "")
-      .replace(/\s*—\s*[^—]*·[^—]*$/, "")
-      .replace(/^Mantenimiento$/, "")
-      .trim()
-  }
+  if (p.origen === "SHEET") nota = partesNotaSheet(nota).falla
   if (nota && (sinAcentos(nota) === sinAcentos(p.tipoNombre) || sinAcentos(p.tipoNombre).endsWith(sinAcentos(nota)))) nota = ""
   const justificacion = p.justificacionDesvio?.trim()
   const partes = [nota || null, justificacion ? `Justif.: ${justificacion}` : null].filter(

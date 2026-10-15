@@ -1,13 +1,12 @@
 import type { ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
-import { duracionMin, fmtDuracion, nombreLineaParada, type Parada } from "@/lib/paradas"
+import { duracionMin, esDeMantenimiento, fmtDuracion, nombreLineaParada, type Parada } from "@/lib/paradas"
 import { codigoDeParadaLive } from "@/lib/paradasCatalogo"
 
 const TURNOS: Record<string, string> = { TURNO_1: "Turno 1", TURNO_2: "Turno 2", TURNO_3: "Turno 3", "12X12": "12x12" }
 const ORDEN = Object.keys(TURNOS)
 
-/** Quién la reportó: el supervisor (Producción) o Mantenimiento (su app o su Sheet). */
-const deMantenimiento = (p: Parada) => p.origen !== "MANUAL"
+const deMantenimiento = esDeMantenimiento
 
 /**
  * Una parada, como en el resumen del turno: línea, hora, código y nombre, y

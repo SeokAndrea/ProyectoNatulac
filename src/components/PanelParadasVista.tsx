@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CintaLinea, type EstadoLineaVista } from "@/components/CintaLinea"
 import { DetalleParadas } from "@/components/paradas/DetalleParadas"
 import { ParadasPorTurno } from "@/components/paradas/ParadasPorTurno"
-import { Input } from "@/components/ui/input"
+import { RangoFechas } from "@/components/paradas/RangoFechas"
 import { cn } from "@/lib/utils"
 import type { OeePeriodo } from "@/lib/eficiencia"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { type TurnoTipoCodigo } from "@/lib/catalogos"
 import {
   agruparPorDia,
+  esDeMantenimiento,
   fmtDuracion,
   LINEAS_PARADAS,
   minutosPorClaseSinSolape,
@@ -31,7 +32,9 @@ import {
 /*
  * Panel de Paradas — dashboard solo lectura, mismo estilo que el Panel de
  * Producción. Filtro de Turno (uno o "Todos") + Período (Hoy / Ayer / Últimos
- * 7 días / Este mes). Todo el contenido (Top por frecuencia y por tiempo
+ * 7 días / Este mes / Elegir fechas desde–hasta); en «Ver filtros», quién la
+ * reportó (Producción / Mantenimiento), clase y línea. Un solo filtro para
+ * todo, también la tarjeta de Mantenimiento del final. Todo el contenido (Top por frecuencia y por tiempo
  * — la primera de cada línea — + las 3 líneas con su cinta animada, su
  * OEE (Disponibilidad × Rendimiento, mismo cálculo que el Panel de
  * Producción — ver OeeLinea), sus minutos no programados, sus paradas registradas y su
@@ -47,14 +50,21 @@ import {
  * real). undefined = todavía cargando.
  */
 
-type PeriodoCodigo = "HOY" | "AYER" | "7D" | "MES" | "DIA"
+type PeriodoCodigo = "HOY" | "AYER" | "7D" | "MES" | "FECHAS"
 const PERIODO_FILTRO: { codigo: PeriodoCodigo; etiqueta: string }[] = [
   { codigo: "HOY", etiqueta: "Hoy" },
   { codigo: "AYER", etiqueta: "Ayer" },
   { codigo: "7D", etiqueta: "Últimos 7 días" },
   { codigo: "MES", etiqueta: "Este mes" },
-  // Un día cualquiera, con calendario (dueña, 2026-10-14).
-  { codigo: "DIA", etiqueta: "Un día" },
+  // Desde–hasta con calendario; el mismo día en los dos = un solo día (dueña, 2026-10-15).
+  { codigo: "FECHAS", etiqueta: "Elegir fechas" },
+]
+
+type ReportoCodigo = "TODAS" | "PRODUCCION" | "MANTENIMIENTO"
+const REPORTO_FILTRO: { codigo: ReportoCodigo; etiqueta: string }[] = [
+  { codigo: "TODAS", etiqueta: "Todas" },
+  { codigo: "PRODUCCION", etiqueta: "Producción" },
+  { codigo: "MANTENIMIENTO", etiqueta: "Mantenimiento" },
 ]
 
 const TURNO_FILTRO: { codigo: TurnoTipoCodigo | "TODOS"; etiqueta: string }[] = [
@@ -98,16 +108,23 @@ export function PanelParadasVista({
   cargarParadas,
   estadoLineas,
   cargarOee,
+  mantenimiento,
 }: {
   cargarParadas: CargarParadas
   /** Estado en vivo de las 3 líneas (no filtrado). Ver nota de cabecera. */
   estadoLineas?: EstadoLineaEnVivo[]
   cargarOee: CargarOee
+  /** Tarjeta de Mantenimiento, al final: recibe las paradas filtradas que reportó Mantenimiento. */
+  mantenimiento?: (paradas: Parada[], ahora: Date) => ReactNode
 }) {
   const [periodo, setPeriodo] = useState<PeriodoCodigo>("HOY")
-  const [dia, setDia] = useState(() => restarDias(fechaPlanta(), 1))
+  const [rango, setRango] = useState(() => {
+    const ayer = restarDias(fechaPlanta(), 1)
+    return { desde: ayer, hasta: ayer }
+  })
   const [clase, setClase] = useState<ClaseParada | "TODAS">("TODAS")
   const [linea, setLinea] = useState("TODAS")
+  const [reporto, setReporto] = useState<ReportoCodigo>("TODAS")
   const [turno, setTurno] = useState<TurnoTipoCodigo | "TODOS">("TODOS")
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
 
@@ -123,14 +140,14 @@ export function PanelParadasVista({
   const hoy = fechaPlanta(ahora)
   const { desde, hasta } = useMemo(() => {
     if (periodo === "HOY") return { desde: hoy, hasta: hoy }
-    if (periodo === "DIA") return { desde: dia, hasta: dia }
+    if (periodo === "FECHAS") return rango
     if (periodo === "AYER") {
       const ayer = restarDias(hoy, 1)
       return { desde: ayer, hasta: ayer }
     }
     if (periodo === "7D") return { desde: restarDias(hoy, 6), hasta: hoy }
     return { desde: `${hoy.slice(0, 8)}01`, hasta: hoy }
-  }, [periodo, hoy, dia])
+  }, [periodo, hoy, rango])
 
   // Paradas del período. Se guardan con la clave del rango: al refrescar se
   // sigue viendo lo anterior; al cambiar de período, cargando.
@@ -154,12 +171,19 @@ export function PanelParadasVista({
         if (clase !== "TODAS" && p.clase !== clase) return false
         if (linea !== "TODAS" && p.lineaCodigo !== linea) return false
         if (turno !== "TODOS" && p.turnoTipo !== turno) return false
+        if (reporto !== "TODAS" && esDeMantenimiento(p) !== (reporto === "MANTENIMIENTO")) return false
         return true
       })
       .sort((a, b) => b.inicio.localeCompare(a.inicio))
-  }, [paradas, desde, hasta, clase, linea, turno])
+  }, [paradas, desde, hasta, clase, linea, turno, reporto])
 
   const abiertas = filtradas.filter(paradaAbierta).length
+  /** Lo que está filtrando «Ver filtros», para mostrarlo en el botón aunque esté cerrado. */
+  const filtrosActivos = [
+    reporto !== "TODAS" && `Reportó ${REPORTO_FILTRO.find((r) => r.codigo === reporto)?.etiqueta}`,
+    clase !== "TODAS" && NOMBRE_CLASE[clase],
+    linea !== "TODAS" && nombreLineaParada(linea),
+  ].filter((x): x is string => !!x)
   // Por tipo + línea, y de ahí SOLO la primera de cada línea (máximo 3
   // filas): cada fila dice de qué línea es — ver RankList.
   const topFrecuencia = useMemo(() => primeraDeCadaLinea(porTipoYLineaPorFrecuencia(filtradas, ahora)), [filtradas, ahora])
@@ -226,52 +250,66 @@ export function PanelParadasVista({
                   {p.etiqueta}
                 </Button>
               ))}
-              {periodo === "DIA" && (
-                <Input
-                  type="date"
-                  aria-label="Día"
-                  value={dia}
-                  max={hoy}
-                  onChange={(e) => e.target.value && setDia(e.target.value)}
-                  className="h-8 w-auto"
-                />
-              )}
             </div>
+            {periodo === "FECHAS" && <RangoFechas desde={rango.desde} hasta={rango.hasta} max={hoy} onChange={setRango} />}
           </div>
           <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setMostrarFiltros((v) => !v)}>
             {mostrarFiltros ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-            {clase !== "TODAS" || linea !== "TODAS"
-              ? `Filtros (${[clase !== "TODAS" && NOMBRE_CLASE[clase], linea !== "TODAS" && nombreLineaParada(linea)].filter(Boolean).join(" · ")})`
-              : "Ver filtros"}
+            {filtrosActivos.length > 0 ? `Filtros (${filtrosActivos.join(" · ")})` : "Ver filtros"}
           </Button>
         </div>
 
         {mostrarFiltros && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {CLASE_FILTRO.map((c) => (
-              <Button
-                key={c.codigo}
-                type="button"
-                size="sm"
-                variant={clase === c.codigo ? "default" : "outline"}
-                onClick={() => setClase(c.codigo)}
-              >
-                {c.etiqueta}
-              </Button>
-            ))}
-            <Select value={linea} onValueChange={setLinea}>
-              <SelectTrigger className="h-8 w-[150px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="TODAS">Todas las líneas</SelectItem>
-                {LINEAS_PARADAS.map((l) => (
-                  <SelectItem key={l.codigo} value={l.codigo}>
-                    {l.nombre}
-                  </SelectItem>
+          // Como Turno y Período: cada filtro con su etiqueta arriba, para que no quede una etiqueta suelta al cortar el renglón.
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Reportó</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {REPORTO_FILTRO.map((r) => (
+                  <Button
+                    key={r.codigo}
+                    type="button"
+                    size="sm"
+                    variant={reporto === r.codigo ? "default" : "outline"}
+                    onClick={() => setReporto(r.codigo)}
+                  >
+                    {r.etiqueta}
+                  </Button>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Clase</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {CLASE_FILTRO.map((c) => (
+                  <Button
+                    key={c.codigo}
+                    type="button"
+                    size="sm"
+                    variant={clase === c.codigo ? "default" : "outline"}
+                    onClick={() => setClase(c.codigo)}
+                  >
+                    {c.etiqueta}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Línea</span>
+              <Select value={linea} onValueChange={setLinea}>
+                <SelectTrigger className="h-8 w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODAS">Todas las líneas</SelectItem>
+                  {LINEAS_PARADAS.map((l) => (
+                    <SelectItem key={l.codigo} value={l.codigo}>
+                      {l.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         )}
       </div>
@@ -292,7 +330,9 @@ export function PanelParadasVista({
                 <h2 className="text-sm font-semibold text-foreground">Vista</h2>
                 <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
               </div>
-              <p className="text-lg font-bold text-foreground">{PERIODO_FILTRO.find((p) => p.codigo === periodo)?.etiqueta}</p>
+              <p className="text-lg font-bold text-foreground">
+                {periodo === "FECHAS" ? (desde === hasta ? "Un día" : "Fechas elegidas") : PERIODO_FILTRO.find((p) => p.codigo === periodo)?.etiqueta}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {fmtRangoCorto(desde, hasta)} · {TURNO_FILTRO.find((t) => t.codigo === turno)?.etiqueta}
               </p>
@@ -367,6 +407,7 @@ export function PanelParadasVista({
         ) : (
           <DetalleParadas paradas={filtradas} ahora={ahora} />
         )}
+        {mantenimiento && reporto !== "PRODUCCION" && mantenimiento(filtradas.filter(esDeMantenimiento), ahora)}
         </>
       )}
 
