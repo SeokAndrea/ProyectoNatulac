@@ -8,7 +8,9 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-    command: npm run dev -- --host 0.0.0.0
+    # El volumen de node_modules sobrevive a los rebuild: si se agregó un paquete (ej. html-to-image),
+    # quedaba sin instalar y las pantallas daban "Cannot find module". Al arrancar se instala lo que falte.
+    command: sh -c "npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
 
   preview:
     build:
