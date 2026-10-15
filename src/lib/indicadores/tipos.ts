@@ -93,7 +93,8 @@ export interface DatosMes {
   diasSinIncidentes?: number | null
 }
 
-/** Desde estos días sin incidentes el recuadro va en verde; antes, en rojo (dueña, 2026-10-15). */
+/** Días sin incidentes: menos de AMARILLO en rojo, desde AMARILLO en amarillo y desde VERDE en verde (dueña, 2026-10-15). */
+export const DIAS_SIN_INCIDENTES_AMARILLO = 15
 export const DIAS_SIN_INCIDENTES_VERDE = 30
 
 export interface TotalAseptico {
