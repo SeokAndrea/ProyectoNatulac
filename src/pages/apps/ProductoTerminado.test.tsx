@@ -567,12 +567,11 @@ describe("Producto Terminado — otros estados de la corrida", () => {
     await u.click(screen.getByRole("button", { name: /Mango/ }))
     await u.click(tarjeta("Línea 1", "0002").getByRole("button", { name: "Editar un error" }))
     const t = tarjeta("Línea 1", "0002")
-    expect(t.getByPlaceholderText("Total del contador")).toHaveValue(3000)
+    expect(t.getByPlaceholderText("Contador")).toHaveValue(3000)
     expect(t.getByPlaceholderText("Envases buenos")).toHaveValue(2900)
-    expect(t.getByText("Lo que pongas reemplaza el contador de la corrida, no se suma.")).toBeInTheDocument()
     // Sin cambios no hay nada que guardar.
     expect(t.getByRole("button", { name: "Guardar corrección" })).toBeDisabled()
-    await escribir(u, t, "Total del contador", "2950")
+    await escribir(u, t, "Contador", "2950")
     await u.click(t.getByRole("button", { name: "Guardar corrección" }))
     // Solo el contador (el PT no cambió) y por la vía que reemplaza.
     await waitFor(() =>

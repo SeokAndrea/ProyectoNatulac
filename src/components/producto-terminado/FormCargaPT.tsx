@@ -209,20 +209,16 @@ export function FormCargaPT({
       <CardContent className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`contador-${corrida.id}`}>
-              {modoCorreccion ? "Envases llenadora (total de la corrida)" : "Envases llenadora (Contador)"}
-            </Label>
+            <Label htmlFor={`contador-${corrida.id}`}>Envases llenadora (Contador)</Label>
             <Input
               id={`contador-${corrida.id}`}
               type="number"
               min={0}
-              placeholder={modoCorreccion ? "Total del contador" : "Sumar al contador"}
+              placeholder={modoCorreccion ? "Contador" : "Sumar al contador"}
               value={envasesLlenadora}
               onChange={(e) => setEnvasesLlenadora(e.target.value)}
             />
-            <Label htmlFor={`contador-buenos-${corrida.id}`}>
-              {modoCorreccion ? "Envases buenos (total del Contador 2)" : "Envases buenos (Contador 2)"}
-            </Label>
+            <Label htmlFor={`contador-buenos-${corrida.id}`}>Envases buenos (Contador 2)</Label>
             <Input
               id={`contador-buenos-${corrida.id}`}
               type="number"
@@ -232,9 +228,6 @@ export function FormCargaPT({
               onChange={(e) => setEnvasesBuenos(e.target.value)}
               aria-invalid={hayContadorNuevo && !buenosValido}
             />
-            {modoCorreccion && (
-              <p className="text-xs text-muted-foreground">Lo que pongas reemplaza el contador de la corrida, no se suma.</p>
-            )}
             {previa.textoBuenos && <p className="text-xs text-muted-foreground">{previa.textoBuenos}</p>}
             {hayContadorNuevo && !buenosValido && (
               <p className="text-xs text-destructive" role="alert">
