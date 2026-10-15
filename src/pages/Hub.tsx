@@ -101,7 +101,13 @@ export default function Hub() {
           )}
 
           {atajos.length > 0 && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:w-auto lg:shrink-0">
+            <div
+              className={cn(
+                "grid grid-cols-1 gap-3 lg:w-auto lg:shrink-0",
+                // Con 4 atajos, 2×2 junto al saludo; en fila solo si sobra ancho.
+                atajos.length >= 4 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3",
+              )}
+            >
               {atajos.map((app) => (
                 <div key={app.slug} className={soloEnPantallaGrande(app)}>
                   <TarjetaAtajo app={app} turnoActivo={turnoActivo} />

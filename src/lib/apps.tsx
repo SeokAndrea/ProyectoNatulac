@@ -193,17 +193,6 @@ export const apps: AppDef[] = [
     seccion: "auditoria",
   },
   {
-    slug: "indicadores",
-    title: "Indicadores",
-    description: "Eficiencia, cajas, merma y paradas del mes, por línea y presentación.",
-    href: "/indicadores",
-    icon: BarChart3,
-    requiereTurno: false,
-    // Jefe, analista y la dueña (2026-10-13): los mismos del Resumen Diario. Cada mes, automático o cargado a mano.
-    permiso: ["RESUMEN_VER", "VALIDAR"],
-    seccion: "auditoria",
-  },
-  {
     slug: "mis-actas",
     title: "Mis Actas",
     href: "/mis-actas",
@@ -263,6 +252,17 @@ export const apps: AppDef[] = [
     icon: RadioTower,
     requiereTurno: false,
     // Dashboard de solo lectura: visible para cualquier sesión, como el Panel de Producción.
+    atajo: true,
+  },
+  {
+    slug: "indicadores",
+    title: "Indicadores",
+    href: "/indicadores",
+    icon: BarChart3,
+    requiereTurno: false,
+    // Jefe, analista y la dueña (2026-10-13): los mismos del Resumen Diario. Cada mes, automático o cargado a mano.
+    permiso: ["RESUMEN_VER", "VALIDAR"],
+    // Atajo al lado del Panel de Paradas (dueña, 2026-10-15).
     atajo: true,
   },
   {
