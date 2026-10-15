@@ -137,18 +137,23 @@ export const numeroDeLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
 
 /**
  * Plan de las semanas para Indicadores, por mes: cada producto con su plan
- * completo va a la línea con que se programó, en el mes de su primer día
- * programado. Los que nunca se programaron no tienen línea: van aparte, en
- * el mes de su lunes, para repartirlos como antes.
+ * completo, en el mes de su primer día programado, con la línea con que se
+ * programó y su sabor (Indicadores lo lleva a la línea que de verdad lo
+ * corrió; la programada queda para lo que no se produjo). Los que nunca se
+ * programaron no tienen línea: van aparte, en el mes de su lunes, para
+ * repartirlos como antes.
  */
-export function planDelMes(semanas: Semana[], mes: string): { conLinea: { linea: string; volumenMl: number; cajas: number }[]; sinLinea: { volumenMl: number; cajas: number }[] } {
+export function planDelMes(
+  semanas: Semana[],
+  mes: string,
+): { conLinea: { linea: string; saborId: string; volumenMl: number; cajas: number }[]; sinLinea: { volumenMl: number; cajas: number }[] } {
   const delMes = (fecha: string) => fecha.slice(0, 7) === mes.slice(0, 7)
-  const conLinea: { linea: string; volumenMl: number; cajas: number }[] = []
+  const conLinea: { linea: string; saborId: string; volumenMl: number; cajas: number }[] = []
   const sinLinea: { volumenMl: number; cajas: number }[] = []
   for (const s of semanas) {
     for (const item of s.items) {
       const p = programacionDe(s, item)
-      if (p && delMes(p.primerDia)) conLinea.push({ linea: numeroDeLinea(p.lineaCodigo), volumenMl: item.presentacionMl, cajas: item.cajasPlan })
+      if (p && delMes(p.primerDia)) conLinea.push({ linea: numeroDeLinea(p.lineaCodigo), saborId: item.saborId, volumenMl: item.presentacionMl, cajas: item.cajasPlan })
       else if (!p && delMes(s.lunes)) sinLinea.push({ volumenMl: item.presentacionMl, cajas: item.cajasPlan })
     }
   }

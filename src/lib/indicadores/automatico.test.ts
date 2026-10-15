@@ -70,6 +70,30 @@ describe("calcularMesAutomatico", () => {
     expect(mes.presentaciones["3|250"]).toBeUndefined()
   })
 
+  describe("plan programado (semanal): va a la línea que DE VERDAD corrió el producto", () => {
+    // Pera 250 (s1): la app la programó en la Línea 2, pero la Línea 2 hizo 2040 cajas y la Línea 3, 1020.
+    const t3 = turno({ id: "t3", corridas: [corrida("c3", "LINEA_3", "250", "2026-09-10T07:00:00", "2026-09-10T10:00:00")], productoTerminado: [pt("c3", 10, 20)] })
+    const conPlan = (planConLinea: EntradaMes["planConLinea"], turnos = [{ turno: t1, paradas: [] }, { turno: t3, paradas: [] }]) =>
+      calcularMesAutomatico({ turnos, validaciones: new Map(), cajas: [], plan: [], planConLinea }, CAT).presentaciones
+
+    it("si la corrieron dos líneas, se reparte según las cajas de cada una", () => {
+      const p = conPlan([{ linea: "2", saborId: "s1", volumenMl: 250, cajas: 3000 }])
+      expect(p["2|250"].plan).toBe(2000) // 2040 de 3060
+      expect(p["3|250"].plan).toBe(1000) // 1020 de 3060
+    })
+
+    it("si la corrió otra línea que la programada, el plan va a esa", () => {
+      const p = conPlan([{ linea: "2", saborId: "s1", volumenMl: 250, cajas: 3000 }], [{ turno: t3, paradas: [] }])
+      expect(p["3|250"].plan).toBe(3000)
+      expect(p["2|250"]?.plan ?? null).toBeNull()
+    })
+
+    it("si no se produjo, queda en la línea programada (se ve el incumplido)", () => {
+      const p = conPlan([{ linea: "2", saborId: "otro", volumenMl: 200, cajas: 800 }])
+      expect(p["2|200"].plan).toBe(800)
+    })
+  })
+
   it("eficiencia de la línea: (disponible − no programadas) ÷ disponible", () => {
     // T1 480 min − 30 programada = 450; no programadas 45 + 15 + 20 + 30 = 110 → 340 ÷ 450.
     expect(mes.eficiencia["2"]).toBe(76)

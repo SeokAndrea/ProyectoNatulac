@@ -83,7 +83,7 @@ describe("estado de cada producto", () => {
 describe("plan para Indicadores", () => {
   it("con la línea con que se programó, en el mes de su primer día; lo no programado va aparte", () => {
     const { conLinea, sinLinea } = planDelMes([semana()], "2026-10-01")
-    expect(conLinea).toEqual([{ linea: "1", volumenMl: 1000, cajas: 5000 }])
+    expect(conLinea).toEqual([{ linea: "1", saborId: "s-man", volumenMl: 1000, cajas: 5000 }])
     expect(sinLinea).toEqual([{ volumenMl: 250, cajas: 3000 }])
     expect(planDelMes([semana()], "2026-09-01")).toEqual({ conLinea: [], sinLinea: [] })
   })

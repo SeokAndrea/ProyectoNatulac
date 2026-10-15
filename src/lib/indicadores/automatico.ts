@@ -63,8 +63,11 @@ export interface EntradaMes {
   cajas: CajasValidadas[]
   /** Plan sin línea (programación diaria de antes, o productos de la semana que nunca se programaron): se reparte. */
   plan: { volumenMl: number; cajas: number }[]
-  /** Plan de la programación semanal, con la línea con que se programó (migración 20261110790000). */
-  planConLinea?: { linea: string; volumenMl: number; cajas: number }[]
+  /**
+   * Plan de la programación semanal, por producto (sabor + presentación), con la línea con que se
+   * programó (migración 20261110790000). Va a la línea que de verdad lo corrió (asignarPlanProgramado).
+   */
+  planConLinea?: { linea: string; saborId?: string; volumenMl: number; cajas: number }[]
 }
 
 const redondear = (n: number, decimales: number) => Math.round(n * 10 ** decimales) / 10 ** decimales
@@ -116,34 +119,67 @@ function eficienciaPorLinea(turnos: TurnoConParadas[], cat: CatalogosIndicadores
  * Cajas de cada corrida en cada turno del día: las del PT, o las corregidas del
  * turno (sabor + presentación) repartidas entre sus corridas según su PT.
  */
-function cajasDelDia(turnos: TurnoJornada[], cat: CatalogosIndicadores, corregidas: CajasValidadas[]): { clave: string; cajas: number }[] {
-  const salida: { clave: string; cajas: number }[] = []
+interface CajasCorrida {
+  /** claveP(línea, presentación). */
+  clave: string
+  linea: string
+  saborId: string | null
+  volumenMl: number
+  cajas: number
+}
+
+function cajasDelDia(turnos: TurnoJornada[], cat: CatalogosIndicadores, corregidas: CajasValidadas[]): CajasCorrida[] {
+  const salida: CajasCorrida[] = []
   for (const { turno } of turnos) {
-    const grupos = new Map<string, { clave: string; cajas: number }[]>()
+    const grupos = new Map<string, CajasCorrida[]>()
     for (const c of turno.corridas) {
       const pres = cat.presentaciones.find((p) => p.codigo === c.presentacion)
       const pt = turno.productoTerminado.find((p) => p.corridaId === c.id)
       if (!pres || !pt) continue
       const grupo = `${c.saborId}|${pres.volumenMl}`
-      grupos.set(grupo, [...(grupos.get(grupo) ?? []), { clave: claveP(numeroLinea(c.linea), c.presentacion), cajas: pt.paletas * pres.cajasXPaleta + pt.cajasSueltas }])
+      grupos.set(grupo, [
+        ...(grupos.get(grupo) ?? []),
+        {
+          clave: claveP(numeroLinea(c.linea), c.presentacion),
+          linea: numeroLinea(c.linea),
+          saborId: c.saborId,
+          volumenMl: pres.volumenMl,
+          cajas: pt.paletas * pres.cajasXPaleta + pt.cajasSueltas,
+        },
+      ])
     }
     for (const [grupo, filas] of grupos) {
       const v = corregidas.find((x) => x.turnoId === turno.id && `${x.saborId}|${x.volumenMl}` === grupo)
       const total = filas.reduce((s, f) => s + f.cajas, 0)
-      for (const f of filas) salida.push({ clave: f.clave, cajas: !v ? f.cajas : total > 0 ? (v.cajas * f.cajas) / total : v.cajas / filas.length })
+      for (const f of filas) salida.push({ ...f, cajas: !v ? f.cajas : total > 0 ? (v.cajas * f.cajas) / total : v.cajas / filas.length })
     }
   }
   return salida
 }
 
-/** Cajas producidas y merma de envases por presentación, día por día. */
-function cajasYMerma(dias: { turnos: TurnoJornada[]; v: ValidacionesDia }[], cat: CatalogosIndicadores, corregidas: CajasValidadas[], pres: Record<string, DatosPresentacion>) {
+/** Producto (sabor|ml) → cajas que hizo cada línea en el mes. */
+type ProducidoPorProducto = Map<string, Map<string, number>>
+const claveProducto = (saborId: string, volumenMl: number) => `${saborId}|${volumenMl}`
+
+/** Cajas producidas y merma de envases por presentación, día por día. Devuelve lo producido de cada producto por línea. */
+function cajasYMerma(
+  dias: { turnos: TurnoJornada[]; v: ValidacionesDia }[],
+  cat: CatalogosIndicadores,
+  corregidas: CajasValidadas[],
+  pres: Record<string, DatosPresentacion>,
+): ProducidoPorProducto {
   const merma = new Map<string, { pt: number; contador: number }>()
+  const porProducto: ProducidoPorProducto = new Map()
   for (const { turnos, v } of dias) {
-    for (const { clave, cajas } of cajasDelDia(turnos, cat, corregidas)) {
-      const p = (pres[clave] ??= presentacionVacia())
+    for (const c of cajasDelDia(turnos, cat, corregidas)) {
+      const p = (pres[c.clave] ??= presentacionVacia())
       p.corrio = true
-      p.prod = (p.prod ?? 0) + cajas
+      p.prod = (p.prod ?? 0) + c.cajas
+      if (c.saborId && c.cajas > 0) {
+        const lineas = porProducto.get(claveProducto(c.saborId, c.volumenMl)) ?? new Map<string, number>()
+        lineas.set(c.linea, (lineas.get(c.linea) ?? 0) + c.cajas)
+        porProducto.set(claveProducto(c.saborId, c.volumenMl), lineas)
+      }
     }
     for (const f of filasEnvases(turnos, cat.presentaciones, v.contadores)) {
       const clave = claveP(numeroLinea(f.lineaCodigo), f.presentacion)
@@ -161,6 +197,25 @@ function cajasYMerma(dias: { turnos: TurnoJornada[]; v: ValidacionesDia }[], cat
     if (p.prod != null) p.prod = Math.round(p.prod)
     const m = merma.get(clave)
     p.merma = m ? redondear((1 - m.pt / m.contador) * 100, 2) : null
+  }
+  return porProducto
+}
+
+/**
+ * Plan programado de cada producto (sabor + presentación) a la línea que DE VERDAD lo corrió en el
+ * mes; si lo corrieron dos, según las cajas de cada una. Si no se produjo, queda en la línea con que
+ * se programó (así se ve el incumplido). La analista elige solo el producto; la línea que pone la
+ * app puede no ser la real, porque las líneas cambian de presentación (dueña, 2026-10-15).
+ */
+function asignarPlanProgramado(plan: NonNullable<EntradaMes["planConLinea"]>, porProducto: ProducidoPorProducto, pres: Record<string, DatosPresentacion>) {
+  for (const { linea, saborId, volumenMl, cajas } of plan) {
+    const corrieron = [...((saborId && porProducto.get(claveProducto(saborId, volumenMl))) || new Map<string, number>())]
+    const total = corrieron.reduce((a, [, c]) => a + c, 0)
+    const destino = total > 0 ? corrieron.map(([l, c]) => ({ l, parte: c / total })) : [{ l: linea, parte: 1 }]
+    for (const { l, parte } of destino) {
+      const p = (pres[claveP(l, String(volumenMl))] ??= presentacionVacia())
+      p.plan = Math.round((p.plan ?? 0) + cajas * parte)
+    }
   }
 }
 
@@ -245,13 +300,10 @@ export function calcularMesAutomatico(e: EntradaMes, cat: CatalogosIndicadores):
     v: validadasDe(fecha),
   }))
   datos.eficiencia = eficienciaPorLinea(turnos, cat)
-  cajasYMerma(dias, cat, e.cajas, datos.presentaciones)
+  const porProducto = cajasYMerma(dias, cat, e.cajas, datos.presentaciones)
   paradasPorPresentacion(turnos, datos.presentaciones)
   repartirPlan(e.plan, cat, datos.presentaciones)
-  for (const { linea, volumenMl, cajas } of e.planConLinea ?? []) {
-    const p = (datos.presentaciones[claveP(linea, String(volumenMl))] ??= presentacionVacia())
-    p.plan = (p.plan ?? 0) + cajas
-  }
+  asignarPlanProgramado(e.planConLinea ?? [], porProducto, datos.presentaciones)
   datos.semielaborado = semielaboradoPorFamilia(dias, cat)
   return datos
 }
