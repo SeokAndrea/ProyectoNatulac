@@ -637,9 +637,21 @@ export async function generarActaPdf(params: {
           const ids = lote.corridas.filter((c) => c.linea === l.codigo).map((c) => c.id)
           if (ids.length === 0) return []
           const merma = mermaEnvasesDeCorridas(ids, contadores, productoTerminado, presentaciones).pct
-          const textos = contadores
-            .filter((c) => c.corridaId !== null && ids.includes(c.corridaId) && c.justificacion.trim() !== "")
-            .map((c) => c.justificacion.trim())
+          // Una viñeta por justificación (y por renglón, si escribieron varios), con la hora del contador.
+          const textos = [
+            ...new Set(
+              contadores
+                .filter((c) => c.corridaId !== null && ids.includes(c.corridaId))
+                .sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))
+                .flatMap((c) =>
+                  c.justificacion
+                    .split(/\r?\n/)
+                    .map((t) => t.trim())
+                    .filter((t) => t !== "")
+                    .map((t) => `${horaNovedad(c.creadoEn)}  ${t}`),
+                ),
+            ),
+          ]
           const pasada = merma !== null && merma > LIMITE_MERMA_PCT
           if (!pasada && textos.length === 0) return []
           return [
@@ -648,7 +660,7 @@ export async function generarActaPdf(params: {
               saborLote: `${g.saborNombre ?? "Sin sabor"} — Lote ${lote.lote ?? "—"}`,
               merma,
               pasada,
-              justificacion: textos.length > 0 ? textos.join(" / ") : "Sin justificación cargada.",
+              justificaciones: textos,
             },
           ]
         }),
@@ -666,7 +678,14 @@ export async function generarActaPdf(params: {
       for (const f of filasJustificacion) {
         doc.setFontSize(7)
         doc.setFont("helvetica", "normal")
-        const texto = doc.splitTextToSize(f.justificacion, 5 * C - 2.4) as string[]
+        // Cada justificación es una viñeta; lo que no entra en un renglón sigue con sangría, debajo del texto.
+        const SANGRIA = 2.5
+        const texto: { t: string; x: number }[] =
+          f.justificaciones.length === 0
+            ? [{ t: "Sin justificación cargada.", x: 0 }]
+            : f.justificaciones.flatMap((j) =>
+                (doc.splitTextToSize(j, 5 * C - 2.4 - SANGRIA) as string[]).map((t, i) => (i === 0 ? { t: `•  ${t}`, x: 0 } : { t, x: SANGRIA })),
+              )
         const alto = Math.max(5, 2 + texto.length * 3)
         asegurar(alto)
         celda(M, y, C, alto, f.linea, { negrita: true, tamano: 7 })
@@ -680,7 +699,7 @@ export async function generarActaPdf(params: {
         doc.setFontSize(7)
         doc.setFont("helvetica", "normal")
         doc.setTextColor(0)
-        texto.forEach((t, i) => doc.text(t, M + 4 * C + 1.2, y + alto / 2 + (i - (texto.length - 1) / 2) * 3, { baseline: "middle" }))
+        texto.forEach((r, i) => doc.text(r.t, M + 4 * C + 1.2 + r.x, y + alto / 2 + (i - (texto.length - 1) / 2) * 3, { baseline: "middle" }))
         y += alto
       }
     }
