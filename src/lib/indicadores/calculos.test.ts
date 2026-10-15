@@ -72,6 +72,12 @@ describe("presentaciones", () => {
     expect(r.map((p) => p.nombre)).toEqual(["TPA-330", "TPA-250", "TPA-200"])
     expect(presentacionesDeLinea("1", [v("LINEA_1", "1000"), v("LINEA_1", "500")], []).map((p) => p.nombre)).toEqual(["TBA-1000", "TBA-500"])
   })
+
+  it("con la máquina como está hoy en la base (TBA / TPA)", () => {
+    const v = (linea: string, presentacion: string, maquina: string) => ({ linea, presentacion, maquina, activo: true })
+    expect(presentacionesDeLinea("1", [v("LINEA_1", "1000", "TBA"), v("LINEA_1", "500", "TBA")], []).map((p) => p.nombre)).toEqual(["TBA-1000", "TBA-500"])
+    expect(presentacionesDeLinea("3", [v("LINEA_3", "330", "TPA")], []).map((p) => p.nombre)).toEqual(["TPA-330"])
+  })
 })
 
 describe("topParadas", () => {

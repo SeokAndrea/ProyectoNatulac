@@ -33,8 +33,8 @@ export const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 /** "LINEA_T2" / "LINEA_2" → "2". */
 export const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
 
-/** "TBA-1000" (Tetra Brik, Línea 1) o "TPA-250" (Tetra Prisma). */
-export const nombrePresentacion = (maquina: string | undefined, ml: string | number) => `${maquina === "TB" ? "TBA" : "TPA"}-${ml}`
+/** "TBA-1000" (Tetra Brik, Línea 1) o "TPA-250" (Tetra Prisma). En la base la máquina es "TBA"/"TPA" (antes "TB"/"TP"). */
+export const nombrePresentacion = (maquina: string | undefined, ml: string | number) => `${maquina?.startsWith("TB") ? "TBA" : "TPA"}-${ml}`
 
 export interface PresentacionDeLinea {
   clave: string
