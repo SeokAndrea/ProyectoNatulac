@@ -4,6 +4,7 @@ import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
 import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
+import { SinReportarTurno } from "@/components/paradas/SinReportarTurno"
 import { TurnoCompleto } from "@/components/paradas/TurnoCompleto"
 import { ahoraPlanta, CampoFin, conSegundos, FormCompletarParada } from "@/components/paradas/FormCompletarParada"
 import { Badge } from "@/components/ui/badge"
@@ -135,6 +136,7 @@ export default function RegistrarParadas() {
     <AppShell title="Registrar Paradas" description="Paradas de las líneas: se suman como +1 y después se pone cuánto duraron">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
         {areaParadas === "ASEPTICO" && <ActualizarDesdeSheet usuario={usuario} onListo={cargar} />}
+        <SinReportarTurno turno={turno} corridas={prod.corridas} version={lista} />
 
         {error && (
           <p className="text-sm text-danger-foreground" role="alert">

@@ -81,7 +81,7 @@ function sumarMinutos(iso: string, minutos: number): string {
 }
 
 /** Las paradas como quedaron validadas: sin las que "no cuentan" y con los minutos corregidos. */
-function paradasValidadas(paradas: Parada[], validadas: Map<string, Validacion>): Parada[] {
+export function paradasValidadas(paradas: Parada[], validadas: Map<string, Validacion>): Parada[] {
   return paradas.flatMap((p) => {
     const v = validadas.get(p.id)
     if (v?.estado === "EXCLUIDA") return []

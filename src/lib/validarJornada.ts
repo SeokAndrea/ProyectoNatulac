@@ -50,6 +50,8 @@ export interface TurnoJornada {
 export interface DatosJornada {
   turnos: TurnoJornada[]
   paradas: Parada[]
+  /** Las mismas paradas, por turno (id del turno): para los minutos sin reportar. */
+  paradasPorTurno: Map<string, Parada[]>
   /** Cajas del supervisor por turno + sabor + presentación (suma de líneas). */
   cajas: { turnoId: string; saborNombre: string; volumenMl: number; cajas: number }[]
   validacionesCajas: ValidacionTurno[]
@@ -114,11 +116,14 @@ export async function cargarJornada(usuario: string, area: string, fecha: string
     lotes: (FilaValidacion & { preparacion_id: string; volumen_final: number | null })[]
     paradas: (FilaValidacion & { parada_id: string; minutos: number | null })[]
   }
-  const paradas = (await Promise.all(turnos.map((t) => cargarParadasDelTurno(t.turno.id)))).flat()
+  const deCadaTurno = await Promise.all(turnos.map((t) => cargarParadasDelTurno(t.turno.id)))
+  const paradas = deCadaTurno.flat()
+  const paradasPorTurno = new Map(turnos.map((t, i) => [t.turno.id, deCadaTurno[i]]))
 
   return {
     turnos,
     paradas,
+    paradasPorTurno,
     cajas: [...cajas.values()],
     validacionesCajas,
     contadores: new Map(val.contadores.map((v) => [v.turno_linea_id, aValidacion(v, v.envases_llenadora)])),

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { AccionValidar } from "@/components/validar-jornada/AccionesFila"
+import { SinReportarJornada } from "@/components/validar-jornada/SinReportarJornada"
 import { TablaCajas, TablaEnvases, TablaLotes, TablaParadas } from "@/components/validar-jornada/TablasJornada"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
@@ -225,6 +226,7 @@ export default function ValidarJornada() {
               {paso === "lotes" && (
                 <TablaLotes filas={filas.lotes} bloqueada={bloqueada} onAccion={(f, a) => conRecarga(validarLote(usuario, f.id, fecha, valor(a)))} />
               )}
+              {paso === "paradas" && datos && <SinReportarJornada datos={datos} />}
               {paso === "paradas" && (
                 <TablaParadas
                   filas={filas.paradas}
