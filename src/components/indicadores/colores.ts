@@ -14,11 +14,15 @@ const vars = (base: string, relleno = `var(${base})`, texto = `var(${base}-texto
 /** Color de la línea ("1", "2", "3"). */
 export const colorLinea = (linea: string) => vars(`--ind-l${linea}`)
 
-/** Cada presentación de la línea, un tono distinto: la primera el color de la línea, las otras más oscuras (más claras en modo oscuro). */
+/**
+ * Cada presentación de la línea, un tono distinto: la primera el color de la línea, las otras más oscuras
+ * (más claras en modo oscuro). Se mezcla con --ind-lN-mezcla si la línea tiene uno (la Línea 2, naranja:
+ * con azul marino daba marrón) o con --ind-mezcla.
+ */
 const MEZCLA = [100, 68, 48]
 export function colorPresentacion(linea: string, indice: number): CSSProperties {
   const p = MEZCLA[Math.min(indice, MEZCLA.length - 1)]
-  const tono = (v: string) => (p === 100 ? `var(${v})` : `color-mix(in srgb, var(${v}) ${p}%, var(--ind-mezcla))`)
+  const tono = (v: string) => (p === 100 ? `var(${v})` : `color-mix(in srgb, var(${v}) ${p}%, var(--ind-l${linea}-mezcla, var(--ind-mezcla)))`)
   return vars(`--ind-l${linea}`, tono(`--ind-l${linea}`), tono(`--ind-l${linea}-texto`))
 }
 
