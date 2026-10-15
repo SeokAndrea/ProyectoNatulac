@@ -295,6 +295,21 @@ export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<R
   return { ok: true, datos: { nuevas: d.nuevas, actualizadas: d.actualizadas, sinCambios: d.sin_cambios, omitidas: d.omitidas, corregidas } }
 }
 
+/**
+ * Lo mismo que «Actualizar desde el Sheet», sin avisar nada: lo corre el
+ * cierre de turno (y el acta regenerada) para que las paradas de
+ * Mantenimiento salgan en el acta aunque nadie haya tocado el botón. Solo
+ * Aséptico; si el Sheet no se puede leer, el acta sale con lo que ya hay.
+ */
+export async function actualizarSheetEnSilencio(usuario: string, area: string | null | undefined): Promise<void> {
+  if (area !== "ASEPTICO" || !usuario) return
+  try {
+    await actualizarDesdeSheet(usuario)
+  } catch {
+    // Sin conexión o sin permiso: no frena el cierre.
+  }
+}
+
 /** El enlace del Sheet guardado (Edición de Datos), o null. */
 export async function obtenerEnlaceSheet(): Promise<string | null> {
   const { data } = await supabase.rpc("obtener_configuracion", { p_clave: "sheet_mantenimiento_url" })

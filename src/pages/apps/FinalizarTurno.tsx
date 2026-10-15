@@ -34,6 +34,7 @@ import { listarLecturasServiciosIndustrialesDeTurno, type LecturaServiciosIndust
 import type { Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { mermaCorrida } from "@/lib/reportes"
+import { actualizarSheetEnSilencio } from "@/lib/sheetMantenimiento"
 import { LIMITE_MERMA } from "@/lib/turno"
 
 /*
@@ -77,8 +78,10 @@ export default function FinalizarTurno() {
     if (sesion.turnoId) setParadas(await cargarParadasDelTurno(sesion.turnoId))
   }, [sesion.turnoId])
   useEffect(() => {
+    // Primero lo que ya hay; después, con las paradas de Mantenimiento recién traídas de su Sheet.
     recargarParadas()
-  }, [recargarParadas])
+    actualizarSheetEnSilencio(session?.username ?? "", session?.area).then(recargarParadas)
+  }, [recargarParadas, session?.username, session?.area])
 
   useEffect(() => {
     // Lecturas de Servicios Industriales de este turno (migración 20261057) — para la sección 2.4 del Acta.
@@ -270,11 +273,14 @@ export default function FinalizarTurno() {
     if (faltan.length > 0 || !puedeFinalizar) return
     // Se guarda todo ANTES de cerrar — sesion.finalizarTurno() limpia la
     // identidad del turno, y con turnoId en null los hooks se vacían solos.
-    const datosParaActa = datosDelActa()
-    if (!session || !sesion.turnoId || !datosParaActa) return
+    const datos = datosDelActa()
+    if (!session || !sesion.turnoId || !datos) return
     setFinalizando(true)
     setErrorFinalizar(null)
     const turnoId = sesion.turnoId
+    // Lo último del Sheet de Mantenimiento, para que sus paradas salgan en el acta.
+    await actualizarSheetEnSilencio(session.username, session.area)
+    const datosParaActa = { ...datos, paradas: await cargarParadasDelTurno(turnoId) }
     const codigo = datosParaActa.codigo
     const resultadoCierre = await sesion.finalizarTurno()
     if (!resultadoCierre.ok) {

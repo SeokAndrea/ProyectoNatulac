@@ -4,6 +4,7 @@ import { generarActaPdf } from "@/lib/actaPdf"
 import { miTurnoDetalle, subirYRegistrarActa } from "@/lib/historialTurnos"
 import { listarLecturasServiciosIndustrialesDeTurno } from "@/lib/panelProduccion"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
+import { actualizarSheetEnSilencio } from "@/lib/sheetMantenimiento"
 
 /**
  * Arma el acta de un turno propio ya cerrado con los datos de ahora y la
@@ -20,6 +21,8 @@ export async function regenerarActaDeMiTurno(
   const turno = await miTurnoDetalle(session.username, turnoId)
   if (!turno) return { ok: false, error: "No se pudo leer el turno para armar el acta." }
   try {
+    // Las paradas de Mantenimiento entran desde su Sheet: se traen antes de armar el acta.
+    await actualizarSheetEnSilencio(session.username, session.area)
     const [serviciosIndustriales, paradas] = await Promise.all([
       listarLecturasServiciosIndustrialesDeTurno(turnoId),
       cargarParadasDelTurno(turnoId),
