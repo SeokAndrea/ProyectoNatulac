@@ -31,4 +31,10 @@ export interface AccionesPT {
   entregarCorrida: (corridaId: string) => Promise<Resultado>
   terminarSabor: (corridaId: string) => Promise<Resultado>
   medirTanque: (numeroTanque: 1 | 2 | 3, volumenReal: number) => Promise<Resultado>
+  /**
+   * Vuelve a traer las corridas. El PT cierra la corrida en la base, pero
+   * su respuesta solo actualiza el PT: sin esto la tarjeta seguía
+   * "esperando su PT" y el supervisor volvía a cargar el contador (se suma).
+   */
+  refrescarCorridas: () => Promise<void>
 }

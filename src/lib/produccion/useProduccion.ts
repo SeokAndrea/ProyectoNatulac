@@ -47,6 +47,8 @@ export interface UseProduccionResultado {
   contadores: ContadorRegistro[]
   cargando: boolean
   recargar: () => Promise<void>
+  /** Como recargar, pero sin pasar por "cargando" (la pantalla no se desarma). */
+  refrescar: () => Promise<void>
   activarLinea: (datos: DatosActivarLinea) => Promise<Resultado>
   pausarLinea: (corridaId: string, motivo?: string) => Promise<Resultado>
   continuarLinea: (corridaId: string) => Promise<Resultado>
@@ -108,6 +110,13 @@ export function useProduccion(turnoIdElegido?: string | null): UseProduccionResu
     recargar()
   }, [recargar])
 
+  const refrescar = useCallback(async () => {
+    if (!turnoId) return
+    const { data, error } = await supabase.rpc("turno_json", { p_turno_id: turnoId })
+    if (!error && data) tomarDatos(data as FilaTurnoProduccion)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnoId])
+
   /** Envuelve una acción (usuario, turnoId, ...args) => Resultado, y actualiza el estado local si sale bien. Mismo patrón que usePreparacion(). */
   function conSesion<A extends unknown[]>(fn: (usuario: string, turnoId: string, ...args: A) => Promise<Resultado & { data?: unknown }>) {
     return async (...args: A): Promise<Resultado> => {
@@ -139,6 +148,7 @@ export function useProduccion(turnoIdElegido?: string | null): UseProduccionResu
     contadores,
     cargando,
     recargar,
+    refrescar,
     activarLinea,
     pausarLinea: conSesion(pausarLinea),
     continuarLinea: conSesion(continuarLinea),

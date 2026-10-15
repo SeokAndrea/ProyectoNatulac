@@ -85,7 +85,10 @@ const acc = {
   registrarProductoTerminado: vi.fn(),
   medirTanque: vi.fn(),
   recargar: vi.fn(),
+  refrescar: vi.fn(),
 }
+/** Vuelve a dibujar la página con lo que haya en `datos` (lo que hace refrescar() de verdad). */
+let redibujar: () => void = () => {}
 const pedidoCon = { produccion: [] as (string | null)[], pt: [] as (string | null)[], preparacion: [] as (string | null)[] }
 const datos = {
   corridas: [] as Corrida[],
@@ -94,19 +97,25 @@ const datos = {
   tanques: [] as TanqueRecepcion[],
   preparaciones: [] as PreparacionRegistro[],
 }
-vi.mock("@/lib/produccion/useProduccion", () => ({
-  useProduccion: (id: string | null) => {
-    pedidoCon.produccion.push(id)
-    return {
-      corridas: datos.corridas,
-      contadores: datos.contadores,
-      cargando: false,
-      registrarContador: acc.registrarContador,
-      entregarCorrida: acc.entregarCorrida,
-      terminarSaborLinea: acc.terminarSaborLinea,
-    }
-  },
-}))
+vi.mock("@/lib/produccion/useProduccion", async () => {
+  const { useReducer } = await vi.importActual<typeof import("react")>("react")
+  return {
+    useProduccion: (id: string | null) => {
+      pedidoCon.produccion.push(id)
+      const [, forzar] = useReducer((n: number) => n + 1, 0)
+      redibujar = forzar
+      return {
+        corridas: datos.corridas,
+        contadores: datos.contadores,
+        cargando: false,
+        registrarContador: acc.registrarContador,
+        entregarCorrida: acc.entregarCorrida,
+        terminarSaborLinea: acc.terminarSaborLinea,
+        refrescar: acc.refrescar,
+      }
+    },
+  }
+})
 vi.mock("@/lib/productoTerminado", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/productoTerminado")>()),
   useProductoTerminado: (id: string | null) => {
@@ -222,6 +231,10 @@ beforeEach(() => {
   acc.medirTanque = registrar("medir")
   acc.recargar = vi.fn(async () => {
     orden.push("recargar")
+  })
+  acc.refrescar = vi.fn(async () => {
+    orden.push("refrescar")
+    redibujar()
   })
   cargarDatos()
 })
@@ -342,7 +355,8 @@ describe("Producto Terminado — cerrar una corrida", () => {
     expect(screen.getByText("Teórico ahora: 6.500 L")).toBeInTheDocument()
     await u.type(screen.getByPlaceholderText("Litros medidos"), "500")
     await u.click(screen.getByRole("button", { name: "Guardar medición" }))
-    expect(orden.at(-1)).toBe("medir [1,500]")
+    // Recién después de medir se traen las corridas (si no, la tarjeta se iba y la medición se perdía).
+    await waitFor(() => expect(orden.slice(-2)).toEqual(["medir [1,500]", "refrescar"]))
     await waitFor(() => expect(screen.queryByText("Medir Tanque 1")).not.toBeInTheDocument())
   })
 
@@ -361,6 +375,7 @@ describe("Producto Terminado — cerrar una corrida", () => {
     ])
     await u.click(screen.getByRole("button", { name: "No medir ahora" }))
     expect(screen.queryByText("Medir Tanque 1")).not.toBeInTheDocument()
+    await waitFor(() => expect(orden.at(-1)).toBe("refrescar"))
   })
 
   it("si falla un paso, se corta ahí y muestra el error", async () => {
@@ -492,6 +507,26 @@ describe("Producto Terminado — otros estados de la corrida", () => {
     expect(screen.queryByText(/Medir Tanque/)).not.toBeInTheDocument()
   })
 
+  it("el PT que cierra la corrida la saca de pendientes: no vuelve a pedir el contador", async () => {
+    const u = userEvent.setup()
+    // Como la base: el PT cierra la corrida que esperaba, pero su respuesta solo trae el PT.
+    acc.registrarProductoTerminado = vi.fn(async () => {
+      orden.push("producto")
+      datos.corridas = datos.corridas.map((c) => (c.id === "c3" ? { ...c, esperandoCierre: false, finalizadaEn: "2026-10-05T12:00:00" } : c))
+      return OK
+    })
+    renderPagina()
+    const t = tarjeta("Línea 3")
+    await escribir(u, t, "Sumar al contador", "500")
+    await escribir(u, t, "Envases buenos", "490")
+    await escribir(u, t, "Paletas", "3")
+    await u.click(t.getByRole("button", { name: "Registrar" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: /Ver corridas cerradas \(3\)/ })).toBeInTheDocument())
+    expect(orden.filter((o) => o.startsWith("contador"))).toHaveLength(1)
+    expect(orden.at(-1)).toBe("refrescar")
+    expect(() => tarjeta("Línea 3")).toThrow()
+  })
+
   it("parada: avisa pero deja cargar el PT y entregarla (corte de turno sin reanudar)", () => {
     renderPagina()
     expect(screen.getByText(/Línea 2 está parada \(o en CIP\) desde las/)).toBeInTheDocument()
@@ -551,6 +586,7 @@ describe("Producto Terminado — turno ya cerrado", () => {
     await u.click(t.getByRole("button", { name: "Registrar" }))
     await waitFor(() => expect(orden[0]).toContain('"paletas":11'))
     expect(actaPedida).toHaveBeenCalledWith("t-0")
+    await waitFor(() => expect(tarjeta("Línea 1").getByPlaceholderText("Paletas")).toBeInTheDocument())
     expect(html(container)).toMatchSnapshot()
   })
 

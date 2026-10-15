@@ -70,6 +70,7 @@ export default function ProductoTerminado() {
     registrarContador,
     entregarCorrida,
     terminarSaborLinea,
+    refrescar: refrescarCorridas,
   } = useProduccion(turnoIdEfectivo)
   const { registros: productoTerminado, cargando: cargandoPT, registrarProductoTerminado } = useProductoTerminado(turnoIdEfectivo)
   const {
@@ -183,6 +184,7 @@ export default function ProductoTerminado() {
       entregarCorrida,
       terminarSabor: terminarSaborLinea,
       medirTanque,
+      refrescarCorridas,
     },
     soloPT,
   }

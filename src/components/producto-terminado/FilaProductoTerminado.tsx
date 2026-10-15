@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { Loader2 } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
@@ -45,6 +47,14 @@ export function FilaProductoTerminado({
   const [editandoError, setEditandoError] = useState(false)
   /** Tras cerrar una corrida (Terminar / Entregar) se pide medir el tanque de ese lote. */
   const [medicionTanque, setMedicionTanque] = useState<TanqueRecepcion | null>(null)
+  /** Ya se guardó y se están trayendo las corridas: no se muestra el formulario viejo (vacío) para que no lo vuelvan a cargar. */
+  const [actualizando, setActualizando] = useState(false)
+
+  async function refrescarCorridas() {
+    setActualizando(true)
+    await acciones.refrescarCorridas()
+    setActualizando(false)
+  }
 
   const saborId = registro?.saborId ?? corrida.saborId
   /** Ya se decidió el destino de esta corrida (Terminó Corrida o Entregada al siguiente turno) — queda bloqueada salvo "Editar un error". */
@@ -63,8 +73,22 @@ export function FilaProductoTerminado({
         tanque={medicionTanque}
         preparaciones={preparaciones}
         medirTanque={acciones.medirTanque}
-        onListo={() => setMedicionTanque(null)}
+        onListo={() => {
+          setMedicionTanque(null)
+          void refrescarCorridas()
+        }}
       />
+    )
+  }
+
+  if (actualizando) {
+    return (
+      <Card>
+        <CardContent className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          {nombreLinea}: guardado, actualizando…
+        </CardContent>
+      </Card>
     )
   }
 
@@ -96,9 +120,12 @@ export function FilaProductoTerminado({
       acciones={acciones}
       onGuardado={(cerrando) => {
         setEditandoError(false)
-        if (!cerrando) return
-        const tanque = tanqueDeCorrida(tanques, saborId, corrida.lote)
+        // El PT cierra la corrida en la base: hay que traer las corridas para que
+        // la tarjeta pase a cerradas. Si toca medir el tanque, después de medir
+        // (al refrescar, la tarjeta se va de esta lista y el paso se perdería).
+        const tanque = cerrando ? tanqueDeCorrida(tanques, saborId, corrida.lote) : null
         if (tanque) setMedicionTanque(tanque)
+        else void refrescarCorridas()
       }}
       onCancelarCorreccion={() => setEditandoError(false)}
     />
