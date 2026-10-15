@@ -262,7 +262,18 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     // Jefe, analista y la dueña (2026-10-13): los mismos del Resumen Diario. Cada mes, automático o cargado a mano.
     permiso: ["RESUMEN_VER", "VALIDAR"],
-    // Atajo al lado del Panel de Paradas (dueña, 2026-10-15).
+    // Atajo al lado del Panel de Paradas, en amarillo (dueña, 2026-10-15).
+    atajo: true,
+    color: "warning",
+  },
+  {
+    // Placeholder: sin href, el hub la muestra deshabilitada ("Próximamente").
+    slug: "manual",
+    title: "Manual",
+    description: "Manual de usuario de la aplicación.",
+    icon: BookOpen,
+    rolesExcluidos: ["MANTENIMIENTO"],
+    requiereTurno: false,
     atajo: true,
   },
   {
@@ -275,16 +286,6 @@ export const apps: AppDef[] = [
     // Programación es de producción: las áreas de apoyo y el rol Mantenimiento no la necesitan.
     soloProduccion: true,
     rolesExcluidos: ["MANTENIMIENTO"],
-    atajo: true,
-  },
-  {
-    // Placeholder: sin href, el hub la muestra deshabilitada ("Próximamente").
-    slug: "manual",
-    title: "Manual",
-    description: "Manual de usuario de la aplicación.",
-    icon: BookOpen,
-    rolesExcluidos: ["MANTENIMIENTO"],
-    requiereTurno: false,
     atajo: true,
   },
   {
@@ -326,7 +327,8 @@ export const apps: AppDef[] = [
     icon: Calculator,
     requiereTurno: false,
     permiso: "CALCULADORAS",
-    atajo: true,
+    // Ya no es atajo: arriba van solo los paneles, Indicadores, Manual y Programación (dueña, 2026-10-15).
+    seccion: "produccion",
   },
   {
     slug: "personal",

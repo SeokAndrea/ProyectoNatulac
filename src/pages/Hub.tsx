@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { Lock } from "lucide-react"
-import { AppCard } from "@/components/AppCard"
+import { AppCard, COLOR_BORDE_HOVER, COLOR_ICONO } from "@/components/AppCard"
 import { AppHeader } from "@/components/AppHeader"
 import { Logo } from "@/components/Logo"
 import { SelectorVerComo } from "@/components/VerComo"
@@ -54,7 +54,7 @@ export default function Hub() {
   const appsVisibles = apps.filter((app) => puedeVerApp(session, app) && !(ocultarTurno && APPS_DEL_TURNO.has(app.slug)))
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
-  const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area))
+  const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area), session?.rol)
   // Por CARGO (rótulo del puesto en Personal), no por rol: el cargo no da permisos, solo ordena el inicio.
   const esSupervisor = session?.cargo === "SUPERVISOR"
   const porSlug = (slugs: string[]) =>
@@ -105,7 +105,7 @@ export default function Hub() {
               className={cn(
                 "grid grid-cols-1 gap-3 lg:w-auto lg:shrink-0",
                 // Con 4 atajos, 2×2 junto al saludo; en fila solo si sobra ancho.
-                atajos.length >= 4 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3",
+                atajos.length === 4 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3",
               )}
             >
               {atajos.map((app) => (
@@ -159,6 +159,15 @@ export default function Hub() {
   )
 }
 
+/** Atajo con color propio (ej. Indicadores en amarillo): el borde ya va teñido, para que resalte entre los demás. */
+const COLOR_BORDE_SUAVE: Record<NonNullable<AppDef["color"]>, string> = {
+  success: "border-success/40",
+  blue: "border-blue-500/40",
+  purple: "border-purple-500/40",
+  warning: "border-warning/50",
+  danger: "border-danger/40",
+}
+
 function TarjetaAtajo({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean }) {
   const Icon = app.icon
   const bloqueada = !app.href || (app.requiereTurno && !turnoActivo)
@@ -168,7 +177,7 @@ function TarjetaAtajo({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean 
       <div
         className={cn(
           "flex size-8 shrink-0 items-center justify-center rounded-lg",
-          bloqueada ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary",
+          bloqueada ? "bg-muted text-muted-foreground" : app.color ? COLOR_ICONO[app.color] : "bg-primary/10 text-primary",
         )}
       >
         {bloqueada && !app.href ? <Icon className="size-4" /> : bloqueada ? <Lock className="size-4" /> : <Icon className="size-4" />}
@@ -197,7 +206,10 @@ function TarjetaAtajo({ app, turnoActivo }: { app: AppDef; turnoActivo: boolean 
   return (
     <Link
       to={app.href!}
-      className="flex w-full items-center gap-2.5 rounded-xl border border-border/70 bg-card px-3 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-56"
+      className={cn(
+        "group flex w-full items-center gap-2.5 rounded-xl border bg-card px-3 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-56",
+        app.color ? cn(COLOR_BORDE_SUAVE[app.color], COLOR_BORDE_HOVER[app.color]) : "border-border/70 hover:border-primary/40",
+      )}
     >
       {contenido}
     </Link>

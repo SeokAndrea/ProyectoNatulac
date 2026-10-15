@@ -4,14 +4,14 @@ import type { AppDef } from "@/lib/apps"
 import { bloqueoDeApp } from "@/lib/navegacion"
 import { cn } from "@/lib/utils"
 
-const COLOR_ICONO: Record<NonNullable<AppDef["color"]>, string> = {
+export const COLOR_ICONO: Record<NonNullable<AppDef["color"]>, string> = {
   success: "bg-success/15 text-success group-hover:bg-success group-hover:text-primary-foreground",
   blue: "bg-blue-500/15 text-blue-600 group-hover:bg-blue-600 group-hover:text-white dark:text-blue-400",
   purple: "bg-purple-500/15 text-purple-600 group-hover:bg-purple-600 group-hover:text-white dark:text-purple-400",
   warning: "bg-warning/15 text-warning group-hover:bg-warning group-hover:text-warning-foreground",
   danger: "bg-danger/15 text-danger group-hover:bg-danger group-hover:text-danger-foreground",
 }
-const COLOR_BORDE_HOVER: Record<NonNullable<AppDef["color"]>, string> = {
+export const COLOR_BORDE_HOVER: Record<NonNullable<AppDef["color"]>, string> = {
   success: "hover:border-success/50",
   blue: "hover:border-blue-500/50",
   purple: "hover:border-purple-500/50",
