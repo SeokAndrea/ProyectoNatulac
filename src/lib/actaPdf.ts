@@ -1,7 +1,7 @@
 import jsPDF from "jspdf"
 import { AREAS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
-import { eficienciaDelTurno } from "@/lib/eficiencia"
+import { eficienciaDelTurno, type ResultadoEficiencia } from "@/lib/eficiencia"
 import { agruparPorSaborYLote } from "@/lib/agruparProduccion"
 import { LIMITE_MERMA } from "@/lib/turno"
 import { mermaCorrida } from "@/lib/reportes"
@@ -12,7 +12,7 @@ import type { EsquemaTurnos, ResponsableTurno, TanqueEncontrado } from "@/lib/se
 import type { Corrida, ContadorRegistro } from "@/lib/produccion/tipos"
 import type { CondicionTanque, TanqueRecepcion, PreparacionRegistro, AjusteVolumenRegistro, SalidaVacioRegistro, TransferenciaRegistro } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
-import { duracionMin, partesNotaSheet, type Parada } from "@/lib/paradas"
+import { duracionMin, fmtDuracion, partesNotaSheet, type Parada } from "@/lib/paradas"
 import type { NovedadTurno } from "@/lib/novedades"
 import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
 import { tramoT2 } from "@/lib/turno12x12"
@@ -68,13 +68,27 @@ export function mermaPromedioLinea(
 /**
  * Rendimiento de la línea en el turno (dueña, 2026-10-08): en el tiempo que
  * SÍ corrió, cuánto sacó contra lo que debía a la velocidad elegida.
- *   Rendimiento = Real ÷ (velocidad elegida × Operativo) = Avance ÷ Eficiencia
- * (la Meta es velocidad × Disponible y la Eficiencia es Operativo ÷ Disponible).
+ *   Rendimiento = Real (PT) ÷ (velocidad elegida × Operativo), Operativo = Disponible − No programadas
+ * La velocidad × Operativo sale de la Meta (velocidad × Disponible) × Operativo ÷ Disponible. Ya no
+ * es Avance ÷ Eficiencia: la eficiencia cambió de fórmula el 2026-10-15.
  * null si falta la meta, lo real o la línea no tuvo tiempo operativo.
  */
-export function rendimientoActa(e: { realCajas?: number | null; metaCajas?: number | null; eficienciaPct?: number | null } | undefined): number | null {
-  if (!e || e.realCajas == null || !e.metaCajas || !e.eficienciaPct) return null
-  return Math.round((e.realCajas / e.metaCajas / (e.eficienciaPct / 100)) * 100)
+const PREFIJO_SIN_REPORTAR = "Sin reportar:"
+
+/**
+ * Renglón del tiempo sin reportar de una línea en el recuadro de paradas (dueña, 2026-10-15):
+ * la misma cuenta que castiga la eficiencia (eficiencia.ts). null si no hay (0 min) o no se pudo medir.
+ */
+export function sinReportarActa(e: Pick<ResultadoEficiencia, "sinReportarMin"> | undefined): string | null {
+  if (!e || e.sinReportarMin == null || e.sinReportarMin <= 0) return null
+  return `${PREFIJO_SIN_REPORTAR} ${fmtDuracion(e.sinReportarMin)} · cuenta como no programada`
+}
+
+export function rendimientoActa(
+  e: Pick<ResultadoEficiencia, "realEnvases" | "metaEnvases" | "operativoMin" | "disponibleMin"> | undefined,
+): number | null {
+  if (!e || !e.metaEnvases || !e.disponibleMin || !e.operativoMin) return null
+  return Math.round((e.realEnvases / ((e.metaEnvases * e.operativoMin) / e.disponibleMin)) * 100)
 }
 
 const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
@@ -491,7 +505,9 @@ export async function generarActaPdf(params: {
         .filter((p) => numeroLinea(p.lineaCodigo) === numeroLinea(l.codigo))
         .sort((a, b) => a.inicio.localeCompare(b.inicio))
       const rend = rendimientoActa(eficiencia.porLinea.get(l.codigo))
-      if (propias.length === 0) return ["Sin paradas registradas.", ...(rend != null ? [`Total: 0 min · Rendimiento ${rend}%`] : [])]
+      const sinReportar = sinReportarActa(eficiencia.porLinea.get(l.codigo))
+      if (propias.length === 0)
+        return ["Sin paradas registradas.", ...(rend != null ? [`Total: 0 min · Rendimiento ${rend}%`] : []), ...(sinReportar ? [sinReportar] : [])]
       const total = propias.reduce((a, p) => a + duracionMin(p), 0)
       return [
         ...propias.map((p) => {
@@ -501,14 +517,18 @@ export async function generarActaPdf(params: {
           return `• ${horaNovedad(p.inicio)} ${p.tipoNombre}: ${min} min${nota ? ` — ${nota}` : ""}`
         }),
         `Total: ${total} min${rend != null ? ` · Rendimiento ${rend}%` : ""}`,
+        ...(sinReportar ? [sinReportar] : []),
       ]
     })
     doc.setFontSize(6.5)
-    // El "Total" va en negrita: se corta midiendo en negrita para que no se salga del recuadro.
+    // "Total" y "Sin reportar" van en negrita: se cortan midiendo en negrita para que no se salgan del recuadro.
+    // Lo sin reportar va además en rojo. Cada renglón cortado conserva el estilo de su frase.
     const envueltos = textosParadas.map((ls) =>
       ls.flatMap((t) => {
-        doc.setFont("helvetica", t.startsWith("Total:") ? "bold" : "normal")
-        return doc.splitTextToSize(t, W / lineas.length - 3) as string[]
+        const rojo = t.startsWith(PREFIJO_SIN_REPORTAR)
+        const negrita = rojo || t.startsWith("Total:")
+        doc.setFont("helvetica", negrita ? "bold" : "normal")
+        return (doc.splitTextToSize(t, W / lineas.length - 3) as string[]).map((texto) => ({ texto, negrita, rojo }))
       }),
     )
     // Se ajusta a lo escrito (la línea con más texto manda); si no entra en la hoja, sigue en la siguiente.
@@ -518,11 +538,13 @@ export async function generarActaPdf(params: {
         celda(x, y, W / lineas.length, 4.5, `${l.nombre} · Paradas${desde > 0 ? " (continuación)" : ""}`, { fondo: CELESTE, negrita: true })
         celda(x, y + 4.5, W / lineas.length, alto - 4.5)
         doc.setFontSize(6.5)
-        doc.setTextColor(0)
         envueltos[i].slice(desde, hasta).forEach((t, j) => {
-          doc.setFont("helvetica", t.startsWith("Total:") ? "bold" : "normal")
-          doc.text(t, x + 1.5, y + 4.5 + 3.2 + j * 2.8)
+          doc.setFont("helvetica", t.negrita ? "bold" : "normal")
+          if (t.rojo) doc.setTextColor(...ROJO)
+          else doc.setTextColor(0)
+          doc.text(t.texto, x + 1.5, y + 4.5 + 3.2 + j * 2.8)
         })
+        doc.setTextColor(0)
       })
     })
   }
