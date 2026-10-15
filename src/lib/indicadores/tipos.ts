@@ -89,7 +89,12 @@ export interface DatosMes {
   totalAseptico?: TotalAseptico | null
   /** Título de esa pantalla, escrito por la analista ("INCIDENCIAS", "SEGUIMIENTO"…). Vacío = TITULO_INCIDENCIAS. */
   tituloIncidencias?: string
+  /** "Días sin incidentes" de la pantalla de Incidencias, escrito por la analista. Vacío = no se muestra. */
+  diasSinIncidentes?: number | null
 }
+
+/** Desde estos días sin incidentes el recuadro va en verde; antes, en rojo (dueña, 2026-10-15). */
+export const DIAS_SIN_INCIDENTES_VERDE = 30
 
 export interface TotalAseptico {
   prod: number | null

@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { textoSeguimiento } from "@/lib/indicadores/calculos"
 import { incidenciaVacia, TITULO_INCIDENCIAS, type DatosMes, type Incidencia } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
+import { CampoNumero } from "./CampoNumero"
 
 const TEXTOS: { campo: keyof Pick<Incidencia, "quePaso" | "comoPaso" | "accionCorrectiva">; titulo: string }[] = [
   { campo: "quePaso", titulo: "Qué pasó" },
@@ -20,15 +21,24 @@ export function EditorIncidencias({ datos, onCambio }: { datos: DatosMes; onCamb
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex max-w-md flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
-        Título de la pantalla
-        <Input
-          value={datos.tituloIncidencias ?? ""}
-          onChange={(e) => onCambio({ ...datos, tituloIncidencias: e.target.value })}
-          placeholder={TITULO_INCIDENCIAS}
-          maxLength={60}
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex min-w-0 max-w-md flex-1 flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+          Título de la pantalla
+          <Input
+            value={datos.tituloIncidencias ?? ""}
+            onChange={(e) => onCambio({ ...datos, tituloIncidencias: e.target.value })}
+            placeholder={TITULO_INCIDENCIAS}
+            maxLength={60}
+          />
+        </label>
+        <CampoNumero
+          etiqueta="Días sin incidentes"
+          entero
+          valor={datos.diasSinIncidentes ?? null}
+          onCambio={(v) => onCambio({ ...datos, diasSinIncidentes: v })}
+          className="w-40"
         />
-      </label>
+      </div>
       {lista.map((inc, i) => (
         <section key={i} className="flex flex-col gap-2.5 rounded-xl border-2 bg-card p-3">
           <div className="flex flex-wrap items-center gap-2">

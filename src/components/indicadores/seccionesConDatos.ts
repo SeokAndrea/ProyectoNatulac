@@ -20,7 +20,7 @@ export function seccionesConDatos(datos: DatosMes | null, modo: ModoMes, aMano: 
     "3": linea("3"),
     semi: Object.values(datos.semielaborado).some((v) => v != null),
     aus: !!aMano?.ausentismo,
-    inc: (aMano?.incidencias?.length ?? 0) > 0,
+    inc: (aMano?.incidencias?.length ?? 0) > 0 || aMano?.diasSinIncidentes != null,
   }
   return TODAS.filter((s) => tiene[s])
 }

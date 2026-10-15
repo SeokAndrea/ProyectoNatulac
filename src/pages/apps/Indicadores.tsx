@@ -113,6 +113,7 @@ export default function Indicadores() {
       ausentismo: manual?.ausentismo ?? null,
       incidencias: manual?.incidencias ?? [],
       tituloIncidencias: manual?.tituloIncidencias,
+      diasSinIncidentes: manual?.diasSinIncidentes,
       totalAseptico: manual?.totalAseptico,
       paradasGenerales: manual?.paradasGenerales,
     }
@@ -194,6 +195,7 @@ export default function Indicadores() {
               <VistaIncidencias
                 mes={mes}
                 titulo={ind.aMano[ind.aMano.length - 1].datos?.tituloIncidencias}
+                diasSinIncidentes={ind.aMano[ind.aMano.length - 1].datos?.diasSinIncidentes ?? null}
                 incidencias={ind.aMano[ind.aMano.length - 1].datos?.incidencias ?? []}
                 editar={botonEditar}
               />

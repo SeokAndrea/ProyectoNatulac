@@ -3,6 +3,7 @@ import { ArrowRight, CircleCheck, Search, ShieldCheck, TriangleAlert, type Lucid
 import { nombreMes, textoSeguimiento } from "@/lib/indicadores/calculos"
 import { TITULO_INCIDENCIAS, type Incidencia } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
+import { DiasSinIncidentes } from "./DiasSinIncidentes"
 
 /** Los pasos de la incidencia, del problema a la solución: rojo → ámbar → verde. */
 const PASOS: { campo: keyof Pick<Incidencia, "quePaso" | "comoPaso" | "accionCorrectiva">; titulo: string; icono: LucideIcon; fondo: string; tinta: string }[] = [
@@ -79,14 +80,31 @@ function ListaSeguimiento({ inc }: { inc: Incidencia }) {
  * (verde). El SEGUIMIENTO es una lista con tildes, un renglón por acción. El
  * título de la pantalla lo escribe la analista. Siempre se cargan a mano.
  */
-export function VistaIncidencias({ mes, titulo, incidencias, editar }: { mes: string; titulo: string | undefined; incidencias: Incidencia[]; editar: ReactNode }) {
+export function VistaIncidencias({
+  mes,
+  titulo,
+  incidencias,
+  diasSinIncidentes,
+  editar,
+}: {
+  mes: string
+  titulo: string | undefined
+  incidencias: Incidencia[]
+  /** null = la analista no lo cargó: no hay recuadro. */
+  diasSinIncidentes: number | null
+  editar: ReactNode
+}) {
+  const sinNada = incidencias.length === 0 && diasSinIncidentes == null
   return (
     <section aria-label="Incidencias y seguimiento" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-xl border bg-card p-4">
-      <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
         <h2 className="text-[clamp(26px,2.4vw,44px)] font-bold uppercase tracking-wide">{titulo?.trim() || TITULO_INCIDENCIAS}</h2>
-        <span className="ml-auto">{editar}</span>
+        <span className="ml-auto flex items-center gap-3">
+          {diasSinIncidentes != null && <DiasSinIncidentes dias={diasSinIncidentes} />}
+          {editar}
+        </span>
       </div>
-      {incidencias.length === 0 && <p className={cn("m-auto", TEXTO)}>Todavía no se cargaron incidencias de {nombreMes(mes)}. Esta pantalla no sale al presentar.</p>}
+      {sinNada && <p className={cn("m-auto", TEXTO)}>Todavía no se cargaron incidencias de {nombreMes(mes)}. Esta pantalla no sale al presentar.</p>}
       {incidencias.map((inc, i) => (
         <article key={i} className="flex flex-col gap-4 rounded-xl border p-5">
           <Encabezado inc={inc} />

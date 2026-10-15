@@ -19,4 +19,9 @@ describe("seccionesConDatos", () => {
     const aMano = { ...mesVacio(), ausentismo: null, incidencias: [{ titulo: "x" }] } as never
     expect(seccionesConDatos(datos, "AUTO", aMano)).toEqual(["semi", "inc"])
   })
+
+  it("incidencias: alcanza con los días sin incidentes", () => {
+    expect(seccionesConDatos(mesVacio(), "AUTO", { ...mesVacio(), diasSinIncidentes: 0 })).toEqual(["inc"])
+    expect(seccionesConDatos(mesVacio(), "AUTO", { ...mesVacio(), diasSinIncidentes: null })).toEqual([])
+  })
 })

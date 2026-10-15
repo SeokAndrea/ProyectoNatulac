@@ -93,6 +93,7 @@ export function EditorManual({
       ausentismo: b.ausentismo,
       incidencias: b.incidencias,
       tituloIncidencias: b.tituloIncidencias,
+      diasSinIncidentes: b.diasSinIncidentes,
       totalAseptico: b.totalAseptico,
       paradasGenerales: b.paradasGenerales,
     })
