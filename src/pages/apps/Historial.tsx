@@ -349,7 +349,7 @@ export default function Historial() {
               <div className="flex flex-col gap-2">
                 {construirHistorial(detalle, lineas, presentaciones).map((ev, i) => (
                   <div key={i} className="flex gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-                    <span className="num w-20 shrink-0 pt-0.5 text-xs text-muted-foreground">{ev.hora}</span>
+                    <span className="num w-11 shrink-0 pt-0.5 text-xs text-muted-foreground sm:w-20">{ev.hora}</span>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold tracking-wide text-foreground uppercase">{ev.seccion}</p>
                       <p className="text-muted-foreground">{ev.detalle}</p>
@@ -511,7 +511,7 @@ function AsignarGrupo({ turnoId, onAsignado }: { turnoId: string; onAsignado: ()
  *  quien tenga TURNO_CORREGIR sobre un turno CERRADO, "Corregir este turno" (modo corrección, ver Preparación). */
 function AccionesTurno({ acta, onAbrir, onCorregir }: { acta?: Acta; onAbrir: () => void; onCorregir?: () => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-1.5">
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
       {acta && (
         <Button size="sm" variant="ghost" asChild>
           <a href={urlPublicaActa(acta.storagePath)} target="_blank" rel="noreferrer">

@@ -286,23 +286,26 @@ function FilaSupervisor({
   const { chips } = turno
   return (
     <div className="rounded-lg border border-border bg-card">
-      <div className="flex w-full items-center gap-2 px-3 py-2.5">
-        <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={onAlternar}>
-          {abierto ? (
-            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
-          <span className="min-w-0 flex-1">
-            <span className="text-sm font-semibold text-foreground">{turno.detalle.supervisorNombre}</span>{" "}
-            <span className="text-xs text-muted-foreground">
-              {turno.areaNombre} · Cód. {turno.detalle.codigo}
+      {/* En el teléfono los botones bajan a su propio renglón; si no, aprietan el nombre a una columna. */}
+      <div className="flex w-full flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={onAlternar}>
+            {abierto ? (
+              <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="text-sm font-semibold text-foreground">{turno.detalle.supervisorNombre}</span>{" "}
+              <span className="text-xs text-muted-foreground">
+                {turno.areaNombre} · Cód. {turno.detalle.codigo}
+              </span>
             </span>
-          </span>
-        </button>
-        <Badge variant={turno.detalle.estado === "ABIERTO" ? "secondary" : "outline"}>
-          {turno.detalle.estado === "ABIERTO" ? "Abierto" : "Cerrado"}
-        </Badge>
+          </button>
+          <Badge variant={turno.detalle.estado === "ABIERTO" ? "secondary" : "outline"}>
+            {turno.detalle.estado === "ABIERTO" ? "Abierto" : "Cerrado"}
+          </Badge>
+        </div>
         {acciones}
       </div>
 
@@ -344,7 +347,7 @@ function FilaSupervisor({
         <div className="flex flex-col gap-2 border-t border-border p-3">
           {turno.eventos.map((ev, i) => (
             <div key={i} className="flex gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm">
-              <span className="num w-20 shrink-0 pt-0.5 text-xs text-muted-foreground">{ev.hora}</span>
+              <span className="num w-11 shrink-0 pt-0.5 text-xs text-muted-foreground sm:w-20">{ev.hora}</span>
               <div className="min-w-0">
                 <p className="text-xs font-semibold tracking-wide text-foreground uppercase">{ev.seccion}</p>
                 <p className="text-muted-foreground">{ev.detalle}</p>
