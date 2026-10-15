@@ -7,7 +7,7 @@
  */
 import { supabase } from "@/lib/supabase"
 import type { LineaCodigo } from "@/lib/catalogos"
-import type { DatosCipLinea, ParadaQueDetiene, Resultado } from "./tipos"
+import type { DatosCipLinea, DatosNuevoContador, ParadaQueDetiene, Resultado } from "./tipos"
 
 /** Un solo paso atómico: termina la corrida conservando el tanque Y deja el motivo anotado en Detenida — antes eran 2 pasos separados y si el segundo no se hacía, el motivo se perdía. */
 export async function detenerLineaPorFalla(
@@ -61,6 +61,22 @@ export async function actualizarJustificacionContador(contadorId: string, justif
   const { error } = await supabase.rpc("actualizar_justificacion_contador", { p_contador_id: contadorId, p_justificacion: justificacion })
   if (error) return { ok: false, error: error?.message ?? "No se pudo guardar la justificación. Intenta de nuevo." }
   return { ok: true }
+}
+
+/** "Editar un error" de una corrida cerrada: el contador queda en ESTE total (reemplaza sus cargas, no suma). */
+export async function corregirContador(usuario: string, turnoId: string, datos: DatosNuevoContador): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("corregir_contador_corrida", {
+    p_turno_id: turnoId,
+    p_turno_linea_id: datos.corridaId,
+    p_linea_codigo: datos.linea,
+    p_envases_llenadora: datos.envasesLlenadora,
+    p_envases_buenos: datos.envasesBuenos ?? null,
+    p_justificacion: datos.justificacion,
+    p_usuario: usuario,
+    p_pagina: "Producto Terminado y Contador",
+  })
+  if (error || !data) return { ok: false, error: error?.message ?? "No se pudo corregir el contador. Intenta de nuevo." }
+  return { ok: true, data }
 }
 
 /** CIP con motivo (y descripción opcional). Con corrida: si el lote sigue queda en pausa; si no, Esperando PT. Suma el +1 en Paradas. */

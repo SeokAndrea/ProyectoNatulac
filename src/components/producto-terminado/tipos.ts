@@ -28,6 +28,8 @@ export interface DatosRegistrarContador {
 export interface AccionesPT {
   registrarProducto: (datos: DatosRegistrarProducto) => Promise<Resultado>
   registrarContador: (datos: DatosRegistrarContador) => Promise<Resultado>
+  /** "Editar un error": el contador de la corrida queda en ese TOTAL (no suma). */
+  corregirContador: (datos: DatosRegistrarContador) => Promise<Resultado>
   entregarCorrida: (corridaId: string) => Promise<Resultado>
   terminarSabor: (corridaId: string) => Promise<Resultado>
   medirTanque: (numeroTanque: 1 | 2 | 3, volumenReal: number) => Promise<Resultado>

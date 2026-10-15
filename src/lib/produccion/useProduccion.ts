@@ -14,6 +14,7 @@ import {
   actualizarJustificacionContador as actualizarJustificacionContadorAjuste,
   continuarCorridaDetenida,
   continuarSiguienteLote,
+  corregirContador,
   detenerLineaPorFalla,
   entregarCorrida,
   ponerLineaEnCip,
@@ -67,6 +68,8 @@ export interface UseProduccionResultado {
   /** La misma corrida detenida (Esperando PT) vuelve a correr, sin cargar PT. */
   continuarCorridaDetenida: (corridaId: string) => Promise<Resultado>
   registrarContador: (datos: DatosNuevoContador) => Promise<Resultado>
+  /** Corrida cerrada: deja el contador en ese total (no suma). */
+  corregirContador: (datos: DatosNuevoContador) => Promise<Resultado>
   actualizarJustificacionContador: (contadorId: string, justificacion: string) => Promise<Resultado>
 }
 
@@ -164,6 +167,7 @@ export function useProduccion(turnoIdElegido?: string | null): UseProduccionResu
     terminarCip: conSesion(terminarCip),
     continuarCorridaDetenida: conSesion(continuarCorridaDetenida),
     registrarContador: conSesion(registrarContadorNucleo),
+    corregirContador: conSesion(corregirContador),
     actualizarJustificacionContador,
   }
 }

@@ -29,6 +29,10 @@ type ProximoEstado = "TERMINO_SABOR" | "CONTINUA"
  * cierra la corrida — si falla, la corrida sigue esperando su PT en esta
  * misma tarjeta. Cerrar (Terminar, Entregar, o una corrida ya detenida)
  * exige el PT: si no produjo nada, 0 paletas y 0 cajas.
+ *
+ * Corrigiendo una corrida cerrada ("Editar un error") el contador NO suma:
+ * arranca en el total de la corrida y lo escrito lo reemplaza
+ * (corregir_contador_corrida). Solo se manda lo que cambió.
  */
 export function FormCargaPT({
   corrida,
@@ -61,9 +65,11 @@ export function FormCargaPT({
   onGuardado: (cerrando: boolean) => void
   onCancelarCorreccion: () => void
 }) {
-  const [envasesLlenadora, setEnvasesLlenadora] = useState("")
+  /** Corrigiendo: el contador arranca en el total de la corrida y lo escrito lo REEMPLAZA (no se suma). */
+  const totalInicial = modoCorreccion && contadorActual > 0
+  const [envasesLlenadora, setEnvasesLlenadora] = useState(totalInicial ? String(contadorActual) : "")
   /** Contador 2 (envases buenos), obligatorio junto con el contador de la llenadora. */
-  const [envasesBuenos, setEnvasesBuenos] = useState("")
+  const [envasesBuenos, setEnvasesBuenos] = useState(totalInicial ? String(contadorBuenosActual) : "")
   const [paletas, setPaletas] = useState(registro ? String(registro.paletas) : "")
   const [cajasSueltas, setCajasSueltas] = useState(registro ? String(registro.cajasSueltas) : "")
   const [justificacion, setJustificacion] = useState("")
@@ -72,23 +78,37 @@ export function FormCargaPT({
   const [contadorGuardado, setContadorGuardado] = useState(false)
   const { enviando, error, ejecutar } = useAccion()
 
-  const previa = vistaPreviaCarga({ presentacion, paletas, cajasSueltas, contadorActual, contadorBuenosActual, envasesLlenadora, envasesBuenos })
-  const requiereJustificacion = previa.nivel === "danger"
+  // Corrigiendo, lo escrito ya es el total: la vista previa no le suma lo cargado.
+  const previa = vistaPreviaCarga({
+    presentacion,
+    paletas,
+    cajasSueltas,
+    contadorActual: modoCorreccion ? 0 : contadorActual,
+    contadorBuenosActual: modoCorreccion ? 0 : contadorBuenosActual,
+    envasesLlenadora,
+    envasesBuenos,
+  })
 
   const nPaletas = Number(paletas) || 0
   const nCajasSueltas = Number(cajasSueltas) || 0
   const nuevoContador = envasesLlenadora === "" ? 0 : Number(envasesLlenadora)
   const nuevoContadorBuenos = envasesBuenos === "" ? null : Number(envasesBuenos)
-  const hayContadorNuevo = envasesLlenadora !== "" && nuevoContador > 0
   const hayProducto = (paletas !== "" || cajasSueltas !== "") && nPaletas >= 0 && nCajasSueltas >= 0
+  /** Corrigiendo: el total quedó distinto del de la corrida. */
+  const contadorCorregido =
+    modoCorreccion && nuevoContador >= 0 && (nuevoContador !== contadorActual || (nuevoContadorBuenos ?? 0) !== contadorBuenosActual)
+  /** Corrigiendo: solo se manda el PT si cambió (pasada 1 h la base ya no deja reescribirlo). */
+  const ptCorregido = modoCorreccion && hayProducto && (!registro || nPaletas !== registro.paletas || nCajasSueltas !== registro.cajasSueltas)
+  const hayContadorNuevo = modoCorreccion ? contadorCorregido && nuevoContador > 0 : envasesLlenadora !== "" && nuevoContador > 0
   /** El Contador 2 (envases buenos) es OBLIGATORIO junto con el contador de la llenadora, y no puede superarlo. */
   const buenosValido =
     !hayContadorNuevo || (nuevoContadorBuenos !== null && nuevoContadorBuenos >= 0 && nuevoContadorBuenos <= nuevoContador)
+  const requiereJustificacion = previa.nivel === "danger" && (!modoCorreccion || contadorCorregido)
   /** Esta pasada cierra la corrida (o ya está detenida esperando su PT): sin PT quedaría cerrada sin producción. */
   const requierePt = !modoCorreccion && (proximoEstado !== null || corrida.esperandoCierre)
   const faltaPt = requierePt && !hayProducto
   const valido =
-    (hayContadorNuevo || hayProducto) &&
+    (modoCorreccion ? contadorCorregido || ptCorregido : hayContadorNuevo || hayProducto) &&
     buenosValido &&
     !faltaPt &&
     (!puedeElegirProximoEstado || proximoEstado !== null) &&
@@ -100,6 +120,34 @@ export function FormCargaPT({
     // Si esta pasada CIERRA la corrida (Terminar / Entregar), después se pide medir el tanque.
     const cerrando = !modoCorreccion && proximoEstado !== null
     setContadorGuardado(false)
+    if (modoCorreccion) {
+      // Corrección: el contador queda en el total escrito (reemplaza, reintentar no duplica) y el PT es un total.
+      const ok = await ejecutar(async () => {
+        if (contadorCorregido) {
+          const r = await acciones.corregirContador({
+            corridaId: corrida.id,
+            linea: corrida.linea,
+            envasesLlenadora: nuevoContador,
+            envasesBuenos: nuevoContador === 0 ? 0 : nuevoContadorBuenos,
+            justificacion: justificacion.trim(),
+          })
+          if (!r.ok) return r
+        }
+        if (ptCorregido) {
+          return acciones.registrarProducto({
+            corridaId: corrida.id,
+            linea: corrida.linea,
+            saborId: saborId || null,
+            presentacion: corrida.presentacion,
+            paletas: nPaletas,
+            cajasSueltas: nCajasSueltas,
+          })
+        }
+        return { ok: true }
+      })
+      if (ok) onGuardado(false)
+      return
+    }
     const ok = await ejecutar(async () => {
       // 1. Contador. Con la corrida corriendo no la cierra; se limpia apenas
       //    queda guardado, así un reintento no lo suma dos veces.
@@ -161,16 +209,20 @@ export function FormCargaPT({
       <CardContent className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`contador-${corrida.id}`}>Envases llenadora (Contador)</Label>
+            <Label htmlFor={`contador-${corrida.id}`}>
+              {modoCorreccion ? "Envases llenadora (total de la corrida)" : "Envases llenadora (Contador)"}
+            </Label>
             <Input
               id={`contador-${corrida.id}`}
               type="number"
               min={0}
-              placeholder="Sumar al contador"
+              placeholder={modoCorreccion ? "Total del contador" : "Sumar al contador"}
               value={envasesLlenadora}
               onChange={(e) => setEnvasesLlenadora(e.target.value)}
             />
-            <Label htmlFor={`contador-buenos-${corrida.id}`}>Envases buenos (Contador 2)</Label>
+            <Label htmlFor={`contador-buenos-${corrida.id}`}>
+              {modoCorreccion ? "Envases buenos (total del Contador 2)" : "Envases buenos (Contador 2)"}
+            </Label>
             <Input
               id={`contador-buenos-${corrida.id}`}
               type="number"
@@ -180,6 +232,9 @@ export function FormCargaPT({
               onChange={(e) => setEnvasesBuenos(e.target.value)}
               aria-invalid={hayContadorNuevo && !buenosValido}
             />
+            {modoCorreccion && (
+              <p className="text-xs text-muted-foreground">Lo que pongas reemplaza el contador de la corrida, no se suma.</p>
+            )}
             {previa.textoBuenos && <p className="text-xs text-muted-foreground">{previa.textoBuenos}</p>}
             {hayContadorNuevo && !buenosValido && (
               <p className="text-xs text-destructive" role="alert">
@@ -226,7 +281,7 @@ export function FormCargaPT({
             )}
           >
             {requiereJustificacion && <AlertTriangle className="size-4 shrink-0" />}
-            {previa.mermaProvisional ? "Merma provisional (contra el contador de referencia)" : "Merma estimada"}:{" "}
+            {previa.mermaProvisional && !modoCorreccion ? "Merma provisional (contra el contador de referencia)" : "Merma estimada"}:{" "}
             <span className="font-semibold">{previa.mermaPct}%</span>
             {requiereJustificacion ? ` — supera el ${LIMITE_MERMA_PCT}%, requiere justificación.` : ` (límite ${LIMITE_MERMA_PCT}%)`}
           </div>

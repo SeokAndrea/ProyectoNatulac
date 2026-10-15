@@ -68,6 +68,7 @@ export default function ProductoTerminado() {
     contadores,
     cargando: cargandoProduccion,
     registrarContador,
+    corregirContador,
     entregarCorrida,
     terminarSaborLinea,
     refrescar: refrescarCorridas,
@@ -181,6 +182,7 @@ export default function ProductoTerminado() {
     acciones: {
       registrarProducto: enGraciaPT ? acta.conActa(registrarProductoTerminadoYRefrescarTanque) : registrarProductoTerminadoYRefrescarTanque,
       registrarContador: enGraciaPT ? acta.conActa(registrarContador) : registrarContador,
+      corregirContador: enGraciaPT ? acta.conActa(corregirContador) : corregirContador,
       entregarCorrida,
       terminarSabor: terminarSaborLinea,
       medirTanque,

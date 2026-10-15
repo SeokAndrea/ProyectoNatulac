@@ -80,6 +80,7 @@ const OK = { ok: true as const }
 const falla = (error: string) => ({ ok: false as const, error })
 const acc = {
   registrarContador: vi.fn(),
+  corregirContador: vi.fn(),
   entregarCorrida: vi.fn(),
   terminarSaborLinea: vi.fn(),
   registrarProductoTerminado: vi.fn(),
@@ -109,6 +110,7 @@ vi.mock("@/lib/produccion/useProduccion", async () => {
         contadores: datos.contadores,
         cargando: false,
         registrarContador: acc.registrarContador,
+        corregirContador: acc.corregirContador,
         entregarCorrida: acc.entregarCorrida,
         terminarSaborLinea: acc.terminarSaborLinea,
         refrescar: acc.refrescar,
@@ -225,6 +227,7 @@ beforeEach(() => {
   pedidoCon.preparacion.length = 0
   const registrar = (nombre: string) => vi.fn(async (...args: unknown[]) => (orden.push(`${nombre} ${JSON.stringify(args)}`), OK))
   acc.registrarContador = registrar("contador")
+  acc.corregirContador = registrar("corregir")
   acc.entregarCorrida = registrar("entregar")
   acc.terminarSaborLinea = registrar("terminar")
   acc.registrarProductoTerminado = registrar("producto")
@@ -555,6 +558,26 @@ describe("Producto Terminado — otros estados de la corrida", () => {
     await u.click(tarjeta("Línea 1", "0002").getByRole("button", { name: "Editar un error" }))
     await u.click(tarjeta("Línea 1", "0002").getByRole("button", { name: "Cancelar" }))
     expect(tarjeta("Línea 1", "0002").getByText("Cerrada")).toBeInTheDocument()
+  })
+
+  it("cerrada: corregir el contador lo reemplaza por el total escrito, no lo suma", async () => {
+    const u = userEvent.setup()
+    renderPagina()
+    await u.click(screen.getByRole("button", { name: /Ver corridas cerradas/ }))
+    await u.click(screen.getByRole("button", { name: /Mango/ }))
+    await u.click(tarjeta("Línea 1", "0002").getByRole("button", { name: "Editar un error" }))
+    const t = tarjeta("Línea 1", "0002")
+    expect(t.getByPlaceholderText("Total del contador")).toHaveValue(3000)
+    expect(t.getByPlaceholderText("Envases buenos")).toHaveValue(2900)
+    expect(t.getByText("Lo que pongas reemplaza el contador de la corrida, no se suma.")).toBeInTheDocument()
+    // Sin cambios no hay nada que guardar.
+    expect(t.getByRole("button", { name: "Guardar corrección" })).toBeDisabled()
+    await escribir(u, t, "Total del contador", "2950")
+    await u.click(t.getByRole("button", { name: "Guardar corrección" }))
+    // Solo el contador (el PT no cambió) y por la vía que reemplaza.
+    await waitFor(() =>
+      expect(orden).toEqual(['corregir [{"corridaId":"c4","linea":"LINEA_1","envasesLlenadora":2950,"envasesBuenos":2900,"justificacion":""}]', "refrescar"]),
+    )
   })
 
   it("cerrada sin PT (entregada sola): ofrece cargarlo", async () => {
