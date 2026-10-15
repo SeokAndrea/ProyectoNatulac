@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Desplegable } from "@/components/paradas/Desplegable"
 import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
 import { duracionMin, fmtDuracion, nombreLineaParada, paradaAbierta, partesNotaSheet, type Parada } from "@/lib/paradas"
 
@@ -24,17 +24,16 @@ export function ReportesMantenimiento({
   onActualizado: () => void
 }) {
   const variosDias = new Set(paradas.map((p) => p.inicio.slice(0, 10))).size > 1
+  const enCurso = paradas.filter(paradaAbierta).length
+  const resumen = paradas.length === 0 ? "Sin paradas" : [`${paradas.length} ${paradas.length === 1 ? "parada" : "paradas"}`, enCurso > 0 && `${enCurso} en curso`].filter(Boolean).join(" · ")
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-2">
-        <CardTitle className="text-base">Paradas de Mantenimiento ({paradas.length})</CardTitle>
+    // Cerrada por defecto, como el detalle: al abrir el panel se ve limpio (dueña, 2026-10-15).
+    <Desplegable titulo="Paradas de Mantenimiento" resumen={resumen}>
         <p className="text-xs text-muted-foreground">
           Las que reportó Mantenimiento (en su Sheet o en la app) con el filtro de arriba. Ya están sumadas en los números del panel.
         </p>
         {usuarioSheet && <ActualizarDesdeSheet usuario={usuarioSheet} onListo={onActualizado} />}
-      </CardHeader>
-      <CardContent>
         {paradas.length === 0 ? (
           <p className="text-sm text-muted-foreground">Mantenimiento no reportó paradas con este filtro.</p>
         ) : (
@@ -64,7 +63,6 @@ export function ReportesMantenimiento({
             })}
           </ul>
         )}
-      </CardContent>
-    </Card>
+    </Desplegable>
   )
 }

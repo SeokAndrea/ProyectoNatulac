@@ -4,15 +4,15 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CintaLinea, type EstadoLineaVista } from "@/components/CintaLinea"
 import { DetalleParadas } from "@/components/paradas/DetalleParadas"
-import { ParadasPorTurno } from "@/components/paradas/ParadasPorTurno"
 import { RangoFechas } from "@/components/paradas/RangoFechas"
 import { cn } from "@/lib/utils"
 import type { OeePeriodo } from "@/lib/eficiencia"
-import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { fechaJornadaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { type TurnoTipoCodigo } from "@/lib/catalogos"
 import {
   agruparPorDia,
   esDeMantenimiento,
+  jornadaDeParada,
   fmtDuracion,
   LINEAS_PARADAS,
   minutosPorClaseSinSolape,
@@ -119,7 +119,7 @@ export function PanelParadasVista({
 }) {
   const [periodo, setPeriodo] = useState<PeriodoCodigo>("HOY")
   const [rango, setRango] = useState(() => {
-    const ayer = restarDias(fechaPlanta(), 1)
+    const ayer = restarDias(fechaJornadaPlanta(), 1)
     return { desde: ayer, hasta: ayer }
   })
   const [clase, setClase] = useState<ClaseParada | "TODAS">("TODAS")
@@ -135,9 +135,10 @@ export function PanelParadasVista({
     return () => clearInterval(id)
   }, [])
 
-  // Todo se calcula desde HOY (fecha de planta): Hoy = solo hoy; Ayer = solo
-  // el día de ayer; 7 días = hoy y los 6 anteriores; Este mes = del 1 hasta hoy.
-  const hoy = fechaPlanta(ahora)
+  // Todo se calcula por JORNADA de planta (7:00 → 7:00), como el Resumen Diario (dueña, 2026-10-15):
+  // «Hoy» no mezcla el Turno 3 de anoche y sí toma entero el de esta noche. Ayer = la jornada
+  // anterior; 7 días = hoy y las 6 anteriores; Este mes = del 1 hasta hoy.
+  const hoy = fechaJornadaPlanta(ahora)
   const { desde, hasta } = useMemo(() => {
     if (periodo === "HOY") return { desde: hoy, hasta: hoy }
     if (periodo === "FECHAS") return rango
@@ -156,7 +157,8 @@ export function PanelParadasVista({
   useEffect(() => {
     let vivo = true
     const clave = `${desde}|${hasta}`
-    cargarParadas({ desde, hasta }).then((filas) => vivo && setParadasCargadas({ clave, filas }))
+    // Hasta el día siguiente: la madrugada de la última jornada (su Turno 3) cae en esa fecha.
+    cargarParadas({ desde, hasta: restarDias(hasta, -1) }).then((filas) => vivo && setParadasCargadas({ clave, filas }))
     return () => {
       vivo = false
     }
@@ -166,7 +168,7 @@ export function PanelParadasVista({
   const filtradas = useMemo(() => {
     return (paradas ?? [])
       .filter((p) => {
-        const dia = p.inicio.slice(0, 10)
+        const dia = jornadaDeParada(p)
         if (dia < desde || dia > hasta) return false
         if (clase !== "TODAS" && p.clase !== clase) return false
         if (linea !== "TODAS" && p.lineaCodigo !== linea) return false
@@ -398,16 +400,12 @@ export function PanelParadasVista({
             )
           })}
         </div>
-        {/* Un solo día: como el resumen de un turno, por turno y en orden de hora (Producción y Mantenimiento juntas). */}
-        {desde === hasta ? (
-          <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
-            <h2 className="text-sm font-semibold text-foreground">Paradas del día, por turno</h2>
-            <ParadasPorTurno paradas={filtradas} ahora={ahora} />
-          </section>
-        ) : (
-          <DetalleParadas paradas={filtradas} ahora={ahora} />
-        )}
-        {mantenimiento && reporto !== "PRODUCCION" && mantenimiento(filtradas.filter(esDeMantenimiento), ahora)}
+        {/* Abajo, cerrado y con su resumen (dueña, 2026-10-15: limpio para la presidencia). Un solo día va por
+            turno, Producción y Mantenimiento juntas; varios días, en tabla. */}
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+          <DetalleParadas paradas={filtradas} ahora={ahora} unDia={desde === hasta} />
+          {mantenimiento && reporto !== "PRODUCCION" && mantenimiento(filtradas.filter(esDeMantenimiento), ahora)}
+        </div>
         </>
       )}
 

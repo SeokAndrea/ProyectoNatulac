@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   agruparPorDia,
+  jornadaDeParada,
   CATALOGO_PROGRAMADA,
   CATALOGO_TIPOS,
   codigoPlanilla,
@@ -212,6 +213,12 @@ describe("agruparPorDia", () => {
       P({ inicio: "2026-09-08T10:00:00", fin: "2026-09-08T10:30:00" }),
     ]
     expect(agruparPorDia(set).map((x) => x.dia)).toEqual(["2026-09-08", "2026-09-10"])
+  })
+  it("cuenta por jornada (7:00 → 7:00): la madrugada es del día anterior", () => {
+    expect(jornadaDeParada({ inicio: "2026-09-10T06:59:00" })).toBe("2026-09-09")
+    expect(jornadaDeParada({ inicio: "2026-09-10T07:00:00" })).toBe("2026-09-10")
+    expect(jornadaDeParada({ inicio: "2026-09-10T23:30:00" })).toBe("2026-09-10")
+    expect(jornadaDeParada({ inicio: "2026-10-01T02:00:00" })).toBe("2026-09-30")
   })
 })
 

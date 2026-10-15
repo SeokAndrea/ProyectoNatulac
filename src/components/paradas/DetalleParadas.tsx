@@ -1,9 +1,9 @@
-import { useState } from "react"
-import { ChevronDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { duracionMin, fmtDuracion, nombreLineaParada, type Parada } from "@/lib/paradas"
+import { duracionMin, esDeMantenimiento, fmtDuracion, nombreLineaParada, type Parada } from "@/lib/paradas"
 import { codigoDeParadaLive } from "@/lib/paradasCatalogo"
+import { Desplegable } from "@/components/paradas/Desplegable"
+import { ParadasPorTurno } from "@/components/paradas/ParadasPorTurno"
 
 const ORIGEN: Record<Parada["origen"], { texto: string; variante: "info" | "muted" | "warning" }> = {
   SHEET: { texto: "Sheet de Mantenimiento", variante: "info" },
@@ -14,30 +14,22 @@ const ORIGEN: Record<Parada["origen"], { texto: string; variante: "info" | "mute
 /*
  * Panel de Paradas: cada parada que suma en el período filtrado, con su
  * nombre, código, minutos y de dónde viene (dueña, 2026-10-08: para ver
- * cuáles entran, sobre todo las del Sheet de Mantenimiento).
+ * cuáles entran, sobre todo las del Sheet de Mantenimiento). Cerrado por
+ * defecto, con el resumen en el título (dueña, 2026-10-15: que se vea limpio
+ * al abrir el panel). Un solo día va por turno; varios días, en tabla.
  */
-export function DetalleParadas({ paradas, ahora }: { paradas: Parada[]; ahora: Date }) {
-  const [abierto, setAbierto] = useState(false)
-  const delSheet = paradas.filter((p) => p.origen === "SHEET").length
+export function DetalleParadas({ paradas, ahora, unDia }: { paradas: Parada[]; ahora: Date; unDia: boolean }) {
+  const deMtto = paradas.filter(esDeMantenimiento).length
+  const resumen = paradas.length === 0 ? "Sin paradas" : [`${paradas.length} ${paradas.length === 1 ? "parada" : "paradas"}`, deMtto > 0 && `${deMtto} de Mantenimiento`].filter(Boolean).join(" · ")
 
   return (
-    <section className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
-      <button
-        type="button"
-        onClick={() => setAbierto((v) => !v)}
-        className="flex items-center justify-between gap-2 text-left"
-        aria-expanded={abierto}
-      >
-        <span className="text-sm font-semibold text-foreground">
-          Detalle de paradas ({paradas.length}
-          {delSheet > 0 ? ` · ${delSheet} del Sheet` : ""})
-        </span>
-        <ChevronDown className={`size-4 text-muted-foreground transition-transform ${abierto ? "rotate-180" : ""}`} />
-      </button>
-      {abierto &&
-        (paradas.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No hay paradas en este período.</p>
-        ) : (
+    <Desplegable titulo={unDia ? "Paradas del día, por turno" : "Detalle de paradas"} resumen={resumen}>
+      {paradas.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No hay paradas en este período.</p>
+      ) : unDia ? (
+        <ParadasPorTurno paradas={paradas} ahora={ahora} />
+      ) : (
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -73,7 +65,8 @@ export function DetalleParadas({ paradas, ahora }: { paradas: Parada[]; ahora: D
               })}
             </TableBody>
           </Table>
-        ))}
-    </section>
+        </div>
+      )}
+    </Desplegable>
   )
 }

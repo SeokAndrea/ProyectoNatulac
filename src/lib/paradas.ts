@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { restarDias } from "@/lib/tiempoPlanta"
 
 /*
  * Módulo Paradas — downtime de las líneas. Rumbo 2026-09-10 (ver
@@ -543,10 +544,20 @@ export interface PuntoDiaParada {
   minutos: number
   veces: number
 }
+/**
+ * La jornada de planta (7:00 → 7:00) en que empezó la parada: antes de las
+ * 7:00 es de la jornada del día anterior (el Turno 3 de anoche), como
+ * fechaJornadaPlanta. `inicio` ya viene en hora de planta.
+ */
+export function jornadaDeParada(p: Pick<Parada, "inicio">): string {
+  const dia = p.inicio.slice(0, 10)
+  return Number(p.inicio.slice(11, 13)) < 7 ? restarDias(dia, 1) : dia
+}
+
 export function agruparPorDia(paradas: Parada[], ahora?: Date): PuntoDiaParada[] {
   const m = new Map<string, PuntoDiaParada>()
   for (const p of paradas) {
-    const dia = p.inicio.slice(0, 10)
+    const dia = jornadaDeParada(p)
     const g = m.get(dia) ?? { dia, minutos: 0, veces: 0 }
     g.minutos += duracionMin(p, ahora)
     g.veces += 1

@@ -162,7 +162,7 @@ export default function PanelParadas() {
             areaParadas === "PRUEBAS"
               ? undefined
               : (paradas, ahora) => (
-                  <div className="mx-auto w-full max-w-5xl">
+                  <div className="w-full">
                     <ReportesMantenimiento
                       paradas={paradas}
                       ahora={ahora}
