@@ -1,6 +1,6 @@
 import { useAuth } from "@/lib/auth"
 import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
-import { esAreaDeApoyo, type RolCodigo } from "@/lib/catalogos"
+import { esAreaDeApoyo, type CargoCodigo } from "@/lib/catalogos"
 import { puede } from "@/lib/permisos"
 import { useSesionTurno } from "@/lib/sesionTurno"
 
@@ -46,9 +46,9 @@ export interface Seccion {
  * de apoyo, las de "produccion" (ej. Registrar Paradas en Mantenimiento)
  * van en "apoyo".
  */
-export function agruparPorSeccion(lista: AppDef[], areaDeApoyo: boolean, rol?: RolCodigo): Seccion[] {
+export function agruparPorSeccion(lista: AppDef[], areaDeApoyo: boolean, cargo?: CargoCodigo | null): Seccion[] {
   const grupos = agruparEnOrden(lista, areaDeApoyo)
-  if (!rol || !ROLES_CONTROL_PRIMERO.includes(rol)) return grupos
+  if (!cargo || !CARGOS_CONTROL_PRIMERO.includes(cargo)) return grupos
   const lugar = (s: Seccion) => {
     const i = ORDEN_SECCIONES_CONTROL.indexOf(s.titulo ?? "")
     return i === -1 ? ORDEN_SECCIONES_CONTROL.length : i
@@ -56,8 +56,12 @@ export function agruparPorSeccion(lista: AppDef[], areaDeApoyo: boolean, rol?: R
   return [...grupos].sort((a, b) => lugar(a) - lugar(b))
 }
 
-/** Jefe y analista: primero lo de control, al final el flujo del turno (dueña, 2026-10-15). */
-const ROLES_CONTROL_PRIMERO: RolCodigo[] = ["JEFE_PRODUCCION", "ANALISTA"]
+/**
+ * Cargo Jefe y Analista de Producción: primero lo de control, al final el
+ * flujo del turno (dueña, 2026-10-15). Por CARGO, como el Supervisor: hoy
+ * los dos son Super Administrador de rol.
+ */
+const CARGOS_CONTROL_PRIMERO: CargoCodigo[] = ["JEFE_PRODUCCION", "ANALISTA_PRODUCCION"]
 const ORDEN_SECCIONES_CONTROL = [TITULOS_SECCION.auditoria, TITULOS_SECCION["base-datos"], TITULOS_SECCION.produccion]
 
 function agruparEnOrden(lista: AppDef[], areaDeApoyo: boolean): Seccion[] {
@@ -109,11 +113,11 @@ export function useAppsNavegables() {
   const principales = visibles.filter((app) => !app.atajo)
   const atajos = visibles.filter((app) => app.atajo)
 
-  const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area), session?.rol)
+  const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area), session?.cargo)
   if (atajos.length > 0) {
     const accesos = { titulo: "Paneles y accesos", apps: atajos }
     // Jefe y analista: los accesos van primero, como en el Hub.
-    if (session && ROLES_CONTROL_PRIMERO.includes(session.rol)) secciones.unshift(accesos)
+    if (session?.cargo && CARGOS_CONTROL_PRIMERO.includes(session.cargo)) secciones.unshift(accesos)
     else secciones.push(accesos)
   }
 
