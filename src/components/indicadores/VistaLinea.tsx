@@ -69,9 +69,6 @@ export function VistaLinea({
         </section>
         {verParadas && <ParadasLinea manual={manual} generales={generales} presentaciones={conParadas} />}
       </div>
-      {visibles.length === 0 && (
-        <p className="self-center text-center text-sm text-foreground">Sin datos de la Línea {linea} en {nombreMes(elegido.mes)}.</p>
-      )}
       {visibles.map((p) => (
         <ColumnaPresentacion
           key={p.clave}

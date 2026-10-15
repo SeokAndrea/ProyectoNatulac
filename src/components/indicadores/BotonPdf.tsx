@@ -25,12 +25,15 @@ export function BotonPdf({
   seccion,
   onSeccion,
   lamina,
+  secciones,
 }: {
   mes: string
   seccion: Seccion
   onSeccion: (s: Seccion) => void
   /** Lo que se fotografía: la franja y la pantalla, sin la barra de filtros. */
   lamina: RefObject<HTMLDivElement | null>
+  /** Las pantallas que van al PDF: las que tienen datos. */
+  secciones: Seccion[]
 }) {
   const [exportando, setExportando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +44,7 @@ export function BotonPdf({
     const volverA = seccion
     try {
       await exportarIndicadoresPdf(
-        SECCIONES.map((s) => ({
+        SECCIONES.filter((s) => secciones.includes(s.valor)).map((s) => ({
           titulo: TITULOS[s.valor],
           mostrar: async () => {
             onSeccion(s.valor)

@@ -86,7 +86,7 @@ export function VistaIncidencias({ mes, titulo, incidencias, editar }: { mes: st
         <h2 className="text-[clamp(26px,2.4vw,44px)] font-bold uppercase tracking-wide">{titulo?.trim() || TITULO_INCIDENCIAS}</h2>
         <span className="ml-auto">{editar}</span>
       </div>
-      {incidencias.length === 0 && <p className={cn("m-auto", TEXTO)}>Sin incidencias ni seguimientos en {nombreMes(mes)}.</p>}
+      {incidencias.length === 0 && <p className={cn("m-auto", TEXTO)}>Todavía no se cargaron incidencias de {nombreMes(mes)}. Esta pantalla no sale al presentar.</p>}
       {incidencias.map((inc, i) => (
         <article key={i} className="flex flex-col gap-4 rounded-xl border p-5">
           <Encabezado inc={inc} />

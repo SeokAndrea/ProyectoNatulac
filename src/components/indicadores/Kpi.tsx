@@ -60,14 +60,11 @@ export function Kpi({
         </div>
       )}
       <span className={cn("font-mono font-semibold tabular-nums leading-tight", claseValor ?? (grande ? "text-3xl" : "text-xl"))}>{texto(actual.valor)}</span>
-      <span className="truncate text-[11px] text-foreground">
+      {/* Sin dato (del mes o del anterior) no se dice nada: la línea queda vacía (dueña, 2026-10-15). */}
+      <span className="min-h-[1lh] truncate text-[11px] text-foreground">
         {detalle}
-        {detalle && " · "}
-        {actual.valor == null ? (
-          "Sin datos"
-        ) : dif == null ? (
-          anterior ? `Sin dato de ${mesCorto(anterior.mes)}` : "Primer mes"
-        ) : Math.abs(dif) < 10 ** -decimales / 2 ? (
+        {detalle && dif != null && " · "}
+        {dif == null ? null : Math.abs(dif) < 10 ** -decimales / 2 ? (
           `Igual que ${mesCorto(anterior!.mes)}`
         ) : (
           <>

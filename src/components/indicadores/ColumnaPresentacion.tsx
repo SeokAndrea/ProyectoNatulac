@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react"
-import { nombreMes } from "@/lib/indicadores/calculos"
 import type { DatosPresentacion } from "@/lib/indicadores/tipos"
 import { AnillosCumplimiento } from "@/components/indicadores/AnillosCumplimiento"
 import { Kpi } from "@/components/indicadores/Kpi"
@@ -34,11 +33,11 @@ export function ColumnaPresentacion({
   const merma = de("merma")
   const mermaMes = merma[merma.length - 1].valor
   const unidades = meses[meses.length - 1].datos?.presentaciones[clave]?.mermaUnidades ?? null
-  const elegido = meses[meses.length - 1].mes
 
   return (
     <section
       aria-label={nombre}
+      data-ajusta-texto
       style={color}
       className="flex min-h-0 min-w-0 flex-col gap-2 rounded-xl border-2 border-[var(--c)] bg-[color-mix(in_srgb,var(--c)_8%,var(--card))] px-3 pb-3"
     >
@@ -61,10 +60,9 @@ export function ColumnaPresentacion({
       </div>
       <Subtitulo>CUMPLIMIENTO DE PLAN</Subtitulo>
       <AnillosCumplimiento meses={meses.map((m) => ({ mes: m.mes, datos: m.datos?.presentaciones[clave] }))} />
-      <Subtitulo>OBSERVACIONES</Subtitulo>
       <Observacion
+        titulo={<Subtitulo>OBSERVACIONES</Subtitulo>}
         texto={observacion}
-        nombreMes={nombreMes(elegido)}
         placeholder="Qué pasó en el mes con esta presentación"
         puedeEditar={puedeEditar}
         onGuardar={onGuardarObservacion}

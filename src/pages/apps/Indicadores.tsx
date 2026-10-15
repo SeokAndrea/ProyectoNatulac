@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Loader2, Pencil } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { Loader2, Pencil, Presentation } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { MensajeError } from "@/components/MensajeError"
 import { BarraIndicadores } from "@/components/indicadores/BarraIndicadores"
 import { BotonPdf } from "@/components/indicadores/BotonPdf"
+import { useEscala } from "@/components/indicadores/useEscala"
+import { Presentando, usePresentacion } from "@/components/indicadores/usePresentacion"
+import { seccionesConDatos, TODAS } from "@/components/indicadores/seccionesConDatos"
+import { ControlesPresentacion } from "@/components/indicadores/ControlesPresentacion"
 import { FranjaTotal } from "@/components/indicadores/FranjaTotal"
 import { SECCIONES, SIEMPRE_A_MANO, useFlechas, type Seccion } from "@/components/indicadores/secciones"
 import { VistaAusentismo } from "@/components/indicadores/VistaAusentismo"
@@ -52,9 +56,11 @@ export default function Indicadores() {
   const accionModo = useAccion()
   // La franja y la pantalla: lo que se fotografía para el PDF.
   const lamina = useRef<HTMLDivElement>(null)
-  // ← → cambian de pantalla, para exponer.
-  useFlechas(seccion, setSeccion, !editando)
-
+  const escala = useEscala()
+  const presentacion = usePresentacion()
+  // Alto disponible: la ventana menos el encabezado de la app, o menos solo el margen al presentar.
+  const alto = presentacion.presentando ? "100svh - 1.5rem" : "100svh - 7.25rem"
+  const estiloAlto = escala > 1 ? { zoom: escala, height: `calc((${alto}) / ${escala})` } : presentacion.presentando ? { height: `calc(${alto})` } : undefined
   useEffect(() => {
     listarSabores().then(setSabores)
   }, [])
@@ -78,7 +84,18 @@ export default function Indicadores() {
   const aMano = SIEMPRE_A_MANO.includes(seccion)
   const esLinea = seccion === "1" || seccion === "2" || seccion === "3"
   const seccionesEditor = elegido.modo === "MANUAL" ? SECCIONES.map((s) => s.valor) : SIEMPRE_A_MANO
-  const botonEditar = puedeCargar ? (
+  // Lo que no tiene datos no se ve (dueña, 2026-10-15). Quien carga datos ve también las vacías (para cargarlas),
+  // salvo al presentar; el PDF y la presentación llevan solo las que tienen datos.
+  const conDatos = calculando ? TODAS : seccionesConDatos(d, elegido.modo, ind.aMano[ind.aMano.length - 1].datos)
+  const aPresentar = conDatos.length > 0 ? conDatos : TODAS
+  const visibles = puedeCargar && !presentacion.presentando ? TODAS : aPresentar
+  const vacias = TODAS.filter((s) => !conDatos.includes(s))
+  useEffect(() => {
+    if (!visibles.includes(seccion)) setSeccion(visibles[0])
+  }, [visibles, seccion])
+  // ← → cambian de pantalla, para exponer.
+  useFlechas(seccion, setSeccion, !editando, visibles)
+  const botonEditar = puedeCargar && !presentacion.presentando ? (
     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditando(true)}>
       <Pencil className="size-3.5" /> Editar
     </Button>
@@ -122,10 +139,10 @@ export default function Indicadores() {
     return r
   }
 
-  const observacion = (clave: string) => (
+  const observacion = (clave: string, titulo?: ReactNode) => (
     <Observacion
+      titulo={titulo}
       texto={ind.observaciones[clave]}
-      nombreMes={nombreMes(mes)}
       placeholder="Qué pasó en el mes con este producto"
       puedeEditar={puedeEditar}
       onGuardar={(texto) => guardarObs(clave, texto)}
@@ -134,21 +151,36 @@ export default function Indicadores() {
 
   return (
     <AppShell title="Indicadores" description="Por línea y presentación" fullWidth ocultarEstadoBanner sinMenuLateral>
+      {/* Modo presentación: las láminas solas, a pantalla completa, encima de todo (sin encabezado ni filtros). */}
+      <div className={presentacion.presentando ? "fixed inset-0 z-50 bg-background p-3" : undefined}>
       {/* En PC entra todo en una pantalla, sin scroll (dueña, 2026-10-13): alto de la ventana menos el encabezado. */}
-      <div className="flex flex-col gap-2.5 lg:h-[calc(100svh-7.25rem)]">
-        <BarraIndicadores
-          seccion={seccion}
-          onSeccion={setSeccion}
-          mes={mes}
-          opcionesMes={opcionesMes}
-          onMes={setMes}
-          modo={elegido.modo}
-          onModo={cambiarModo}
-          onCargar={() => setEditando(true)}
-          puedeEditar={puedeCargar}
-          cambiandoModo={accionModo.enviando}
-          extra={<BotonPdf mes={mes} seccion={seccion} onSeccion={setSeccion} lamina={lamina} />}
-        />
+      {/* En pantallas grandes todo crece en proporción (zoom), y el alto se divide por lo mismo para seguir sin scroll. */}
+      <div className="flex flex-col gap-2.5 lg:h-[calc(100svh-7.25rem)]" style={estiloAlto}>
+        {!presentacion.presentando && (
+          <BarraIndicadores
+            seccion={seccion}
+            onSeccion={setSeccion}
+            mes={mes}
+            opcionesMes={opcionesMes}
+            onMes={setMes}
+            modo={elegido.modo}
+            onModo={cambiarModo}
+            onCargar={() => setEditando(true)}
+            puedeEditar={puedeCargar}
+            cambiandoModo={accionModo.enviando}
+            secciones={visibles}
+            vacias={puedeCargar ? vacias : []}
+            extra={
+              <span className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="hidden gap-1.5 lg:inline-flex" onClick={presentacion.entrar}>
+                  <Presentation className="size-3.5" /> Presentar
+                </Button>
+                <BotonPdf mes={mes} seccion={seccion} onSeccion={setSeccion} lamina={lamina} secciones={aPresentar} />
+              </span>
+            }
+          />
+        )}
+        <Presentando.Provider value={presentacion.presentando}>
         <div ref={lamina} className="flex min-h-0 flex-1 flex-col gap-2.5">
           {/* Solo en las pantallas de línea (dueña, 2026-10-14). */}
           {esLinea && !ind.cargando && !calculando && <FranjaTotal meses={ind.meses} />}
@@ -190,6 +222,9 @@ export default function Indicadores() {
             />
           )}
         </div>
+        </Presentando.Provider>
+      </div>
+      {presentacion.presentando && <ControlesPresentacion seccion={seccion} secciones={aPresentar} onSeccion={setSeccion} onSalir={presentacion.salir} />}
       </div>
       {editando && (
         <EditorManual

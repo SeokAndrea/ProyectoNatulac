@@ -23,19 +23,20 @@ export const SIEMPRE_A_MANO: Seccion[] = ["aus", "inc"]
  * (dueña, 2026-10-14: Jorge expone los Indicadores). No actúan mientras se
  * escribe en un campo ni con el editor abierto.
  */
-export function useFlechas(seccion: Seccion, onSeccion: (s: Seccion) => void, activo: boolean) {
+export function useFlechas(seccion: Seccion, onSeccion: (s: Seccion) => void, activo: boolean, lista: Seccion[] = SECCIONES.map((s) => s.valor)) {
   useEffect(() => {
     if (!activo) return
     function alPresionar(ev: KeyboardEvent) {
       if ((ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") || ev.altKey || ev.ctrlKey || ev.metaKey) return
       if ((ev.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true'], [role='dialog']")) return
-      const i = SECCIONES.findIndex((s) => s.valor === seccion)
-      const j = Math.min(SECCIONES.length - 1, Math.max(0, i + (ev.key === "ArrowRight" ? 1 : -1)))
-      if (j === i) return
+      // Solo entre las pantallas que se ven (las que tienen datos, ver seccionesConDatos).
+      const i = lista.indexOf(seccion)
+      const j = Math.min(lista.length - 1, Math.max(0, i + (ev.key === "ArrowRight" ? 1 : -1)))
+      if (j === i || j < 0) return
       ev.preventDefault()
-      onSeccion(SECCIONES[j].valor)
+      onSeccion(lista[j])
     }
     window.addEventListener("keydown", alPresionar)
     return () => window.removeEventListener("keydown", alPresionar)
-  }, [seccion, onSeccion, activo])
+  }, [seccion, onSeccion, activo, lista])
 }

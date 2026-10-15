@@ -44,7 +44,7 @@ export function AnillosCumplimiento({ meses }: { meses: { mes: string; datos: Da
   const centros = partes.map((p, i) => W * (partes.slice(0, i).reduce((a, b) => a + b, 0) + p / 2))
 
   return (
-    <div ref={ref} className="relative min-h-[110px] flex-[0_0_clamp(110px,21vh,220px)]">
+    <div ref={ref} className="relative min-h-[90px] flex-[0_1_clamp(110px,21vh,220px)]">
       {W > 0 && H > 0 && (
         <svg width={W} height={H} className="absolute inset-0" role="img" aria-label="Cumplimiento del plan">
           {orden.map((m, i) => {

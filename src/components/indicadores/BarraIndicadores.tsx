@@ -21,6 +21,8 @@ export function BarraIndicadores({
   puedeEditar,
   cambiandoModo,
   extra,
+  secciones = SECCIONES.map((s) => s.valor),
+  vacias = [],
 }: {
   seccion: Seccion
   onSeccion: (s: Seccion) => void
@@ -34,11 +36,22 @@ export function BarraIndicadores({
   cambiandoModo: boolean
   /** Al final de la barra (ej. el botón PDF). */
   extra?: ReactNode
+  /** Las pantallas que se muestran (quien no carga datos no ve las vacías). */
+  secciones?: Seccion[]
+  /** Sin datos en el mes: se ven tenues (solo quien carga datos) y no salen al presentar. */
+  vacias?: Seccion[]
 }) {
   return (
     <div role="group" aria-label="Filtros" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      {SECCIONES.map((s) => (
-        <button key={s.valor} type="button" aria-pressed={seccion === s.valor} onClick={() => onSeccion(s.valor)} className={cn(chip, seccion === s.valor && activo)}>
+      {SECCIONES.filter((s) => secciones.includes(s.valor)).map((s) => (
+        <button
+          key={s.valor}
+          type="button"
+          aria-pressed={seccion === s.valor}
+          onClick={() => onSeccion(s.valor)}
+          title={vacias.includes(s.valor) ? "Sin datos este mes: no sale al presentar ni en el PDF" : undefined}
+          className={cn(chip, seccion === s.valor && activo, vacias.includes(s.valor) && "border-dashed opacity-50")}
+        >
           {["1", "2", "3"].includes(s.valor) && <span className="size-2.5 rounded-full" style={{ background: `var(--ind-l${s.valor})` }} />}
           {s.texto}
         </button>

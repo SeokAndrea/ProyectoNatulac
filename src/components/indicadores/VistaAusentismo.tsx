@@ -37,7 +37,7 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
       </div>
 
       {!a ? (
-        <p className="m-auto text-foreground">Sin datos de ausentismo en {nombreMes(elegido.mes)}.</p>
+        <p className="m-auto text-foreground">Todavía no se cargó el ausentismo de {nombreMes(elegido.mes)}. Esta pantalla no sale al presentar.</p>
       ) : (
         // Todo centrado y grande, repartido en el alto de la pantalla (dueña, 2026-10-14).
         <div className="flex flex-1 flex-col justify-evenly gap-3">

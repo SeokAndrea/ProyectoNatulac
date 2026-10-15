@@ -14,7 +14,8 @@ export type VistaSemi = "graficas" | "tabla"
 export interface PropsFamilias {
   /** Productos con dato en el mes elegido, en orden. */
   familias: string[]
-  renderObservacion: (clave: string) => ReactNode
+  /** La observación de un producto; `titulo` se esconde con ella si está vacía. */
+  renderObservacion: (clave: string, titulo?: ReactNode) => ReactNode
 }
 
 /** Orden del informe; las familias nuevas van al final. */
@@ -35,7 +36,7 @@ export function VistaSemielaborado({
   meses: MesIndicadores[]
   vista: VistaSemi
   onVista: (v: VistaSemi) => void
-  renderObservacion: (clave: string) => ReactNode
+  renderObservacion: (clave: string, titulo?: ReactNode) => ReactNode
 }) {
   const elegido = meses[meses.length - 1]
   const familias = Object.entries(elegido.datos?.semielaborado ?? {})
@@ -64,7 +65,7 @@ export function VistaSemielaborado({
       </div>
 
       {familias.length === 0 ? (
-        <p className="m-auto text-foreground">Sin datos de semielaborado en {nombreMes(elegido.mes)}.</p>
+        <p className="m-auto text-foreground">Todavía no hay semielaborado de {nombreMes(elegido.mes)}. Esta pantalla no sale al presentar.</p>
       ) : vista === "tabla" ? (
         <TablaSemielaborado familias={familias} meses={meses} renderObservacion={renderObservacion} />
       ) : (
@@ -73,7 +74,7 @@ export function VistaSemielaborado({
             const serie = meses.map((m) => ({ mes: m.mes, valor: m.datos?.semielaborado[f] ?? null }))
             const v = serie[serie.length - 1].valor
             return (
-              <div key={f} style={colorFamilia(f)} className="flex min-h-0 flex-col gap-2 rounded-xl border-2 border-[var(--c)] bg-[color-mix(in_srgb,var(--c)_7%,var(--card))] px-3 pb-3">
+              <div key={f} data-ajusta-texto style={colorFamilia(f)} className="flex min-h-0 flex-col gap-2 rounded-xl border-2 border-[var(--c)] bg-[color-mix(in_srgb,var(--c)_7%,var(--card))] px-3 pb-3">
                 <h3 className="-mx-3 flex items-baseline justify-between rounded-t-[10px] bg-[var(--c)] px-3 py-1.5 text-xl font-bold text-[var(--c-cab)]">
                   {nombreFamilia(f)} <span className="text-xs font-semibold opacity-85">{capital(nombreMes(elegido.mes))}</span>
                 </h3>
@@ -88,8 +89,7 @@ export function VistaSemielaborado({
                   detalle={v == null ? undefined : <>Merma <b>{fmt(100 - v, 1)} %</b></>}
                 />
                 <GraficoFamilia serie={serie} />
-                <h4 className="text-[13px] font-bold tracking-wide text-[var(--c-texto)]">OBSERVACIONES</h4>
-                {renderObservacion(claveSemi(f))}
+                {renderObservacion(claveSemi(f), <h4 className="text-[13px] font-bold tracking-wide text-[var(--c-texto)]">OBSERVACIONES</h4>)}
               </div>
             )
           })}
