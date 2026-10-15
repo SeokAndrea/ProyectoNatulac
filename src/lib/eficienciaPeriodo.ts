@@ -2,8 +2,9 @@ import { supabase } from "@/lib/supabase"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno, oeeDePeriodo, type OeePeriodo, type ResultadoEficiencia } from "@/lib/eficiencia"
 import { listarParadas } from "@/lib/paradas"
-import { mapearContador, mapearCorrida } from "@/lib/produccion/mapear"
-import type { FilaContador, FilaCorrida } from "@/lib/produccion/tipos"
+import { mapearCorrida } from "@/lib/produccion/mapear"
+import { mapearProductoTerminado, type FilaProductoTerminado } from "@/lib/productoTerminado"
+import type { FilaCorrida } from "@/lib/produccion/tipos"
 import { horasTranscurridasTurno } from "@/lib/reportes"
 import { restarDias } from "@/lib/tiempoPlanta"
 
@@ -13,7 +14,7 @@ import { restarDias } from "@/lib/tiempoPlanta"
  * (eficienciaDelTurno, src/lib/eficiencia.ts), turno por turno, y después
  * se juntan con oeeDePeriodo(). Por cada día × tipo de turno se piden
  * turnos_de_fecha_tipo (todos: en 12x12 hay dos T2, migración 20261106; ya
- * traen corridas y contadores, es turno_json) y, si el turno existe, sus paradas con listar_paradas
+ * traen corridas y Producto Terminado, es turno_json) y, si el turno existe, sus paradas con listar_paradas
  * filtrando por turno — igual que el Panel de Producción, así las de
  * Mantenimiento vienen recortadas a la ventana del turno. "Este mes" son
  * hasta ~120 consultas: se hacen de a CONSULTAS_A_LA_VEZ.
@@ -31,7 +32,7 @@ interface FilaTurnoOee {
   turno_tipo_codigo: string
   esquema?: string
   lineas: FilaCorrida[]
-  contadores: FilaContador[]
+  producto_terminado: FilaProductoTerminado[]
 }
 
 export interface FiltroOeePeriodo {
@@ -94,7 +95,7 @@ export async function cargarOeePeriodo(f: FiltroOeePeriodo): Promise<Map<string,
         estado: t.estado,
         horasTranscurridas: horasTranscurridasTurno(t.hora_inicio, t.estado, t.hora_fin),
         corridas: t.lineas.map(mapearCorrida),
-        contadores: t.contadores.map(mapearContador),
+        productoTerminado: (t.producto_terminado ?? []).map(mapearProductoTerminado),
         presentaciones: f.presentaciones,
         velocidades: f.velocidades,
         paradas,

@@ -452,7 +452,7 @@ export async function generarActaPdf(params: {
       estado: "CERRADO",
       horasTranscurridas: 0,
       corridas,
-      contadores,
+      productoTerminado,
       presentaciones,
       velocidades,
       paradas,

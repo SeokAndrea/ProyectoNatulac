@@ -47,7 +47,7 @@ export function MetaPorLinea({
               />
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Disponible {horas(m.disponibleMin)} h · Eficiencia {m.eficienciaPct !== null ? m.eficienciaPct + "%" : "—"}
+              Producción {horas(m.produccionMin)} h · No prog. {horas(m.noProgramadaMin)} h · Eficiencia {m.eficienciaPct !== null ? m.eficienciaPct + "%" : "—"}
             </p>
             {m.paradasExcedenTiempo && (
               <p className="mt-1 text-[11px] text-warning">Las paradas cargadas suman más que el tiempo del turno: revísalas.</p>

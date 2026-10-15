@@ -15,7 +15,8 @@ import { claveP, mesVacio, presentacionVacia, type DatosMes, type DatosPresentac
  * mismas cuentas que el resto de la app, no fórmulas nuevas; todo se arma
  * día por día (como en Validar jornada) y después se suma:
  *
- *   Eficiencia      eficienciaDelTurno() turno por turno; Σ operativo ÷ Σ disponible.
+ *   Eficiencia      eficienciaDelTurno() turno por turno, con las cajas corregidas;
+ *                   Σ producción ÷ Σ (producción + no programadas).
  *   Cajas           PT de cada corrida; si la Analista corrigió las cajas del turno
  *                   (sabor + presentación), se reparten entre sus corridas.
  *   Merma           filasEnvases(): PT contra el contador (el corregido, si lo hay).
@@ -89,9 +90,11 @@ export function paradasValidadas(paradas: Parada[], validadas: Map<string, Valid
   })
 }
 
-function eficienciaPorLinea(turnos: TurnoConParadas[], cat: CatalogosIndicadores): DatosMes["eficiencia"] {
-  const suma = new Map<string, { disponible: number; operativo: number }>()
+function eficienciaPorLinea(turnos: TurnoConParadas[], cat: CatalogosIndicadores, corregidas: CajasValidadas[]): DatosMes["eficiencia"] {
+  const suma = new Map<string, { produccion: number; noProgramada: number }>()
   for (const { turno, paradas } of turnos) {
+    // Lo reportado, con las cajas que corrigió la Analista (repartidas entre sus corridas).
+    const productoTerminado = cajasDelDia([{ turno, etiqueta: "" }], cat, corregidas).map((c) => ({ corridaId: c.corridaId, paletas: 0, cajasSueltas: c.cajas }))
     const ef = eficienciaDelTurno({
       turnoTipo: turno.turnoTipo,
       esquema: turno.esquema,
@@ -99,20 +102,20 @@ function eficienciaPorLinea(turnos: TurnoConParadas[], cat: CatalogosIndicadores
       estado: turno.estado,
       horasTranscurridas: 0,
       corridas: turno.corridas,
-      contadores: turno.contadores,
+      productoTerminado,
       presentaciones: cat.presentaciones,
       velocidades: cat.velocidades,
       paradas,
       lineas: cat.lineas,
     })
     for (const [codigo, r] of ef.porLinea) {
-      const s = suma.get(numeroLinea(codigo)) ?? { disponible: 0, operativo: 0 }
-      s.disponible += r.disponibleMin
-      s.operativo += r.operativoMin
+      const s = suma.get(numeroLinea(codigo)) ?? { produccion: 0, noProgramada: 0 }
+      s.produccion += r.produccionMin
+      s.noProgramada += r.noProgramadaMin
       suma.set(numeroLinea(codigo), s)
     }
   }
-  return Object.fromEntries([...suma].map(([l, s]) => [l, s.disponible > 0 ? Math.round((s.operativo / s.disponible) * 100) : null]))
+  return Object.fromEntries([...suma].map(([l, s]) => [l, s.produccion > 0 ? Math.round((s.produccion / (s.produccion + s.noProgramada)) * 100) : null]))
 }
 
 /**
@@ -120,6 +123,7 @@ function eficienciaPorLinea(turnos: TurnoConParadas[], cat: CatalogosIndicadores
  * turno (sabor + presentación) repartidas entre sus corridas según su PT.
  */
 interface CajasCorrida {
+  corridaId: string
   /** claveP(línea, presentación). */
   clave: string
   linea: string
@@ -140,6 +144,7 @@ function cajasDelDia(turnos: TurnoJornada[], cat: CatalogosIndicadores, corregid
       grupos.set(grupo, [
         ...(grupos.get(grupo) ?? []),
         {
+          corridaId: c.id,
           clave: claveP(numeroLinea(c.linea), c.presentacion),
           linea: numeroLinea(c.linea),
           saborId: c.saborId,
@@ -299,7 +304,7 @@ export function calcularMesAutomatico(e: EntradaMes, cat: CatalogosIndicadores):
     turnos: turnos.filter((t) => t.turno.fecha === fecha).map((t): TurnoJornada => ({ turno: t.turno, etiqueta: "" })),
     v: validadasDe(fecha),
   }))
-  datos.eficiencia = eficienciaPorLinea(turnos, cat)
+  datos.eficiencia = eficienciaPorLinea(turnos, cat, e.cajas)
   const porProducto = cajasYMerma(dias, cat, e.cajas, datos.presentaciones)
   paradasPorPresentacion(turnos, datos.presentaciones)
   repartirPlan(e.plan, cat, datos.presentaciones)

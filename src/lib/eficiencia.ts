@@ -1,6 +1,6 @@
 import { esParadaLNPE, minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
-import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
+import type { Corrida } from "@/lib/produccion/tipos"
 import { tramoT2 } from "@/lib/turno12x12"
 
 /*
@@ -15,10 +15,14 @@ import { tramoT2 } from "@/lib/turno12x12"
  * como el Ocioso (dueña, 2026-10-14). La Meta usa la velocidad ELEGIDA (el compromiso del
  * supervisor al activar la línea).
  *
- * Eficiencia (dueña, 2026-10-06): es de TIEMPO, no de envases. Arranca en
- * 100 % y baja solo con las no programadas que se van cargando; el tiempo
- * que nadie explicó no castiga. Ej.: T1 480 min, 30 de Descanso y 45 de una
- * falla → (450 − 45) ÷ 450 = 90 %.
+ * Lo REAL es siempre lo reportado en Producto Terminado (paletas + cajas
+ * sueltas), nunca el contador de la llenadora (dueña, 2026-10-15).
+ *
+ * Eficiencia (dueña, 2026-10-15; reemplaza la de 2026-10-06): el tiempo que
+ * toma producir lo reportado a la velocidad de la línea, contra ese tiempo
+ * más las no programadas. El tiempo que nadie explicó no castiga. Ej.: 2.410
+ * cajas de 12 a 6.000 env/h = 289 min; con 55 de no programadas →
+ * 289 ÷ (289 + 55) = 84 %.
  *
  * El OEE (Disponibilidad × Rendimiento, contra la velocidad MÁXIMA del
  * catálogo) sigue aparte para el Panel de Paradas (oeeDePeriodo). Calidad = 1.
@@ -27,7 +31,8 @@ import { tramoT2 } from "@/lib/turno12x12"
  *
  *   Disponible      = Turno − Programadas − Ocioso
  *   Operativo       = Disponible − No programadas
- *   Eficiencia      = Operativo ÷ Disponible (turno completo, con lo cargado hasta ahora)
+ *   Producción      = Σ por corrida: cajas reportadas × envases por caja ÷ velocidad ELEGIDA
+ *   Eficiencia      = Producción ÷ (Producción + No programadas), con lo cargado hasta ahora
  *   Meta            = velocidad ELEGIDA × Disponible
  *   Avance          = Real ÷ Meta del turno
  *   Disponibilidad  = Operativo ÷ Disponible, hasta ahora (OEE)
@@ -64,8 +69,10 @@ export interface EntradaEficiencia {
   velocidadElegidaEnvasesHora: number | null
   /** Velocidad MÁXIMA del catálogo (envases/h) — la base del OEE (Rendimiento y Eficiencia), nunca la elegida. null = sin dato. */
   velocidadMaximaEnvasesHora: number | null
-  /** Envases contados por la llenadora en el turno. */
+  /** Envases de lo reportado en Producto Terminado (cajas × envases por caja). */
   realEnvases: number
+  /** Minutos que toma producir lo reportado a la velocidad ELEGIDA de cada corrida. Sin dato = realEnvases ÷ velocidad elegida. */
+  produccionMin?: number
   /** Envases por caja de la presentación (para mostrar cajas). null = sin dato. */
   envasesPorCaja: number | null
 }
@@ -86,7 +93,11 @@ export interface ResultadoEficiencia {
   realCajas: number | null
   /** Real ÷ Meta del turno (velocidad ELEGIDA), 0–100+. null si no hay meta. */
   avancePct: number | null
-  /** Eficiencia de tiempo: Operativo ÷ Disponible del turno completo. 100 % sin no programadas. null sin tiempo disponible. */
+  /** Lo reportado ÷ velocidad ELEGIDA, en minutos. */
+  produccionMin: number
+  /** No programadas registradas (sin contar dos veces lo que se pisa). */
+  noProgramadaMin: number
+  /** Producción ÷ (Producción + No programadas). 100 % sin no programadas. null sin nada reportado en PT. */
   eficienciaPct: number | null
   /** Disponibilidad (OEE): Operativo ÷ Disponible, hasta ahora. */
   disponibilidadPct: number | null
@@ -97,6 +108,9 @@ export interface ResultadoEficiencia {
 }
 
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : null)
+/** Producción ÷ (Producción + No programadas); sin nada reportado no hay eficiencia. */
+const eficienciaDe = (produccionMin: number, noProgramadaMin: number) =>
+  produccionMin > 0 ? pct(produccionMin, produccionMin + noProgramadaMin) : null
 
 export function calcularEficiencia(e: EntradaEficiencia): ResultadoEficiencia {
   const vElegida = e.velocidadElegidaEnvasesHora && e.velocidadElegidaEnvasesHora > 0 ? e.velocidadElegidaEnvasesHora : null
@@ -112,6 +126,7 @@ export function calcularEficiencia(e: EntradaEficiencia): ResultadoEficiencia {
   const metaEnvases = vElegida ? Math.round((vElegida * disponibleMin) / 60) : 0
   const esperadoAhora = vMaxima ? (vMaxima * disponibleAhoraMin) / 60 : 0
   const rendimientoBase = vMaxima ? (vMaxima * operativoAhoraMin) / 60 : 0
+  const produccionMin = e.produccionMin ?? (vElegida ? (e.realEnvases / vElegida) * 60 : 0)
 
   return {
     disponibleMin,
@@ -124,28 +139,28 @@ export function calcularEficiencia(e: EntradaEficiencia): ResultadoEficiencia {
     realEnvases: e.realEnvases,
     realCajas: e.envasesPorCaja && e.envasesPorCaja > 0 ? Math.round(e.realEnvases / e.envasesPorCaja) : null,
     avancePct: pct(e.realEnvases, metaEnvases),
-    eficienciaPct: pct(operativoMin, disponibleMin),
+    produccionMin,
+    noProgramadaMin: e.minutosNoProgramada,
+    eficienciaPct: eficienciaDe(produccionMin, e.minutosNoProgramada),
     disponibilidadPct: pct(operativoAhoraMin, disponibleAhoraMin),
     rendimientoPct: pct(e.realEnvases, rendimientoBase),
     paradasExcedenTiempo: programadaYocioso + e.minutosNoProgramada > transcurrido + 1,
   }
 }
 
-/** Promedio de una velocidad por corrida, ponderado por los envases contados de cada una (la corrida activa, o la última, si aún no hay contador). */
-function velocidadPonderada(corridasLinea: Corrida[], contadores: ContadorRegistro[], velocidadDe: (c: Corrida) => number): number | null {
+/** Promedio de una velocidad por corrida, ponderado por los envases reportados de cada una (la corrida activa, o la última, si aún no hay PT). */
+function velocidadPonderada(corridasLinea: Corrida[], envasesDe: Map<string, number>, velocidadDe: (c: Corrida) => number): number | null {
   if (corridasLinea.length === 0) return null
-  const envasesDe = (c: Corrida) =>
-    contadores.filter((k) => k.corridaId === c.id).reduce((a, k) => a + k.envasesLlenadora, 0)
-  const pesos = corridasLinea.map((c) => ({ c, envases: envasesDe(c) }))
+  const pesos = corridasLinea.map((c) => ({ c, envases: envasesDe.get(c.id) ?? 0 }))
   const total = pesos.reduce((a, p) => a + p.envases, 0)
   if (total > 0) return pesos.reduce((a, p) => a + velocidadDe(p.c) * p.envases, 0) / total
   const referencia = corridasLinea.find((c) => c.activa) ?? corridasLinea[corridasLinea.length - 1]
   return velocidadDe(referencia)
 }
 
-/** Velocidad ELEGIDA de la línea (la de cada corrida) — la base de la Meta. */
-export function velocidadDeLinea(corridasLinea: Corrida[], contadores: ContadorRegistro[]): number | null {
-  return velocidadPonderada(corridasLinea, contadores, (c) => c.envasesHora)
+/** Velocidad ELEGIDA de la línea (la de cada corrida) — la base de la Meta. `envasesDe`: corridaId → envases reportados en PT. */
+export function velocidadDeLinea(corridasLinea: Corrida[], envasesDe: Map<string, number>): number | null {
+  return velocidadPonderada(corridasLinea, envasesDe, (c) => c.envasesHora)
 }
 
 /**
@@ -153,11 +168,18 @@ export function velocidadDeLinea(corridasLinea: Corrida[], contadores: ContadorR
  * OEE (Disponibilidad × Rendimiento), nunca la elegida. Si el catálogo no trae opciones para
  * esa línea/presentación (cambió después de activar), el piso es la propia velocidad elegida.
  */
-export function velocidadMaximaDeLinea(corridasLinea: Corrida[], contadores: ContadorRegistro[], velocidades: VelocidadLive[]): number | null {
-  return velocidadPonderada(corridasLinea, contadores, (c) => {
+export function velocidadMaximaDeLinea(corridasLinea: Corrida[], envasesDe: Map<string, number>, velocidades: VelocidadLive[]): number | null {
+  return velocidadPonderada(corridasLinea, envasesDe, (c) => {
     const opciones = velocidades.filter((v) => v.activo && v.linea === c.linea && v.presentacion === c.presentacion).map((v) => v.envasesHora)
     return opciones.length > 0 ? Math.max(...opciones, c.envasesHora) : c.envasesHora
   })
+}
+
+/** Lo reportado en Producto Terminado de una corrida. */
+export interface CajasReportadas {
+  corridaId: string | null
+  paletas: number
+  cajasSueltas: number
 }
 
 export interface EntradaTurno {
@@ -169,7 +191,8 @@ export interface EntradaTurno {
   /** Horas transcurridas desde el inicio del turno (solo importa con el turno abierto). */
   horasTranscurridas: number
   corridas: Corrida[]
-  contadores: ContadorRegistro[]
+  /** Producto Terminado del turno: de acá sale lo REAL (no del contador de la llenadora). */
+  productoTerminado: CajasReportadas[]
   presentaciones: PresentacionLive[]
   /** Catálogo de velocidades — de acá sale la velocidad MÁXIMA del OEE (por línea y presentación). */
   velocidades: VelocidadLive[]
@@ -199,7 +222,7 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
   const transcurridoMin = t.estado === "CERRADO" ? turnoMin : t.horasTranscurridas * 60
   const ahora = t.ahora ?? new Date()
   const porLinea = new Map<string, ResultadoEficiencia>()
-  const acumulado = { real: 0, meta: 0, esperado: 0, metaCajas: 0, realCajas: 0, disponible: 0, operativo: 0, disponibleAhora: 0, operativoAhora: 0, cajasConocidas: true, excede: false }
+  const acumulado = { real: 0, meta: 0, esperado: 0, metaCajas: 0, realCajas: 0, disponible: 0, operativo: 0, disponibleAhora: 0, operativoAhora: 0, produccion: 0, noProgramada: 0, cajasConocidas: true, excede: false }
 
   for (const codigo of t.lineas) {
     const corridasLinea = t.corridas.filter((c) => c.linea === codigo)
@@ -232,17 +255,23 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
       primeraActivacionMs,
     )
 
-    const ids = new Set(corridasLinea.map((c) => c.id))
-    const conteo = t.contadores.filter((k) => k.corridaId !== null && ids.has(k.corridaId))
-    const realEnvases = conteo.reduce((a, k) => a + k.envasesLlenadora, 0)
-
-    // Envases por caja: total de envases ÷ total de cajas de sus corridas; sin contador, el de la corrida de referencia.
+    // Lo real = lo reportado en PT de cada corrida; su tiempo de producción, a la velocidad elegida de esa corrida.
+    const envasesDe = new Map<string, number>()
     let cajas = 0
+    let produccionMin = 0
     for (const c of corridasLinea) {
-      const exc = t.presentaciones.find((p) => p.codigo === c.presentacion)?.envasesXCaja ?? 0
-      const env = conteo.filter((k) => k.corridaId === c.id).reduce((a, k) => a + k.envasesLlenadora, 0)
-      if (exc > 0) cajas += env / exc
+      const pres = t.presentaciones.find((p) => p.codigo === c.presentacion)
+      const cajasCorrida = t.productoTerminado
+        .filter((p) => p.corridaId === c.id)
+        .reduce((a, p) => a + p.paletas * (pres?.cajasXPaleta ?? 0) + p.cajasSueltas, 0)
+      const envases = cajasCorrida * (pres?.envasesXCaja ?? 0)
+      envasesDe.set(c.id, envases)
+      cajas += cajasCorrida
+      if (c.envasesHora > 0) produccionMin += (envases / c.envasesHora) * 60
     }
+    const realEnvases = [...envasesDe.values()].reduce((a, n) => a + n, 0)
+
+    // Envases por caja: total de envases ÷ total de cajas de sus corridas; sin PT, el de la corrida de referencia.
     const referencia = corridasLinea.find((c) => c.activa) ?? corridasLinea[corridasLinea.length - 1]
     const excReferencia = t.presentaciones.find((p) => p.codigo === referencia.presentacion)?.envasesXCaja ?? null
     const envasesPorCaja = realEnvases > 0 && cajas > 0 ? realEnvases / cajas : excReferencia
@@ -253,9 +282,10 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
       minutosProgramada: minutos.PROGRAMADA,
       minutosOcioso: minutos.OCIOSO,
       minutosNoProgramada: minutos.NO_PROGRAMADA,
-      velocidadElegidaEnvasesHora: velocidadDeLinea(corridasLinea, t.contadores),
-      velocidadMaximaEnvasesHora: velocidadMaximaDeLinea(corridasLinea, t.contadores, t.velocidades),
+      velocidadElegidaEnvasesHora: velocidadDeLinea(corridasLinea, envasesDe),
+      velocidadMaximaEnvasesHora: velocidadMaximaDeLinea(corridasLinea, envasesDe, t.velocidades),
       realEnvases,
+      produccionMin,
       envasesPorCaja,
     })
     porLinea.set(codigo, r)
@@ -266,6 +296,8 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     acumulado.operativo += r.operativoMin
     acumulado.disponibleAhora += r.disponibleAhoraMin
     acumulado.operativoAhora += r.operativoAhoraMin
+    acumulado.produccion += r.produccionMin
+    acumulado.noProgramada += r.noProgramadaMin
     acumulado.excede = acumulado.excede || r.paradasExcedenTiempo
     if (r.metaCajas === null || r.realCajas === null) acumulado.cajasConocidas = false
     else {
@@ -287,7 +319,9 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     realEnvases: acumulado.real,
     realCajas: acumulado.cajasConocidas ? acumulado.realCajas : null,
     avancePct: pct(acumulado.real, acumulado.meta),
-    eficienciaPct: pct(acumulado.operativo, acumulado.disponible),
+    produccionMin: acumulado.produccion,
+    noProgramadaMin: acumulado.noProgramada,
+    eficienciaPct: eficienciaDe(acumulado.produccion, acumulado.noProgramada),
     disponibilidadPct: pct(acumulado.operativoAhora, acumulado.disponibleAhora),
     rendimientoPct: null,
     paradasExcedenTiempo: acumulado.excede,

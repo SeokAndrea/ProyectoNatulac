@@ -97,7 +97,7 @@ export default function PanelProduccion() {
         estado: turno.estado,
         horasTranscurridas: horasTurnoActual,
         corridas: prod.corridas,
-        contadores: prod.contadores,
+        productoTerminado: pt.registros,
         presentaciones,
         velocidades,
         paradas: paradasTurno,

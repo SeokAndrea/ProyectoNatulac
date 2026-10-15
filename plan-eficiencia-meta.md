@@ -6,7 +6,15 @@ Creado 2026-09-21, actualizado el mismo día con las respuestas del dueño. Obje
 
 Estado: **implementado en el navegador** (`src/lib/eficiencia.ts`). Los puntos con `[ ]` siguen abiertos.
 
-**Vigente al 2026-09-28 (manda sobre lo de abajo):**
+**Vigente al 2026-10-15 (manda sobre todo lo de abajo; dueña):**
+- Lo REAL es siempre lo reportado en Producto Terminado (paletas × cajas por paleta + sueltas), nunca el contador
+  de la llenadora. Vale para la eficiencia, el avance, el rendimiento y las cajas reales del Panel.
+- Tiempo de Producción = cajas reportadas × envases por caja ÷ velocidad ELEGIDA (por corrida, y se suma).
+- Eficiencia = Producción ÷ (Producción + No programadas). El tiempo que nadie explicó no castiga (se ve aparte en
+  «minutos sin reportar», src/lib/minutosSinReportar.ts).
+- La Meta no cambia: velocidad elegida × (Turno − Programadas − Ocioso).
+
+**Vigente al 2026-09-28:**
 - Rendimiento y OEE se miden contra la velocidad **máxima de la llenadora** (L1 8.000, L2 y L3 9.000), no contra
   la elegida. La elegida solo se usa para la Meta. Reconfirmado por el usuario.
 - OEE = Disponibilidad × Rendimiento; Calidad = 1.

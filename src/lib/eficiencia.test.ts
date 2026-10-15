@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { calcularEficiencia, duracionBaseTurnoMin, eficienciaDelTurno, oeeDePeriodo, velocidadDeLinea, velocidadMaximaDeLinea } from "@/lib/eficiencia"
 import type { Parada } from "@/lib/paradas"
-import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
+import type { Corrida } from "@/lib/produccion/tipos"
+import type { CajasReportadas } from "@/lib/eficiencia"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 
 // Ejemplo del plan: línea 2, 250 ml, 24 envases/caja, 9.000 envases/h (elegida = máxima acá), turno de 8 h.
@@ -45,19 +46,32 @@ describe("calcularEficiencia — ejemplo del plan", () => {
     expect(r.metaCajas).toBe(2250)
     expect(r.realCajas).toBe(1800)
   })
-  it("eficiencia 83 % (operativo ÷ disponible), disponibilidad 83 %, rendimiento 96 %", () => {
+  it("eficiencia 83 % (producción 288 min ÷ (288 + 60)), disponibilidad 83 %, rendimiento 96 %", () => {
+    expect(r.produccionMin).toBe(288)
+    expect(r.noProgramadaMin).toBe(60)
     expect(r.eficienciaPct).toBe(83)
     expect(r.disponibilidadPct).toBe(83)
     expect(r.rendimientoPct).toBe(96)
     expect(r.avancePct).toBe(80)
   })
-  it("la eficiencia es de tiempo: no depende de los envases contados", () => {
-    expect(calcularEficiencia({ ...BASE, realEnvases: 0 }).eficienciaPct).toBe(83)
+  it("sin nada reportado en PT no hay eficiencia", () => {
+    expect(calcularEficiencia({ ...BASE, realEnvases: 0 }).eficienciaPct).toBeNull()
   })
-  it("ejemplo de la dueña: T1 480 min, 30 de Descanso y 45 de falla → 90 %", () => {
-    const r = calcularEficiencia({ ...BASE, minutosProgramada: 30, minutosOcioso: 0, minutosNoProgramada: 45 })
-    expect(r.disponibleMin).toBe(450)
-    expect(r.eficienciaPct).toBe(90)
+  it("ejemplo de la dueña (T1 del 15/10, línea 1): 2.410 cajas de 12 a 6.000 env/h = 289 min; 55 de no programadas → 84 %", () => {
+    const r = calcularEficiencia({
+      ...BASE,
+      minutosProgramada: 20,
+      minutosOcioso: 0,
+      minutosNoProgramada: 55,
+      velocidadElegidaEnvasesHora: 6000,
+      realEnvases: 2410 * 12,
+      envasesPorCaja: 12,
+    })
+    expect(r.produccionMin).toBeCloseTo(289.2)
+    expect(r.eficienciaPct).toBe(84)
+  })
+  it("el tiempo que nadie explicó no castiga: la misma producción con un turno más largo da lo mismo", () => {
+    expect(calcularEficiencia({ ...BASE, turnoMin: 600, transcurridoMin: 600 }).eficienciaPct).toBe(83)
   })
   it("una parada programada u ociosa no baja la eficiencia, solo la meta", () => {
     const sinNoProg = calcularEficiencia({ ...BASE, minutosNoProgramada: 0, realEnvases: 54000 })
@@ -134,8 +148,10 @@ describe("calcularEficiencia — en vivo (ritmo)", () => {
     expect(r.eficienciaPct).toBe(100)
     expect(r.metaEnvases).toBe(63000)
   })
-  it("sin tiempo disponible no inventa porcentajes", () => {
-    expect(calcularEficiencia({ ...BASE, minutosProgramada: 480, minutosOcioso: 0 }).eficienciaPct).toBeNull()
+  it("sin tiempo disponible no inventa la meta ni el avance", () => {
+    const r = calcularEficiencia({ ...BASE, minutosProgramada: 480, minutosOcioso: 0 })
+    expect(r.metaEnvases).toBe(0)
+    expect(r.avancePct).toBeNull()
   })
   it("avisa si las paradas suman más que el tiempo transcurrido", () => {
     expect(calcularEficiencia({ ...BASE, transcurridoMin: 100 }).paradasExcedenTiempo).toBe(true)
@@ -147,8 +163,8 @@ describe("calcularEficiencia — en vivo (ritmo)", () => {
 // para que las corridas "de siempre" sigan representando una línea activa desde el arranque del turno.
 const corrida = (id: string, linea: string, envasesHora: number, activa = true, presentacion = "250", activadaEn = "2026-09-21T07:00:00"): Corrida =>
   ({ id, linea, presentacion, envasesHora, activa, activadaEn }) as unknown as Corrida
-const contador = (corridaId: string, envasesLlenadora: number): ContadorRegistro =>
-  ({ corridaId, envasesLlenadora }) as unknown as ContadorRegistro
+/** PT de una corrida con esos envases (presentación 250 de los tests: 24 por caja). */
+const pt = (corridaId: string, envases: number): CajasReportadas => ({ corridaId, paletas: 0, cajasSueltas: envases / 24 })
 const horaDesdeLas8 = (min: number) =>
   `2026-09-21T${String(8 + Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}:00`
 /** Parada que arranca `inicioMin` minutos después de las 8:00 (por defecto a las 8:00). */
@@ -167,7 +183,7 @@ const parada = (lineaCodigo: string, clase: Parada["clase"], minutos: number, in
   fin: horaDesdeLas8(inicioMin + minutos),
   supervisorNombre: null,
 })
-const PRES = [{ codigo: "250", envasesXCaja: 24 }] as unknown as PresentacionLive[]
+const PRES = [{ codigo: "250", envasesXCaja: 24, cajasXPaleta: 100 }] as unknown as PresentacionLive[]
 const velocidad = (linea: string, presentacion: string, envasesHora: number, activo = true): VelocidadLive =>
   ({ id: `${linea}-${presentacion}-${envasesHora}`, linea, presentacion, maquina: "x", envasesHora, litrosHora: 0, activo }) as unknown as VelocidadLive
 // Catálogo usado por los tests de eficienciaDelTurno: máxima = elegida (9.000) para que los números
@@ -175,13 +191,13 @@ const velocidad = (linea: string, presentacion: string, envasesHora: number, act
 const VELOCIDADES = ["LINEA_1", "LINEA_2", "LINEA_3", "LINEA_T1"].map((l) => velocidad(l, "250", 9000))
 
 describe("velocidadDeLinea", () => {
-  it("promedio ponderado por los envases contados", () => {
+  it("promedio ponderado por los envases reportados", () => {
     const cs = [corrida("a", "LINEA_1", 9000), corrida("b", "LINEA_1", 6000)]
-    expect(velocidadDeLinea(cs, [contador("a", 30000), contador("b", 10000)])).toBe(8250)
+    expect(velocidadDeLinea(cs, new Map([["a", 30000], ["b", 10000]]))).toBe(8250)
   })
-  it("sin contador usa la de la corrida activa", () => {
+  it("sin PT usa la de la corrida activa", () => {
     const cs = [corrida("a", "LINEA_1", 9000, false), corrida("b", "LINEA_1", 6000, true)]
-    expect(velocidadDeLinea(cs, [])).toBe(6000)
+    expect(velocidadDeLinea(cs, new Map())).toBe(6000)
   })
 })
 
@@ -189,11 +205,11 @@ describe("velocidadMaximaDeLinea", () => {
   it("usa el techo del catálogo, no la elegida de la corrida", () => {
     const cs = [corrida("a", "LINEA_1", 6000)]
     const velocidades = [velocidad("LINEA_1", "250", 6000), velocidad("LINEA_1", "250", 8000)]
-    expect(velocidadMaximaDeLinea(cs, [contador("a", 10000)], velocidades)).toBe(8000)
+    expect(velocidadMaximaDeLinea(cs, new Map([["a", 10000]]), velocidades)).toBe(8000)
   })
   it("sin opciones en el catálogo, el piso es la propia elegida", () => {
     const cs = [corrida("a", "LINEA_1", 6000)]
-    expect(velocidadMaximaDeLinea(cs, [contador("a", 10000)], [])).toBe(6000)
+    expect(velocidadMaximaDeLinea(cs, new Map([["a", 10000]]), [])).toBe(6000)
   })
 })
 
@@ -212,7 +228,7 @@ describe("eficienciaDelTurno", () => {
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_2", 9000)],
-      contadores: [contador("a", 43200)],
+      productoTerminado: [pt("a", 43200)],
       paradas: [parada("LINEA_2", "PROGRAMADA", 90), parada("LINEA_2", "OCIOSO", 30, 90), parada("LINEA_2", "NO_PROGRAMADA", 60, 120)],
     })
     expect([...r.porLinea.keys()]).toEqual(["LINEA_2"])
@@ -226,13 +242,13 @@ describe("eficienciaDelTurno", () => {
     const una = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_2", 9000)],
-      contadores: [contador("a", 43200)],
+      productoTerminado: [pt("a", 43200)],
       paradas: [parada("LINEA_2", "NO_PROGRAMADA", 60)],
     })
     const duplicada = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_2", 9000)],
-      contadores: [contador("a", 43200)],
+      productoTerminado: [pt("a", 43200)],
       paradas: [parada("LINEA_2", "NO_PROGRAMADA", 60), { ...parada("LINEA_2", "NO_PROGRAMADA", 60), id: "mtto", origen: "MANTENIMIENTO" }],
     })
     expect(duplicada.porLinea.get("LINEA_2")?.operativoMin).toBe(una.porLinea.get("LINEA_2")?.operativoMin)
@@ -242,7 +258,7 @@ describe("eficienciaDelTurno", () => {
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_2", 9000)],
-      contadores: [contador("a", 43200)],
+      productoTerminado: [pt("a", 43200)],
       paradas: [parada("LINEA_1", "NO_PROGRAMADA", 300)],
     })
     expect(r.porLinea.get("LINEA_2")?.disponibilidadPct).toBe(100)
@@ -253,7 +269,7 @@ describe("eficienciaDelTurno", () => {
       ...base,
       lineas: ["LINEA_T1"],
       corridas: [corrida("a", "LINEA_T1", 9000)],
-      contadores: [contador("a", 43200)],
+      productoTerminado: [pt("a", 43200)],
       paradas: [parada("LINEA_1", "OCIOSO", 30)],
     })
     expect(r.porLinea.get("LINEA_T1")?.disponibleMin).toBe(450)
@@ -267,7 +283,7 @@ describe("eficienciaDelTurno", () => {
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_1", 9000, true, "250", "2026-09-21T13:00:00")],
-      contadores: [contador("a", 18000)], // exactamente 2 h a 9.000 env/h
+      productoTerminado: [pt("a", 18000)], // exactamente 2 h a 9.000 env/h
       paradas: [],
     })
     expect(r.porLinea.get("LINEA_1")?.disponibleAhoraMin).toBe(120)
@@ -284,7 +300,7 @@ describe("eficienciaDelTurno", () => {
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_1", 9000, true, "250", "2026-09-21T13:00:00")],
-      contadores: [contador("a", 18000)],
+      productoTerminado: [pt("a", 18000)],
       paradas: [{ ...parada("LINEA_1", "PROGRAMADA", 0), inicio: "2026-09-21T07:00:00", fin: "2026-09-21T13:00:00" }],
     })
     expect(r.porLinea.get("LINEA_1")?.disponibleAhoraMin).toBe(120)
@@ -292,12 +308,12 @@ describe("eficienciaDelTurno", () => {
   })
 
   it("el turno 12x12 se calcula con base 12 h", () => {
-    const r = eficienciaDelTurno({ ...base, turnoTipo: "12X12", corridas: [corrida("a", "LINEA_1", 9000)], contadores: [], paradas: [] })
+    const r = eficienciaDelTurno({ ...base, turnoTipo: "12X12", corridas: [corrida("a", "LINEA_1", 9000)], productoTerminado: [], paradas: [] })
     expect(r.porLinea.get("LINEA_1")?.disponibleMin).toBe(720)
   })
 
   it("tipo de turno desconocido no se calcula", () => {
-    const r = eficienciaDelTurno({ ...base, turnoTipo: "OTRO", corridas: [corrida("a", "LINEA_1", 9000)], contadores: [], paradas: [] })
+    const r = eficienciaDelTurno({ ...base, turnoTipo: "OTRO", corridas: [corrida("a", "LINEA_1", 9000)], productoTerminado: [], paradas: [] })
     expect(r.porLinea.size).toBe(0)
     expect(r.total).toBeNull()
   })
@@ -308,7 +324,7 @@ describe("eficienciaDelTurno", () => {
       estado: "ABIERTO",
       horasTranscurridas: 3,
       corridas: [corrida("a", "LINEA_1", 9000)],
-      contadores: [contador("a", 27000)],
+      productoTerminado: [pt("a", 27000)],
       paradas: [],
     })
     expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
@@ -319,7 +335,7 @@ describe("eficienciaDelTurno", () => {
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_1", 6000)],
-      contadores: [contador("a", 48000)], // exactamente la meta a 6.000 env/h × 8 h
+      productoTerminado: [pt("a", 48000)], // exactamente la meta a 6.000 env/h × 8 h
       velocidades: [velocidad("LINEA_1", "250", 6000), velocidad("LINEA_1", "250", 8000)],
       paradas: [],
     })
@@ -329,15 +345,34 @@ describe("eficienciaDelTurno", () => {
   })
 
   it("dos líneas: el total suma minutos, no promedia porcentajes", () => {
-    // L1 sin paradas (480/480), L2 con 96 min de falla (384/480) → 864/960 = 90 %
+    // Cada una reporta 43.200 envases a 9.000 env/h = 288 min. L1 sin paradas (100 %);
+    // L2 con 96 min de falla: 288 ÷ 384 = 75 %. Total 576 ÷ 672 = 86 % (no 87,5 %).
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_1", 9000), corrida("b", "LINEA_2", 9000)],
-      contadores: [],
+      productoTerminado: [pt("a", 43200), pt("b", 43200)],
       paradas: [parada("LINEA_2", "NO_PROGRAMADA", 96)],
     })
-    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(80)
-    expect(r.total?.eficienciaPct).toBe(90)
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(100)
+    expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(75)
+    expect(r.total?.eficienciaPct).toBe(86)
+  })
+
+  it("lo real sale del PT (paletas × cajas por paleta + sueltas), no del contador", () => {
+    const r = eficienciaDelTurno({
+      ...base,
+      corridas: [corrida("a", "LINEA_1", 9000)],
+      productoTerminado: [{ corridaId: "a", paletas: 17, cajasSueltas: 100 }], // 1.800 cajas
+      paradas: [],
+    })
+    expect(r.porLinea.get("LINEA_1")?.realCajas).toBe(1800)
+    expect(r.porLinea.get("LINEA_1")?.realEnvases).toBe(43200)
+  })
+
+  it("una línea con corrida pero sin PT todavía: sin eficiencia", () => {
+    const r = eficienciaDelTurno({ ...base, corridas: [corrida("a", "LINEA_1", 9000)], productoTerminado: [], paradas: [parada("LINEA_1", "NO_PROGRAMADA", 30)] })
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBeNull()
+    expect(r.total?.eficienciaPct).toBeNull()
   })
 })
 

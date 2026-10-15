@@ -94,9 +94,9 @@ describe("calcularMesAutomatico", () => {
     })
   })
 
-  it("eficiencia de la línea: (disponible − no programadas) ÷ disponible", () => {
-    // T1 480 min − 30 programada = 450; no programadas 45 + 15 + 20 + 30 = 110 → 340 ÷ 450.
-    expect(mes.eficiencia["2"]).toBe(76)
+  it("eficiencia de la línea: producción del PT ÷ (producción + no programadas)", () => {
+    // PT: 2040 cajas × 24 ÷ 9000 = 326,4 min + 990 × 24 ÷ 9000 = 158,4 → 484,8; no programadas 45 + 15 + 20 + 30 = 110 → 484,8 ÷ 594,8.
+    expect(mes.eficiencia["2"]).toBe(82)
   })
 
   describe("con lo corregido en Validar jornada", () => {
@@ -128,8 +128,8 @@ describe("calcularMesAutomatico", () => {
     it("las paradas que no cuentan salen y las corregidas usan sus minutos", () => {
       expect(corregido.presentaciones["2|250"].paradas).toEqual([{ causa: "Atasco en la araña", minutos: 45, veces: 1 }])
       expect(corregido.presentaciones["2|200"].paradas).toEqual([{ causa: "Falla en tapadora", minutos: 10, veces: 1 }])
-      // No programadas: 45 + 20 + 10 = 75 → 375 ÷ 450.
-      expect(corregido.eficiencia["2"]).toBe(83)
+      // Cajas corregidas 2100 × 24 ÷ 9000 = 336 + 158,4 = 494,4; no programadas 45 + 20 + 10 = 75 → 494,4 ÷ 569,4.
+      expect(corregido.eficiencia["2"]).toBe(87)
     })
   })
 })

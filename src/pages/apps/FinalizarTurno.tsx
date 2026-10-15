@@ -213,7 +213,7 @@ export default function FinalizarTurno() {
     estado: "CERRADO",
     horasTranscurridas: 0,
     corridas: prod.corridas,
-    contadores: prod.contadores,
+    productoTerminado: pt.registros,
     presentaciones,
     velocidades,
     paradas,
