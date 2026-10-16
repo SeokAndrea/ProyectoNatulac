@@ -92,6 +92,8 @@ export interface EstadoLineaEnVivo {
   aviso?: string | null
   /** Ya pasó el margen de 15 min. */
   avisoUrgente?: boolean
+  /** Descripción de la parada en curso. */
+  nota?: string | null
 }
 
 /** Carga el OEE por línea (clave LINEA_1/2/3) del período y turno elegidos — ver cargarOeePeriodo (src/lib/eficienciaPeriodo.ts). */
@@ -378,6 +380,7 @@ export function PanelParadasVista({
                       presentacion={enVivo.presentacion}
                       aviso={enVivo.aviso}
                       avisoUrgente={enVivo.avisoUrgente}
+                      nota={enVivo.nota}
                     />
                   ) : (
                     <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">

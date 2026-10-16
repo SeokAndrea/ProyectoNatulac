@@ -145,6 +145,7 @@ export default function PanelParadas() {
           estado: lineaReal ? estadoLineaVista(lineaReal.codigo, prod.corridas, prod.lineasEstado, parada) : "LIBRE",
           aviso: parada ? textoParadaEnVivo(parada) : null,
           avisoUrgente: parada?.visible ?? false,
+          nota: parada?.nota ?? null,
           saborNombre: corrida?.saborNombre ?? null,
           lote: corrida?.lote ?? null,
           presentacion: corrida?.presentacion ?? null,

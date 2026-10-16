@@ -43,6 +43,7 @@ export function CintaLinea({
   presentacion = null,
   aviso = null,
   avisoUrgente = false,
+  nota = null,
 }: {
   numeroLinea: number
   estado: EstadoLineaVista
@@ -53,6 +54,8 @@ export function CintaLinea({
   /** Parada abierta: "Parada hace 6 min" (todavía corre) o "Mantenimiento · 42 min" (ya parada). Ver src/lib/paradasEnVivo.ts. */
   aviso?: string | null
   avisoUrgente?: boolean
+  /** Descripción que escribió quien registró la parada. */
+  nota?: string | null
 }) {
   const meta = META[estado]
   const Icon = meta.icono
@@ -78,6 +81,14 @@ export function CintaLinea({
           )}
         >
           {aviso}
+        </span>
+      )}
+      {aviso && nota && (
+        <span
+          className="absolute right-2 top-[2.8rem] z-20 max-w-[85%] truncate rounded-md border border-border bg-background/90 px-1.5 py-0.5 text-[10px] text-foreground"
+          title={nota}
+        >
+          {nota}
         </span>
       )}
 
