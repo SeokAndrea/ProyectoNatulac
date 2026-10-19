@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # SQL MAESTRO — copia completa de la base (estructura + datos)
 # ============================================================
 # Saca un solo archivo .sql con TODO lo que hay en el esquema public
