@@ -16,6 +16,7 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
   let tanqueActivo = null;
   let setpointL = 0;
   let litrosActuales = 0;
+  let litrosTotales = 0;
   let caudalLMin = 0;
   let pausaHastaMs = 0;
   let temporizador = null;
@@ -42,8 +43,13 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
       tanque_activo: tanqueActivo,
       setpoint_l: tanqueActivo ? setpointL : null,
       litros_actuales: Math.round(litrosActuales * 10) / 10,
+      litros_totales: Math.round(litrosTotales * 10) / 10,
       caudal_l_min: Math.round(caudalLMin * 10) / 10,
       valvulas: estadoValvulas(),
+      // Actuador_Aux_Tank_X = valvula de recirculacion/CIP, no de entrada
+      // de agua (ver s7.js); la simulacion solo modela el llenado, asi que
+      // se dejan siempre apagados.
+      auxiliares: { 1: false, 2: false, 3: false },
       llenando: tanqueActivo !== null,
     });
   }
@@ -62,7 +68,9 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
 
     // caudal con algo de ruido, como leeria un flujometro real
     caudalLMin = 80 + Math.random() * 60;
-    litrosActuales = Math.min(setpointL, litrosActuales + (caudalLMin / 60) * (intervaloMs / 1000));
+    const incrementoL = (caudalLMin / 60) * (intervaloMs / 1000);
+    litrosActuales = Math.min(setpointL, litrosActuales + incrementoL);
+    litrosTotales += incrementoL;
 
     if (litrosActuales >= setpointL) {
       litrosActuales = setpointL;

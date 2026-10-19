@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Prueba visual - PLC Preparacion</title>
+<style>
+  :root {
+    color-scheme: light;
+    --fondo: #f4f5f7;
+    --tarjeta: #ffffff;
+    --borde: #e2e4e8;
+    --texto: #1f2430;
+    --texto-suave: #6b7280;
+    --activo: #2563eb;
+    --activo-fondo: #eff6ff;
+    --ok: #16a34a;
+    --alerta: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .subt { color: var(--texto-suave); font-size: 13px; margin: 0 0 20px; }
+
+  .barra-conexion {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: var(--tarjeta);
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+  }
+  .barra-conexion input {
+    flex: 1;
+    min-width: 220px;
+    padding: 8px 10px;
+    border: 1px solid var(--borde);
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .barra-conexion button {
+    padding: 8px 14px;
+    border: 1px solid var(--activo);
+    background: var(--activo);
+    color: white;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .estado-punto {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--alerta);
+    flex-shrink: 0;
+  }
+  .estado-punto.conectado { background: var(--ok); }
+  .estado-texto { font-size: 13px; color: var(--texto-suave); }
+
+  .tanques {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .tanque {
+    background: var(--tarjeta);
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 18px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .tanque.activo {
+    border-color: var(--activo);
+    box-shadow: 0 0 0 3px var(--activo-fondo);
+  }
+  .tanque-cab {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+  .tanque-titulo { font-size: 15px; font-weight: 600; }
+  .valvula {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    color: var(--texto-suave);
+  }
+  .valvula.abierta { background: #dcfce7; color: var(--ok); }
+  .aux {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    color: var(--texto-suave);
+    margin-left: 6px;
+  }
+  .aux.abierta { background: #fef3c7; color: #b45309; }
+
+  .barra-progreso {
+    height: 10px;
+    background: #eef0f3;
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 10px 0 8px;
+  }
+  .barra-progreso > div {
+    height: 100%;
+    background: var(--activo);
+    width: 0%;
+    transition: width .15s linear;
+  }
+  .litros {
+    font-size: 13px;
+    color: var(--texto-suave);
+    display: flex;
+    justify-content: space-between;
+  }
+  .litros b { color: var(--texto); font-size: 14px; }
+  .caudal {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--texto-suave);
+  }
+  .en-espera { color: var(--texto-suave); font-size: 13px; padding: 20px 0; text-align: center; }
+
+  .totales {
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--texto-suave);
+  }
+
+  .crudo {
+    margin-top: 24px;
+    background: #11151c;
+    color: #d1d5db;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 12px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .crudo-titulo { color: var(--texto-suave); font-size: 12px; margin: 0 0 6px; }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --fondo: #14161b;
+      --tarjeta: #1c1f26;
+      --borde: #2a2e37;
+      --texto: #e5e7eb;
+      --texto-suave: #9099a8;
+      --activo: #3b82f6;
+      --activo-fondo: #1e293b;
+    }
+  }
+</style>
+</head>
+<body>
+  <h1>Prueba visual - Llenado de tanques (Preparacion)</h1>
+  <p class="subt">Pagina suelta de verificacion, no forma parte del dashboard. Solo lee el WebSocket del plc-bridge.</p>
+
+  <div class="barra-conexion">
+    <span id="punto" class="estado-punto"></span>
+    <span id="estadoTexto" class="estado-texto">Sin conectar</span>
+    <input id="url" type="text" value="ws://localhost:4036" />
+    <button id="conectar">Conectar</button>
+  </div>
+
+  <div class="tanques">
+    <div class="tanque" data-tanque="1">
+      <div class="tanque-cab">
+        <span class="tanque-titulo">Tanque 1</span>
+        <span>
+          <span class="valvula">entrada cerrada</span>
+          <span class="aux">aux apagado</span>
+        </span>
+      </div>
+      <div class="cuerpo"></div>
+    </div>
+    <div class="tanque" data-tanque="2">
+      <div class="tanque-cab">
+        <span class="tanque-titulo">Tanque 2</span>
+        <span>
+          <span class="valvula">entrada cerrada</span>
+          <span class="aux">aux apagado</span>
+        </span>
+      </div>
+      <div class="cuerpo"></div>
+    </div>
+    <div class="tanque" data-tanque="3">
+      <div class="tanque-cab">
+        <span class="tanque-titulo">Tanque 3</span>
+        <span>
+          <span class="valvula">entrada cerrada</span>
+          <span class="aux">aux apagado</span>
+        </span>
+      </div>
+      <div class="cuerpo"></div>
+    </div>
+  </div>
+
+  <div id="totales" class="totales">Litros totales acumulados: -</div>
+
+  <p class="crudo-titulo">Ultimo mensaje recibido (crudo):</p>
+  <div id="crudo" class="crudo">-</div>
+
+<script>
+  const punto = document.getElementById("punto");
+  const estadoTexto = document.getElementById("estadoTexto");
+  const campoUrl = document.getElementById("url");
+  const botonConectar = document.getElementById("conectar");
+  const crudo = document.getElementById("crudo");
+  const totalesEl = document.getElementById("totales");
+  const tarjetasTanque = {
+    1: document.querySelector('.tanque[data-tanque="1"]'),
+    2: document.querySelector('.tanque[data-tanque="2"]'),
+    3: document.querySelector('.tanque[data-tanque="3"]'),
+  };
+
+  let socket = null;
+  let reintentoTimer = null;
+
+  function marcarEstado(conectado, texto) {
+    punto.classList.toggle("conectado", conectado);
+    estadoTexto.textContent = texto;
+  }
+
+  function renderTanque(numero, estado) {
+    const tarjeta = tarjetasTanque[numero];
+    const activo = estado.tanque_activo === numero;
+    const entradaAbierta = !!(estado.valvulas && estado.valvulas[numero]);
+    const auxAbierto = !!(estado.auxiliares && estado.auxiliares[numero]);
+
+    tarjeta.classList.toggle("activo", activo);
+
+    const chipValvula = tarjeta.querySelector(".valvula");
+    chipValvula.textContent = entradaAbierta ? "entrada abierta" : "entrada cerrada";
+    chipValvula.classList.toggle("abierta", entradaAbierta);
+
+    const chipAux = tarjeta.querySelector(".aux");
+    chipAux.textContent = auxAbierto ? "aux encendido" : "aux apagado";
+    chipAux.classList.toggle("abierta", auxAbierto);
+
+    const cuerpo = tarjeta.querySelector(".cuerpo");
+
+    if (!activo) {
+      cuerpo.innerHTML = '<div class="en-espera">En espera</div>';
+      return;
+    }
+
+    const litros = estado.litros_actuales ?? 0;
+    const setpoint = estado.setpoint_l ?? 0;
+    const porcentaje = setpoint > 0 ? Math.min(100, (litros / setpoint) * 100) : 0;
+
+    cuerpo.innerHTML = `
+      <div class="barra-progreso"><div style="width:${porcentaje.toFixed(1)}%"></div></div>
+      <div class="litros"><span>Litros actuales</span><b>${litros.toFixed(1)} L</b></div>
+      <div class="litros"><span>Setpoint</span><b>${setpoint} L</b></div>
+      <div class="caudal">Caudal: ${(estado.caudal_l_min ?? 0).toFixed(1)} L/min</div>
+    `;
+  }
+
+  function procesarMensaje(estado) {
+    [1, 2, 3].forEach((numero) => renderTanque(numero, estado));
+    totalesEl.textContent = "Litros totales acumulados: " +
+      (estado.litros_totales != null ? estado.litros_totales.toFixed(1) + " L" : "-");
+    crudo.textContent = JSON.stringify(estado, null, 2);
+  }
+
+  function conectar() {
+    if (socket) {
+      socket.onclose = null;
+      socket.close();
+    }
+    clearTimeout(reintentoTimer);
+
+    const url = campoUrl.value.trim();
+    marcarEstado(false, "Conectando a " + url + "...");
+
+    try {
+      socket = new WebSocket(url);
+    } catch (error) {
+      marcarEstado(false, "URL invalida: " + error.message);
+      return;
+    }
+
+    socket.onopen = () => marcarEstado(true, "Conectado a " + url);
+
+    socket.onmessage = (evento) => {
+      try {
+        procesarMensaje(JSON.parse(evento.data));
+      } catch (error) {
+        console.error("Mensaje no valido:", evento.data, error);
+      }
+    };
+
+    socket.onclose = () => {
+      marcarEstado(false, "Desconectado, reintentando en 2s...");
+      reintentoTimer = setTimeout(conectar, 2000);
+    };
+
+    socket.onerror = () => {
+      marcarEstado(false, "Error de conexion");
+    };
+  }
+
+  botonConectar.addEventListener("click", conectar);
+  conectar();
+</script>
+</body>
+</html>

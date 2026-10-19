@@ -9,6 +9,7 @@
     "start": "node src/index.js"
   },
   "dependencies": {
+    "nodes7": "^0.3.18",
     "ws": "^8.18.0"
   }
 }

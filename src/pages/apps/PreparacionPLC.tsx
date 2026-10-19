@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AppShell } from "@/components/AppShell"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,14 +21,36 @@ interface EstadoLlenado {
   tanque_activo: number | null
   setpoint_l: number | null
   litros_actuales: number
+  litros_totales: number | null
   caudal_l_min: number
   valvulas: Record<string, boolean>
+  /** Válvula de recirculación/CIP de cada tanque (no es la de entrada de agua) — ver plc-bridge/src/fuentes/s7.js. */
+  auxiliares: Record<string, boolean>
   llenando: boolean
 }
 
+/** Litros por debajo de la última lectura que cuentan como "empezó una dosis nueva" (tolerancia a ruido). */
+const TOLERANCIA_REINICIO_L = 1
+
+/**
+ * Además del estado crudo, lleva la cuenta de cuánto ha entrado a cada
+ * tanque DURANTE TODA esta preparación — no solo la dosis en curso.
+ *
+ * Por qué hace falta: un mismo llenado puede tener varios "ajustes" (el
+ * operador abre, cierra, revisa, vuelve a abrir hasta llegar al nivel que
+ * quiere). litros_actuales que manda el PLC es de la dosis actual nada más
+ * (no sabemos con certeza si se reinicia al cambiar de tanque, al empezar
+ * una dosis nueva del mismo tanque, o ambas — así que se detectan las dos
+ * señales): cuando el tanque activo cambia, o cuando litros_actuales baja
+ * respecto a la última lectura del mismo tanque, la dosis que estaba en
+ * curso se da por cerrada y se suma al acumulado de ESE tanque.
+ */
 function usePlcLlenado(url: string) {
   const [estado, setEstado] = useState<EstadoLlenado | null>(null)
   const [conectado, setConectado] = useState(false)
+  const [acumulados, setAcumulados] = useState<Record<number, number>>({})
+  const [ultimosSetpoints, setUltimosSetpoints] = useState<Record<number, number>>({})
+  const previoRef = useRef<{ tanque: number | null; litros: number }>({ tanque: null, litros: 0 })
 
   useEffect(() => {
     let socket: WebSocket | null = null
@@ -41,10 +63,31 @@ function usePlcLlenado(url: string) {
       socket.onopen = () => setConectado(true)
 
       socket.onmessage = (evento) => {
+        let nuevo: EstadoLlenado
         try {
-          setEstado(JSON.parse(evento.data))
+          nuevo = JSON.parse(evento.data)
         } catch {
-          // mensaje no válido, se ignora
+          return // mensaje no válido, se ignora
+        }
+        setEstado(nuevo)
+
+        const anterior = previoRef.current
+        const tanqueNuevo = nuevo.tanque_activo
+        const litrosNuevo = nuevo.litros_actuales ?? 0
+        const cambioDeTanque = anterior.tanque !== tanqueNuevo
+        const empezoDosisNueva =
+          !cambioDeTanque && tanqueNuevo != null && litrosNuevo < anterior.litros - TOLERANCIA_REINICIO_L
+
+        if (anterior.tanque != null && (cambioDeTanque || empezoDosisNueva)) {
+          const tanqueACerrar = anterior.tanque
+          const litrosDeEsaDosis = anterior.litros
+          setAcumulados((prev) => ({ ...prev, [tanqueACerrar]: (prev[tanqueACerrar] ?? 0) + litrosDeEsaDosis }))
+        }
+
+        previoRef.current = { tanque: tanqueNuevo, litros: tanqueNuevo != null ? litrosNuevo : 0 }
+
+        if (tanqueNuevo != null && nuevo.setpoint_l != null) {
+          setUltimosSetpoints((prev) => ({ ...prev, [tanqueNuevo]: nuevo.setpoint_l as number }))
         }
       }
 
@@ -65,25 +108,49 @@ function usePlcLlenado(url: string) {
     }
   }, [url])
 
-  return { estado, conectado }
+  return { estado, conectado, acumulados, ultimosSetpoints }
+}
+
+/** "5 min 03 s" / "42 s" / "completado" / "calculando…" */
+function formatearTiempoEstimado(litrosFaltantes: number, caudalLMin: number): string {
+  if (litrosFaltantes <= 0) return "completado"
+  if (caudalLMin <= 0) return "calculando…"
+  const segundos = Math.round((litrosFaltantes / caudalLMin) * 60)
+  const min = Math.floor(segundos / 60)
+  const seg = segundos % 60
+  return min > 0 ? `${min} min ${seg.toString().padStart(2, "0")} s` : `${seg} s`
 }
 
 export default function PreparacionPLC() {
-  const { estado, conectado } = usePlcLlenado(URL_PLC_BRIDGE)
+  const { estado, conectado, acumulados, ultimosSetpoints } = usePlcLlenado(URL_PLC_BRIDGE)
 
   return (
     <AppShell
       title="Llenado PLC (prueba)"
       description="Litros y estado de válvula en vivo desde el PLC de Preparación — vista de prueba."
     >
-      <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-        <span className={cn("size-2.5 rounded-full", conectado ? "bg-success" : "bg-destructive")} />
-        {conectado ? `Conectado (fuente: ${estado?.fuente ?? "..."})` : "Sin conexión al bridge — reintentando..."}
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+        <span className="flex items-center gap-2">
+          <span className={cn("size-2.5 rounded-full", conectado ? "bg-success" : "bg-destructive")} />
+          {conectado ? `Conectado (fuente: ${estado?.fuente ?? "..."})` : "Sin conexión al bridge — reintentando..."}
+        </span>
+        {conectado && estado?.litros_totales != null && (
+          <span>
+            Contador general del PLC:{" "}
+            <span className="font-medium text-foreground">{estado.litros_totales.toFixed(1)} L</span>
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {NUMEROS_TANQUE.map((numero) => (
-          <TarjetaTanque key={numero} numero={numero} estado={estado} />
+          <TarjetaTanque
+            key={numero}
+            numero={numero}
+            estado={estado}
+            acumulado={acumulados[numero] ?? 0}
+            ultimoSetpoint={ultimosSetpoints[numero] ?? null}
+          />
         ))}
       </div>
 
@@ -97,24 +164,53 @@ export default function PreparacionPLC() {
   )
 }
 
-function TarjetaTanque({ numero, estado }: { numero: number; estado: EstadoLlenado | null }) {
+function TarjetaTanque({
+  numero,
+  estado,
+  acumulado,
+  ultimoSetpoint,
+}: {
+  numero: number
+  estado: EstadoLlenado | null
+  /** Litros de dosis ya cerradas de este tanque (sin contar la que esté en curso ahora). */
+  acumulado: number
+  /** Último setpoint visto para este tanque, para seguir mostrándolo mientras está "en espera" entre ajustes. */
+  ultimoSetpoint: number | null
+}) {
   const activo = estado?.tanque_activo === numero
   const abierta = !!estado?.valvulas?.[String(numero)]
+  const auxEncendido = !!estado?.auxiliares?.[String(numero)]
   const litros = activo ? (estado?.litros_actuales ?? 0) : 0
-  const setpoint = activo ? (estado?.setpoint_l ?? 0) : 0
+  const setpoint = activo ? (estado?.setpoint_l ?? 0) : (ultimoSetpoint ?? 0)
+  const caudal = activo ? (estado?.caudal_l_min ?? 0) : 0
   const porcentaje = setpoint > 0 ? Math.min(100, (litros / setpoint) * 100) : 0
+  // Total REAL de esta preparación: lo de dosis/ajustes anteriores + lo que lleva la dosis en curso.
+  const totalIngresado = acumulado + litros
+  const tiempoEstimado = activo ? formatearTiempoEstimado(Math.max(0, setpoint - litros), caudal) : null
 
   return (
     <Card className={cn(activo && "ring-2 ring-primary")}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Tanque {numero}</CardTitle>
-          <Badge variant={abierta ? "success" : "muted"}>{abierta ? "Válvula abierta" : "Válvula cerrada"}</Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge variant={abierta ? "success" : "muted"}>{abierta ? "Entrada abierta" : "Entrada cerrada"}</Badge>
+            {/* Recirculación/CIP: el bit crudo del PLC, sin cruzar todavía con la
+                condición real del tanque (recepcion_tanques.condicion) — ver nota
+                en s7.js. Por ahora se etiqueta genérico como "Aux". */}
+            {auxEncendido && <Badge variant="info">Aux. encendido</Badge>}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        {!activo ? (
+        {!activo && totalIngresado <= 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">En espera</p>
+        ) : !activo ? (
+          <div className="py-4 text-center text-sm text-muted-foreground">
+            En espera del próximo ajuste — lleva{" "}
+            <span className="font-medium text-foreground">{totalIngresado.toFixed(1)} L</span>
+            {setpoint > 0 ? ` de ${setpoint} L` : ""}
+          </div>
         ) : (
           <>
             {/* Tanque con la animación de llenado — mismo componente que el Panel de Producción */}
@@ -124,24 +220,31 @@ function TarjetaTanque({ numero, estado }: { numero: number; estado: EstadoLlena
                 condicion="EN_PREPARACION"
                 volumenL={null}
                 color="var(--info)"
-                llenado={{ litros, setpointL: setpoint, caudalLMin: estado?.caudal_l_min ?? null }}
+                llenado={{ litros, setpointL: setpoint, caudalLMin: caudal }}
               />
             </div>
             <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-primary transition-all" style={{ width: `${porcentaje.toFixed(1)}%` }} />
             </div>
-            <div className="mt-3 flex justify-between text-sm">
-              <span className="text-muted-foreground">Litros actuales</span>
-              <span className="font-medium">{litros.toFixed(1)} L</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Setpoint</span>
-              <span className="font-medium">{setpoint} L</span>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">Caudal: {(estado?.caudal_l_min ?? 0).toFixed(1)} L/min</p>
+            <dl className="mt-3 space-y-1.5 text-sm">
+              <Fila etiqueta="Setpoint (esta apertura)" valor={`${setpoint} L`} />
+              <Fila etiqueta="Litros actuales" valor={`${litros.toFixed(1)} L`} />
+              <Fila etiqueta="Total ingresado al tanque" valor={`${totalIngresado.toFixed(1)} L`} destacado />
+              <Fila etiqueta="Caudal" valor={`${caudal.toFixed(1)} L/min`} />
+              <Fila etiqueta="Tiempo estimado" valor={tiempoEstimado ?? "calculando…"} />
+            </dl>
           </>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function Fila({ etiqueta, valor, destacado = false }: { etiqueta: string; valor: string; destacado?: boolean }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-muted-foreground">{etiqueta}</dt>
+      <dd className={cn("font-medium", destacado && "text-primary")}>{valor}</dd>
+    </div>
   )
 }

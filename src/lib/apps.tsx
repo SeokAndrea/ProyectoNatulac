@@ -357,7 +357,10 @@ export const apps: AppDef[] = [
     href: "/preparacion-plc",
     icon: Droplets,
     requiereTurno: false,
-    usuarioPermitido: "arondon",
+    // TEMPORAL (rama feature/preparacion-plc, solo para sacar capturas con
+    // el usuario "pruebas"): revertir a "arondon" o decidir el permiso final
+    // antes de mezclar a main.
+    usuarioPermitido: "pruebas",
     atajo: true,
   },
   {
