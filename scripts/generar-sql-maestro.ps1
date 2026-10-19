@@ -3,12 +3,21 @@
 # ============================================================
 # Saca un solo archivo .sql con TODO lo que hay en el esquema public
 # de la base de Supabase en vivo: tablas, datos, funciones (RPC),
-# triggers, vistas, policies y permisos para anon/authenticated. Al
-# final le agrega lo que vive fuera de public y la app necesita:
+# triggers, vistas, policies y permisos para anon/authenticated.
+#
+# El destino es un PostgreSQL normal (sin Supabase), así que el
+# archivo trae primero lo que Supabase ya da hecho:
+#   * los roles anon / authenticated / service_role (sin login: solo
+#     para que valgan los GRANT y las policies)
 #   * pgcrypto en el esquema "extensions" (las claves usan
 #     extensions.crypt / extensions.gen_salt)
-#   * el bucket "actas" de Storage y sus policies
+#   * auth.uid(): lo usan los triggers de auditoría; acá devuelve null,
+#     igual que hoy, porque la app no usa Supabase Auth
+# y se sacan los GRANT a roles internos de Supabase (supabase_admin...).
+# Al final, cada uno solo si la base nueva lo tiene:
+#   * el bucket "actas" de Storage y sus policies (solo Supabase)
 #   * los jobs de pg_cron (cerrar-turnos-vencidos, relevo-de-respaldo)
+# Si no hay pg_cron, el archivo carga igual y lo avisa con un NOTICE.
 #
 # Lo que NO va en el archivo: los PDF de las actas guardados en
 # Storage. Hay que copiar esos archivos aparte.
@@ -28,8 +37,9 @@
 # Supabase > botón "Connect" > "Session pooler" (puerto 5432). La
 # "Direct connection" (db.xxx.supabase.co) solo anda por IPv6.
 #
-# Para cargarlo en la base nueva (otro proyecto de Supabase, vacío):
-#   psql --single-transaction -v ON_ERROR_STOP=1 -f <archivo>.sql "<cadena de la base nueva>"
+# Para cargarlo en la base nueva (vacía):
+#   createdb -U postgres natulac
+#   psql -U postgres -d natulac --single-transaction -v ON_ERROR_STOP=1 -f <archivo>.sql
 # ============================================================
 
 param(
@@ -132,47 +142,99 @@ try {
   $w.WriteLine('-- ============================================================')
   $w.WriteLine("-- Generado: $(Get-Date -Format 'yyyy-MM-dd HH:mm') con $versionTexto")
   $w.WriteLine("-- Origen:   $origen")
-  $w.WriteLine('-- Destino:  un proyecto de Supabase NUEVO y vacío (usa los roles')
-  $w.WriteLine('--           anon/authenticated y los esquemas storage y cron).')
-  $w.WriteLine('-- Cargar:   psql --single-transaction -v ON_ERROR_STOP=1 -f <este archivo> "<cadena de la base nueva>"')
+  $w.WriteLine('-- Destino:  PostgreSQL 17 (sirve también para otro Supabase).')
+  $w.WriteLine('-- Cargar:   createdb -U postgres natulac')
+  $w.WriteLine('--           psql -U postgres -d natulac --single-transaction -v ON_ERROR_STOP=1 -f <este archivo>')
   $w.WriteLine('-- Ojo:      tiene usuarios y hashes de claves. Los PDF de las actas')
   $w.WriteLine('--           (Storage, bucket "actas") NO están acá: se copian aparte.')
   $w.WriteLine('-- ============================================================')
   $w.WriteLine('')
-  $w.WriteLine('-- 0. Extensiones que usa la app')
-  $w.WriteLine('create schema if not exists extensions;')
-  $w.WriteLine('create extension if not exists pgcrypto with schema extensions;')
-  $w.WriteLine('create extension if not exists pg_cron;')
-  $w.WriteLine('')
+  $w.Write(@'
+-- 0. Lo que Supabase ya trae hecho y un Postgres normal no.
+-- Roles sin login: solo para que valgan los GRANT y las policies.
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin; end if;
+end $$;
 
-  # pg_dump 17.6+ escribe \restrict / \unrestrict: son comandos de psql
-  # y rompen el SQL Editor. El esquema public ya existe en Supabase.
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+
+-- auth.uid() lo usan los triggers de auditoría. La app no usa
+-- Supabase Auth, así que en Supabase también da null.
+create schema if not exists auth;
+do $$
+begin
+  if to_regprocedure('auth.uid()') is null then
+    create function auth.uid() returns uuid language sql stable as $f$
+      select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+    $f$;
+  end if;
+end $$;
+
+'@)
+
+  # Limpieza de lo que pg_dump escribe y no carga en un Postgres normal:
+  #   * \restrict / \unrestrict (pg_dump 17.6+): comandos de psql que
+  #     rompen el SQL Editor
+  #   * SET transaction_timeout: no existe antes de Postgres 17
+  #   * GRANT/REVOKE/ALTER DEFAULT PRIVILEGES a roles internos de
+  #     Supabase, y las publicaciones de Realtime: allá no existen
+  $rolesSupabase = '\b(supabase_\w+|authenticator|dashboard_user|pgbouncer|pgsodium\w*)\b'
+  $sacadas = 0
   $lector = New-Object System.IO.StreamReader($temporal, $utf8)
   try {
     while ($null -ne ($linea = $lector.ReadLine())) {
       if ($linea -match '^\\(un)?restrict ') { continue }
+      if ($linea -match '^SET transaction_timeout') { continue }
       if ($linea -match '^COMMENT ON SCHEMA public ') { continue }
+      if ($linea -match '^ALTER PUBLICATION ') { $sacadas++; continue }
+      if ($linea -match '^(GRANT|REVOKE|ALTER DEFAULT PRIVILEGES) ' -and $linea -match $rolesSupabase) { $sacadas++; continue }
       if ($linea -eq 'CREATE SCHEMA public;') { $linea = 'CREATE SCHEMA IF NOT EXISTS public;' }
       $w.WriteLine($linea)
     }
   } finally { $lector.Close() }
 
-  $w.WriteLine('')
-  $w.WriteLine('-- ============================================================')
-  $w.WriteLine('-- Fuera de public: Storage y pg_cron')
-  $w.WriteLine('-- ============================================================')
-  $w.WriteLine('SET search_path = public, extensions;')
-  $w.WriteLine('')
-  $w.WriteLine('-- Bucket público "actas" (ver 20260948090000_actas_pdf.sql)')
-  $w.WriteLine("insert into storage.buckets (id, name, public) values ('actas', 'actas', true) on conflict (id) do nothing;")
-  $w.WriteLine('drop policy if exists "actas_insert" on storage.objects;')
-  $w.WriteLine("create policy `"actas_insert`" on storage.objects for insert to anon, authenticated with check (bucket_id = 'actas');")
-  $w.WriteLine('drop policy if exists "actas_select" on storage.objects;')
-  $w.WriteLine("create policy `"actas_select`" on storage.objects for select to anon, authenticated using (bucket_id = 'actas');")
-  $w.WriteLine('')
-  $w.WriteLine('-- Jobs de pg_cron (ver 20260944090000 y 20261080090000)')
-  $w.WriteLine("select cron.schedule('cerrar-turnos-vencidos', '*/5 * * * *', `$`$select cerrar_turnos_vencidos();`$`$);")
-  $w.WriteLine("select cron.schedule('relevo-de-respaldo', '*/5 * * * *', `$`$select relevo_de_respaldo();`$`$);")
+  $w.Write(@'
+
+-- ============================================================
+-- Fuera de public: Storage y pg_cron, cada uno solo si existe
+-- ============================================================
+SET search_path = public, extensions;
+
+-- Bucket público "actas" (ver 20260948090000_actas_pdf.sql). Solo
+-- existe en Supabase; en un Postgres normal se salta.
+do $$
+begin
+  if to_regclass('storage.buckets') is null then
+    raise notice 'Sin Storage (no es Supabase): se salta el bucket "actas".';
+    return;
+  end if;
+  insert into storage.buckets (id, name, public) values ('actas', 'actas', true) on conflict (id) do nothing;
+  drop policy if exists "actas_insert" on storage.objects;
+  create policy "actas_insert" on storage.objects for insert to anon, authenticated with check (bucket_id = 'actas');
+  drop policy if exists "actas_select" on storage.objects;
+  create policy "actas_select" on storage.objects for select to anon, authenticated using (bucket_id = 'actas');
+end $$;
+
+-- Jobs cada 5 minutos (ver 20260944090000 y 20261080090000): cierran
+-- los turnos vencidos y hacen el relevo de respaldo. Si la base no
+-- tiene pg_cron, hay que programar esas dos llamadas por otro lado.
+do $$
+begin
+  begin
+    create extension if not exists pg_cron;
+  exception when others then
+    raise notice 'Sin pg_cron (%): programar cada 5 minutos "select cerrar_turnos_vencidos(); select relevo_de_respaldo();"', sqlerrm;
+    return;
+  end;
+  perform cron.schedule('cerrar-turnos-vencidos', '*/5 * * * *', 'select cerrar_turnos_vencidos();');
+  perform cron.schedule('relevo-de-respaldo', '*/5 * * * *', 'select relevo_de_respaldo();');
+end $$;
+
+'@)
 } finally { $w.Close() }
 
 Remove-Item $temporal -ErrorAction SilentlyContinue
@@ -191,3 +253,4 @@ Write-Host "  Archivo:   $Salida ($mb MB)"
 Write-Host "  Tablas:    $tablas"
 Write-Host "  Funciones: $funciones"
 Write-Host "  Bloques de datos (INSERT de hasta 500 filas): $inserts"
+Write-Host "  Líneas sacadas por ser solo de Supabase: $sacadas"
