@@ -24,7 +24,7 @@ export function PanelPausada({
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs text-muted-foreground">Parada.</p>
-      <AvisoParadaPendiente parada={paradaQueDetiene} accion="continuar" />
+      <AvisoParadaPendiente parada={paradaQueDetiene} />
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => ejecutar(() => continuar(corrida.id))} disabled={enviando || paradaQueDetiene !== null}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}

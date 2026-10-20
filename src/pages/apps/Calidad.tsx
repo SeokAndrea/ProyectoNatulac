@@ -299,14 +299,6 @@ function LoteParaAnalizar({
           </ul>
         )}
 
-        {rango === null && (
-          <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
-            {lote.saborId
-              ? "Este sabor no tiene cargados los rangos de Brix y acidez: el análisis se guarda, pero no se puede liberar hasta que el Supervisor de Calidad los cargue (abajo, en Parámetros por sabor)."
-              : "El lote no tiene sabor: el análisis se guarda, pero no se puede comparar con un rango ni liberar."}
-          </p>
-        )}
-
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(2,minmax(0,160px))_1fr]">
               <CampoMedicion
                 id={`brix-${lote.id}`}
@@ -364,7 +356,8 @@ function LoteParaAnalizar({
 
             <Button className="self-start" disabled={!valido || guardando} onClick={guardar}>
               {guardando && <Loader2 className="size-4 animate-spin" />}
-              {completo && !conforme ? "Guardar análisis" : "Guardar y liberar"}
+              {/* Sin rango del sabor no se libera: el botón lo dice desde el principio (cada campo muestra "Sin rango cargado"). */}
+              {rango === null || (completo && !conforme) ? "Guardar análisis" : "Guardar y liberar"}
             </Button>
       </CardContent>
     </Card>

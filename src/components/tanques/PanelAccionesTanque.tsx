@@ -8,8 +8,8 @@ import type { Sabor } from "@/lib/sabores"
 import { useAccion } from "@/lib/useAccion"
 import { DESVASE_HABILITADO } from "./constantes"
 import type { Corrida } from "@/lib/produccion/tipos"
-import { AvisoPtPendiente } from "./AvisoPtPendiente"
-import { conLiquido } from "./estadoTanque"
+import { BotonCargarPt } from "./PtPendiente"
+import { conLiquido, paradasSinPt } from "./estadoTanque"
 import { FormIniciarPreparacion } from "./FormIniciarPreparacion"
 import type { AccionesTanque } from "./tipos"
 
@@ -48,7 +48,7 @@ export function PanelAccionesTanque({
   areaCodigo: string | null
   usuarioSesion: string
   acciones: AccionesTanque
-  /** Corridas de este lote sin PT cargado. */
+  /** Corridas de este lote sin PT cargado (las paradas bloquean preparar encima, transferir y desvasar). */
   corridasSinPt?: Corrida[]
   onTransferir: () => void
 }) {
@@ -63,6 +63,9 @@ export function PanelAccionesTanque({
   const tieneResto = conResto && (tanque.volumenL ?? 0) > 0
   /** Lote de Vacío: sus opciones (entregar, pasar a Aséptico) están en MODO VACÍO; acá no se prepara encima ni se desvasa. */
   const deVacio = conResto && tanque.paraVacio
+  /** Línea parada sin PT: el tanque marca litros ya envasados (ver PtPendiente). */
+  const pendientes = tieneResto ? paradasSinPt(corridasSinPt) : []
+  const faltaPt = pendientes.length > 0
 
   async function iniciarCip() {
     if (!confirmandoCip) {
@@ -130,7 +133,6 @@ export function PanelAccionesTanque({
     }
     return (
       <div className="flex flex-col gap-2">
-        {tieneResto && <AvisoPtPendiente corridas={corridasSinPt} accion="preparar encima, transferir o desvasar" />}
         {deVacio && (
           <p className="text-xs text-vacio">Tanque de Vacío: entregar o pasar a Aséptico, en MODO VACÍO.</p>
         )}
@@ -141,8 +143,9 @@ export function PanelAccionesTanque({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
+          <BotonCargarPt corridas={pendientes} />
           {!deVacio && (
-            <Button size="sm" variant="outline" onClick={() => setForm("preparar")}>
+            <Button size="sm" variant="outline" disabled={faltaPt} onClick={() => setForm("preparar")}>
               <Beaker className="size-3.5" />
               {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}
             </Button>
@@ -169,13 +172,13 @@ export function PanelAccionesTanque({
               </Button>
             ))}
           {tieneResto && puedeTransferir && (
-            <Button size="sm" variant="outline" onClick={onTransferir}>
+            <Button size="sm" variant="outline" disabled={faltaPt} onClick={onTransferir}>
               <ArrowRightLeft className="size-3.5" />
               Transferir
             </Button>
           )}
           {DESVASE_HABILITADO && tieneResto && !deVacio && (
-            <Button size="sm" variant="outline" onClick={desvasar} disabled={desvase.enviando}>
+            <Button size="sm" variant="outline" onClick={desvasar} disabled={faltaPt || desvase.enviando}>
               {desvase.enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PackageOpen className="size-3.5" />}
               {confirmandoDesvase ? "¿Seguro? Sí, desvasar" : "Desvase"}
             </Button>

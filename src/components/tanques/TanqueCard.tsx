@@ -97,10 +97,8 @@ export function TanqueCard({
   const deVacio = tanque.paraVacio && conLiquido(tanque)
   const entregadoAVacio = loteActivo ? salidasVacio.filter((s) => s.loteId === loteActivo.id) : []
   const litrosEntregados = entregadoAVacio.reduce((suma, s) => suma + s.litros, 0)
-  // Corridas de este lote sin PT: el tanque marca litros ya envasados (AvisoPtPendiente).
+  // Corridas de este lote sin PT: las paradas bloquean acciones del tanque (ver PtPendiente).
   const sinPtDelLote = loteActivo ? corridasSinPt.filter((c) => c.loteId === loteActivo.id) : []
-  // Al transferir, la corrida que sigue corriendo se muda con el lote: el problema son las que ya pararon.
-  const sinPtParadas = sinPtDelLote.filter((c) => !c.activa)
   /** Tanque destino tal como quedó DESPUÉS de la transferencia (dato fresco del turno). */
   const destinoTransferido = transferencia ? tanquesDelTurno.find((t) => t.numeroTanque === transferencia.destino) : undefined
 
@@ -212,7 +210,6 @@ export function TanqueCard({
             tanque={tanque}
             destinos={destinos}
             hayCorridaEnEsteTanque={hayCorridaEnEsteTanque}
-            corridasSinPt={sinPtParadas}
             medirTanque={acciones.medirTanque}
             transferir={acciones.transferir}
             onCerrar={() => setTransfiriendo(false)}

@@ -6,8 +6,8 @@ import { LataPixel } from "@/components/pixel/LataPixel"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida } from "@/lib/produccion/tipos"
 import type { Sabor } from "@/lib/sabores"
-import { AvisoPtPendiente } from "./AvisoPtPendiente"
-import { conLiquido } from "./estadoTanque"
+import { BotonCargarPt } from "./PtPendiente"
+import { conLiquido, paradasSinPt } from "./estadoTanque"
 import { FormEntregarVacio } from "./FormEntregarVacio"
 import { FormIniciarPreparacion } from "./FormIniciarPreparacion"
 import { FormRecibirDeVacio } from "./FormRecibirDeVacio"
@@ -46,6 +46,9 @@ export function PanelVacioTanque({
   const cerrar = () => setForm(null)
   const conProducto = conLiquido(tanque) && (tanque.volumenL ?? 0) > 0
   const vacioDisponible = tanque.condicion === "LIMPIO" || tanque.condicion === "SUCIO"
+  /** Línea parada sin PT: el tanque marca litros ya envasados (ver PtPendiente). */
+  const pendientes = conProducto ? paradasSinPt(corridasSinPt) : []
+  const faltaPt = pendientes.length > 0
 
   if (form === "preparar") {
     return (
@@ -84,7 +87,6 @@ export function PanelVacioTanque({
   if (form === "entregar") {
     return (
       <FormEntregarVacio
-        aviso={<AvisoPtPendiente corridas={corridasSinPt} accion="entregar todo a Vacío" />}
         tanque={tanque}
         onEntregar={(litros) => acciones.entregarAVacio(tanque.numeroTanque, litros)}
         onListo={cerrar}
@@ -122,8 +124,8 @@ export function PanelVacioTanque({
 
   return (
     <div className="flex flex-col gap-2">
-      {conProducto && <AvisoPtPendiente corridas={corridasSinPt} accion="entregar a Vacío, pasar a Aséptico o transferir" />}
       <div className="flex flex-wrap gap-2">
+      <BotonCargarPt corridas={pendientes} />
       {vacioDisponible && (
         <>
           <Button size="sm" variant="outline" className={botonVacio} onClick={() => setForm("preparar")}>
@@ -137,19 +139,19 @@ export function PanelVacioTanque({
         </>
       )}
       {conProducto && (
-        <Button size="sm" variant="outline" className={botonVacio} onClick={() => setForm("entregar")}>
+        <Button size="sm" variant="outline" className={botonVacio} disabled={faltaPt} onClick={() => setForm("entregar")}>
           <LataPixel saborNombre={tanque.saborNombre} />
           {tanque.paraVacio ? "Entregar a Vacío" : "Salida a Vacío"}
         </Button>
       )}
       {tanque.paraVacio && conLiquido(tanque) && (
-        <Button size="sm" variant="outline" className={botonVacio} onClick={() => setForm("pasar")}>
+        <Button size="sm" variant="outline" className={botonVacio} disabled={faltaPt} onClick={() => setForm("pasar")}>
           <Factory className="size-3.5" />
           Pasar a Aséptico
         </Button>
       )}
       {conProducto && puedeTransferir && (
-        <Button size="sm" variant="outline" onClick={onTransferir}>
+        <Button size="sm" variant="outline" disabled={faltaPt} onClick={onTransferir}>
           <ArrowRightLeft className="size-3.5" />
           Transferir
         </Button>

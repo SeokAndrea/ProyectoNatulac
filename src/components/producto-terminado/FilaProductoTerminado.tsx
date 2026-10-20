@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
@@ -134,10 +135,9 @@ export function FilaProductoTerminado({
   if (!estaPausada) return form
   return (
     <div className="flex flex-col gap-2">
-      <p className="rounded-lg border border-warning/40 bg-warning-soft/30 px-3 py-2 text-sm text-foreground">
-        {nombreLinea} está parada (o en CIP) desde las {horaCortaPlanta(corrida.pausadaEn!, corrida.pausadaEn!.slice(0, 10))}. Carga lo producido hasta ahí; si la
-        entregas, sigue igual en el próximo turno.
-      </p>
+      <Badge variant="warning" className="self-start">
+        Parada desde las {horaCortaPlanta(corrida.pausadaEn!, corrida.pausadaEn!.slice(0, 10))}
+      </Badge>
       {form}
     </div>
   )

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, Loader2, PackageCheck } from "lucide-react"
+import { Loader2, PackageCheck } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
@@ -223,21 +223,7 @@ export default function ProductoTerminado() {
       <div className="flex flex-col gap-3">
         {enModoCorreccion && turnoCorregido && <ModoCorreccionBanner turno={turnoCorregido} onSalir={salirDeCorreccion} />}
         {selectorGracia}
-        {enGraciaPT && (
-          <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
-            <AlertTriangle className="size-4 shrink-0" />
-            Este turno ya se cerró. Puedes cargar contadores y Producto Terminado; al guardar, el acta se vuelve a generar
-            sola. Terminar o entregar la línea ya no se puede.
-          </p>
-        )}
         {enGraciaPT && <AvisoActa estado={acta.estado} />}
-        {enModoCorreccion && (
-          <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
-            <AlertTriangle className="size-4 shrink-0" />
-            En modo corrección se cargan contadores y Producto Terminado. Terminar o entregar la línea no está disponible
-            para un turno ya cerrado.
-          </p>
-        )}
         {pendientes.length === 0 && cerradas.length > 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">
             No hay corridas pendientes de carga — todas las de este turno ya están cerradas.

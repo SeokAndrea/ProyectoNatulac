@@ -6,8 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MensajeError } from "@/components/MensajeError"
 import type { ModoTransferencia, MotivoTransferencia, TanqueRecepcion } from "@/lib/preparacion/tipos"
-import type { Corrida } from "@/lib/produccion/tipos"
-import { AvisoPtPendiente } from "./AvisoPtPendiente"
 import { useAccion } from "@/lib/useAccion"
 import { TANK_CAPACITY, TANK_MAX_VOLUMEN } from "./constantes"
 import type { AccionesTanque } from "./tipos"
@@ -25,7 +23,6 @@ export function DialogTransferir({
   tanque,
   destinos,
   hayCorridaEnEsteTanque,
-  corridasSinPt = [],
   medirTanque,
   transferir,
   onCerrar,
@@ -36,8 +33,6 @@ export function DialogTransferir({
   destinos: TanqueRecepcion[]
   /** Una corrida activa toma de este tanque: al transferir pasa a tomar del destino (se confirma dos veces). */
   hayCorridaEnEsteTanque: boolean
-  /** Corridas ya paradas de este lote sin PT: el tanque marca litros que ya se envasaron. */
-  corridasSinPt?: Corrida[]
   medirTanque: AccionesTanque["medirTanque"]
   transferir: AccionesTanque["transferir"]
   onCerrar: () => void
@@ -92,7 +87,6 @@ export function DialogTransferir({
 
         {!origenConfirmado ? (
           <div className="flex flex-col gap-2">
-            <AvisoPtPendiente corridas={corridasSinPt} accion="transferir" />
             <div className="flex items-center gap-2">
               <Input
                 type="number"

@@ -177,7 +177,7 @@ describe("LineaCard — corriendo", () => {
 
   it("avisa si la corrida anterior sigue esperando su PT", () => {
     renderCard({ lineaTurno: corrida(), corridaEsperandoPt: corrida({ id: "c0", lote: "0000", activa: false, esperandoCierre: true }) })
-    expect(screen.getByText(/La corrida anterior del Lote 0000 espera su Producto/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Cargar PT · Lote 0000/ })).toHaveAttribute("href", "/producto-terminado")
   })
 
   it("Parada: exige el motivo, pausa con él y cierra el formulario", async () => {
@@ -324,8 +324,7 @@ describe("LineaCard — en pausa", () => {
   it("con la parada sin completar, Continuar queda bloqueado y lleva a Registrar Paradas", () => {
     renderCard({ lineaTurno: pausada(), paradaQueDetiene: PARADA_PENDIENTE })
     expect(boton("Continuar")).toBeDisabled()
-    expect(screen.getByText(/Para continuar, completa la parada/)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Ir a Registrar Paradas" })).toHaveAttribute("href", "/paradas?parada=p-9")
+    expect(screen.getByRole("link", { name: /Completar parada/ })).toHaveAttribute("href", "/paradas?parada=p-9")
   })
 
   it("Detener línea pide confirmar y manda el motivo", async () => {
@@ -384,7 +383,7 @@ describe("LineaCard — CIP con el lote en pausa", () => {
   it("Terminó CIP queda bloqueado mientras falte la parada", () => {
     renderCard(escenario({ paradaQueDetiene: PARADA_PENDIENTE }))
     expect(boton("Terminó CIP: continuar el Lote 0001")).toBeDisabled()
-    expect(screen.getByText(/Para terminar el CIP, completa la parada/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Completar parada/ })).toBeInTheDocument()
   })
 
   it("El lote ya no sigue: confirma y termina la corrida", async () => {
@@ -464,7 +463,7 @@ describe("LineaCard — esperando su Producto Terminado", () => {
     const u = userEvent.setup()
     const a = renderCard({ corridaEsperandoPt: detenida(), lineaEstado: estado("DETENIDA") })
     expect(screen.getByText("Esperando PT")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Cargar su PT" })).toHaveAttribute("href", "/producto-terminado")
+    expect(screen.getByRole("link", { name: "Terminó: cargar su PT" })).toHaveAttribute("href", "/producto-terminado")
     await u.click(boton("Continuar el Lote 0001"))
     expect(a.continuarCorridaDetenida).toHaveBeenCalledWith("c0")
     await u.click(boton("Arrancar con otro tanque"))
@@ -476,7 +475,7 @@ describe("LineaCard — esperando su Producto Terminado", () => {
     const u = userEvent.setup()
     const a = renderCard({ corridaEsperandoPt: detenida(), lineaEstado: estado("CIP") })
     expect(screen.getByText("En CIP")).toBeInTheDocument()
-    expect(screen.getByText(/La corrida del Lote 0001 espera su Producto Terminado/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Cargar PT · Lote 0001/ })).toBeInTheDocument()
     await u.click(boton("Terminó CIP"))
     expect(a.terminarCip).toHaveBeenCalledWith("LINEA_1")
   })

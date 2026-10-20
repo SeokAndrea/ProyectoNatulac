@@ -532,7 +532,7 @@ describe("Producto Terminado — otros estados de la corrida", () => {
 
   it("parada: avisa pero deja cargar el PT y entregarla (corte de turno sin reanudar)", () => {
     renderPagina()
-    expect(screen.getByText(/Línea 2 está parada \(o en CIP\) desde las/)).toBeInTheDocument()
+    expect(screen.getByText(/Parada desde las/)).toBeInTheDocument()
     const t = tarjeta("Línea 2")
     expect(t.getByPlaceholderText("Paletas")).toBeInTheDocument()
     expect(t.getByRole("button", { name: /Entregar línea/ })).toBeInTheDocument()
@@ -600,7 +600,6 @@ describe("Producto Terminado — turno ya cerrado", () => {
     const { container } = renderPagina()
     expect(pedidoCon.produccion.at(-1)).toBe("t-0")
     expect(screen.getByTestId("descripcion")).toHaveTextContent("Turno T1-0510 — ya cerrado")
-    expect(screen.getByText(/Este turno ya se cerró/)).toBeInTheDocument()
     const t = tarjeta("Línea 1")
     expect(t.getByPlaceholderText("Sumar al contador")).toBeInTheDocument()
     expect(t.queryByText("¿Qué pasa con esta línea?")).not.toBeInTheDocument()
@@ -630,7 +629,6 @@ describe("Producto Terminado — turno ya cerrado", () => {
     expect(pedidoCon.produccion.at(-1)).toBe("t-9")
     expect(screen.getByTestId("banner-correccion")).toHaveTextContent("T3-0410")
     expect(screen.getByTestId("descripcion")).toHaveTextContent("Turno T3-0410 (corrección)")
-    expect(screen.getByText(/En modo corrección se cargan contadores y Producto Terminado/)).toBeInTheDocument()
     expect(tarjeta("Línea 1").getByPlaceholderText("Sumar al contador")).toBeInTheDocument()
   })
 })

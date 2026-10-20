@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
-import { CheckCircle2, Loader2 } from "lucide-react"
+import { CheckCircle2, ClipboardPen, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import type { LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
@@ -19,18 +19,16 @@ export function DescripcionCip({ lineaEstado, children }: { lineaEstado: LineaEs
   )
 }
 
-/** Aviso cuando la parada del CIP (el +1) todavía no tiene tipo o minutos: hasta completarla no se sigue. */
-export function AvisoParadaPendiente({ parada, accion = "terminar el CIP" }: { parada: ParadaQueDetiene | null; accion?: string }) {
+/** La parada que detiene la línea (el +1) todavía no tiene tipo o minutos: hasta completarla no se sigue. Un botón directo, sin texto que leer. */
+export function AvisoParadaPendiente({ parada }: { parada: ParadaQueDetiene | null }) {
   if (!parada) return null
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border border-warning/40 bg-warning-soft/40 p-2">
-      <p className="text-xs text-foreground">
-        Para {accion}, completa la parada («{parada.tipoNombre}») en Registrar Paradas: tipo y minutos.
-      </p>
-      <Button asChild size="sm" variant="outline" className="self-start">
-        <Link to={`/paradas?parada=${parada.paradaId}`}>Ir a Registrar Paradas</Link>
-      </Button>
-    </div>
+    <Button asChild size="sm" className="self-start">
+      <Link to={`/paradas?parada=${parada.paradaId}`}>
+        <ClipboardPen className="size-3.5" />
+        Completar parada · {parada.tipoNombre}
+      </Link>
+    </Button>
   )
 }
 

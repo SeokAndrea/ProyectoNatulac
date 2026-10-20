@@ -887,26 +887,24 @@ describe("TanqueCard — Vacío", () => {
 })
 
 describe("TanqueCard — Producto Terminado pendiente", () => {
-  it("avisa si el lote tiene una corrida parada sin PT (preparar encima, transferir, desvasar)", async () => {
-    const u = userEvent.setup()
+  it("una corrida parada sin PT bloquea preparar encima y transferir, y lleva a cargarlo", () => {
     const parada = { ...corridaDe("p1"), activa: false, esperandoCierre: true }
     renderCard({ tanque: tanque(1, "LISTO"), preparaciones: [prep()], corridasSinPt: [parada], otros: [tanque(2, "LIMPIO")] })
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Falta el Producto Terminado de Línea 1 (Lote 0001): este tanque marca más litros de los que tiene.",
-    )
-    await u.click(boton("Transferir"))
-    expect(within(screen.getByRole("dialog")).getByRole("alert")).toHaveTextContent("Antes de transferir, carga el PT o mide el tanque.")
+    expect(boton("Transferir")).toBeDisabled()
+    expect(boton(/Iniciar nueva preparación/)).toBeDisabled()
+    expect(boton(/Medir tanque|Fijar volumen real/)).toBeEnabled()
+    expect(screen.getByRole("link", { name: /Cargar PT · Línea 1/ })).toHaveAttribute("href", "/producto-terminado")
   })
 
-  it("al transferir no avisa por la corrida que sigue corriendo (se muda con el lote)", async () => {
-    const u = userEvent.setup()
+  it("la corrida que sigue corriendo no bloquea: transferir es no parar la línea", () => {
     renderCard({ tanque: tanque(1, "LISTO"), preparaciones: [prep()], corridasSinPt: [corridaDe("p1")], otros: [tanque(2, "LIMPIO")] })
-    await u.click(boton("Transferir"))
-    expect(within(screen.getByRole("dialog")).queryByRole("alert")).not.toBeInTheDocument()
+    expect(boton("Transferir")).toBeEnabled()
+    expect(screen.queryByRole("link", { name: /Cargar PT/ })).not.toBeInTheDocument()
   })
 
-  it("sin corridas pendientes, no avisa", () => {
-    renderCard({ tanque: tanque(1, "LISTO"), preparaciones: [prep()] })
-    expect(screen.queryByText(/Falta el Producto Terminado/)).not.toBeInTheDocument()
+  it("sin corridas pendientes, nada bloqueado", () => {
+    renderCard({ tanque: tanque(1, "LISTO"), preparaciones: [prep()], otros: [tanque(2, "LIMPIO")] })
+    expect(boton("Transferir")).toBeEnabled()
+    expect(screen.queryByRole("link", { name: /Cargar PT/ })).not.toBeInTheDocument()
   })
 })

@@ -10,6 +10,7 @@ import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { colorSabor } from "@/lib/coloresSabor"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
+import { BotonCargarPtLote } from "./BotonCargarPtLote"
 import { ConfirmarInicioLinea } from "./ConfirmarInicioLinea"
 import { EstadoCipLinea } from "./EstadoCipLinea"
 import { aspectoLinea } from "./estadoLinea"
@@ -166,9 +167,7 @@ export function LineaCard({
       // CIP en el que el lote terminó: falta su PT y terminar el CIP (en cualquier orden).
       return (
         <div className="flex flex-col gap-2">
-          <p className="rounded-lg border border-warning/40 bg-warning-soft/40 p-2 text-xs text-foreground">
-            La corrida{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} espera su Producto Terminado.
-          </p>
+          <BotonCargarPtLote lote={corridaEsperandoPt.lote} />
           <EstadoCipLinea
             lineaCodigo={lineaCodigo}
             lineaEstado={lineaEstado}
@@ -255,14 +254,9 @@ export function LineaCard({
         )}
 
         {/* Tras "Continuar al siguiente lote" la corrida vieja queda esperando su PT
-            aunque la línea ya corra con otra: sin este aviso, Finalizar Turno la
+            aunque la línea ya corra con otra: sin esto, Finalizar Turno la
             rechaza y el supervisor no ve por qué. */}
-        {lineaTurno && corridaEsperandoPt && (
-          <p className="rounded-lg border border-warning/40 bg-warning-soft/40 px-3 py-2 text-xs text-foreground">
-            La corrida anterior{corridaEsperandoPt.lote ? ` del Lote ${corridaEsperandoPt.lote}` : ""} espera su Producto
-            Terminado. Cárgalo en Producto Terminado.
-          </p>
-        )}
+        {lineaTurno && corridaEsperandoPt && <BotonCargarPtLote lote={corridaEsperandoPt.lote} />}
 
         {cuerpo()}
       </CardContent>
