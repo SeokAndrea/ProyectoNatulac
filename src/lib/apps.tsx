@@ -25,9 +25,9 @@ import {
   BarChart3,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
-import { esAreaDeApoyo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
+import type { RolCodigo } from "@/lib/catalogos"
 import { puede, type Permiso } from "@/lib/permisos"
-import { APPS_GESTION, esGestion, esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
+import { esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
 
 export interface AppDef {
   slug: string
@@ -51,17 +51,10 @@ export interface AppDef {
   permiso?: Permiso | Permiso[]
   /** Roles que NO ven la tarjeta aunque no pida permiso (ej. Mantenimiento solo ve los paneles y sus paradas). */
   rolesExcluidos?: RolCodigo[]
-  /** Si se define, la tarjeta solo aparece para usuarios de estas áreas (ej. Servicios Industriales, que no tiene un rol propio). */
-  areasPermitidas?: AreaCodigo[]
-  /** Si se define, la tarjeta NO aparece para usuarios de estas áreas, aunque su rol sí califique. */
-  areasExcluidas?: AreaCodigo[]
-  /**
-   * Tarjeta de producción (Comenzar Turno, Preparación, Líneas, Producto
-   * Terminado, Finalizar Turno, Mis Actas, Programación): las áreas de
-   * apoyo no la ven aunque su rol califique (ej. Servicios Industriales
-   * usa el rol SUPERVISOR). Ver esAreaDeApoyo en src/lib/catalogos.ts.
-   */
-  soloProduccion?: boolean
+  /** Si se define, la tarjeta solo aparece para estos roles (ej. Calidad, Servicios Industriales). Lo decide el rol, no el área. */
+  rolesPermitidos?: RolCodigo[]
+  /** Tarjeta en prueba: solo la ve el Área de Pruebas hasta que se apruebe (ej. Validar jornada). */
+  enPrueba?: boolean
   /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
   atajo?: boolean
   /** Se bloquea (gris) cuando SÍ hay un turno en curso — lo opuesto de requiereTurno (ver Comenzar Turno). */
@@ -109,8 +102,6 @@ export const apps: AppDef[] = [
     icon: PlayCircle,
     requiereTurno: false,
     permiso: "TURNO_ASUMIR",
-    // Las áreas de apoyo (ej. Servicios Industriales, con rol SUPERVISOR) no arrancan turnos de producción.
-    soloProduccion: true,
     bloqueaConTurno: true,
     color: "success",
     seccion: "produccion",
@@ -122,7 +113,6 @@ export const apps: AppDef[] = [
     icon: Beaker,
     requiereTurno: true,
     permiso: "TURNO_CARGAR",
-    soloProduccion: true,
     color: "blue",
     seccion: "produccion",
   },
@@ -134,8 +124,8 @@ export const apps: AppDef[] = [
     icon: FlaskConical,
     requiereTurno: false,
     permiso: "LOTE_LIBERAR",
-    // Área Calidad (apoyo: ve el turno de Aséptico, migración 20261089) y Pruebas para probar. Ver plan-calidad.md.
-    areasPermitidas: ["CALIDAD", "PRUEBAS"],
+    // Solo los roles de Calidad (ven el turno de Aséptico, migración 20261089); Pruebas entra a todo. Ver plan-calidad.md.
+    rolesPermitidos: ["CALIDAD", "SUPERVISOR_CALIDAD"],
     color: "purple",
     seccion: "apoyo",
   },
@@ -146,7 +136,6 @@ export const apps: AppDef[] = [
     icon: Factory,
     requiereTurno: true,
     permiso: "TURNO_CARGAR",
-    soloProduccion: true,
     color: "blue",
     seccion: "produccion",
   },
@@ -158,7 +147,6 @@ export const apps: AppDef[] = [
     icon: PackageCheck,
     requiereTurno: true,
     permiso: "TURNO_CARGAR",
-    soloProduccion: true,
     seccion: "produccion",
   },
   {
@@ -168,7 +156,6 @@ export const apps: AppDef[] = [
     icon: ClipboardCheck,
     requiereTurno: true,
     permiso: "TURNO_ASUMIR",
-    soloProduccion: true,
     resaltarConTurno: true,
     bloqueaEnContinuidad: true,
     seccion: "produccion",
@@ -192,7 +179,7 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     permiso: "VALIDAR",
     // En prueba (2026-10-12): solo el Área de Pruebas hasta que la Analista lo apruebe. Ver src/lib/validarJornada.ts.
-    areasPermitidas: ["PRUEBAS"],
+    enPrueba: true,
     seccion: "auditoria",
   },
   {
@@ -202,7 +189,6 @@ export const apps: AppDef[] = [
     icon: FileText,
     requiereTurno: false,
     permiso: "TURNO_CARGAR",
-    soloProduccion: true,
     seccion: "auditoria",
   },
   {
@@ -223,7 +209,6 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     // Pantalla única (antes había una para supervisores y otra para Mantenimiento): entra quien tenga cualquiera de los dos permisos.
     permiso: ["PARADAS_REGISTRAR", "PARADAS_MANTENIMIENTO"],
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     seccion: "produccion",
   },
   {
@@ -235,7 +220,6 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     // Las genera el servidor (migración 20261109390000). Mantenimiento las gestiona (SIF_GESTIONAR); quien registra paradas o audita las ve.
     permiso: ["SIF_GESTIONAR", "PARADAS_REGISTRAR", "PARADAS_MANTENIMIENTO", "AUDITORIA_VER"],
-    areasExcluidas: ["SERVICIOS_INDUSTRIALES"],
     seccion: "produccion",
   },
   {
@@ -286,9 +270,8 @@ export const apps: AppDef[] = [
     href: "/programacion",
     icon: CalendarRange,
     requiereTurno: false,
-    // Programación es de producción: las áreas de apoyo y el rol Mantenimiento no la necesitan.
-    soloProduccion: true,
-    rolesExcluidos: ["MANTENIMIENTO"],
+    // Programación es de producción: la ve quien carga el turno o la edita (las áreas de apoyo no la necesitan).
+    permiso: ["TURNO_CARGAR", "PROGRAMACION_EDITAR"],
     atajo: true,
   },
   {
@@ -298,7 +281,7 @@ export const apps: AppDef[] = [
     href: "/servicios-industriales",
     icon: Thermometer,
     requiereTurno: false,
-    areasPermitidas: ["SERVICIOS_INDUSTRIALES"],
+    rolesPermitidos: ["SERVICIOS_INDUSTRIALES"],
     seccion: "apoyo",
   },
   {
@@ -308,7 +291,7 @@ export const apps: AppDef[] = [
     href: "/registros-servicios-industriales",
     icon: History,
     requiereTurno: false,
-    areasPermitidas: ["SERVICIOS_INDUSTRIALES"],
+    rolesPermitidos: ["SERVICIOS_INDUSTRIALES"],
     seccion: "apoyo",
   },
   {
@@ -431,14 +414,11 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (!session) return false
   // Solo Vista: los dos paneles y nada más, aunque esté en Pruebas.
   if (esSoloVista(session)) return PANELES_SOLO_VISTA.some((p) => p.slug === app.slug)
-  // Sistema de Gestión: sus documentos y paneles, sin importar permisos ni áreas (no puede guardar nada: src/lib/soloLectura.ts).
-  if (esGestion(session)) return APPS_GESTION.has(app.slug)
   if (session.area === "PRUEBAS") return true
+  if (app.enPrueba) return false
   if (app.permiso && ![app.permiso].flat().some((p) => puede(session, p))) return false
   if (app.rolesExcluidos?.includes(session.rol)) return false
-  if (app.areasPermitidas && !(session.area && app.areasPermitidas.includes(session.area))) return false
-  if (app.areasExcluidas && session.area && app.areasExcluidas.includes(session.area)) return false
-  if (app.soloProduccion && esAreaDeApoyo(session.area)) return false
+  if (app.rolesPermitidos && !app.rolesPermitidos.includes(session.rol)) return false
   if (app.soloDueno && !session.esDueno) return false
   if (app.usuarioPermitido && session.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
   return true

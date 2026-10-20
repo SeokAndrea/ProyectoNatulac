@@ -45,8 +45,8 @@ import { horasTranscurridasTurno, mermaEnvasesTurno, mermaSemielaboradoTurno } f
  */
 export default function PanelProduccion() {
   const { session } = useAuth()
-  /** Para quien carga el turno, tanques y líneas del panel llevan a Preparación (donde puede tocarlos). */
-  const esSupervisor = session?.rol !== "SUPERADMINISTRADOR" && puede(session ?? null, "TURNO_CARGAR")
+  /** Para el supervisor, tanques y líneas del panel llevan a Preparación (donde puede tocarlos). El jefe y la analista solo miran. */
+  const esSupervisor = session?.rol === "SUPERVISOR"
   const { lineas, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   const {

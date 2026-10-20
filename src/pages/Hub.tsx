@@ -51,9 +51,9 @@ export default function Hub() {
   const appsVisibles = apps.filter((app) => puedeVerApp(session, app) && !(ocultarTurno && APPS_DEL_TURNO.has(app.slug)))
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
-  const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area), session?.cargo)
-  // Por CARGO (rótulo del puesto en Personal), no por rol: el cargo no da permisos, solo ordena el inicio.
-  const esSupervisor = session?.cargo === "SUPERVISOR"
+  const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area), session?.rol)
+  // Por rol: el cargo es solo el nombre del puesto (Subjefe y Pasante también son rol Supervisor).
+  const esSupervisor = session?.rol === "SUPERVISOR"
   const porSlug = (slugs: string[]) =>
     slugs.map((slug) => appsVisibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)
   const flujo = esSupervisor ? porSlug(FLUJO_SUPERVISOR) : []

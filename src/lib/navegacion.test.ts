@@ -3,12 +3,12 @@ import { apps } from "@/lib/apps"
 import { agruparPorSeccion, bloqueoDeApp } from "@/lib/navegacion"
 
 const principales = apps.filter((a) => !a.atajo)
-const titulos = (cargo?: Parameters<typeof agruparPorSeccion>[2]) => agruparPorSeccion(principales, false, cargo).map((s) => s.titulo)
+const titulos = (rol?: Parameters<typeof agruparPorSeccion>[2]) => agruparPorSeccion(principales, false, rol).map((s) => s.titulo)
 
 describe("agruparPorSeccion", () => {
-  it("cargo jefe y analista (aunque su rol sea Super Administrador): Auditoría, Base de Datos y Producción, en ese orden", () => {
-    for (const cargo of ["JEFE_PRODUCCION", "ANALISTA_PRODUCCION"] as const) {
-      expect(titulos(cargo).slice(0, 3)).toEqual(["Auditoría", "Base de Datos", "Producción"])
+  it("rol jefe y analista: Auditoría, Base de Datos y Producción, en ese orden", () => {
+    for (const rol of ["JEFE_PRODUCCION", "ANALISTA"] as const) {
+      expect(titulos(rol).slice(0, 3)).toEqual(["Auditoría", "Base de Datos", "Producción"])
     }
   })
 

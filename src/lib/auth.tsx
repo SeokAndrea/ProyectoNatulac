@@ -20,7 +20,7 @@ interface PerfilActual {
   area: AreaCodigo | null
   esDueno: boolean
   permisos: Permiso[]
-  /** Rótulo del puesto (usuarios.cargo): solo visual, lo usa el inicio para ordenar las tarjetas. */
+  /** Nombre del puesto (usuarios.cargo): solo visual, no decide nada en la app. */
   cargo: CargoCodigo | null
 }
 
@@ -89,15 +89,8 @@ const AREA_DE_VISTA: Partial<Record<RolCodigo, AreaCodigo>> = {
   MANTENIMIENTO: "MANTENIMIENTO",
   CALIDAD: "CALIDAD",
   SUPERVISOR_CALIDAD: "CALIDAD",
+  SERVICIOS_INDUSTRIALES: "SERVICIOS_INDUSTRIALES",
   VISTA: "ASEPTICO",
-  GESTION: "ASEPTICO",
-}
-
-/** Cargo con el que se mira cada rol (el inicio ordena las tarjetas por cargo). */
-const CARGO_DE_VISTA: Partial<Record<RolCodigo, CargoCodigo>> = {
-  SUPERVISOR: "SUPERVISOR",
-  ANALISTA: "ANALISTA_PRODUCCION",
-  JEFE_PRODUCCION: "JEFE_PRODUCCION",
 }
 
 interface AuthContextValue {
@@ -170,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionVista = useMemo<Session | null>(
     () =>
       session && vistaActiva
-        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: AREA_DE_VISTA[vistaActiva.rol] ?? session.area, cargo: CARGO_DE_VISTA[vistaActiva.rol] ?? null }
+        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: AREA_DE_VISTA[vistaActiva.rol] ?? session.area, cargo: null }
         : session,
     [session, vistaActiva],
   )

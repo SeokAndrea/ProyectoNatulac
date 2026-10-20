@@ -28,13 +28,8 @@ describe("candado de solo lectura", () => {
   })
 })
 
-describe("apps de los roles que solo miran", () => {
+describe("apps del rol que solo mira", () => {
   it("Solo Vista ve los dos paneles y nada más", () => {
     expect(visibles(sesion("VISTA")).sort()).toEqual(["panel-paradas", "panel-produccion"])
-  })
-
-  it("Sistema de Gestión ve documentos, Programación y los paneles; nada del turno", () => {
-    const v = visibles(sesion("GESTION", ["AUDITORIA_VER", "RESUMEN_VER"]))
-    expect(v.sort()).toEqual(["auditoria", "mis-actas", "panel-paradas", "panel-produccion", "programacion", "resumen-dia", "solicitudes-intervencion"])
   })
 })

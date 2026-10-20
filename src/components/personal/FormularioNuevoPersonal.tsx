@@ -12,7 +12,6 @@ export function FormularioNuevoPersonal({
   pagina,
   areasDisponibles,
   rolesDisponibles,
-  areaFija,
   onCancelar,
   onAgregado,
 }: {
@@ -20,7 +19,6 @@ export function FormularioNuevoPersonal({
   pagina: string
   areasDisponibles: readonly AreaOpcion[]
   rolesDisponibles: readonly RolOpcion[]
-  areaFija: AreaCodigo | null
   onCancelar: () => void
   onAgregado: () => void
 }) {
@@ -28,7 +26,7 @@ export function FormularioNuevoPersonal({
   const [cedula, setCedula] = useState("")
   const [usuario, setUsuario] = useState("")
   const [password, setPassword] = useState("")
-  const [area, setArea] = useState<AreaCodigo | "">(areaFija ?? "")
+  const [area, setArea] = useState<AreaCodigo | "">("")
   const [areaOrigen, setAreaOrigen] = useState<AreaCodigo | "">("")
   const [rol, setRol] = useState<RolCodigo | "">("")
   const [cargo, setCargo] = useState<CargoCodigo | "">("")

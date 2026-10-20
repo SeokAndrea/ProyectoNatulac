@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Session } from "@/lib/auth"
 import { apps, puedeVerApp } from "@/lib/apps"
-import { cargosDeArea, cargoValeEnArea, esAreaDeApoyo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
+import { cargosDeArea, cargoValeEnArea, esAreaDeApoyo, rolPermitidoEnArea, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
 
 function sesion(area: AreaCodigo, rol: RolCodigo, permisos: Session["permisos"] = []): Session {
   return { username: "prueba", nombre: "Prueba", cedula: null, area, rol, esDueno: false, permisos, debeCompletarPerfil: false }
@@ -16,15 +16,47 @@ describe("áreas de apoyo", () => {
     expect([esAreaDeApoyo("ASEPTICO"), esAreaDeApoyo("PRUEBAS"), esAreaDeApoyo(null)]).toEqual([false, false, false])
   })
 
-  it("con rol Supervisor, un área de apoyo no ve las tarjetas de producción", () => {
-    for (const area of ["SERVICIOS_INDUSTRIALES", "MANTENIMIENTO", "CALIDAD"] as const) {
-      expect(visibles(sesion(area, "SUPERVISOR", PERMISOS_SUPERVISOR)).filter((s) => PRODUCCION.includes(s))).toEqual([])
-    }
-    expect(visibles(sesion("ASEPTICO", "SUPERVISOR", PERMISOS_SUPERVISOR))).toEqual(expect.arrayContaining(PRODUCCION.filter((s) => s !== "programacion")))
+  it("las tarjetas de producción las decide el rol, no el área", () => {
+    expect(visibles(sesion("ASEPTICO", "SUPERVISOR", PERMISOS_SUPERVISOR))).toEqual(expect.arrayContaining(PRODUCCION))
+    expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO", "SIF_GESTIONAR"])).filter((s) => PRODUCCION.includes(s))).toEqual([])
+    expect(visibles(sesion("CALIDAD", "CALIDAD", ["LOTE_LIBERAR"])).filter((s) => PRODUCCION.includes(s))).toEqual([])
+  })
+
+  it("Servicios Industriales ve solo sus dos tarjetas (y los accesos de todos)", () => {
+    expect(visibles(sesion("SERVICIOS_INDUSTRIALES", "SERVICIOS_INDUSTRIALES")).sort()).toEqual([
+      "manual",
+      "panel-paradas",
+      "panel-produccion",
+      "registros-servicios-industriales",
+      "servicios-industriales",
+    ])
+  })
+
+  it("la tarjeta de Calidad es de los roles de Calidad: el Jefe no la ve aunque libere lotes", () => {
+    expect(visibles(sesion("CALIDAD", "SUPERVISOR_CALIDAD", ["LOTE_LIBERAR", "CALIDAD_PARAMETROS"]))).toContain("calidad")
+    expect(visibles(sesion("ASEPTICO", "JEFE_PRODUCCION", ["LOTE_LIBERAR", "TURNO_CARGAR"]))).not.toContain("calidad")
+  })
+
+  it("Validar jornada sigue en prueba: solo el Área de Pruebas", () => {
+    expect(visibles(sesion("ASEPTICO", "ANALISTA", ["VALIDAR"]))).not.toContain("validar-jornada")
+    expect(visibles(sesion("PRUEBAS", "ANALISTA", ["VALIDAR"]))).toContain("validar-jornada")
   })
 
   it("Mantenimiento sigue viendo Registrar Paradas", () => {
     expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO"]))).toContain("paradas")
+  })
+})
+
+describe("roles por área", () => {
+  it("Calidad y Servicios Industriales solo con sus roles; Otros solo Solo Vista; Pruebas, cualquiera", () => {
+    expect(rolPermitidoEnArea("SUPERVISOR", "SERVICIOS_INDUSTRIALES")).toBe(false)
+    expect(rolPermitidoEnArea("SERVICIOS_INDUSTRIALES", "SERVICIOS_INDUSTRIALES")).toBe(true)
+    expect(rolPermitidoEnArea("SERVICIOS_INDUSTRIALES", "ASEPTICO")).toBe(false)
+    expect(rolPermitidoEnArea("CALIDAD", "ASEPTICO")).toBe(false)
+    expect(rolPermitidoEnArea("SUPERVISOR", "OTROS")).toBe(false)
+    expect(rolPermitidoEnArea("VISTA", "OTROS")).toBe(true)
+    expect(rolPermitidoEnArea("VISTA", "ASEPTICO")).toBe(true)
+    expect(rolPermitidoEnArea("SERVICIOS_INDUSTRIALES", "PRUEBAS")).toBe(true)
   })
 })
 

@@ -1,13 +1,13 @@
 /*
- * Candado de solo lectura (dueño, 2026-10-09) para los roles que solo
- * miran: Solo Vista y Sistema de Gestión (src/lib/rolVista.ts). Con el
+ * Candado de solo lectura (dueño, 2026-10-09) para el rol que solo
+ * mira: Solo Vista (src/lib/rolVista.ts). Con el
  * candado puesto, el envoltorio de supabase.rpc (src/lib/supabase.ts) solo
  * deja pasar las RPC de lectura; cualquier otra vuelve con un error, sin
  * llegar a la base. Lo prende AuthProvider según el rol que se muestra (ver
  * auth.tsx), así «Ver como» también lo prueba.
  *
  * Lista de LECTURAS (no de escrituras): una RPC nueva queda bloqueada para
- * estos roles hasta sumarla acá. Todas se revisaron: ninguna escribe.
+ * este rol hasta sumarla acá. Todas se revisaron: ninguna escribe.
  */
 const RPC_LECTURA = new Set([
   "ajustes_semielaborado_turno",

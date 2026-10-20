@@ -43,14 +43,23 @@ export function esAreaDeApoyo(area: string | null | undefined): boolean {
   return AREAS.some((a) => a.codigo === area && a.tipo === "APOYO")
 }
 
-/** Roles de Calidad: solo van en el área Calidad (o en Pruebas, para probar). Migración 20261089. */
-const ROLES_CALIDAD: readonly string[] = ["CALIDAD", "SUPERVISOR_CALIDAD"]
+/**
+ * Áreas que solo admiten ciertos roles (migraciones 20261089 y 20261111290000).
+ * Los roles de Calidad y Servicios Industriales tampoco van en otra área
+ * (salvo Pruebas, para probar); Solo Vista sí va en cualquiera.
+ */
+const ROLES_DE_AREA: Partial<Record<AreaCodigo, readonly string[]>> = {
+  CALIDAD: ["CALIDAD", "SUPERVISOR_CALIDAD"],
+  SERVICIOS_INDUSTRIALES: ["SERVICIOS_INDUSTRIALES"],
+  OTROS: ["VISTA"],
+}
 
 /** ¿Este rol se puede dar en esta área? Mismo criterio que el trigger trg_rol_area_calidad del servidor. */
 export function rolPermitidoEnArea(rol: string, area: string | null | undefined): boolean {
   if (!area || area === "PRUEBAS") return true
-  if (area === "CALIDAD") return ROLES_CALIDAD.includes(rol)
-  return !ROLES_CALIDAD.includes(rol)
+  const propios = ROLES_DE_AREA[area as AreaCodigo]
+  if (propios) return propios.includes(rol)
+  return rol === "VISTA" || !Object.values(ROLES_DE_AREA).some((roles) => roles?.includes(rol))
 }
 
 // Rework 2026-09-27: el rol es un paquete de permisos por defecto (ver
@@ -64,20 +73,20 @@ export const ROLES = [
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
   { codigo: "CALIDAD", nombre: "Analista de Calidad" },
   { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad" },
+  // Solo sus dos tarjetas: lecturas y registros del área (migración 20261111290000).
+  { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales" },
   // Solo mira el Panel de Producción y el de Paradas (src/lib/rolVista.ts).
   { codigo: "VISTA", nombre: "Solo Vista" },
-  // Ve todas las pantallas (menos Personal), sin poder guardar nada (src/lib/rolVista.ts).
-  { codigo: "GESTION", nombre: "Sistema de Gestión" },
+  // Técnicos y la dueña: todo. El Jefe y la Analista tienen su rol (migración 20261111290000).
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
 ] as const
 
 export type RolCodigo = (typeof ROLES)[number]["codigo"]
 
 /*
- * CARGOS: título del puesto, SOLO visual. No tiene efecto en permisos
- * (eso lo decide el rol de arriba). El mismo cargo puede ir sobre
- * roles distintos — ej. "Analista de Producción" siendo SUPERADMINISTRADOR
- * en Aséptico o SUPERVISOR en Vacío. Espejo de usuarios.cargo (texto),
+ * CARGOS: solo el nombre del puesto. No decide nada en la app (ni
+ * permisos ni el orden del Inicio): eso es del rol de arriba. Ej. el
+ * Subjefe es rol Supervisor con cargo Subjefe. Espejo de usuarios.cargo (texto),
  * ver supabase/migrations/20260982090000_cargo_personal.sql (texto
  * libre: sumar un cargo no lleva migración). Para sumar un cargo nuevo,
  * agregar acá una línea con las áreas donde se ofrece.

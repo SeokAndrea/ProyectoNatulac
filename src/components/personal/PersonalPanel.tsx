@@ -29,8 +29,8 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
   const [agregando, setAgregando] = useState(false)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_INICIALES)
 
-  const esSuperAdmin = session?.rol === "SUPERADMINISTRADOR"
-  const areasDisponibles: readonly AreaOpcion[] = esSuperAdmin ? AREAS : AREAS.filter((a) => a.codigo === session?.area)
+  // Quien entra aquí gestiona el personal de todas las áreas (PERSONAL_GESTIONAR; migración 20261111290000).
+  const areasDisponibles: readonly AreaOpcion[] = AREAS
   // El rol Super Administrador solo lo da el dueño.
   const esDueno = session?.esDueno ?? false
   const rolesDisponibles: readonly RolOpcion[] = esDueno ? ROLES : ROLES.filter((r) => r.codigo !== "SUPERADMINISTRADOR")
@@ -60,7 +60,7 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
   }, [session?.username])
 
   /*
-   * listar_personal() le trae al SUPERADMINISTRADOR el personal de
+   * listar_personal() trae el personal de
    * TODAS las áreas de una — incluida PRUEBAS (el usuario fijo
    * "pruebas", sandbox), que no tiene nada que ver con la planta real.
    * Mismo criterio que estado_planta_actual / estadisticas_produccion /
@@ -68,9 +68,9 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
    * propósito con el filtro de área.
    */
   const personalVisible = useMemo(() => {
-    if (!esSuperAdmin || filtros.area === "PRUEBAS") return personal
+    if (filtros.area === "PRUEBAS") return personal
     return personal.filter((p) => p.area !== "PRUEBAS")
-  }, [personal, esSuperAdmin, filtros.area])
+  }, [personal, filtros.area])
 
   const personalFiltrado = useMemo(() => {
     const q = filtros.busqueda.trim().toLowerCase()
@@ -140,7 +140,7 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
                       rolesDisponibles={rolesDisponibles}
                       extras={extras.get(p.id) ?? []}
                       permisosRol={porRol[p.rol] ?? []}
-                      puedeDarExtras={esSuperAdmin}
+                      puedeDarExtras={p.usuario !== usuarioSesion.toLowerCase()}
                       esDuenoFila={duenos.has(p.id)}
                       puedeTocar={
                         duenos.has(p.id)
@@ -163,7 +163,6 @@ export function PersonalPanel({ pagina }: { pagina: string }) {
             pagina={pagina}
             areasDisponibles={areasDisponibles}
             rolesDisponibles={rolesDisponibles}
-            areaFija={esSuperAdmin ? null : (session.area ?? null)}
             onCancelar={() => setAgregando(false)}
             onAgregado={() => {
               setAgregando(false)
