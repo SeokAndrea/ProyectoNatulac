@@ -31,9 +31,12 @@ import {
   cajasPorGrupo,
   cajasPorSaborYTurno,
   cargarResumenDiario,
+  conCajasDe,
   contadoresDelDia,
   lineasDelDia,
+  paradasDeCorrida,
   paradasQueMasQuitaron,
+  repartirCorrecciones,
   type DatosResumenDiario,
 } from "@/lib/resumenDiario"
 
@@ -100,6 +103,9 @@ export default function ResumenDia() {
     vigente?.dia && diario ? itemsDelDiaConTurnos(diario.porTurno, vigente.validacionesTurno, vigente.dia.validaciones) : null
   const items = conTurnos?.dia ?? (vigente?.dia ? itemsDelDia(vigente.dia.filas, vigente.dia.validaciones) : [])
   const itemsTurno: ItemTurno[] = conTurnos?.turnos ?? []
+  // Las correcciones de la analista llegan a todas las cajas de la página, no solo al mensaje (dueña, 2026-10-20).
+  const porTurno = diario ? repartirCorrecciones(diario.porTurno, itemsTurno) : []
+  const turnos = diario ? conCajasDe(diario.turnos, porTurno) : []
   const etiquetaTurno = (turnoId: string) => {
     const t = diario?.turnos.find((x) => x.turno.id === turnoId)
     return t ? `${t.etiqueta} · ${t.turno.supervisorNombre}` : "Turno"
@@ -146,19 +152,25 @@ export default function ResumenDia() {
           <>
             {diario && (
               <>
-                <ActasDelDia turnos={diario.turnos} />
+                <ActasDelDia turnos={turnos} />
                 <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-                  <CajasPorSabor filas={cajasPorSaborYTurno(items, diario.porTurno, diario.turnos)} etiquetas={diario.turnos.map((t) => t.etiqueta)} />
-                  <LineasDelDia lineas={lineasDelDia(lineasPlanta, diario.turnos, diario.porTurno, diario.paradas, presentaciones)} />
-                  <ParadasDelDia paradas={paradasQueMasQuitaron(diario.paradas)} todas={diario.paradas} nombreLinea={nombreLinea} />
-                  {!esAnalista && <NovedadesDelDia turnos={diario.turnos} />}
+                  <CajasPorSabor filas={cajasPorSaborYTurno(items, porTurno, turnos)} etiquetas={turnos.map((t) => t.etiqueta)} />
+                  <LineasDelDia lineas={lineasDelDia(lineasPlanta, turnos, porTurno, diario.paradas, presentaciones)} />
+                  <ParadasDelDia paradas={paradasQueMasQuitaron(diario.paradas)} nombreLinea={nombreLinea} />
+                  {!esAnalista && <NovedadesDelDia turnos={turnos} />}
                 </div>
-                {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(diario.turnos)} />}
-                {esAnalista && <ContadoresDelDia
-                    filas={contadoresDelDia(diario.turnos, presentaciones)}
+                {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(turnos)} />}
+                {esAnalista && (
+                  <ContadoresDelDia
+                    filas={contadoresDelDia(turnos, presentaciones)}
                     nombreLinea={nombreLinea}
-                    supervisorDe={(etiqueta) => diario.turnos.find((t) => t.etiqueta === etiqueta)?.turno.supervisorNombre ?? null}
-                  />}
+                    supervisorDe={(etiqueta) => turnos.find((t) => t.etiqueta === etiqueta)?.turno.supervisorNombre ?? null}
+                    paradasDe={(turnoId, lineaCodigo) => paradasDeCorrida(diario.paradasPorTurno, turnoId, lineaCodigo)}
+                    usuario={session?.username ?? ""}
+                    area={AREA}
+                    fecha={fecha}
+                  />
+                )}
               </>
             )}
             {esAnalista && vigente.dia && diario && (

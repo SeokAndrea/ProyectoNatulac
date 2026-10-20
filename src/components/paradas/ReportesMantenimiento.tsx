@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { Desplegable } from "@/components/paradas/Desplegable"
+import { Desplegable } from "@/components/Desplegable"
 import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
 import { duracionMin, fmtDuracion, nombreLineaParada, paradaAbierta, partesNotaSheet, type Parada } from "@/lib/paradas"
 

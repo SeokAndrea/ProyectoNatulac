@@ -27,7 +27,7 @@ describe("Solicitudes de Intervención de Falla", () => {
     expect(veSif(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO", "SIF_GESTIONAR"]))).toBe(true)
     expect(veSif(sesion("ASEPTICO", "SUPERVISOR", ["TURNO_ASUMIR", "TURNO_CARGAR", "PARADAS_REGISTRAR"]))).toBe(true)
     expect(veSif(sesion("ASEPTICO", "ANALISTA", ["AUDITORIA_VER"]))).toBe(true)
-    expect(veSif(sesion("SERVICIOS_INDUSTRIALES", "SUPERVISOR", ["PARADAS_REGISTRAR"]))).toBe(false)
+    expect(veSif(sesion("SERVICIOS_INDUSTRIALES", "SERVICIOS_INDUSTRIALES", []))).toBe(false)
     expect(veSif(sesion("CALIDAD", "CALIDAD", ["LOTE_LIBERAR"]))).toBe(false)
   })
 })

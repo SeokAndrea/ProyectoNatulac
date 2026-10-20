@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { duracionMin, esDeMantenimiento, fmtDuracion, nombreLineaParada, type Parada } from "@/lib/paradas"
 import { codigoDeParadaLive } from "@/lib/paradasCatalogo"
-import { Desplegable } from "@/components/paradas/Desplegable"
+import { Desplegable } from "@/components/Desplegable"
 import { ParadasPorTurno } from "@/components/paradas/ParadasPorTurno"
 
 const ORIGEN: Record<Parada["origen"], { texto: string; variante: "info" | "muted" | "warning" }> = {

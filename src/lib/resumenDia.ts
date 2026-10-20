@@ -129,6 +129,16 @@ export function ordenarItems<T extends ItemDia>(items: T[]): T[] {
   )
 }
 
+/** Por línea (1, 2, 3); dentro de la línea, de la presentación más grande a la más chica y por sabor. Ordena el mensaje de WhatsApp (dueña, 2026-10-20). */
+export function ordenarPorLinea<T extends ItemDia>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) =>
+      (a.linea ?? 99) - (b.linea ?? 99) ||
+      b.volumenMl - a.volumenMl ||
+      a.saborNombre.localeCompare(b.saborNombre, "es"),
+  )
+}
+
 /**
  * Una fila por sabor + presentación. Suma
  * las líneas y le pega su validación; una validación sin producción (ej.
@@ -319,10 +329,13 @@ export function fechaCorta(fecha: string): string {
 }
 
 /**
- * El mensaje para copiar y pegar, con los números oficiales:
+ * El mensaje para copiar y pegar, con los números oficiales, en orden de
+ * línea (ordenarPorLinea):
  *   Buenos días, producción del día 01/10/2026
  *
- *   TPA-250 cm³ Pera: 2.401 cajas
+ *   TBA-1000 cm³ Néctar de Manzana: 1.200 cajas   ← Línea 1
+ *   TBA-1000 cm³ Néctar de Pera: 800 cajas
+ *   TPA-330 cm³ Néctar de Manzana: 2.100 cajas    ← Línea 2
  *   ...
  *
  *   Total: 7.204 cajas
@@ -343,7 +356,7 @@ export function saborEnMensaje(saborNombre: string): string {
 }
 
 export function mensajeResumenDia(fecha: string, items: ItemDia[]): string {
-  const conCajas = items.filter((i) => i.cajasOficiales > 0)
+  const conCajas = ordenarPorLinea(items.filter((i) => i.cajasOficiales > 0))
   if (conCajas.length === 0) return `Buenos días, producción del día ${fechaCorta(fecha)}\n\nSin producción registrada.`
   const total = conCajas.reduce((a, i) => a + i.cajasOficiales, 0)
   return [

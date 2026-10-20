@@ -15,6 +15,7 @@ import { VistaIncidencias } from "@/components/indicadores/VistaIncidencias"
 import { Button } from "@/components/ui/button"
 import { EditorManual } from "@/components/indicadores/editor/EditorManual"
 import { Observacion } from "@/components/indicadores/Observacion"
+import { ObservacionesGuardadas } from "@/components/indicadores/ObservacionesGuardadas"
 import { useIndicadores } from "@/components/indicadores/useIndicadores"
 import { VistaLinea } from "@/components/indicadores/VistaLinea"
 import { VistaSemielaborado, type VistaSemi } from "@/components/indicadores/VistaSemielaborado"
@@ -170,6 +171,7 @@ export default function Indicadores() {
             vacias={puedeCargar ? vacias : []}
             extra={
               <span className="flex items-center gap-2">
+                {esLinea && <ObservacionesGuardadas usuario={usuario} area={area} mes={mes} linea={seccion} />}
                 <Button size="sm" variant="outline" className="hidden gap-1.5 lg:inline-flex" onClick={presentacion.entrar}>
                   <Presentation className="size-3.5" /> Presentar
                 </Button>

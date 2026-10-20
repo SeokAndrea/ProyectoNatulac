@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { Parada } from "@/lib/paradas"
-import type { ItemDia } from "@/lib/resumenDia"
-import { cajasPorGrupo, cajasPorSaborYTurno, contadoresDelDia, etiquetar, lineasDelDia, paradasQueMasQuitaron, type FilaPorTurno, type TurnoDelDia } from "@/lib/resumenDiario"
+import type { ItemDia, ItemTurno } from "@/lib/resumenDia"
+import {
+  cajasPorGrupo,
+  cajasPorSaborYTurno,
+  conCajasDe,
+  contadoresDelDia,
+  etiquetar,
+  lineasDelDia,
+  paradasDeCorrida,
+  paradasQueMasQuitaron,
+  repartirCorrecciones,
+  type FilaPorTurno,
+  type TurnoDelDia,
+} from "@/lib/resumenDiario"
 import type { TurnoActivo } from "@/lib/turno"
 
 /** Datos reales del lunes 06/10 (actas A20261006_T1G2 y A20261006_T3G3_2), reducidos a la Línea 2. */
@@ -84,6 +96,36 @@ describe("resumen diario", () => {
       ["Grupo 2", ["T1"], ["Javier Bello"], 438],
       ["Grupo 3", ["T3"], ["Gabriel Chacón"], 280],
     ])
+  })
+
+  it("la corrección de la analista llega a las columnas por turno, Por línea y Cajas por grupo", () => {
+    const corregido = (turnoId: string, saborNombre: string, volumenMl: number, cajasSupervisor: number, cajasOficiales: number): ItemTurno => ({
+      turnoId, saborNombre, volumenMl, cajasSupervisor, cajasOficiales, estado: "EDITADO", nota: null, validadoPorNombre: null, linea: 2,
+    })
+    // Pera 200 del T1: 420 → 430. Pera 250 del T1 pasó entera a 200 (queda en 0 y una fila nueva sin carga del supervisor).
+    const filas = repartirCorrecciones(POR_TURNO, [corregido("t1", "Pera", 200, 420, 430), corregido("t1", "Pera", 250, 18, 0)])
+    expect(filas.filter((f) => f.turnoId === "t1").reduce((a, f) => a + f.cajas, 0)).toBe(430)
+    const [l2] = lineasDelDia([{ codigo: "LINEA_2", nombre: "Línea 2" }], TURNOS, filas, [], PRESENTACIONES)
+    expect(l2.cajas).toBe(710)
+    expect(cajasPorGrupo(conCajasDe(TURNOS, filas)).map((g) => g.cajas)).toEqual([430, 280])
+  })
+
+  it("una corrección se reparte entre líneas en proporción y no pierde cajas", () => {
+    const dos: FilaPorTurno[] = [
+      { turnoId: "t1", saborNombre: "Pera", volumenMl: 250, lineaCodigo: "LINEA_2", cajas: 100 },
+      { turnoId: "t1", saborNombre: "Pera", volumenMl: 250, lineaCodigo: "LINEA_3", cajas: 201 },
+    ]
+    const item: ItemTurno = { turnoId: "t1", saborNombre: "Pera", volumenMl: 250, cajasSupervisor: 301, cajasOficiales: 300, estado: "EDITADO", nota: null, validadoPorNombre: null, linea: 2 }
+    expect(repartirCorrecciones(dos, [item]).map((f) => [f.lineaCodigo, f.cajas])).toEqual([
+      ["LINEA_2", 99],
+      ["LINEA_3", 201],
+    ])
+  })
+
+  it("paradas de una corrida: las de su línea en su turno, en orden de hora", () => {
+    const p = (id: string, linea: string, inicio: string) => ({ id, lineaCodigo: linea, inicio }) as Parada
+    const porTurno = { t1: [p("b", "LINEA_2", "2026-10-06T10:00:00"), p("x", "LINEA_1", "2026-10-06T08:00:00"), p("a", "LINEA_2", "2026-10-06T09:00:00")], t3: [p("c", "LINEA_2", "2026-10-07T01:00:00")] }
+    expect(paradasDeCorrida(porTurno, "t1", "LINEA_2").map((x) => x.id)).toEqual(["a", "b"])
   })
 
   it("paradas que más quitaron: suma por tipo y línea, de más a menos minutos", () => {

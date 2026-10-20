@@ -5,7 +5,7 @@ import { mapearNovedadTurno, type NovedadTurno } from "@/lib/novedades"
 import { duracionMin, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno, codigoDeParadaLive } from "@/lib/paradasCatalogo"
 import { pctRendimiento } from "@/lib/reportes/teorico"
-import type { ItemDia } from "@/lib/resumenDia"
+import type { ItemDia, ItemTurno } from "@/lib/resumenDia"
 import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
 import { nombreGrupo, type GrupoCodigo } from "@/lib/catalogos"
 
@@ -45,6 +45,8 @@ export interface DatosResumenDiario {
   turnos: TurnoDelDia[]
   porTurno: FilaPorTurno[]
   paradas: Parada[]
+  /** Las mismas paradas, por id de turno (para ver las de una corrida). */
+  paradasPorTurno: Record<string, Parada[]>
 }
 
 /** Turnos de la jornada que tienen producción, en orden (T1, T2, T3), con su acta, novedades y paradas. */
@@ -81,8 +83,48 @@ export async function cargarResumenDiario(usuario: string, area: string, fecha: 
     actaStoragePath: vigentes.get(x.turno.id) ?? null,
     cajas: conDatos[i].cajas,
   }))
-  const paradas = (await Promise.all(turnos.map((t) => cargarParadasDelTurno(t.turno.id)))).flat()
-  return { turnos, porTurno, paradas }
+  const deCadaTurno = await Promise.all(turnos.map((t) => cargarParadasDelTurno(t.turno.id)))
+  const paradasPorTurno = Object.fromEntries(turnos.map((t, i) => [t.turno.id, deCadaTurno[i]]))
+  return { turnos, porTurno, paradas: deCadaTurno.flat(), paradasPorTurno }
+}
+
+/** Las paradas de la línea de una corrida, en su turno, en orden de hora. */
+export function paradasDeCorrida(paradasPorTurno: Record<string, Parada[]>, turnoId: string, lineaCodigo: string): Parada[] {
+  const n = numeroLinea(lineaCodigo)
+  return (paradasPorTurno[turnoId] ?? []).filter((p) => numeroLinea(p.lineaCodigo) === n).sort((a, b) => a.inicio.localeCompare(b.inicio))
+}
+
+/**
+ * Las cajas de los supervisores con las correcciones de la analista por
+ * turno (dueña, 2026-10-20): así Cajas por sabor, Por línea y Cajas por
+ * grupo muestran lo mismo que el mensaje. Una corrección se reparte entre
+ * las líneas en proporción a lo que cargó el supervisor (el resto, a la
+ * línea que más cargó); si no había nada cargado, va a la línea donde
+ * salió ese sabor en el turno o, sin línea, queda solo en el total.
+ */
+export function repartirCorrecciones(porTurno: FilaPorTurno[], itemsTurno: ItemTurno[]): FilaPorTurno[] {
+  const clave = (turnoId: string, sabor: string, volumen: number) => `${turnoId}|${sabor}|${volumen}`
+  const corregidos = new Map(itemsTurno.filter((i) => i.estado === "EDITADO").map((i) => [clave(i.turnoId, i.saborNombre, i.volumenMl), i]))
+  const salida: FilaPorTurno[] = porTurno.filter((f) => !corregidos.has(clave(f.turnoId, f.saborNombre, f.volumenMl)))
+  for (const [k, item] of corregidos) {
+    const propias = porTurno.filter((f) => clave(f.turnoId, f.saborNombre, f.volumenMl) === k)
+    const cargadas = propias.reduce((a, f) => a + f.cajas, 0)
+    if (cargadas === 0) {
+      // Ej. se pasó de 250 a 200 ml: la de 200 no tenía filas, va a la línea donde salió ese sabor en el turno.
+      const lineaCodigo =
+        propias[0]?.lineaCodigo ??
+        (item.linea ? `LINEA_${item.linea}` : null) ??
+        porTurno.find((f) => f.turnoId === item.turnoId && f.saborNombre === item.saborNombre)?.lineaCodigo ??
+        ""
+      salida.push({ turnoId: item.turnoId, saborNombre: item.saborNombre, volumenMl: item.volumenMl, lineaCodigo, cajas: item.cajasOficiales })
+      continue
+    }
+    const repartidas = propias.map((f) => ({ ...f, cajas: Math.floor((f.cajas * item.cajasOficiales) / cargadas) }))
+    const mayor = propias.reduce((m, f, i) => (f.cajas > propias[m].cajas ? i : m), 0)
+    repartidas[mayor].cajas += item.cajasOficiales - repartidas.reduce((a, f) => a + f.cajas, 0)
+    salida.push(...repartidas)
+  }
+  return salida
 }
 
 /** "T1", "T2"…; si un tipo se repite, cada uno lleva su hora de inicio. Respeta el orden recibido. */
@@ -106,7 +148,7 @@ export interface FilaCajasDia {
   corregida: boolean
 }
 
-/** Sigue el orden de itemsDelDia (por sabor, de 1000 a 200). */
+/** Sigue el orden de itemsDelDia (por sabor, de 1000 a 200). Con `porTurno` corregido (repartirCorrecciones), las columnas por turno también. */
 export function cajasPorSaborYTurno(items: ItemDia[], porTurno: FilaPorTurno[], turnos: TurnoDelDia[]): FilaCajasDia[] {
   return items.map((i) => ({
     saborNombre: i.saborNombre,
@@ -197,6 +239,11 @@ export interface GrupoDelDia {
   cajas: number
 }
 
+/** Los turnos con sus cajas sacadas de `porTurno` (ej. ya corregido con repartirCorrecciones): para las actas y los grupos. */
+export function conCajasDe(turnos: TurnoDelDia[], porTurno: FilaPorTurno[]): TurnoDelDia[] {
+  return turnos.map((t) => ({ ...t, cajas: porTurno.filter((p) => p.turnoId === t.turno.id).reduce((a, p) => a + p.cajas, 0) }))
+}
+
 /** Cajas por grupo: el grupo es el del turno. Ordenado por grupo. */
 export function cajasPorGrupo(turnos: TurnoDelDia[]): GrupoDelDia[] {
   const m = new Map<GrupoCodigo, GrupoDelDia>()
@@ -212,6 +259,7 @@ export function cajasPorGrupo(turnos: TurnoDelDia[]): GrupoDelDia[] {
 
 export interface ContadorDelDia {
   corridaId: string
+  turnoId: string
   turno: string
   lineaCodigo: string
   sabor: string
@@ -243,6 +291,7 @@ export function contadoresDelDia(turnos: TurnoDelDia[], presentaciones: Presenta
       const empacados = cajas * (pres?.envasesXCaja ?? 0)
       filas.push({
         corridaId: c.id,
+        turnoId: turno.id,
         turno: etiqueta,
         lineaCodigo: c.linea,
         sabor: c.saborNombre ?? "Sin sabor",

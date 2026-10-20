@@ -107,7 +107,7 @@ export function useTurnoDeLaSesion() {
 
 /**
  * Lo que muestran el menú lateral y el botón flotante:
- * - `secciones`: todas las pantallas que puede abrir, agrupadas como en el Hub (los accesos del Hub al final).
+ * - `secciones`: todas las pantallas que puede abrir, agrupadas como en el Hub, con los paneles y accesos primero.
  * - `rapidas`: las principales y no bloqueadas, en orden (Supervisor: RAPIDAS_SUPERVISOR).
  */
 export function useAppsNavegables() {
@@ -118,12 +118,8 @@ export function useAppsNavegables() {
   const atajos = visibles.filter((app) => app.atajo)
 
   const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area), session?.rol)
-  if (atajos.length > 0) {
-    const accesos = { titulo: "Paneles y accesos", apps: atajos }
-    // Jefe y analista: los accesos van primero, como en el Hub.
-    if (session && ROLES_CONTROL_PRIMERO.includes(session.rol)) secciones.unshift(accesos)
-    else secciones.push(accesos)
-  }
+  // Los paneles y accesos van primero que todo, para todos (dueña, 2026-10-20).
+  if (atajos.length > 0) secciones.unshift({ titulo: "Paneles y accesos", apps: atajos })
 
   const libre = (app: AppDef) => !bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad).bloqueada
   const orden =

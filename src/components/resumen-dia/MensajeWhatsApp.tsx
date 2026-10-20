@@ -1,11 +1,11 @@
 import { useRef, useState } from "react"
 import { Check, Copy } from "lucide-react"
+import { Desplegable } from "@/components/Desplegable"
 import { ItemValidar } from "@/components/resumen-dia/ItemValidar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { nombrePresentacion, pasosCambioPresentacion, type ItemDia, type ItemTurno } from "@/lib/resumenDia"
+import { nombrePresentacion, ordenarPorLinea, pasosCambioPresentacion, type ItemDia, type ItemTurno } from "@/lib/resumenDia"
 
 type Resultado = { ok: true } | { ok: false; error: string }
 const miles = (n: number) => n.toLocaleString("es-CO")
@@ -14,6 +14,7 @@ const miles = (n: number) => n.toLocaleString("es-CO")
  * Solo la analista (permiso VALIDAR): cada sabor + presentación se confirma
  * o se corrige POR TURNO (dueña, 2026-10-08); el número oficial del día es
  * la suma de los turnos y el mensaje se arma solo, listo para WhatsApp.
+ * Se revisa en el mismo orden del mensaje: por línea (dueña, 2026-10-20).
  */
 export function MensajeWhatsApp({
   dia,
@@ -51,22 +52,25 @@ export function MensajeWhatsApp({
   }
 
   return (
-    <Card id="mensaje-whatsapp">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-        <CardTitle>Mensaje para WhatsApp</CardTitle>
-        {turnos.length > 0 && (
+    <Desplegable
+      id="mensaje-whatsapp"
+      titulo="Mensaje para WhatsApp"
+      inicial
+      resumen={
+        turnos.length > 0 ? (
           <Badge variant={revisadas === turnos.length ? "default" : "outline"}>
             {revisadas} de {turnos.length} revisadas
           </Badge>
-        )}
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        ) : undefined
+      }
+    >
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
           {dia.length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin producción registrada en esta jornada.</p>
           ) : (
             <>
-              {dia.map((d) => {
+              {ordenarPorLinea(dia).map((d) => {
                 const propios = turnos.filter((t) => t.saborNombre === d.saborNombre && t.volumenMl === d.volumenMl)
                 return (
                   <div key={`${d.saborNombre}|${d.volumenMl}`} className="flex flex-col gap-1.5">
@@ -112,7 +116,7 @@ export function MensajeWhatsApp({
             {copiado ? "Copiado" : "Copiar mensaje"}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Desplegable>
   )
 }

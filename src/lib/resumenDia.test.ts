@@ -91,6 +91,21 @@ describe("resumen del día", () => {
     )
   })
 
+  it("el mensaje va por línea (no por sabor): en cada línea de 1000 a 200", () => {
+    const delDia: FilaResumenDia[] = [
+      { saborNombre: "Manzana", volumenMl: 330, lineaCodigo: "LINEA_2", lineaNombre: "", cajas: 2100 },
+      { saborNombre: "Pera", volumenMl: 1000, lineaCodigo: "LINEA_1", lineaNombre: "", cajas: 800 },
+      { saborNombre: "Durazno", volumenMl: 1000, lineaCodigo: "LINEA_1", lineaNombre: "", cajas: 950 },
+      { saborNombre: "Manzana", volumenMl: 1000, lineaCodigo: "LINEA_1", lineaNombre: "", cajas: 1200 },
+    ]
+    expect(mensajeResumenDia("2026-10-19", itemsDelDia(delDia)).split("\n").slice(2, 6)).toEqual([
+      "TBA-1000 cm³ Néctar de Durazno: 950 cajas",
+      "TBA-1000 cm³ Néctar de Manzana: 1.200 cajas",
+      "TBA-1000 cm³ Néctar de Pera: 800 cajas",
+      "TPA-330 cm³ Néctar de Manzana: 2.100 cajas",
+    ])
+  })
+
   it("en el mensaje los clásicos llevan «Néctar de» y la Naranja es Naranjada", () => {
     expect(["Pera", "Manzana", "Durazno", "Mango"].map(saborEnMensaje)).toEqual([
       "Néctar de Pera",

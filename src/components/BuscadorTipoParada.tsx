@@ -72,7 +72,7 @@ export function BuscadorTipoParada({
         </select>
       )}
       <Input
-        placeholder="Busca por nombre, equipo o código"
+        placeholder="Busca por nombre o equipo"
         value={texto}
         onChange={(e) => {
           setTexto(e.target.value)
@@ -111,16 +111,12 @@ export function BuscadorTipoParada({
                       onElegir(t)
                     }}
                   >
+                    {/* Solo el nombre, sin el código de planilla (dueña, 2026-10-20); el código sigue sirviendo para buscar. */}
                     <span className="min-w-0 truncate">
                       {nombreEquipo(t) ? <span className="text-muted-foreground">{nombreEquipo(t)} · </span> : null}
                       {t.nombre}
-                      {t.tiempoGuiaMin != null && (
-                        <span className="ml-2 text-xs text-muted-foreground">guía {fmtDuracion(t.tiempoGuiaMin)}</span>
-                      )}
                     </span>
-                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-                      {codigoPlanilla(t, lineaCodigo, area) || "—"}
-                    </span>
+                    {t.tiempoGuiaMin != null && <span className="shrink-0 text-xs text-muted-foreground">guía {fmtDuracion(t.tiempoGuiaMin)}</span>}
                   </button>
                 </li>
               )),
