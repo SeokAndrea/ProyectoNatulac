@@ -25,6 +25,7 @@ import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { subirYRegistrarActa } from "@/lib/historialTurnos"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useSesionTurno } from "@/lib/sesionTurno"
+import { continuidadReciente } from "@/lib/continuidadTurno"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
@@ -199,11 +200,15 @@ export default function FinalizarTurno() {
   ].filter((x): x is string => x !== null)
   const aviso =
     tanquesSinConfirmar.length > 0 ? `${tanquesSinConfirmar.length} ${tanquesSinConfirmar.length === 1 ? "tanque sin confirmar" : "tanques sin confirmar"}` : null
-  const bloqueoPermiso = puedeFinalizar
-    ? null
-    : sesion.sinResponsable
+  /** Mismo criterio que finalizar_turno() (migración 20261111190000): la continuación recién abierta no se finaliza. */
+  const continuidad = esPruebas ? null : continuidadReciente(sesion, session?.username ?? null)
+  const bloqueoPermiso = !puedeFinalizar
+    ? sesion.sinResponsable
       ? "Este turno no tiene responsable. Asúmelo desde Comenzar Turno antes de finalizarlo."
       : `Solo ${sesion.supervisorNombre} (responsable del turno) o un jefe pueden finalizarlo.`
+    : continuidad
+      ? `El sistema abrió este turno a las ${continuidad.hora} como continuación del tuyo. El anterior ya quedó cerrado: no finalices este, sigues a cargo hasta el cambio de turno.`
+      : null
 
   // Mismo cálculo que la sección 2.1 del acta (el acta se genera con el turno cerrado).
   const eficiencia = eficienciaDelTurno({

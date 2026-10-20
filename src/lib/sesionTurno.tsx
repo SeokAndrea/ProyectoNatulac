@@ -13,7 +13,7 @@
  * + tanques + líneas + PT) — acá se usa solo para leer id/código/estado,
  * el resto de la respuesta se descarta a propósito.
  */
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
 import type { GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { useAuth } from "@/lib/auth"
 import { saborSinFamiliaOculta } from "@/lib/turno"
@@ -72,6 +72,8 @@ export interface SesionTurno {
   sinResponsable: boolean
   /** Turno abierto por el respaldo: falta elegir el grupo al asumirlo. */
   grupoPendiente: boolean
+  /** Lo abrió el sistema (respaldo, continuidad 12x12 de las 22:30, relevo temprano), no el supervisor. Ver src/lib/continuidadTurno.ts. */
+  aperturaAutomatica: boolean
   esquema: EsquemaTurnos | null
   responsables: ResponsableTurno[]
   tanquesEncontrados: TanqueEncontrado[] | null
@@ -109,6 +111,7 @@ interface FilaTurnoIdentidad {
   supervisor_nombre: string
   sin_responsable?: boolean
   grupo_pendiente?: boolean
+  apertura_automatica?: boolean
   esquema?: EsquemaTurnos
   responsables?: ResponsableTurno[]
   tanques_encontrados: FilaTanqueEncontrado[] | null
@@ -133,6 +136,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
   const [supervisorNombre, setSupervisorNombre] = useState<string | null>(null)
   const [sinResponsable, setSinResponsable] = useState(false)
   const [grupoPendiente, setGrupoPendiente] = useState(false)
+  const [aperturaAutomatica, setAperturaAutomatica] = useState(false)
   const [esquema, setEsquema] = useState<EsquemaTurnos | null>(null)
   const [responsables, setResponsables] = useState<ResponsableTurno[]>([])
   const [tanquesEncontrados, setTanquesEncontrados] = useState<TanqueEncontrado[] | null>(null)
@@ -153,6 +157,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     setSupervisorNombre(fila?.supervisor_nombre ?? null)
     setSinResponsable(fila?.sin_responsable ?? false)
     setGrupoPendiente(fila?.grupo_pendiente ?? false)
+    setAperturaAutomatica(fila?.apertura_automatica ?? false)
     setEsquema(fila?.esquema ?? null)
     setResponsables(fila?.responsables ?? [])
     setTanquesEncontrados(
@@ -197,6 +202,32 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
       return
     }
     recargar(usuario)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario])
+
+  // El servidor cambia el turno solo (continuidad 12x12 de las 22:30,
+  // respaldo de las 7:30). Sin esto la pantalla seguía en el turno ya
+  // cerrado hasta recargar: el 19/10 Fernando creyó seguir en el T2.
+  const turnoIdRef = useRef<string | null>(null)
+  turnoIdRef.current = turnoId
+  useEffect(() => {
+    if (!usuario) return
+    const u = usuario
+    async function revisar() {
+      if (document.visibilityState !== "visible") return
+      const { data, error } = await supabase.rpc("turno_activo_de", { p_usuario: u })
+      if (error) return
+      const activo = data ? (data as FilaTurnoIdentidad) : null
+      if ((activo?.id ?? null) === turnoIdRef.current) return
+      tomarIdentidad(activo)
+      await cargarGraciaPT(u)
+    }
+    const intervalo = window.setInterval(revisar, 60_000)
+    document.addEventListener("visibilitychange", revisar)
+    return () => {
+      window.clearInterval(intervalo)
+      document.removeEventListener("visibilitychange", revisar)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario])
 
@@ -303,6 +334,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
         supervisorNombre,
         sinResponsable,
         grupoPendiente,
+        aperturaAutomatica,
         esquema,
         responsables,
         tanquesEncontrados,
