@@ -3,6 +3,7 @@ import { Link, NavLink } from "react-router-dom"
 import { Lock, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { LogoMark } from "@/components/Logo"
 import type { AppDef } from "@/lib/apps"
+import type { ContinuidadTurno } from "@/lib/continuidadTurno"
 import { bloqueoDeApp, useAppsNavegables } from "@/lib/navegacion"
 import { cn } from "@/lib/utils"
 
@@ -22,7 +23,7 @@ function leerPlegado(): boolean {
  * recuerda; las pantallas de ancho completo (Panel) arrancan plegadas.
  */
 export function MenuLateral({ plegadoInicial = false }: { plegadoInicial?: boolean }) {
-  const { secciones, turnoActivo, turnoPorAsumir } = useAppsNavegables()
+  const { secciones, turnoActivo, turnoPorAsumir, continuidad } = useAppsNavegables()
   const [plegado, setPlegado] = useState(() => plegadoInicial || leerPlegado())
 
   function alternar() {
@@ -65,7 +66,7 @@ export function MenuLateral({ plegadoInicial = false }: { plegadoInicial?: boole
               )
             )}
             {apps.map((app) => (
-              <ItemMenu key={app.slug} app={app} plegado={plegado} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} />
+              <ItemMenu key={app.slug} app={app} plegado={plegado} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} continuidad={continuidad} />
             ))}
           </div>
         ))}
@@ -90,14 +91,16 @@ function ItemMenu({
   plegado,
   turnoActivo,
   turnoPorAsumir,
+  continuidad,
 }: {
   app: AppDef
   plegado: boolean
   turnoActivo: boolean
   turnoPorAsumir: boolean
+  continuidad: ContinuidadTurno | null
 }) {
   const Icon = app.icon
-  const { bloqueada, sinTurno } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir)
+  const { bloqueada, sinTurno, habilitaA } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad)
   // Plegado: el ícono centrado en su recuadro.
   const base = cn("flex h-9 items-center gap-2.5 rounded-md text-sm", plegado ? "justify-center" : "px-2.5")
 
@@ -105,7 +108,13 @@ function ItemMenu({
     return (
       <div
         aria-disabled="true"
-        title={sinTurno ? `${app.title}: se habilita al iniciar un turno` : `${app.title}: ya tienes un turno en curso`}
+        title={
+          habilitaA
+            ? `${app.title}: se habilita a las ${habilitaA}`
+            : sinTurno
+              ? `${app.title}: se habilita al iniciar un turno`
+              : `${app.title}: ya tienes un turno en curso`
+        }
         className={cn(base, "cursor-not-allowed text-muted-foreground/60")}
       >
         <Lock className="size-4 shrink-0" />

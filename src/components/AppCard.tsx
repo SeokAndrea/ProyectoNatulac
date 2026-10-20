@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { Lock } from "lucide-react"
 import type { AppDef } from "@/lib/apps"
+import type { ContinuidadTurno } from "@/lib/continuidadTurno"
 import { bloqueoDeApp } from "@/lib/navegacion"
 import { cn } from "@/lib/utils"
 
@@ -24,14 +25,17 @@ export function AppCard({
   app,
   turnoActivo,
   turnoPorAsumir = false,
+  continuidad = null,
 }: {
   app: AppDef
   turnoActivo: boolean
   /** Hay un turno abierto pero no es mío (lo abrió el respaldo sin responsable, o lo tiene otra persona): Comenzar Turno sigue disponible para asumirlo o tomar el relevo. */
   turnoPorAsumir?: boolean
+  /** Turno recién abierto por continuidad: Finalizar Turno con candado (ver src/lib/continuidadTurno.ts). */
+  continuidad?: ContinuidadTurno | null
 }) {
   const Icon = app.icon
-  const { bloqueada, porTurnoEnCurso: bloqueadaPorTurno } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir)
+  const { bloqueada, porTurnoEnCurso: bloqueadaPorTurno, habilitaA } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad)
   const resaltada = app.resaltarConTurno && turnoActivo && !bloqueada
 
   const iconoWrap = (
@@ -65,7 +69,9 @@ export function AppCard({
       <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground sm:mt-1 sm:line-clamp-none sm:text-sm">
         {!app.href
           ? "Próximamente."
-          : bloqueadaPorTurno
+          : habilitaA
+            ? `Se habilita a las ${habilitaA}.`
+            : bloqueadaPorTurno
             ? "Ya tienes un turno en curso."
             : app.bloqueaConTurno && turnoPorAsumir
               ? "Hay un turno abierto: asúmelo o toma el relevo."
@@ -83,7 +89,9 @@ export function AppCard({
         title={
           !app.href
             ? "Todavía no está construido"
-            : bloqueadaPorTurno
+            : habilitaA
+              ? `Se habilita a las ${habilitaA}`
+              : bloqueadaPorTurno
               ? "Ya tienes un turno en curso"
               : "Inicia un turno para habilitar esta sección"
         }

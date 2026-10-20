@@ -7,6 +7,7 @@ import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
 import { Button } from "@/components/ui/button"
 import { CorridasCerradas, ListaCorridas, type DatosListaCorridas } from "@/components/producto-terminado/ListaCorridas"
 import { useCatalogosLive } from "@/lib/catalogosLive"
+import { continuidadReciente } from "@/lib/continuidadTurno"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
@@ -51,7 +52,10 @@ export default function ProductoTerminado() {
    * no Contador/Entregar/Terminar (ver Fuera de alcance en el plan).
    */
   // Con otro turno ya abierto, el anterior en gracia se elige a mano (botón de abajo).
-  const [verTurnoAnterior, setVerTurnoAnterior] = useState(false)
+  // Si el abierto es la continuación del propio (12x12 a las 22:30), arranca
+  // en el anterior: lo que se carga ahí es del turno que acaba de cerrar.
+  const [eleccionTurnoAnterior, setVerTurnoAnterior] = useState<boolean | null>(null)
+  const verTurnoAnterior = eleccionTurnoAnterior ?? continuidadReciente(sesion, sesion.usuario) !== null
   const graciaDisponible =
     !enModoCorreccion && sesion.turnoGraciaPT !== null && sesion.turnoGraciaPT.turnoId !== sesion.turnoId
   const enGraciaPT = graciaDisponible && (!sesion.turnoId || verTurnoAnterior)
@@ -152,7 +156,7 @@ export default function ProductoTerminado() {
             ? `Estás cargando el turno anterior (${sesion.turnoGraciaPT!.codigo}).`
             : `El turno anterior (${sesion.turnoGraciaPT!.codigo}) ya cerró y todavía acepta contadores y Producto Terminado.`}
         </span>
-        <Button size="sm" variant="outline" onClick={() => setVerTurnoAnterior((v) => !v)}>
+        <Button size="sm" variant="outline" onClick={() => setVerTurnoAnterior(!verTurnoAnterior)}>
           {verTurnoAnterior ? "Volver al turno en curso" : "Cargar en el turno anterior"}
         </Button>
       </div>

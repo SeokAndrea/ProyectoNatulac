@@ -18,7 +18,7 @@ const a = (hora: string) => new Date(`2026-10-19T${hora}-04:00`)
 
 describe("continuidadReciente", () => {
   it("avisa al supervisor en las primeras 2 h", () => {
-    expect(continuidadReciente(base, "frodriguez", a("22:35:10"))).toEqual({ codigo: "A20261019_T3G1", hora: "22:30" })
+    expect(continuidadReciente(base, "frodriguez", a("22:35:10"))).toEqual({ codigo: "A20261019_T3G1", finalizableDesde: "00:30" })
   })
 
   it("después de 2 h ya no", () => {

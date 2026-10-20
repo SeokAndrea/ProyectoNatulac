@@ -3,6 +3,7 @@ import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
 import { esAreaDeApoyo, type CargoCodigo } from "@/lib/catalogos"
 import { puede } from "@/lib/permisos"
 import { useSesionTurno } from "@/lib/sesionTurno"
+import { continuidadReciente, type ContinuidadTurno } from "@/lib/continuidadTurno"
 
 /*
  * Navegación entre pantallas: lo comparten el Hub, el menú lateral (PC) y
@@ -84,10 +85,12 @@ function agruparEnOrden(lista: AppDef[], areaDeApoyo: boolean): Seccion[] {
 }
 
 /** Por qué una app está bloqueada (o no), con el turno de la sesión. Mismo criterio en el Hub y en la navegación. */
-export function bloqueoDeApp(app: AppDef, turnoActivo: boolean, turnoPorAsumir: boolean) {
+export function bloqueoDeApp(app: AppDef, turnoActivo: boolean, turnoPorAsumir: boolean, continuidad: ContinuidadTurno | null = null) {
   const porTurnoEnCurso = !!app.bloqueaConTurno && turnoActivo && !turnoPorAsumir
   const sinTurno = app.requiereTurno && !turnoActivo
-  return { bloqueada: !app.href || sinTurno || porTurnoEnCurso, sinTurno, porTurnoEnCurso }
+  /** Turno recién abierto por continuidad: "HH:MM" en que se habilita (ver src/lib/continuidadTurno.ts). */
+  const habilitaA = app.bloqueaEnContinuidad && continuidad ? continuidad.finalizableDesde : null
+  return { bloqueada: !app.href || sinTurno || porTurnoEnCurso || habilitaA !== null, sinTurno, porTurnoEnCurso, habilitaA }
 }
 
 /** Estado del turno que usan el Hub y la navegación para bloquear tarjetas. */
@@ -98,7 +101,8 @@ export function useTurnoDeLaSesion() {
   // Mismo criterio que ComenzarTurno: solo el responsable actual "tiene" el turno; el resto puede asumirlo o tomar el relevo.
   const soyResponsable = !sesion.sinResponsable && sesion.supervisorUsuario === session?.username.toLowerCase()
   const turnoPorAsumir = turnoActivo && !soyResponsable && puede(session, "TURNO_ASUMIR")
-  return { turnoActivo, turnoPorAsumir, sinResponsable: sesion.sinResponsable }
+  const continuidad = continuidadReciente(sesion, session?.username ?? null)
+  return { turnoActivo, turnoPorAsumir, sinResponsable: sesion.sinResponsable, continuidad }
 }
 
 /**
@@ -108,7 +112,7 @@ export function useTurnoDeLaSesion() {
  */
 export function useAppsNavegables() {
   const { session } = useAuth()
-  const { turnoActivo, turnoPorAsumir } = useTurnoDeLaSesion()
+  const { turnoActivo, turnoPorAsumir, continuidad } = useTurnoDeLaSesion()
   const visibles = apps.filter((app) => app.href && puedeVerApp(session, app))
   const principales = visibles.filter((app) => !app.atajo)
   const atajos = visibles.filter((app) => app.atajo)
@@ -121,12 +125,12 @@ export function useAppsNavegables() {
     else secciones.push(accesos)
   }
 
-  const libre = (app: AppDef) => !bloqueoDeApp(app, turnoActivo, turnoPorAsumir).bloqueada
+  const libre = (app: AppDef) => !bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad).bloqueada
   const orden =
     session?.cargo === "SUPERVISOR"
       ? RAPIDAS_SUPERVISOR.map((slug) => visibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)
       : [...principales, ...atajos]
   const rapidas = orden.filter(libre)
 
-  return { secciones, rapidas, turnoActivo, turnoPorAsumir }
+  return { secciones, rapidas, turnoActivo, turnoPorAsumir, continuidad }
 }

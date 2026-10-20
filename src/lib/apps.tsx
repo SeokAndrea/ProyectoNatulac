@@ -68,6 +68,8 @@ export interface AppDef {
   bloqueaConTurno?: boolean
   /** Se resalta en rojo cuando hay un turno en curso, para que sea obvio el siguiente paso (ver Finalizar Turno). */
   resaltarConTurno?: boolean
+  /** Con candado mientras el turno es una continuación recién abierta por el sistema (ver src/lib/continuidadTurno.ts). */
+  bloqueaEnContinuidad?: boolean
   /** Color fijo del ícono/tarjeta (por defecto: primary) — para distinguir a simple vista pasos como Comenzar/Preparación/Finalizar. */
   color?: "success" | "blue" | "purple" | "warning" | "danger"
   /** Si es true, la tarjeta solo aparece para el dueño (ver session.esDueno). */
@@ -168,6 +170,7 @@ export const apps: AppDef[] = [
     permiso: "TURNO_ASUMIR",
     soloProduccion: true,
     resaltarConTurno: true,
+    bloqueaEnContinuidad: true,
     seccion: "produccion",
   },
   {

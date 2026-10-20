@@ -207,7 +207,7 @@ export default function FinalizarTurno() {
       ? "Este turno no tiene responsable. Asúmelo desde Comenzar Turno antes de finalizarlo."
       : `Solo ${sesion.supervisorNombre} (responsable del turno) o un jefe pueden finalizarlo.`
     : continuidad
-      ? `El sistema abrió este turno a las ${continuidad.hora} como continuación del tuyo. El anterior ya quedó cerrado: no finalices este, sigues a cargo hasta el cambio de turno.`
+      ? `Se habilita a las ${continuidad.finalizableDesde}.`
       : null
 
   // Mismo cálculo que la sección 2.1 del acta (el acta se genera con el turno cerrado).

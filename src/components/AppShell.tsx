@@ -8,7 +8,6 @@ import { NavPanelesVista } from "@/components/NavPanelesVista"
 import { BotonNavegacion } from "@/components/nav/BotonNavegacion"
 import { MenuLateral } from "@/components/nav/MenuLateral"
 import { AvisoSifPendientes } from "@/components/sif/AvisoSifPendientes"
-import { AvisoContinuidadTurno } from "@/components/AvisoContinuidadTurno"
 import { useAuth } from "@/lib/auth"
 import { esSoloVista } from "@/lib/rolVista"
 import { cn } from "@/lib/utils"
@@ -91,7 +90,6 @@ export function AppShell({
           )}
         >
           {!soloVista && <AvisoSifPendientes />}
-          {!soloVista && <AvisoContinuidadTurno />}
           {children}
         </main>
       </div>

@@ -34,7 +34,7 @@ const AL_FINAL_SUPERVISOR = ["programacion", "manual", "panel-paradas"]
 
 export default function Hub() {
   const { session } = useAuth()
-  const { turnoActivo, turnoPorAsumir, sinResponsable } = useTurnoDeLaSesion()
+  const { turnoActivo, turnoPorAsumir, sinResponsable, continuidad } = useTurnoDeLaSesion()
   useGenerarActasPendientes()
   const puedeSoloParadas = session?.rol === "JEFE_PRODUCCION" || session?.rol === "ANALISTA"
   const [soloParadas, setSoloParadas] = useState(leerSoloParadas)
@@ -92,7 +92,7 @@ export default function Hub() {
           {flujo.length > 0 && (
             <div className="grid grid-cols-1 gap-2.5 sm:hidden">
               {flujo.map((app) => (
-                <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} />
+                <AppCard key={app.slug} app={app} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} continuidad={continuidad} />
               ))}
             </div>
           )}
@@ -131,7 +131,7 @@ export default function Hub() {
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
                 {appsSeccion.map((app) => (
                   <div key={app.slug} className={soloEnPantallaGrande(app)}>
-                    <AppCard app={app} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} />
+                    <AppCard app={app} turnoActivo={turnoActivo} turnoPorAsumir={turnoPorAsumir} continuidad={continuidad} />
                   </div>
                 ))}
               </div>

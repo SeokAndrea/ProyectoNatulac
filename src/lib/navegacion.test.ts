@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { apps } from "@/lib/apps"
-import { agruparPorSeccion } from "@/lib/navegacion"
+import { agruparPorSeccion, bloqueoDeApp } from "@/lib/navegacion"
 
 const principales = apps.filter((a) => !a.atajo)
 const titulos = (cargo?: Parameters<typeof agruparPorSeccion>[2]) => agruparPorSeccion(principales, false, cargo).map((s) => s.titulo)
@@ -30,5 +30,16 @@ describe("atajos", () => {
     ])
     expect(atajos).not.toContain("calculadoras")
     expect(apps.find((a) => a.slug === "indicadores")?.color).toBe("warning")
+  })
+})
+
+describe("bloqueoDeApp en la continuidad de las 22:30", () => {
+  const app = (slug: string) => apps.find((a) => a.slug === slug)!
+  const continuidad = { codigo: "A20261019_T3G1", finalizableDesde: "00:30" }
+
+  it("Finalizar Turno queda con candado hasta la hora; el resto sigue igual", () => {
+    expect(bloqueoDeApp(app("finalizar-turno"), true, false, continuidad)).toMatchObject({ bloqueada: true, habilitaA: "00:30" })
+    expect(bloqueoDeApp(app("finalizar-turno"), true, false, null).bloqueada).toBe(false)
+    expect(bloqueoDeApp(app("producto-terminado"), true, false, continuidad).bloqueada).toBe(false)
   })
 })
