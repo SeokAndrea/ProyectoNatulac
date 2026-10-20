@@ -4,8 +4,9 @@
  * supervisor sigue a cargo. El 06/10, el 07/10 y el 19/10 lo finalizaron
  * creyendo que seguían en el T2 (el Hub pintaba Finalizar Turno de rojo), y
  * el 19/10 se cargó dos veces el mismo PT. Mientras dura, Finalizar Turno
- * queda con candado y Producto Terminado abre en el turno anterior (su
- * gracia). finalizar_turno() tampoco lo deja cerrar (migración 20261111190000).
+ * queda con candado y, si al anterior le falta el PT de una línea entregada,
+ * Producto Terminado abre en él (su gracia, ver src/lib/ptTurnoAnterior.ts).
+ * finalizar_turno() tampoco lo deja cerrar (migración 20261111190000).
  */
 import type { SesionTurno } from "@/lib/sesionTurno"
 import { horaCortaPlanta, instantePlanta } from "@/lib/tiempoPlanta"

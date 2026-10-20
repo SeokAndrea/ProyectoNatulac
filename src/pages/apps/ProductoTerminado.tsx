@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { CorridasCerradas, ListaCorridas, type DatosListaCorridas } from "@/components/producto-terminado/ListaCorridas"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { continuidadReciente } from "@/lib/continuidadTurno"
+import { useFaltaPtTurnoAnterior } from "@/lib/ptTurnoAnterior"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
@@ -52,12 +53,15 @@ export default function ProductoTerminado() {
    * no Contador/Entregar/Terminar (ver Fuera de alcance en el plan).
    */
   // Con otro turno ya abierto, el anterior en gracia se elige a mano (botón de abajo).
-  // Si el abierto es la continuación del propio (12x12 a las 22:30), arranca
-  // en el anterior: lo que se carga ahí es del turno que acaba de cerrar.
+  // Si el abierto es la continuación del propio (12x12 a las 22:30) y al
+  // anterior le falta el PT de una línea entregada, arranca en el anterior:
+  // es lo único que hay que cargar a esa hora.
   const [eleccionTurnoAnterior, setVerTurnoAnterior] = useState<boolean | null>(null)
-  const verTurnoAnterior = eleccionTurnoAnterior ?? continuidadReciente(sesion, sesion.usuario) !== null
   const graciaDisponible =
     !enModoCorreccion && sesion.turnoGraciaPT !== null && sesion.turnoGraciaPT.turnoId !== sesion.turnoId
+  const enContinuidad = graciaDisponible && continuidadReciente(sesion, sesion.usuario) !== null
+  const faltaPtAnterior = useFaltaPtTurnoAnterior(enContinuidad ? sesion.turnoGraciaPT!.turnoId : null)
+  const verTurnoAnterior = eleccionTurnoAnterior ?? faltaPtAnterior === true
   const enGraciaPT = graciaDisponible && (!sesion.turnoId || verTurnoAnterior)
   const turnoIdEfectivo = enModoCorreccion
     ? turnoIdCorreccion
@@ -86,7 +90,14 @@ export default function ProductoTerminado() {
     cargando: cargandoPreparacion,
   } = usePreparacion(turnoIdEfectivo)
   const { lineas, presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
-  const cargando = sesion.cargando || cargandoCorreccion || cargandoProduccion || cargandoPT || cargandoPreparacion
+  const cargando =
+    sesion.cargando ||
+    cargandoCorreccion ||
+    cargandoProduccion ||
+    cargandoPT ||
+    cargandoPreparacion ||
+    // Sin saber todavía en qué turno arranca, no se muestra el otro.
+    (enContinuidad && eleccionTurnoAnterior === null && faltaPtAnterior === null)
 
   // Cargar PT baja preparaciones.volumen_l en el servidor, pero esta
   // página lee el volumen del tanque de usePreparacion() — un hook
