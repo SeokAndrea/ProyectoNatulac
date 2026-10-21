@@ -43,12 +43,9 @@ export function unidadPreparacion(saborNombreOFamilia: string | null | undefined
 }
 
 /*
- * Sabores agrupados por familia, editables desde "Edición de Datos"
- * (SUPERADMINISTRADOR). Vive en las tablas "sabores" y
- * "familias_producto" de Supabase — ver
- * supabase/migrations/20260824090000_sabores_edicion.sql. Igual que
- * "personal", todo pasa por funciones RPC porque esas tablas tienen
- * RLS activado sin políticas.
+ * Sabores agrupados por familia. Viven en las tablas "sabores" y
+ * "familias_producto" (RLS sin políticas: todo por RPC). Se editan desde
+ * Edición de Datos con guardar_catalogo (src/lib/edicionDatos.ts).
  */
 interface FilaFamilia {
   familia_id: string
@@ -83,54 +80,3 @@ export async function listarSabores(): Promise<Sabor[]> {
   }))
 }
 
-export async function crearSabor(datos: {
-  familiaId: string
-  nombre: string
-  volumen: number | null
-}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const { data, error } = await supabase.rpc("crear_sabor", {
-    p_familia_id: datos.familiaId,
-    p_nombre: datos.nombre,
-    p_volumen: datos.volumen,
-  })
-
-  if (error) {
-    if (error.code === "23505") {
-      return { ok: false, error: "Ese sabor ya existe en esta familia." }
-    }
-    return { ok: false, error: "No se pudo agregar el sabor. Intenta de nuevo." }
-  }
-
-  return { ok: true, id: data as string }
-}
-
-export async function editarSabor(datos: {
-  id: string
-  nombre: string
-  volumen: number | null
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await supabase.rpc("editar_sabor", {
-    p_sabor_id: datos.id,
-    p_nombre: datos.nombre,
-    p_volumen: datos.volumen,
-  })
-
-  if (error) {
-    if (error.code === "23505") {
-      return { ok: false, error: "Ese sabor ya existe en esta familia." }
-    }
-    return { ok: false, error: "No se pudo editar el sabor. Intenta de nuevo." }
-  }
-
-  return { ok: true }
-}
-
-export async function desactivarSabor(id: string): Promise<boolean> {
-  const { error } = await supabase.rpc("desactivar_sabor", { p_sabor_id: id })
-  return !error
-}
-
-export async function reactivarSabor(id: string): Promise<boolean> {
-  const { error } = await supabase.rpc("reactivar_sabor", { p_sabor_id: id })
-  return !error
-}

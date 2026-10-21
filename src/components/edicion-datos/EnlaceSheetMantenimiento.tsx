@@ -43,7 +43,7 @@ export function EnlaceSheetMantenimiento({ usuario }: { usuario: string }) {
   const cambiado = enlace.trim() !== (guardado ?? "")
 
   return (
-    <div className="mb-4 flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-medium text-foreground">Sheet de Mantenimiento (paradas)</span>
         {guardado && (

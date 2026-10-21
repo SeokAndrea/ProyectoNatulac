@@ -26,9 +26,6 @@ const CatalogoParadas = lazy(() => import("@/pages/apps/CatalogoParadas"))
 const Programacion = lazy(() => import("@/pages/apps/Programacion"))
 const EdicionDatos = lazy(() => import("@/pages/apps/EdicionDatos"))
 const Personal = lazy(() => import("@/pages/apps/Personal"))
-const CalculadoraBobina = lazy(() => import("@/pages/apps/CalculadoraBobina"))
-const CalculadoraFormula = lazy(() => import("@/pages/apps/CalculadoraFormula"))
-const CalculadoraConteoPeso = lazy(() => import("@/pages/apps/CalculadoraConteoPeso"))
 const Calculadoras = lazy(() => import("@/pages/apps/Calculadoras"))
 const Historial = lazy(() => import("@/pages/apps/Historial"))
 const ServiciosIndustriales = lazy(() => import("@/pages/apps/ServiciosIndustriales"))
@@ -200,30 +197,10 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/calculadora-bobina"
-            element={
-              <ProtectedRoute app="calculadora-bobina">
-                <CalculadoraBobina />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/calculadora-formula"
-            element={
-              <ProtectedRoute app="calculadora-formula">
-                <CalculadoraFormula />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/calculadora-conteo-peso"
-            element={
-              <ProtectedRoute app="calculadora-conteo-peso">
-                <CalculadoraConteoPeso />
-              </ProtectedRoute>
-            }
-          />
+          {/* Las tres calculadoras viven en una sola pantalla con selector (rework 2026-10-21). */}
+          <Route path="/calculadora-bobina" element={<Navigate to="/calculadoras?c=bobina" replace />} />
+          <Route path="/calculadora-formula" element={<Navigate to="/calculadoras?c=formula" replace />} />
+          <Route path="/calculadora-conteo-peso" element={<Navigate to="/calculadoras?c=peso" replace />} />
           <Route
             path="/resumen-dia"
             element={
