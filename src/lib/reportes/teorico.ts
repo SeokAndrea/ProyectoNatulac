@@ -1,7 +1,7 @@
 /**
  * Fórmulas puras de Reportes — no saben qué es un lote, ni un tanque, ni
  * una corrida. Reciben números limpios, devuelven un porcentaje. Ver
- * plan-rework-3-modulos-y-merma.md, Fase 1.
+ * docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Las dos formas que hoy están repetidas a mano en panelProduccion.ts
  * (merma de envases, merma de semielaborado, y el % de meta) colapsan acá

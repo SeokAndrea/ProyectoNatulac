@@ -1,7 +1,7 @@
 /**
  * Ajustes de Preparación: operaciones para cuando algo salió distinto de
  * lo planeado — nunca reimplementan lo que hace nucleo.ts, lo asumen ya
- * hecho y corrigen sobre eso. Ver plan-rework-3-modulos-y-merma.md, Fase 1.
+ * hecho y corrigen sobre eso. Ver docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Extraídas de src/lib/turno.ts, mismo comportamiento. cambiarCondicionTanque,
  * reactivarLote y descartarRestoTanque están al final, en su propia sección

@@ -11,7 +11,7 @@ import { useAccion } from "@/lib/useAccion"
 const nombreMotivo = (m: MotivoCip) => MOTIVOS_CIP.find((x) => x.codigo === m)?.nombre ?? m
 
 /**
- * Formulario de CIP, paso a paso (plan-lineas-pt-paradas.md, sección C):
+ * Formulario de CIP, paso a paso (docs/plan-lineas-pt-paradas.md, sección C):
  * motivo → (con corrida) ¿el lote sigue? → descripción opcional →
  * confirmar dos veces. Cada respuesta reemplaza a su pregunta (lo
  * respondido queda en una línea); Cancelar borra todo.

@@ -2,7 +2,7 @@ import type { CondicionTanque, PreparacionRegistro, TanqueRecepcion } from "@/li
 import type { Corrida } from "@/lib/produccion/tipos"
 
 /*
- * Rename de estados (plan-rework-tanques-lineas-recepcion.md §9): "Sucio"
+ * Rename de estados (docs/plan-rework-tanques-lineas-recepcion.md §9): "Sucio"
  * deja de existir como palabra propia — un tanque que se drenó del todo
  * es conceptualmente "Con Restos", solo que con 0 L. "Listo" pasa a
  * llamarse "Liberado" (ya no hace falta el prefijo "En Preparación").

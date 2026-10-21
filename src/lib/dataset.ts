@@ -12,7 +12,7 @@
  *
  * Columnas que HOY salen vacías, y qué falta para llenarlas:
  *   - cant_paradas: el catálogo de paradas todavía no existe
- *     (ver resumen-diseno-dashboard-natulac.md).
+ *     (ver docs/resumen-diseno-dashboard-natulac.md).
  *   - litros_consumidos_tanque y merma_semielaborado_pct: necesitan
  *     volumen_inicial_l y volumen_l del lote (preparaciones), que
  *     estadisticas_produccion no devuelve. Se llenan cuando ese RPC

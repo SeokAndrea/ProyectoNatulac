@@ -11,7 +11,7 @@ import type { RegistroAuditoria } from "@/lib/auditoria"
  * vista. Agrupado por día, lo más nuevo primero.
  *
  * Vive en la vista de Auditoría reworkeada, en una sección colapsada
- * al final (ver plan-rework-auditoria.md).
+ * al final (ver docs/plan-rework-auditoria.md).
  */
 const VARIANTE: Record<string, "success" | "warning" | "danger" | "muted" | "secondary"> = {
   CREAR: "success",

@@ -157,7 +157,7 @@ describe("turnoEnFiltro", () => {
 })
 
 // ------------------------------------------------------------
-// Guardrails de la merma (plan-rework-auditoria.md §7)
+// Guardrails de la merma (docs/plan-rework-auditoria.md §7)
 // ------------------------------------------------------------
 describe("guardrails — merma de semielaborado", () => {
   it("los turnos sanos del fixture NO disparan el flag de parcial ni dan % negativo", () => {

@@ -87,7 +87,7 @@ export default function EdicionDatos() {
 /**
  * "Calidad libera los lotes" en Aséptico (areas.calidad_libera, migración
  * 20261096). Solo el dueño. Encendido: el supervisor ya no libera, Calidad
- * analiza y libera (ver plan-calidad.md). Pide confirmar antes de cambiar.
+ * analiza y libera (ver docs/plan-calidad.md). Pide confirmar antes de cambiar.
  */
 function InterruptorCalidad({ usuario }: { usuario: string }) {
   const cargado = useCalidadLibera("ASEPTICO")

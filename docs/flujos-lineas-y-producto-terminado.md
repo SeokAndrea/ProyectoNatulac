@@ -1,7 +1,7 @@
 # Flujos: Líneas y Producto Terminado (cómo funciona hoy)
 
 Los diagramas muestran lo que el código **hace hoy** (rama `main`, 2026-09-30),
-no lo que debería hacer. El diseño nuevo está en `plan-lineas-pt-paradas.md`.
+no lo que debería hacer. El diseño nuevo está en `docs/plan-lineas-pt-paradas.md`.
 
 Se leyó el código de las pantallas y las reglas de la base de datos
 (migraciones). Los problemas de la sección 5 son hallazgos por lectura:

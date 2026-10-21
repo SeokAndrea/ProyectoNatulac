@@ -12,7 +12,7 @@ export const TANK_MAX_VOLUMEN = 30000
  * Desvase (sacar el resto de un tanque y guardarlo en pipa, ver
  * desvasarTanque en src/lib/preparacion/ajustes.ts) estaba pausado
  * porque no tenía un uso claro. Ahora sí lo tiene: es una de las 3
- * alternativas del guardrail #1 (plan-rework-tanques-lineas-recepcion.md
+ * alternativas del guardrail #1 (docs/plan-rework-tanques-lineas-recepcion.md
  * §6) para cuando NO se quiere sumar el resto al lote nuevo.
  */
 export const DESVASE_HABILITADO = true

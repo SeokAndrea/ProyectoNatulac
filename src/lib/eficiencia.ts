@@ -4,7 +4,7 @@ import type { Corrida } from "@/lib/produccion/tipos"
 import { tramoT2 } from "@/lib/turno12x12"
 
 /*
- * Meta y eficiencia de línea con paradas — plan-eficiencia-meta.md.
+ * Meta y eficiencia de línea con paradas — docs/plan-eficiencia-meta.md.
  * Es el ÚNICO lugar donde se calculan: el Panel de Producción y el Acta usan
  * estas funciones, así los números coinciden entre pantallas.
  *

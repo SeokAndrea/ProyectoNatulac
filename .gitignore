@@ -44,4 +44,3 @@ supabase/.branches
 !.env.example
 
 # Información interna de la empresa: se queda solo en el PC, no va a GitHub
-/Info que no va en el pryecto/

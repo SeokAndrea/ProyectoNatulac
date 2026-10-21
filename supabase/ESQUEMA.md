@@ -26,14 +26,14 @@ YA cambiaron y este resumen todavía no refleja bien:
 - `turno_lineas` pasó de "una fila fija por línea" a "una fila por
   CORRIDA" (`20260909`), y de ahí a un modelo de dos estados donde
   `ESPERANDO_PT` separa "la línea se detuvo" de "se cerró de verdad"
-  (`20261018`, ver `plan-rework-3-modulos-y-merma.md` Fase 1 costura 2).
+  (`20261018`, ver `docs/plan-rework-3-modulos-y-merma.md` Fase 1 costura 2).
 - Tablas nuevas que no están documentadas acá todavía: `preparaciones_ajuste`,
   `desvases`, `transferencias`, `turnos_historial`, `contadores_historial`,
   auditoría universal (`registrar_auditoria`), VALIDAR.
 - La tabla "Migraciones, en orden" de más abajo se corta en `20260910`
   a propósito — completarla de una sola vez es un trabajo grande; se
-  va llenando de a poco. Para lo más reciente, `estado-rework-fase-2.md`
-  y `plan-rework-3-modulos-y-merma.md` tienen el detalle migración por
+  va llenando de a poco. Para lo más reciente, `docs/estado-rework-fase-2.md`
+  y `docs/plan-rework-3-modulos-y-merma.md` tienen el detalle migración por
   migración de `20261013` en adelante.
 
 ---
@@ -263,7 +263,7 @@ los tienen).
 **Condición actualizada (2026-09-11, reemplaza la tabla vieja de esta
 sección):** `VOLUMEN`→`LISTO` (`20260910`), se agregaron `STANDBY`
 (lote con resto — candidato a fusionarse con `SUCIO`, ver
-`plan-rework-3-modulos-y-merma.md` §"Estados de tanque y línea") y
+`docs/plan-rework-3-modulos-y-merma.md` §"Estados de tanque y línea") y
 `CIP`; `VACIO` se fusionó en `LIMPIO`
 (`20260946090000_eliminar_vacio_fusiona_con_limpio.sql`).
 
@@ -345,7 +345,7 @@ Cada análisis de Calidad de un lote: `preparacion_id`, `turno_id` (turno del an
 `acidez`, `conforme`, `observacion`, `usuario_id` (analista). Se guardan todos.
 `registrar_analisis_calidad()` lo inserta y, si es conforme, libera el lote. Con
 `areas.calidad_libera` encendido, `liberar_lote()` exige permiso `LOTE_LIBERAR` y análisis conforme;
-apagado, libera el supervisor como antes. Nace encendido solo en Pruebas (ver `plan-calidad.md`).
+apagado, libera el supervisor como antes. Nace encendido solo en Pruebas (ver `docs/plan-calidad.md`).
 
 ### `turno_lineas` (ampliada)
 Además de la relación turno↔línea original, ahora guarda la
@@ -434,7 +434,7 @@ npx supabase db push
 | `20260901090000_historial_auditoria.sql` | Extrae `turno_json()` (reutilizable) y agrega `listar_turnos_historial` / `turno_detalle`, para que Super Administrador busque cualquier turno pasado por supervisor/fecha (pantalla Auditoría) |
 | `20260902090000_eliminar_acta_y_usuario.sql` | Borrado real: `eliminar_turno` (solo turnos CERRADOS) y `eliminar_personal` (Postgres lo rechaza solo si la persona tiene turnos/contadores — protección automática por llave foránea, sin código extra) |
 | `20260903090000_forzar_eliminar_personal.sql` | `eliminar_personal` gana un parámetro `p_forzar`: si es true, borra primero los turnos de esa persona (arrastra en cascada todo lo asociado) y recién ahí la persona — pensado para limpiar usuarios de prueba |
-| `20260904090000_estadisticas_produccion.sql` | `estadisticas_produccion()`: una fila por (turno, línea) — incluye turnos ABIERTOS, con contadores sumados + producto terminado, para el Dashboard de Planta / Mis Estadísticas (se actualiza en vivo mientras el supervisor carga datos) — sin políticas de rol, filtros abiertos a propósito (ver `resumen-diseno-dashboard-natulac.md`) |
+| `20260904090000_estadisticas_produccion.sql` | `estadisticas_produccion()`: una fila por (turno, línea) — incluye turnos ABIERTOS, con contadores sumados + producto terminado, para el Dashboard de Planta / Mis Estadísticas (se actualiza en vivo mientras el supervisor carga datos) — sin políticas de rol, filtros abiertos a propósito (ver `docs/resumen-diseno-dashboard-natulac.md`) |
 | `20260905090000_preparaciones.sql` | Tabla `preparaciones` (varias por tanque por turno, carga manual sin fórmula); 4ª condición de tanque `EN_PREPARACION`; `turno_lineas.sabor_id` para líneas que continúan del turno anterior |
 | `20260906090000_panel_produccion.sql` | `turno_abierto_ahora()` y `turno_de_fecha_tipo()` — encontrar el turno en vivo o uno histórico por fecha/tipo, sin restricción de rol, para el Panel de Producción |
 | `20260907090000_preparacion_continua.sql` | Líneas y tanques pasan a ser estado CONTINUO: `activar_linea`/`detener_linea`/`cambiar_condicion_tanque` (se llaman en cualquier momento desde Preparación), `iniciar_turno()` pierde los parámetros de líneas/tanques y hereda el último estado de la misma área, "último sabor/lote" automático al marcar un tanque SUCIO |

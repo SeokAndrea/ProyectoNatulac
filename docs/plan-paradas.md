@@ -36,7 +36,7 @@ Mantenimiento (Mecánicas) y el supervisor (todo lo manual) no capturan igual:
 Este archivo refleja ese rumbo nuevo; lo de FASE A queda como base reutilizable,
 no como destino.
 
-Diseño conceptual de fondo: [resumen-diseno-dashboard-natulac.md](resumen-diseno-dashboard-natulac.md)
+Diseño conceptual de fondo: [docs/resumen-diseno-dashboard-natulac.md](docs/resumen-diseno-dashboard-natulac.md)
 (secciones 4, 6 y 8).
 
 El objetivo del módulo: responder rápido **"¿cuánto tiempo perdieron las líneas,

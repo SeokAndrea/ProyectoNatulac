@@ -16,7 +16,7 @@ import type { ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
  * compartida adentro de EstadoPlantaTabs.tsx, ahora es su propia pieza y
  * su propia página (src/pages/apps/Lineas.tsx), más una sección
  * embebida en Status (revisión de INICIO) — ver
- * plan-rework-3-modulos-y-merma.md, Fase 1: "la página de líneas debe
+ * docs/plan-rework-3-modulos-y-merma.md, Fase 1: "la página de líneas debe
  * ser su propia página como tal". Mismo prop "modo" que Tanques
  * (EstadoPlantaTabs.tsx) — ver el comentario ahí para el detalle
  * status/preparación.

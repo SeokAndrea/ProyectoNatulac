@@ -124,7 +124,7 @@ export const apps: AppDef[] = [
     icon: FlaskConical,
     requiereTurno: false,
     permiso: "LOTE_LIBERAR",
-    // Solo los roles de Calidad (ven el turno de Aséptico, migración 20261089); Pruebas entra a todo. Ver plan-calidad.md.
+    // Solo los roles de Calidad (ven el turno de Aséptico, migración 20261089); Pruebas entra a todo. Ver docs/plan-calidad.md.
     rolesPermitidos: ["CALIDAD", "SUPERVISOR_CALIDAD"],
     color: "purple",
     seccion: "apoyo",

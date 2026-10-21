@@ -4,7 +4,7 @@
  * contador (paso normal de toda corrida). Cualquier función para cuando
  * algo salió distinto de lo planeado (falla, continuar al siguiente lote,
  * entregar al turno que sigue, corregir una justificación) va en
- * ajustes.ts — ver plan-rework-3-modulos-y-merma.md, Fase 1.
+ * ajustes.ts — ver docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Extraídas de src/lib/turno.ts, mismo comportamiento, ninguna RPC nueva.
  *

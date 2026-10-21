@@ -2,7 +2,7 @@
 
 ## Primer paso, antes que nada
 
-**Guardar este documento en el repo** (`plan-rework-3-modulos-y-merma.md` o similar, junto a los
+**Guardar este documento en el repo** (`docs/plan-rework-3-modulos-y-merma.md` o similar, junto a los
 otros `plan-*.md`) y comitearlo. Es la lección de esta sesión: van tres planes reales que se
 perdieron por no hacer esto primero (el de hoy, el del viernes 4, y el del sábado que no se pudo
 recuperar). Ningún paso de código o de base arranca antes de que este documento exista como
@@ -23,10 +23,10 @@ quedó ningún archivo — se reconstruye acá a partir de lo que el dueño expl
 
 El proyecto lleva 138 migraciones incrementales y una historia larga de bugs de merma de
 semielaborado, diagnosticados en cuatro documentos vivos del repo —
-[plan-debug-merma-semielaborado.md](plan-debug-merma-semielaborado.md) (causa raíz + Fases
-A–D, en producción desde 2026-09-02), [plan-rework-tanques-lineas-recepcion.md](plan-rework-tanques-lineas-recepcion.md),
-[plan-rework-auditoria.md](plan-rework-auditoria.md) (guardrails 7.1–7.6) y
-[plan-validar-produccion.md](plan-validar-produccion.md) — más un rework real del 2026-09-04
+[docs/plan-debug-merma-semielaborado.md](docs/plan-debug-merma-semielaborado.md) (causa raíz + Fases
+A–D, en producción desde 2026-09-02), [docs/plan-rework-tanques-lineas-recepcion.md](docs/plan-rework-tanques-lineas-recepcion.md),
+[docs/plan-rework-auditoria.md](docs/plan-rework-auditoria.md) (guardrails 7.1–7.6) y
+[docs/plan-validar-produccion.md](docs/plan-validar-produccion.md) — más un rework real del 2026-09-04
 (commit `fe83b75`, "base de seguridad": Contador 2 de envases buenos, techo de 30.000 L en
 transferencias) sin su `.md` correspondiente.
 
@@ -62,7 +62,7 @@ Robot paletizador → Producto Terminado (un total por lote, al final — nunca 
 **Tres mecánicas físicas que hoy no se modelan bien:**
 
 1. **Pasteurizador (~1.500 L):** buffer compartido entre lotes consecutivos del mismo
-   tanque/manifold — el dueño ya resolvió (`plan-debug-merma-semielaborado.md` §43 punto 3)
+   tanque/manifold — el dueño ya resolvió (`docs/plan-debug-merma-semielaborado.md` §43 punto 3)
    que se autocompensa en la cadena y no hace falta modelarlo aparte. Se documenta el
    mecanismo para que un lote suelto con merma rara en el primer/último tramo del día no se
    lea como un bug.
@@ -323,7 +323,7 @@ planta:
 
 **Líneas (`lineas_estado.condicion`, hoy 5 valores: `DETENIDA`, `LISTA`, `CIP`,
 `CAMBIO_PRESENTACION`, `SIN_PROGRAMACION`):**
-- **Eliminar `LISTA` por completo.** Confirmado en `plan-rework-tanques-lineas-recepcion.md`
+- **Eliminar `LISTA` por completo.** Confirmado en `docs/plan-rework-tanques-lineas-recepcion.md`
   §12: nadie la elige nunca, existe solo como destino interno de "Terminó CIP". Sin ningún
   caso de uso real, a diferencia de CIP (ver abajo). "Terminó CIP" pasa a limpiar la fila de
   `lineas_estado` (línea vuelve a estar disponible sin condición especial) en vez de dejarla
@@ -522,7 +522,7 @@ la tarjeta de línea queda con estos botones y nada más:
 | Turno termina con corrida corriendo/pausada | Finalizar OBLIGA: PT del tramo + elegir Terminar o Entregar línea. Si Entrega → sigue fresca en el turno nuevo | se hereda; Recepción confirma | 1 PT por turno que cruza; final = último tramo |
 | Sin programación / Cambio de Presentación | solo sin corrida activa (si hay → Detener línea + PT primero) | no toca nada | no toca nada |
 
-### 2.3 — Guardrails abiertos de `plan-rework-auditoria.md` §7.5/§7.6
+### 2.3 — Guardrails abiertos de `docs/plan-rework-auditoria.md` §7.5/§7.6
 
 - **HECHO** — TOCTOU en el candado de número de lote (`iniciar_preparacion`):
   `pg_advisory_xact_lock(hashtextextended(area|sabor|nº lote))` antes del `exists`, en
@@ -574,7 +574,7 @@ se renombran para que digan lo que hacen — `reservas_tobos` → `desvases`, `e
 cara al supervisor dice "Desvasar"/"Desvase"; "pipa" se mantiene como el nombre del contenedor.
 
 **`descartar_resto_tanque` se elimina (ver 2.1) — no se le agrega enum de motivo, no hace
-falta.** El guardrail #1 (`plan-rework-tanques-lineas-recepcion.md` §6) queda con dos opciones
+falta.** El guardrail #1 (`docs/plan-rework-tanques-lineas-recepcion.md` §6) queda con dos opciones
 reales cuando el supervisor no quiere trabajar encima de un resto: **Transferir** a otro tanque
 o **guardar en pipa** (Desvase) — nunca "descartar", porque en la operación real no existe esa
 salida.
@@ -588,7 +588,7 @@ salida.
   hueco entre `volumen_l` medido y el PT se va a achicar solo.
 - La medición de tanque tras el PT (`20261026` + `ProductoTerminado.tsx`) ya deja el residuo
   visible como delta teórico↔real en `preparaciones_ajuste`; los guardrails de vista
-  (`plan-rework-auditoria.md` §7.1–7.4) ya impiden mostrar un número imposible.
+  (`docs/plan-rework-auditoria.md` §7.1–7.4) ya impiden mostrar un número imposible.
 - Se retoma solo si, viendo el comportamiento real de los supervisores, aparece un hueco
   concreto. La "regla del residuo descartado" (§2.7) sigue esperando a planta.
 
@@ -650,7 +650,7 @@ Con "sin parciales" ya decidido (Contexto — el cambio más grande de los tres)
 hallazgos más, verificados contra el código real:
 
 - **`productoRetenido`/`cajasRetenidas` — ya están muertos, formalizar la eliminación.**
-  Confirmado en `plan-validar-produccion.md` §2: se ocultaron de la UI porque no afectan
+  Confirmado en `docs/plan-validar-produccion.md` §2: se ocultaron de la UI porque no afectan
   litros/merma/acta. Verificado hoy en `ProductoTerminado.tsx:546-589`: el frontend los manda
   siempre `false`/`null`, cableados. Las columnas de base siguen existiendo sin que nada las
   lea. Se sacan las columnas — no solo se ocultan, se eliminan del todo.

@@ -1,7 +1,7 @@
 /**
  * Ajustes de Producción: operaciones para cuando algo salió distinto de
  * lo planeado — nunca reimplementan lo que hace nucleo.ts. Ver
- * plan-rework-3-modulos-y-merma.md, Fase 1.
+ * docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Extraídas de src/lib/turno.ts, mismo comportamiento, ninguna RPC nueva.
  */

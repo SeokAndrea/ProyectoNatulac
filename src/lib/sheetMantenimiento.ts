@@ -4,7 +4,7 @@ import { catalogoParadas } from "@/lib/paradasCatalogo"
 import { fechaPlanta, horaPlanta } from "@/lib/tiempoPlanta"
 
 /*
- * Paradas de Mantenimiento desde su Google Sheet (plan-sheet-vacio-produccion.md,
+ * Paradas de Mantenimiento desde su Google Sheet (docs/plan-sheet-vacio-produccion.md,
  * sección 1; migración 20261108490000). El navegador lee la pestaña ÁREAS
  * como CSV (gviz responde con CORS), resuelve las fechas y propone el tipo
  * de cada equipo + subsistema; el servidor guarda cada reporte por su id.

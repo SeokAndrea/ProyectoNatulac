@@ -4,7 +4,7 @@
  * registrar un análisis conforme (src/lib/calidad.ts).
  * Nada más. Cualquier función que exista para manejar algo que salió
  * distinto de lo planeado (un ajuste, una transferencia, guardar en pipa)
- * va en ajustes.ts, no acá — ver plan-rework-3-modulos-y-merma.md, Fase 1.
+ * va en ajustes.ts, no acá — ver docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Extraídas de src/lib/turno.ts (TurnoProvider) como funciones sueltas:
  * ya no dependen de un Context de React ni de su estado — reciben

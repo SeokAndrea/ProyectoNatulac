@@ -8,7 +8,7 @@ import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 
 /*
  * Helpers de la vista de Auditoría reworkeada (ver
- * plan-rework-auditoria.md): el resumen de un turno para los chips y
+ * docs/plan-rework-auditoria.md): el resumen de un turno para los chips y
  * el filtro de texto libre.
  *
  *   Sabores: Fresa (lotes 0903-A1, 0903-A2), Durazno (lote 0903-A6)
@@ -85,7 +85,7 @@ export function resumenTurno(
   // que retomó el mismo lote no se ve como filas sueltas, y las
   // corridas stub (activadas sin producir) se absorben. Dentro de un
   // grupo, dos corridas con paletas y cajas idénticas se cuentan una
-  // sola vez (posible re-tipeo — ver plan-rework-auditoria.md §7.4).
+  // sola vez (posible re-tipeo — ver docs/plan-rework-auditoria.md §7.4).
   const grupos = new Map<string, typeof turno.corridas>()
   for (const l of turno.corridas) {
     const k = `${l.linea}|${l.lote ?? ""}|${l.presentacion}`

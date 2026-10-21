@@ -33,7 +33,7 @@ import { useProduccion } from "@/lib/produccion/useProduccion"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 
 /*
- * Registrar Paradas — una sola pantalla para todos (plan-lineas-pt-paradas.md,
+ * Registrar Paradas — una sola pantalla para todos (docs/plan-lineas-pt-paradas.md,
  * sección P). Es la que era "Paradas de Mantenimiento", abierta a quien
  * registre paradas y con todos los tipos (migración 20261090).
  *

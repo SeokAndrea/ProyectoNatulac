@@ -8,7 +8,7 @@ el estado real del código. Si algo no coincide con lo que ves en el
 repo, seguí el código, no este documento, y si tenés un momento
 actualizá la fila.
 
-## Arquitectura actual (rework de 3 módulos, ver `plan-rework-3-modulos-y-merma.md`)
+## Arquitectura actual (rework de 3 módulos, ver `docs/plan-rework-3-modulos-y-merma.md`)
 
 El turno ya NO vive en un solo `TurnoProvider`/`turno.tsx` (ese archivo
 sigue existiendo pero cada vez con menos código propio — se vacía de a
@@ -32,7 +32,7 @@ El módulo **Paradas** (downtime de líneas) ya guarda en la base. Desde la
 migración 20261090 hay **una sola pantalla**, Registrar Paradas (antes
 había una del supervisor y otra de Mantenimiento): cada parada entra como
 +1 pendiente y después se pone cuánto duró. Ver
-`plan-lineas-pt-paradas.md`, sección P.
+`docs/plan-lineas-pt-paradas.md`, sección P.
 
 ## Marca / branding
 
@@ -127,7 +127,7 @@ página (cada pestaña llama a `recargar()` del contexto).
 | Auditoría: buscar cualquier turno pasado por supervisor/fecha (solo Super Administrador/Administrador de Área) | `src/pages/apps/Historial.tsx`, `src/components/AuditoriaTurnos.tsx`, `src/lib/historialTurnos.ts`, `src/lib/auditoriaVista.ts` |
 | VALIDAR: revisión post-turno, marca posibles duplicados/turnos sin PT | `src/pages/apps/Validar.tsx`, `src/components/ValidarLista.tsx`, `src/lib/validacion.ts` |
 | Eliminar personal (borrado real, no solo desactivar; con "forzar" para limpiar usuarios de prueba con turnos) | `src/components/personal/` (`PersonalPanel`, `FiltrosPersonal`, `FilaPersonal`, `FilaEdicionPersonal`, `FormularioNuevoPersonal`, `EditorPermisosExtra`; selectores de área/rol/cargo en `SelectoresPuesto`), `src/lib/personal.ts` → `eliminarPersonal` |
-| Resumen de Planta / Por Grupo / Por Supervisor (merma, horas, litros) — dentro de Panel de Producción; ver `resumen-diseno-dashboard-natulac.md` para el diseño completo pendiente | `src/pages/apps/PanelProduccion.tsx`, `src/lib/estadisticas.ts` |
+| Resumen de Planta / Por Grupo / Por Supervisor (merma, horas, litros) — dentro de Panel de Producción; ver `docs/resumen-diseno-dashboard-natulac.md` para el diseño completo pendiente | `src/pages/apps/PanelProduccion.tsx`, `src/lib/estadisticas.ts` |
 | Status y Preparación (misma UI compartida — Status es Recepción: confirmar/corregir lo heredado del turno anterior; Preparación está disponible todo el turno). Condición de tanque real: `LISTO` \| `SUCIO` \| `EN_PREPARACION` \| `STANDBY` \| `CIP` \| `LIMPIO` (candidato a fusionar SUCIO+STANDBY, ver plan Fase 1) | `src/components/EstadoPlantaTabs.tsx` (`modo="status"` / `modo="preparacion"`), `src/pages/apps/Status.tsx`, `src/pages/apps/Preparacion.tsx` |
 | Líneas: activar corrida, Parada Operacional (+motivo), Detener línea (dos pasos: detener deja `ESPERANDO_PT`, cargar el PT es lo único que cierra) | `src/pages/apps/Lineas.tsx`, `src/components/LineasEstadoPlanta.tsx` |
 | Comenzar Turno (solo Turno tipo + Grupo — al confirmar manda derecho a Status) | `src/pages/apps/ComenzarTurno.tsx`, `src/components/TanqueEditForm.tsx` |

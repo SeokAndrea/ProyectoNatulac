@@ -20,7 +20,7 @@ export async function reactivarLinea(id: string): Promise<boolean> {
  * Última configuración usada por una línea (presentación + velocidad),
  * para prellenar el formulario de "Activar Línea" — ver
  * supabase/migrations/20260994090000_ultima_configuracion_linea.sql y
- * plan-rework-tanques-lineas-recepcion.md §12. No depende de que exista
+ * docs/plan-rework-tanques-lineas-recepcion.md §12. No depende de que exista
  * un lote "siguiente" liberado: mira la línea física, sin importar el
  * turno ni el sabor.
  */

@@ -22,7 +22,7 @@ import { fechaPlanta, ZONA_PLANTA } from "@/lib/tiempoPlanta"
 import type { TurnoHistorial, TurnoResumen } from "@/lib/historialTurnos"
 
 /*
- * Vista reworkeada de Auditoría (ver plan-rework-auditoria.md): un
+ * Vista reworkeada de Auditoría (ver docs/plan-rework-auditoria.md): un
  * auditor ISO 9001 / jefe de producción entra y ve, sin fricción, qué
  * hizo cada supervisor en orden cronológico.
  *

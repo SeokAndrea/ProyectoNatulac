@@ -53,7 +53,7 @@ export type ModoEstadoPlanta = "status" | "preparacion"
  *
  * Líneas dejó de vivir acá — es su propia pieza, LineasEstadoPlanta
  * (src/components/LineasEstadoPlanta.tsx), y su propia página, Líneas
- * (src/pages/apps/Lineas.tsx) — ver plan-rework-3-modulos-y-merma.md,
+ * (src/pages/apps/Lineas.tsx) — ver docs/plan-rework-3-modulos-y-merma.md,
  * Fase 1: "la página de líneas debe ser su propia página como tal".
  * Este componente todavía necesita leer, de solo lectura, las corridas
  * del módulo Producción — para saber si el tanque que se está por

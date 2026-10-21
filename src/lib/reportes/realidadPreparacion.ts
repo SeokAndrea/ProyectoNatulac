@@ -1,11 +1,11 @@
 /**
  * Realidad de Preparación: qué lotes/tramos entran al cálculo de merma
  * de semielaborado, y cuáles quedan sin contraste. Ver
- * plan-rework-3-modulos-y-merma.md, Fase 1.
+ * docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Extraído de mermaSemielaboradoTurno() (antes en
  * src/lib/panelProduccion.ts) — mismo comportamiento exacto, mismo
- * guardrail (plan-rework-auditoria.md §7), leyendo de los tipos nuevos de
+ * guardrail (docs/plan-rework-auditoria.md §7), leyendo de los tipos nuevos de
  * Preparación/Producción/Producto Terminado en vez de un TurnoActivo
  * combinado. La fórmula final (consumo → %) se queda en index.ts, que es
  * el único que le habla a teorico.ts — acá solo se decide QUÉ entra.

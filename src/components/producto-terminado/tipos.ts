@@ -4,7 +4,7 @@ import type { Corrida, Resultado } from "@/lib/produccion/tipos"
 /*
  * productoRetenido/cajasRetenidas NO están acá: el módulo Producto
  * Terminado (src/lib/productoTerminado.ts) ya no los expone — se
- * dropearon en la base, ver plan-rework-3-modulos-y-merma.md §2.9.
+ * dropearon en la base, ver docs/plan-rework-3-modulos-y-merma.md §2.9.
  */
 export interface DatosRegistrarProducto {
   corridaId: string

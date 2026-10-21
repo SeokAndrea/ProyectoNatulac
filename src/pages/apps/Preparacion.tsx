@@ -19,7 +19,7 @@ import { listarSabores, type Sabor } from "@/lib/sabores"
  * Turno.
  *
  * Líneas ya NO vive acá — tiene su propia página (src/pages/apps/Lineas.tsx),
- * ver plan-rework-3-modulos-y-merma.md, Fase 1. Se deja un atajo abajo
+ * ver docs/plan-rework-3-modulos-y-merma.md, Fase 1. Se deja un atajo abajo
  * porque preparar un tanque y activar una línea son pasos seguidos
  * ("libero el tanque, activo la línea").
  */

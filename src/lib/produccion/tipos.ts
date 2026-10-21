@@ -1,7 +1,7 @@
 /**
  * Tipos del módulo Producción — dueño de las líneas, las corridas y los
  * contadores (`turno_lineas`, `lineas_estado`, `contadores`). Ver
- * plan-rework-3-modulos-y-merma.md, Fase 1.
+ * docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Renombre aplicado (Revisión de nombres del plan): `LineaEnTurno`/
  * `turnoLineaId` → `Corrida`/`corridaId` — el propio comentario del código

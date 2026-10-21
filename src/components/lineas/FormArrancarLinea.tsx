@@ -58,7 +58,7 @@ export function FormArrancarLinea({
 
   /*
    * Sin corrida que corregir, prellena presentación/velocidad con lo
-   * ÚLTIMO que esa línea usó (plan-rework-tanques-lineas-recepcion.md
+   * ÚLTIMO que esa línea usó (docs/plan-rework-tanques-lineas-recepcion.md
    * §12) — así el supervisor no tiene que retipear lo mismo cada vez que
    * arranca una corrida nueva. Solo si el valor sigue siendo válido para
    * esta línea (el catálogo pudo haber cambiado). Se lee una vez, al abrir.

@@ -1,7 +1,7 @@
 # Plan de rework — Estados de tanque, Líneas y Recepción
 
 Documento vivo, arrancado el 2026-09-02. Continúa el trabajo de
-[plan-debug-merma-semielaborado.md](plan-debug-merma-semielaborado.md) (ese quedó cerrado y en
+[docs/plan-debug-merma-semielaborado.md](docs/plan-debug-merma-semielaborado.md) (ese quedó cerrado y en
 producción); acá vive todo lo que sigue: el rework del ciclo de vida del tanque, las líneas, y el
 rediseño de "Status" → "Recepción".
 

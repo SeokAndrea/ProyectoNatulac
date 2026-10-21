@@ -1,6 +1,6 @@
 /**
  * Módulo Producto Terminado — dueño de `producto_terminado`. Ver
- * plan-rework-3-modulos-y-merma.md, Fase 1.
+ * docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Un solo archivo: a diferencia de Preparación y Producción, acá hay una
  * sola mutación real (registrarProductoTerminado) — no hay nada que
@@ -8,7 +8,7 @@
  *
  * Fase 2 §2.9 (teardown, 20261037): sin entregas parciales
  * (`producto_terminado_parciales` se dropeó) y sin `productoRetenido`/
- * `cajasRetenidas` (ya no tenían uso real, ver plan-validar-produccion.md
+ * `cajasRetenidas` (ya no tenían uso real, ver docs/plan-validar-produccion.md
  * §2) — un solo total por corrida, se carga una vez al cerrar.
  */
 import { useCallback, useEffect, useState } from "react"

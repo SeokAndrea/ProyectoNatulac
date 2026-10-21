@@ -87,7 +87,7 @@ export default function PanelProduccion() {
 
   // ------------------------------------------------------------ cuentas
   const horasTurnoActual = turno ? horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin) : 0
-  // Meta y eficiencia con paradas (src/lib/eficiencia.ts, plan-eficiencia-meta.md): base = turno completo;
+  // Meta y eficiencia con paradas (src/lib/eficiencia.ts, docs/plan-eficiencia-meta.md): base = turno completo;
   // la meta baja con las Programadas y el Ocioso; la eficiencia baja solo con las No programadas.
   const eficiencia = turno
     ? eficienciaDelTurno({

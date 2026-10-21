@@ -1,6 +1,6 @@
 # Estado de ejecución — Fase 2 (base de datos)
 
-Compañero de `plan-rework-3-modulos-y-merma.md`. Qué se hizo, qué falta,
+Compañero de `docs/plan-rework-3-modulos-y-merma.md`. Qué se hizo, qué falta,
 cómo subirlo. Última actualización: **2026-09-08**. Rama:
 `rework/preparacion-modulo`.
 

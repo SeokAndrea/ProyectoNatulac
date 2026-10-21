@@ -2,7 +2,7 @@
  * Reportes — la única capa que le lee a los 3 módulos de dominio a la
  * vez (Preparación, Producción, Producto Terminado). Ninguno de los 3
  * calcula ningún %: exponen números crudos, acá se hace la resta/división.
- * Ver plan-rework-3-modulos-y-merma.md, Fase 1.
+ * Ver docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Extraído en su momento de src/lib/panelProduccion.ts y del ya
  * retirado src/lib/calculosPruebas.ts — mismo comportamiento exacto
@@ -75,8 +75,8 @@ export interface MermaSemielaboradoTurno {
 
 /**
  * Merma de SEMIELABORADO — modelo repartido por turno (ver
- * plan-debug-merma-semielaborado.md §23/§33/§41 y el guardrail de
- * plan-rework-auditoria.md §7). `calcularConsumoYProducido` decide QUÉ
+ * docs/plan-debug-merma-semielaborado.md §23/§33/§41 y el guardrail de
+ * docs/plan-rework-auditoria.md §7). `calcularConsumoYProducido` decide QUÉ
  * lotes entran (realidadPreparacion.ts); acá solo se hace la división.
  */
 export function mermaSemielaboradoTurno(

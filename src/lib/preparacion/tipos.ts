@@ -2,7 +2,7 @@
  * Tipos del módulo Preparación — dueño de los tanques y los lotes
  * (`recepcion_tanques`, `preparaciones`, `preparaciones_ajuste*`).
  *
- * Ver plan-rework-3-modulos-y-merma.md, Fase 1. Extraído de src/lib/turno.ts
+ * Ver docs/plan-rework-3-modulos-y-merma.md, Fase 1. Extraído de src/lib/turno.ts
  * como primer paso de la separación en 3 módulos de dominio — mismo
  * comportamiento que hoy, con los renombres de "Revisión de nombres" ya
  * aplicados a PreparacionRegistro (antes volumenL/volumenInicialL/volumenLInicio).

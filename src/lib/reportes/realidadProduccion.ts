@@ -1,7 +1,7 @@
 /**
  * Realidad de Producción: qué corridas son "comparables" (contador Y
  * Producto Terminado cargados) antes de sumarlas para la merma de
- * envases. Ver plan-rework-3-modulos-y-merma.md, Fase 1.
+ * envases. Ver docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Extraído de mermaCorrida()/mermaEnvasesDeCorridas() (antes en
  * src/lib/turno.ts y src/lib/panelProduccion.ts), mismo comportamiento

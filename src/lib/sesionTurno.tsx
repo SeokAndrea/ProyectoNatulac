@@ -2,7 +2,7 @@
  * Sesión de turno — NO es un módulo de dominio (no es Preparación, ni
  * Producción, ni Producto Terminado). Es la pieza chica que los tres
  * necesitan antes de poder buscar sus propios datos: "¿cuál turno estoy
- * viendo, y quién soy?" — ver plan-rework-3-modulos-y-merma.md, Fase 1.
+ * viendo, y quién soy?" — ver docs/plan-rework-3-modulos-y-merma.md, Fase 1.
  *
  * Guarda solo identidad (turnoId, código, estado, usuario) — nunca tanques,
  * líneas, contadores ni producto terminado. Cada módulo de dominio busca su

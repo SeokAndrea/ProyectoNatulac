@@ -1,6 +1,6 @@
 /**
  * usePreparacion() — hook del módulo Preparación. Ver
- * plan-rework-3-modulos-y-merma.md, Fase 1 (Opción A+C para la sesión de
+ * docs/plan-rework-3-modulos-y-merma.md, Fase 1 (Opción A+C para la sesión de
  * turno, confirmada con el dueño).
  *
  * NO depende del TurnoProvider viejo (src/lib/turno.ts) — solo de

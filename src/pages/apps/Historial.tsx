@@ -37,7 +37,7 @@ import {
  * Auditoría: para el auditor ISO 9001 y el jefe de producción — qué
  * hizo cada supervisor, en orden cronológico, turno por turno, con el
  * resumen (sabores/lotes, cajas y las dos mermas) de un vistazo y la
- * línea de tiempo por hora al abrir cada fila. Ver plan-rework-auditoria.md.
+ * línea de tiempo por hora al abrir cada fila. Ver docs/plan-rework-auditoria.md.
  *
  * La grilla la arma <AuditoriaTurnos>; esta página trae los datos del
  * rango que ese componente pide (filtro de fecha) y aporta las

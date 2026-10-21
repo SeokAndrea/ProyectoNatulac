@@ -5,7 +5,7 @@ import { horaPlanta } from "@/lib/tiempoPlanta"
 /*
  * Dashboard de producción — construida sobre lo que ya existe (turnos
  * cerrados, contadores, producto_terminado), sin el catálogo de
- * paradas descrito en resumen-diseno-dashboard-natulac.md (todavía
+ * paradas descrito en docs/resumen-diseno-dashboard-natulac.md (todavía
  * sin construir). Cada fila es una CORRIDA (turno_lineas, ver
  * src/lib/turno.ts) — antes era un (turno, línea), pero una línea
  * puede tener varias corridas (una por lote) en el mismo turno; los

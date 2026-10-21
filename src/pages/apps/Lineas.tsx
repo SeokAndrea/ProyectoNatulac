@@ -12,7 +12,7 @@ import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
  * src/components/LineasEstadoPlanta.tsx, modo="preparacion") — antes
  * era una pestaña compartida adentro de Preparación
  * (src/components/EstadoPlantaTabs.tsx), ahora es su propia página.
- * Ver plan-rework-3-modulos-y-merma.md, Fase 1: "la página de líneas
+ * Ver docs/plan-rework-3-modulos-y-merma.md, Fase 1: "la página de líneas
  * debe ser su propia página como tal".
  */
 export default function Lineas() {

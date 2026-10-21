@@ -346,7 +346,7 @@ export interface MermaSemielaboradoTurno {
 
 /**
  * Merma de SEMIELABORADO — modelo REPARTIDO POR TURNO
- * (ver plan-debug-merma-semielaborado.md §23, §33, §41; decisión de la jefa: opción b).
+ * (ver docs/plan-debug-merma-semielaborado.md §23, §33, §41; decisión de la jefa: opción b).
  *
  *   consumo(turno)  = Σ_lotes  (volumen al INICIO del turno − volumen al FINAL del turno)
  *   merma(turno)    = consumo(turno) − PT(turno)
@@ -375,7 +375,7 @@ export interface MermaSemielaboradoTurno {
  * ≈ 0). No se pierde: la pérdida aparece en el turno que sí mide, o
  * cuando el lote se cierra drenado.
  *
- * Guardrail (plan-rework-auditoria.md §7, caso turno de Javier): el
+ * Guardrail (docs/plan-rework-auditoria.md §7, caso turno de Javier): el
  * numerador y el denominador tienen que cubrir LOS MISMOS lotes. Un
  * lote cuyo tramo de consumo no es confiable —`inicio` null, `fin ≥
  * inicio` (transferencia entrante / re-medición al alza / heredado sin

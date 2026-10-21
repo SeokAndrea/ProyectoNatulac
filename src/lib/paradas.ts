@@ -3,7 +3,7 @@ import { restarDias } from "@/lib/tiempoPlanta"
 
 /*
  * Módulo Paradas — downtime de las líneas. Rumbo 2026-09-10 (ver
- * plan-paradas.md): el eje pasa a PROGRAMADA / NO_PROGRAMADA / OCIOSO.
+ * docs/plan-paradas.md): el eje pasa a PROGRAMADA / NO_PROGRAMADA / OCIOSO.
  *
  *  - El supervisor registra las suyas en Registrar Paradas.
  *  - Mantenimiento registra las mecánicas en su pantalla, con hora real de
