@@ -4,7 +4,7 @@ import { CintaEstadoLinea, type EstadoCinta } from "@/components/CintaEstadoLine
 import { colorTextoPorNivel, nivelMerma, type NivelMerma } from "@/lib/estadisticas"
 import { textoParadaEnVivo } from "@/lib/paradasEnVivo"
 import { cn } from "@/lib/utils"
-import { formatDuracion, type EstadoLinea, type FilaLineaCompacta } from "./calculosPanel"
+import { formatDuracion, MERMA_ENVASE_PANEL_MAX, MERMA_ENVASE_PANEL_WARN, type EstadoLinea, type FilaLineaCompacta } from "./calculosPanel"
 import { PanelCard } from "./PanelCard"
 
 const ESTADO_LINEA_INFO: Record<EstadoLinea, { label: string; dot: string; ring: string }> = {
@@ -70,7 +70,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
   const info = ESTADO_LINEA_INFO[fila.estado]
   const nivelEficiencia: NivelMerma | null =
     fila.eficienciaPct === null ? null : fila.eficienciaPct >= 90 ? "ok" : fila.eficienciaPct >= 60 ? "warn" : "danger"
-  const nivelMermaFila = fila.mermaPct === null ? null : nivelMerma(fila.mermaPct)
+  const nivelMermaFila = fila.mermaPct === null ? null : nivelMerma(fila.mermaPct, MERMA_ENVASE_PANEL_MAX, MERMA_ENVASE_PANEL_WARN)
   const colorPor = colorTextoPorNivel
 
   return (

@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { MERMA_DANGER_DESDE, MERMA_WARN_DESDE, nivelMerma } from "@/lib/estadisticas"
 import { cn } from "@/lib/utils"
-import { MERMA_SEMIELABORADO_MAX, MERMA_SEMIELABORADO_WARN } from "./calculosPanel"
+import { MERMA_ENVASE_PANEL_MAX, MERMA_ENVASE_PANEL_WARN, MERMA_SEMIELABORADO_MAX, MERMA_SEMIELABORADO_WARN } from "./calculosPanel"
 
 /** Merma de envase y Rendimiento (semielaborado), turno pasado vs. turno actual. */
 export function SeccionMermas({
@@ -19,7 +19,13 @@ export function SeccionMermas({
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <MermaComparativaCard titulo="Merma de envase" pasado={envasePasado} actual={envaseActual} />
+      <MermaComparativaCard
+        titulo="Merma de envase"
+        pasado={envasePasado}
+        actual={envaseActual}
+        dangerDesde={MERMA_ENVASE_PANEL_MAX}
+        warnDesde={MERMA_ENVASE_PANEL_WARN}
+      />
       <MermaComparativaCard
         titulo="Rendimiento"
         pasado={semielaboradoPasado}

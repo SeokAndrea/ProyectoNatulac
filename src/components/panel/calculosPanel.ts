@@ -20,6 +20,10 @@ import { mermaLineaTurno } from "@/lib/reportes"
 export const MERMA_SEMIELABORADO_MAX = 1.5
 export const MERMA_SEMIELABORADO_WARN = (MERMA_SEMIELABORADO_MAX * 2) / 3
 
+/** En el Panel la merma de envase tolera hasta 3% (rojo pasado eso); amarillo desde 2/3 de ese máximo, mismo criterio que semielaborado. */
+export const MERMA_ENVASE_PANEL_MAX = 3
+export const MERMA_ENVASE_PANEL_WARN = (MERMA_ENVASE_PANEL_MAX * 2) / 3
+
 export const HORARIOS: Record<string, { inicio: string; fin: string }> = {
   TURNO_1: { inicio: "07:00", fin: "15:00" },
   TURNO_2: { inicio: "15:00", fin: "22:30" },
