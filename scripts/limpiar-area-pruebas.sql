@@ -49,7 +49,8 @@ select
      where area_id = (select id from pruebas)
         or turno_id_origen  in (select id from t)
         or turno_id_consumo in (select id from t)
-        or usado_en_lote_id in (select id from preparaciones where turno_id in (select id from t))) as desvases;
+        or usado_en_lote_id in (select id from preparaciones where turno_id in (select id from t))
+        or lote_id_origen   in (select id from preparaciones where turno_id in (select id from t))) as desvases;
 
 -- ------------------------------------------------------------
 -- 2. LIMPIEZA — una sola transacción
@@ -72,8 +73,15 @@ begin
      or turno_id_consumo in (select id from turnos where area_id = v_pruebas)
      or usado_en_lote_id in (
           select id from preparaciones
+          where turno_id in (select id from turnos where area_id = v_pruebas))
+     or lote_id_origen in (
+          select id from preparaciones
           where turno_id in (select id from turnos where area_id = v_pruebas));
   get diagnostics v_desv = row_count;
+
+  -- preparaciones_ajuste: su FK a turnos tampoco cascadea (la del lote sí).
+  delete from preparaciones_ajuste
+  where turno_id in (select id from turnos where area_id = v_pruebas);
 
   -- turnos: arrastra en cascada todo el resto de lo operativo.
   delete from turnos where area_id = v_pruebas;
