@@ -17,8 +17,8 @@
 --
 -- Cada paso exige encontrar exactamente 1 fila; si no, no cambia nada.
 -- Después: regenerar el acta del T3G1 desde Historial (tiene el PT viejo).
+-- El bloque DO es una sola transacción: si un paso falla, no cambia nada.
 -- ============================================================
-begin;
 
 do $$
 declare
@@ -60,5 +60,3 @@ $$;
 select
   (select count(*) from producto_terminado where turno_id = '4d9015a3-4b26-4ee2-9d20-51a9c2f348c4') as pt_t3g1,
   (select count(*) from contadores where turno_id = '4d9015a3-4b26-4ee2-9d20-51a9c2f348c4') as contadores_t3g1;
-
-commit;
