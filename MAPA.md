@@ -156,7 +156,8 @@ página (cada pestaña llama a `recargar()` del contexto).
 | Esquema SQL (tablas, auditoría, reglas de merma) | `supabase/migrations/` |
 | Resumen legible de tablas, funciones y datos sembrados (para consulta rápida, no se ejecuta) | `supabase/ESQUEMA.md` |
 | Usuarios y contraseñas (tabla propia, NO Supabase Auth — contraseñas hasheadas con pgcrypto) | `supabase/migrations/20260822090000_usuarios_tabla_propia.sql` |
-| Cliente de Supabase para el frontend | `src/lib/supabase.ts` |
+| Cliente de la base para el frontend (PostgREST en `/api`) | `src/lib/supabase.ts` |
+| PDF de las actas (carpeta del servidor, reemplaza el Storage de Supabase) | `archivos/servidor.mjs` |
 | Credenciales (no se suben a git) | `.env.local` (copiar desde `.env.example`) |
 
 Login, alta y listado de personal NO tocan la tabla "usuarios" directo

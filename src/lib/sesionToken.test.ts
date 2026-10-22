@@ -9,8 +9,8 @@ import {
   sesionRechazada,
 } from "@/lib/sesionToken"
 
-const BASE = "https://x.supabase.co/rest/v1/rpc/listar_lineas"
-const STORAGE = "https://x.supabase.co/storage/v1/object/actas/a.pdf"
+const BASE = "http://192.168.10.143:4035/api/rpc/listar_lineas"
+const STORAGE = "http://192.168.10.143:4035/archivos/actas/a.pdf"
 
 function headerEnviado(espia: ReturnType<typeof vi.fn>): string | null {
   const init = espia.mock.calls[0][1] as RequestInit | undefined
@@ -44,7 +44,7 @@ describe("credencial en cada petición", () => {
     expect(init.method).toBe("POST")
   })
 
-  it("no la manda a Storage", async () => {
+  it("no la manda a los PDF de actas", async () => {
     fijarTokenSesion("abc")
     await fetchConSesion(STORAGE, {})
     expect(headerEnviado(espia)).toBeNull()

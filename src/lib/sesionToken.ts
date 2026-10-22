@@ -43,13 +43,14 @@ export function limpiarAvisoSalida() {
 }
 
 /*
- * fetch de supabase-js: suma la credencial a las peticiones a la base
- * (/rest/v1/). No a Storage, que no la usa. Si la petición ya trae una
- * (cerrar sesión manda la vieja a propósito), no la pisa.
+ * fetch del cliente de la base: suma la credencial a las peticiones a
+ * PostgREST (/api/). No a los PDF de actas (/archivos/), que no la usan.
+ * Si la petición ya trae una (cerrar sesión manda la vieja a propósito),
+ * no la pisa.
  */
 export const fetchConSesion: typeof fetch = (input, init) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
-  if (!token || !url.includes("/rest/v1/")) return fetch(input, init)
+  if (!token || !new URL(url, "http://x").pathname.startsWith("/api/")) return fetch(input, init)
   const headers = new Headers(init?.headers)
   if (!headers.has(HEADER_SESION)) headers.set(HEADER_SESION, token)
   return fetch(input, { ...init, headers })

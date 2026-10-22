@@ -380,9 +380,16 @@ export async function misActas(usuarioSesion: string): Promise<MiActa[]> {
   }))
 }
 
-/** URL pública (bucket "actas" es público) para descargar/ver el PDF directo. */
+/*
+ * Los PDF de actas viven en una carpeta del servidor de planta (servicio
+ * "archivos" de docker-compose.yml, ver archivos/servidor.mjs), con las
+ * mismas rutas que tenían en el bucket de Supabase (actas.storage_path).
+ */
+const RUTA_ACTAS = "/archivos/actas"
+
+/** URL para descargar/ver el PDF directo (las actas son de lectura libre). */
 export function urlPublicaActa(storagePath: string): string {
-  return supabase.storage.from("actas").getPublicUrl(storagePath).data.publicUrl
+  return `${window.location.origin}${RUTA_ACTAS}/${storagePath.split("/").map(encodeURIComponent).join("/")}`
 }
 
 export interface ActaRegistrada {
@@ -395,7 +402,7 @@ export interface ActaRegistrada {
   generadoEn: string
 }
 
-/** Sube el PDF ya generado (ver src/lib/actaPdf.ts) a Storage y registra la versión — anula la vigente anterior de este turno, si había una. */
+/** Sube el PDF ya generado (ver src/lib/actaPdf.ts) al servidor y registra la versión — anula la vigente anterior de este turno, si había una. */
 export async function subirYRegistrarActa(
   usuarioSesion: string,
   turnoId: string,
@@ -407,12 +414,17 @@ export async function subirYRegistrarActa(
   if (rpcBloqueada("registrar_acta")) return { ok: false, error: MENSAJE_SOLO_LECTURA }
   const ruta = `${areaCodigo}/${turnoId}/${codigoTurno}-${Date.now()}.pdf`
 
-  const { error: errorSubida } = await supabase.storage.from("actas").upload(ruta, pdfBlob, {
-    contentType: "application/pdf",
-    upsert: false,
-  })
-  if (errorSubida) {
-    return { ok: false, error: errorSubida.message || "No se pudo subir el PDF." }
+  try {
+    const respuesta = await fetch(urlPublicaActa(ruta), {
+      method: "PUT",
+      headers: { "Content-Type": "application/pdf" },
+      body: pdfBlob,
+    })
+    if (!respuesta.ok) {
+      return { ok: false, error: (await respuesta.text()) || "No se pudo subir el PDF." }
+    }
+  } catch {
+    return { ok: false, error: "No se pudo subir el PDF: sin conexión con el servidor." }
   }
 
   const { data, error } = await supabase.rpc("registrar_acta", {

@@ -1,29 +1,27 @@
-import { createClient } from "@supabase/supabase-js"
+import { PostgrestClient } from "@supabase/postgrest-js"
 import { MENSAJE_SOLO_LECTURA, rpcBloqueada } from "@/lib/soloLectura"
 import { CODIGO_SESION_INVALIDA, fetchConSesion, HEADER_SESION, sesionRechazada } from "@/lib/sesionToken"
 
 /*
- * Cliente de Supabase para el frontend. Usa la clave "anon" (pública),
- * que es segura de exponer en el navegador siempre que la base de
- * datos tenga Row Level Security (RLS) activada en cada tabla — es
- * RLS, no esta clave, lo que controla qué puede leer/escribir cada
- * usuario según su rol y área.
+ * Cliente de la base para el frontend. La base es un PostgreSQL propio
+ * en el servidor de planta (ya no Supabase); el navegador no le habla
+ * directo: pasa por PostgREST (servicio "api" de docker-compose.yml),
+ * que entra con el rol "anon" — las tablas tienen RLS sin políticas y
+ * todo va por funciones (RPC).
  *
- * Las variables se leen de .env.local (copiar desde .env.example y
- * completar con los datos del proyecto). Vite solo expone al
- * navegador las variables que empiezan con VITE_.
+ * La URL es relativa al mismo servidor que sirve la app: Vite reenvía
+ * /api a PostgREST (ver vite.config.ts), así no hay CORS ni hace falta
+ * ninguna variable en el navegador. Los datos de conexión (DB_*) viven
+ * solo en .env.local del servidor y los usa el contenedor de PostgREST.
+ *
+ * Se sigue llamando `supabase` para no tocar las ~50 pantallas que lo
+ * importan: la librería (postgrest-js) es la misma pieza que usaba
+ * supabase-js por dentro, con la misma forma `supabase.rpc(fn, args)`.
  */
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "Faltan las variables VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. Copia .env.example a .env.local y complétalas.",
-  )
-}
+export const RUTA_API = "/api"
 
 // La credencial de la sesión va en cada petición a la base (ver sesionToken.ts).
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, { global: { fetch: fetchConSesion } })
+export const supabase = new PostgrestClient(`${window.location.origin}${RUTA_API}`, { fetch: fetchConSesion })
 
 /*
  * Log de errores (ver migración 20261047090000): cualquier RPC que

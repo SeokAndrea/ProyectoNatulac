@@ -18,6 +18,51 @@ services:
       target: preview
     ports:
       - "4035:4173"
+    # Vite reenvía /api y /archivos a estos contenedores (ver vite.config.ts).
+    environment:
+      - API_DESTINO=http://api:3000
+      - ARCHIVOS_DESTINO=http://archivos:4038
+    depends_on:
+      - api
+      - archivos
+    restart: unless-stopped
+    profiles:
+      - preview
+
+  # PostgREST: la API de la base PostgreSQL (lo que antes daba Supabase).
+  # Los datos de conexión salen de .env.local (DB_*), por eso se levanta con
+  #   docker compose --env-file .env.local --profile preview up -d --build
+  # PGRST_DB_URI vacío = usa las variables PG* de abajo (libpq), así una
+  # clave con caracteres raros no rompe la cadena de conexión.
+  api:
+    image: postgrest/postgrest:v12.2.3
+    ports:
+      - "4037:3000"
+    environment:
+      - PGRST_DB_URI=postgresql://
+      - PGHOST=${DB_HOST:?Falta DB_HOST - levantar con --env-file .env.local}
+      - PGPORT=${DB_PORT:-5432}
+      - PGDATABASE=${DB_NAME:?Falta DB_NAME}
+      - PGUSER=${DB_USER:?Falta DB_USER}
+      - PGPASSWORD=${DB_PASSWORD:?Falta DB_PASSWORD}
+      - PGSSLMODE=prefer
+      - PGRST_DB_SCHEMAS=public
+      - PGRST_DB_ANON_ROLE=anon
+    restart: unless-stopped
+    profiles:
+      - preview
+
+  # Los PDF de las actas (lo que antes era el Storage de Supabase). La
+  # carpeta queda FUERA del proyecto para que sincronizar con WinSCP no
+  # la borre: /home/inf05/natulac-actas si el proyecto está en
+  # /home/inf05/natulac-aseptico.
+  archivos:
+    build:
+      context: ./archivos
+    ports:
+      - "4038:4038"
+    volumes:
+      - ../natulac-actas:/datos/actas
     restart: unless-stopped
     profiles:
       - preview

@@ -19,13 +19,5 @@ export default defineConfig({
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
-    // Las fórmulas bajo prueba son puras, pero importar la cadena
-    // panelProduccion -> turno -> supabase ejecuta src/lib/supabase.ts,
-    // que lanza si faltan estas variables. Valores de relleno: los
-    // tests nunca tocan la red.
-    env: {
-      VITE_SUPABASE_URL: "http://localhost:54321",
-      VITE_SUPABASE_ANON_KEY: "test-anon-key",
-    },
   },
 })

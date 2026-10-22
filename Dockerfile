@@ -21,5 +21,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY --from=build /app/dist ./dist
+# vite.config.ts lleva el reenvío de /api (PostgREST) y /archivos (PDF de actas): sin él, preview responde 404.
+COPY vite.config.ts ./
 EXPOSE 4173
 CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0"]

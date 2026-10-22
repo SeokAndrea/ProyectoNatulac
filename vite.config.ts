@@ -47,6 +47,27 @@ function escribirVersionJson(): Plugin {
   }
 }
 
+/*
+ * La app le pide todo al mismo servidor que la sirve (sin CORS):
+ *   /api/      → PostgREST (la base, ver src/lib/supabase.ts)
+ *   /archivos/ → los PDF de actas (ver archivos/servidor.mjs)
+ * En Docker los destinos son los otros contenedores (docker-compose.yml
+ * pasa API_DESTINO / ARCHIVOS_DESTINO); en el PC, por defecto, los
+ * puertos publicados del servidor de planta.
+ */
+const proxy = {
+  "/api": {
+    target: process.env.API_DESTINO ?? "http://192.168.10.143:4037",
+    changeOrigin: true,
+    rewrite: (ruta: string) => ruta.replace(/^\/api/, ""),
+  },
+  "/archivos": {
+    target: process.env.ARCHIVOS_DESTINO ?? "http://192.168.10.143:4038",
+    changeOrigin: true,
+    rewrite: (ruta: string) => ruta.replace(/^\/archivos/, ""),
+  },
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
@@ -60,8 +81,12 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
+  server: {
+    proxy,
+  },
   preview: {
     host: true,
     allowedHosts: true,
+    proxy,
   },
 })
