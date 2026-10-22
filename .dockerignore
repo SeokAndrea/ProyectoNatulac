@@ -5,3 +5,4 @@ dist-ssr
 .vscode
 .idea
 *.log
+.actas-pruebas

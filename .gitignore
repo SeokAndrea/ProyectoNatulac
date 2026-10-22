@@ -44,3 +44,6 @@ supabase/.branches
 !.env.example
 
 # Información interna de la empresa: se queda solo en el PC, no va a GitHub
+
+# PDF de actas del modo pruebas (carpeta local de cada PC, no se guardan)
+.actas-pruebas/

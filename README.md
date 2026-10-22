@@ -25,6 +25,20 @@ producto terminado, paradas, calidad, indicadores, programación y paneles en vi
 3. `npm run dev` (desarrollo; usa la API del servidor de planta, puertos 4037/4038) ·
    `npm run build` (producción) · `npm test` (pruebas).
 
+### Dos bases: pruebas y producción
+
+- **Producción:** PostgreSQL del servidor de planta. Es lo que usan los supervisores (`:4035`).
+- **Pruebas:** la base de Supabase. Para usarla en un PC, poner `SUPABASE_URL` y
+  `SUPABASE_ANON_KEY` en `.env.local` (ver `.env.example`). `npm run dev` va entonces a
+  Supabase y los PDF de actas quedan en `.actas-pruebas/` (no se guardan en el repo).
+  Para tener las dos en el mismo PC: ponerlas en `.env.pruebas` y correr
+  `npm run dev -- --mode pruebas`.
+
+Forma de trabajo: cada cambio en su rama; se prueba contra Supabase (las migraciones con
+`npx supabase db push`); probado, se une a `main` y se sube a producción (migraciones con
+`psql` en el servidor + `NOTIFY pgrst, 'reload schema'`, y `docker compose ... --build`).
+`main` es siempre lo que está en producción.
+
 En el servidor de planta corre con Docker:
 `docker compose --env-file .env.local --profile preview up -d --build`
 (app en el 4035, plc-bridge en el 4036, PostgREST en el 4037, PDF de actas en el 4038).

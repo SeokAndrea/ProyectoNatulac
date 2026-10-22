@@ -1,6 +1,6 @@
 import path from "node:path"
 import { execSync } from "node:child_process"
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Connect, type Plugin, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -51,42 +51,82 @@ function escribirVersionJson(): Plugin {
  * La app le pide todo al mismo servidor que la sirve (sin CORS):
  *   /api/      → PostgREST (la base, ver src/lib/supabase.ts)
  *   /archivos/ → los PDF de actas (ver archivos/servidor.mjs)
- * En Docker los destinos son los otros contenedores (docker-compose.yml
- * pasa API_DESTINO / ARCHIVOS_DESTINO); en el PC, por defecto, los
- * puertos publicados del servidor de planta.
+ *
+ * Producción (sin SUPABASE_URL): en Docker los destinos son los otros
+ * contenedores (docker-compose.yml pasa API_DESTINO / ARCHIVOS_DESTINO);
+ * en el PC, por defecto, los puertos publicados del servidor de planta.
+ *
+ * Pruebas (SUPABASE_URL y SUPABASE_ANON_KEY en .env.local o .env.pruebas,
+ * `npm run dev -- --mode pruebas`): /api va a la API de Supabase con su
+ * clave, y los PDF de actas se guardan en la carpeta local .actas-pruebas/.
+ * La clave no llega al navegador: la pone este reenvío.
  */
-const proxy = {
-  "/api": {
+function destinoApi(env: Record<string, string>): ProxyOptions {
+  if (env.SUPABASE_URL) {
+    return {
+      target: `${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1`,
+      changeOrigin: true,
+      rewrite: (ruta: string) => ruta.replace(/^\/api/, ""),
+      headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${env.SUPABASE_ANON_KEY}` },
+    }
+  }
+  return {
     target: process.env.API_DESTINO ?? "http://192.168.10.143:4037",
     changeOrigin: true,
     rewrite: (ruta: string) => ruta.replace(/^\/api/, ""),
-  },
-  "/archivos": {
-    target: process.env.ARCHIVOS_DESTINO ?? "http://192.168.10.143:4038",
-    changeOrigin: true,
-    rewrite: (ruta: string) => ruta.replace(/^\/archivos/, ""),
-  },
+  }
+}
+
+/** Pruebas: /archivos lo atiende el mismo Vite con la carpeta local (sin el contenedor de archivos). */
+function actasLocales(carpeta: string): Plugin {
+  const montar = async (middlewares: Connect.Server) => {
+    const { crearManejador } = await import("./archivos/manejador.mjs")
+    middlewares.use("/archivos", crearManejador(carpeta))
+  }
+  return {
+    name: "actas-locales",
+    configureServer: (server) => montar(server.middlewares),
+    configurePreviewServer: (server) => montar(server.middlewares),
+  }
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: '/',
-  plugins: [react(), tailwindcss(), escribirVersionJson()],
-  define: {
-    __APP_VERSION__: JSON.stringify(appVersion),
-    __APP_BUILD__: JSON.stringify(appBuild),
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(import.meta.dirname, "./src"),
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "")
+  const pruebas = Boolean(env.SUPABASE_URL)
+  if (pruebas && !env.SUPABASE_ANON_KEY) throw new Error("Modo pruebas: falta SUPABASE_ANON_KEY junto a SUPABASE_URL.")
+
+  const proxy: Record<string, ProxyOptions> = { "/api": destinoApi(env) }
+  if (!pruebas) {
+    proxy["/archivos"] = {
+      target: process.env.ARCHIVOS_DESTINO ?? "http://192.168.10.143:4038",
+      changeOrigin: true,
+      rewrite: (ruta: string) => ruta.replace(/^\/archivos/, ""),
+    }
+  }
+
+  const plugins = [react(), tailwindcss(), escribirVersionJson()]
+  if (pruebas) plugins.push(actasLocales(path.resolve(import.meta.dirname, ".actas-pruebas")))
+
+  return {
+    base: '/',
+    plugins,
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+      __APP_BUILD__: JSON.stringify(appBuild),
     },
-  },
-  server: {
-    proxy,
-  },
-  preview: {
-    host: true,
-    allowedHosts: true,
-    proxy,
-  },
+    resolve: {
+      alias: {
+        "@": path.resolve(import.meta.dirname, "./src"),
+      },
+    },
+    server: {
+      proxy,
+    },
+    preview: {
+      host: true,
+      allowedHosts: true,
+      proxy,
+    },
+  }
 })
