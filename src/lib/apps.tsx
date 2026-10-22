@@ -15,7 +15,6 @@ import {
   FileText,
   Calculator,
   FlaskConical,
-  Scale,
   BookOpen,
   Droplets,
   Users,
@@ -362,47 +361,9 @@ export const apps: AppDef[] = [
   },
 ]
 
-/*
- * Las 3 calculadoras no aparecen sueltas en el Hub — se agrupan bajo
- * la tarjeta "Calculadoras" de arriba (ver src/pages/apps/Calculadoras.tsx).
- * Sus rutas siguen registradas normalmente en src/App.tsx.
- */
-export const appsCalculadoras: AppDef[] = [
-  {
-    slug: "calculadora-bobina",
-    title: "Calculadora de Bobina",
-    description: "Envases restantes en una bobina de material de empaque, según la medida del core al borde.",
-    href: "/calculadora-bobina",
-    icon: Calculator,
-    requiereTurno: false,
-    permiso: "CALCULADORAS",
-    color: "success",
-  },
-  {
-    slug: "calculadora-formula",
-    title: "Calculadora de Fórmula",
-    description: "Insumos de materia prima a pedir según el sabor y la cantidad de tambores o kits a preparar.",
-    href: "/calculadora-formula",
-    icon: FlaskConical,
-    requiereTurno: false,
-    permiso: "CALCULADORAS",
-    color: "purple",
-  },
-  {
-    slug: "calculadora-conteo-peso",
-    title: "Calculadora de Conteo por Peso",
-    description: "Pitillos y tapas restantes en una caja, según su peso.",
-    href: "/calculadora-conteo-peso",
-    icon: Scale,
-    requiereTurno: false,
-    permiso: "CALCULADORAS",
-    color: "blue",
-  },
-]
-
-/** Una app por slug (tarjetas del hub y calculadoras). */
+/** Una app por slug (tarjetas del hub). Las tres calculadoras viven dentro de "Calculadoras" (src/pages/apps/Calculadoras.tsx). */
 export function appPorSlug(slug: string): AppDef | undefined {
-  return apps.find((a) => a.slug === slug) ?? appsCalculadoras.find((a) => a.slug === slug)
+  return apps.find((a) => a.slug === slug)
 }
 
 /**
