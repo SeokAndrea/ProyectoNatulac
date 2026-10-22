@@ -41,4 +41,3 @@ Los PDF quedan en `../natulac-actas` (al lado de la carpeta del proyecto).
 
 - `MAPA.md`: dónde está cada pantalla y su lógica.
 - `docs/`: planes y decisiones de cada módulo.
-- `manual-de-usuario.md`: manual para quien usa la app.
