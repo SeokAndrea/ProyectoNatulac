@@ -22,7 +22,7 @@ const AJUSTES = "ajustes"
 
 export default function EdicionDatos() {
   const { session } = useAuth()
-  const { recargar: recargarCatalogosApp } = useCatalogosLive()
+  const { lineas: lineasDelArea, recargar: recargarCatalogosApp } = useCatalogosLive()
   const usuario = session?.username ?? ""
   const [params, setParams] = useSearchParams()
   const actual = params.get("s") ?? "sabores"
@@ -46,21 +46,32 @@ export default function EdicionDatos() {
     listarFamilias().then(setFamilias)
   }, [usuario, cargar])
 
+  // Solo las líneas del área de la sesión (y sus velocidades): las de Pruebas solo las ve Pruebas.
+  // Mismo criterio que el resto de la app (`lineas` de catalogosLive.tsx, que trae también las inactivas).
+  const filasVisibles = useMemo(() => {
+    const delArea = new Set(lineasDelArea.map((l) => l.id))
+    return {
+      ...filas,
+      lineas: filas.lineas?.filter((l) => delArea.has(l.id)),
+      velocidades: filas.velocidades?.filter((v) => delArea.has(String(v.linea_id))),
+    }
+  }, [filas, lineasDelArea])
+
   // Opciones que salen de otros catálogos (familia de un sabor, línea y presentación de una velocidad).
   const externas = useMemo<OpcionesExternas>(
     () => ({
       familias: familias.map((f, i) => ({ valor: f.id, etiqueta: f.nombre, orden: i })),
-      lineas: (filas.lineas ?? []).map((l, i) => ({ valor: l.id, etiqueta: String(l.nombre), orden: i })),
+      lineas: (filasVisibles.lineas ?? []).map((l, i) => ({ valor: l.id, etiqueta: String(l.nombre), orden: i })),
       presentaciones: [...(filas.presentaciones ?? [])]
         .sort((a, b) => Number(b.volumen_ml) - Number(a.volumen_ml))
         .map((p) => ({ valor: p.id, etiqueta: `${p.volumen_ml} ml`, orden: Number(p.volumen_ml) })),
     }),
-    [familias, filas.lineas, filas.presentaciones],
+    [familias, filasVisibles.lineas, filas.presentaciones],
   )
 
   const grupos: { titulo: string; items: ItemMenuSeccion[] }[] = GRUPOS_MENU.map((g) => ({
     titulo: g.titulo,
-    items: g.secciones.map((id) => ({ id, titulo: seccionPorId(id)!.titulo, cantidad: contarActivos(filas[id as CatalogoId]) })),
+    items: g.secciones.map((id) => ({ id, titulo: seccionPorId(id)!.titulo, cantidad: contarActivos(filasVisibles[id as CatalogoId]) })),
   }))
   if (session?.esDueno) grupos.push({ titulo: "Solo dueña", items: [{ id: AJUSTES, titulo: "Ajustes de planta" }] })
 
@@ -81,7 +92,7 @@ export default function EdicionDatos() {
             <SeccionCatalogo
               key={seccion.id}
               seccion={seccion}
-              filas={filas[seccion.id] ?? null}
+              filas={filasVisibles[seccion.id] ?? null}
               error={errores[seccion.id] ?? null}
               externas={externas}
               usuario={usuario}

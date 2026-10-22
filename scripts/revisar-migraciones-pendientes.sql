@@ -1,8 +1,9 @@
 -- ============================================================
 -- ¿QUÉ MIGRACIONES DE OCTUBRE YA ESTÁN APLICADAS?
 -- ============================================================
--- Solo lectura: no cambia nada. Pegar en el SQL editor de Supabase y
--- correr. Una fila por migración, con lo que busca y si lo encontró.
+-- Solo lectura: no cambia nada. Una fila por migración, con lo que busca
+-- y si lo encontró. En el servidor de planta (base db_control_nectares):
+--   psql -h localhost -U <DB_USER> -d db_control_nectares -f scripts/revisar-migraciones-pendientes.sql
 --
 -- Cada migración se reconoce por algo que deja en la base (una tabla, una
 -- función nueva, un texto dentro de una función o un dato). Algunas solo
@@ -73,6 +74,8 @@ from (
   ('20261111290000', 'Área, rol y cargo',
     (select ok from nueva_rol) and not exists (select 1 from roles where codigo = 'GESTION')),
   ('20261111390000', 'Resumen Diario: observaciones por corrida',
-    to_regclass('public.observaciones_corrida') is not null)
+    to_regclass('public.observaciones_corrida') is not null),
+  ('20261111490000', 'Edición de Datos con permiso y autor',
+    exists (select 1 from fn where proname = 'guardar_catalogo'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;
