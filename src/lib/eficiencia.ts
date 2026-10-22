@@ -33,7 +33,7 @@ import { tramoT2 } from "@/lib/turno12x12"
  *   Disponible      = Turno − Programadas − Ocioso
  *   Operativo       = Disponible − No programadas
  *   Producción      = Σ por corrida: cajas reportadas × envases por caja ÷ velocidad ELEGIDA
- *   Sin reportar    = Ventana − Paradas cargadas (todas) − Producción (null si falta el PT de alguna corrida)
+ *   Sin reportar    = Ventana − Paradas cargadas (todas) − Producción (una corrida sin PT aporta 0)
  *   Eficiencia      = Producción ÷ (Producción + No programadas + Sin reportar), con lo cargado hasta ahora
  *   Meta            = velocidad ELEGIDA × Disponible
  *   Avance          = Real ÷ Meta del turno
@@ -66,12 +66,13 @@ export function ventanaTurnoMin(turnoMin: number, estado: "ABIERTO" | "CERRADO",
 
 /**
  * Minutos que nadie explicó en una línea (dueña, 2026-10-15): Ventana − paradas cargadas (todas
- * las clases, sin solape, desde el inicio del turno) − lo producido según el PT. null si falta el
- * PT de alguna corrida: todavía no se puede medir. La misma cuenta en la eficiencia y en
- * minutosSinReportar.ts, así el castigo y lo que se muestra coinciden.
+ * las clases, sin solape, desde el inicio del turno) − lo producido según el PT. Una corrida sin PT
+ * aporta 0 de producido: su tiempo cuenta como sin reportar (dueña, 2026-10-22; antes daba null y
+ * la eficiencia salía inflada). La misma cuenta en la eficiencia y en minutosSinReportar.ts, así el
+ * castigo y lo que se muestra coinciden.
  */
-export function sinReportarDeLinea(ventanaMin: number, paradasMin: number, producidoMin: number, faltaPt: boolean): number | null {
-  return faltaPt ? null : Math.max(0, ventanaMin - paradasMin - producidoMin)
+export function sinReportarDeLinea(ventanaMin: number, paradasMin: number, producidoMin: number): number {
+  return Math.max(0, ventanaMin - paradasMin - producidoMin)
 }
 
 export interface EntradaEficiencia {
@@ -116,7 +117,7 @@ export interface ResultadoEficiencia {
   produccionMin: number
   /** No programadas registradas (sin contar dos veces lo que se pisa). */
   noProgramadaMin: number
-  /** Tiempo que nadie explicó; castiga como no programada. null = falta el PT de alguna corrida. */
+  /** Tiempo que nadie explicó; castiga como no programada. null = no se midió. */
   sinReportarMin: number | null
   /** Producción ÷ (Producción + No programadas + Sin reportar). null sin nada reportado en PT. */
   eficienciaPct: number | null
@@ -298,12 +299,10 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     const excReferencia = t.presentaciones.find((p) => p.codigo === referencia.presentacion)?.envasesXCaja ?? null
     const envasesPorCaja = realEnvases > 0 && cajas > 0 ? realEnvases / cajas : excReferencia
 
-    const faltaPt = corridasLinea.some((c) => !t.productoTerminado.some((p) => p.corridaId === c.id))
     const sinReportar = sinReportarDeLinea(
       ventanaMin,
       desdeInicio.PROGRAMADA + desdeInicio.NO_PROGRAMADA + desdeInicio.OCIOSO,
       Math.round(produccionMin),
-      faltaPt,
     )
 
     const r = calcularEficiencia({

@@ -376,15 +376,16 @@ describe("eficienciaDelTurno", () => {
     expect(r.porLinea.get("LINEA_2")?.eficienciaPct).toBe(60) // 288 ÷ (288 + 96 + 96)
   })
 
-  it("si falta el PT de una corrida, lo sin reportar no se puede medir y no castiga", () => {
+  it("si falta el PT de una corrida, su tiempo cuenta como sin reportar y castiga igual", () => {
     const r = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_1", 9000, false), corrida("b", "LINEA_1", 9000, true)],
       productoTerminado: [pt("a", 43200)],
       paradas: [parada("LINEA_1", "NO_PROGRAMADA", 60)],
     })
-    expect(r.porLinea.get("LINEA_1")?.sinReportarMin).toBeNull()
-    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(83) // 288 ÷ (288 + 60)
+    // 480 − 60 de paradas − 288 producido (la corrida b, sin PT, aporta 0) = 132 sin reportar.
+    expect(r.porLinea.get("LINEA_1")?.sinReportarMin).toBe(132)
+    expect(r.porLinea.get("LINEA_1")?.eficienciaPct).toBe(60) // 288 ÷ (288 + 60 + 132)
   })
 
   it("lo real sale del PT (paletas × cajas por paleta + sueltas), no del contador", () => {

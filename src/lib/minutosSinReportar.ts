@@ -11,9 +11,10 @@ import type { Corrida } from "@/lib/produccion/tipos"
  *   Sin reportar = Ventana − Paradas cargadas (todas las clases, sin solape) − Producido
  *
  * Ventana: el turno completo si ya cerró; si sigue abierto, lo que va. Se
- * mide con el PT (pedido de la dueña), así que una línea con alguna corrida
- * sin PT todavía no se puede medir. La merma y correr más lento que la
- * velocidad elegida también salen como minutos sin reportar.
+ * mide con el PT (pedido de la dueña): una corrida sin PT aporta 0 de
+ * producido y su tiempo sale como sin reportar (dueña, 2026-10-22). La
+ * merma y correr más lento que la velocidad elegida también salen como
+ * minutos sin reportar.
  *
  * Estos minutos castigan la eficiencia como una no programada (eficiencia.ts,
  * dueña 2026-10-15), con la misma cuenta (sinReportarDeLinea), y se siguen
@@ -40,8 +41,7 @@ export interface SinReportarLinea {
   ventanaMin: number
   paradasMin: number
   producidoMin: number
-  /** null = falta el PT de alguna corrida de la línea. */
-  sinReportarMin: number | null
+  sinReportarMin: number
 }
 
 const numero = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
@@ -68,12 +68,10 @@ export function minutosSinReportar(e: EntradaSinReportar): SinReportarLinea[] {
     )
     const paradasMin = minutos.PROGRAMADA + minutos.NO_PROGRAMADA + minutos.OCIOSO
 
-    let faltaPt = false
     let producidoMin = 0
     for (const c of corridas) {
       const pt = e.productoTerminado.find((p) => p.corridaId === c.id)
-      if (!pt) faltaPt = true
-      else if (c.envasesHora > 0) producidoMin += (envasesPt(pt) / c.envasesHora) * 60
+      if (pt && c.envasesHora > 0) producidoMin += (envasesPt(pt) / c.envasesHora) * 60
     }
     producidoMin = Math.round(producidoMin)
 
@@ -82,7 +80,7 @@ export function minutosSinReportar(e: EntradaSinReportar): SinReportarLinea[] {
       ventanaMin,
       paradasMin,
       producidoMin,
-      sinReportarMin: sinReportarDeLinea(ventanaMin, paradasMin, producidoMin, faltaPt),
+      sinReportarMin: sinReportarDeLinea(ventanaMin, paradasMin, producidoMin),
     }
   })
 }
@@ -93,9 +91,8 @@ export const dur = (min: number) => (min === 0 ? "0 min" : fmtDuracion(min))
 /** Hasta esto se toma como "al día": la velocidad real nunca es exacta. */
 export const TOLERANCIA_SIN_REPORTAR_MIN = 10
 
-/** Texto y color de una línea: minutos sin reportar, al día, o falta el PT. */
+/** Texto y color de una línea: minutos sin reportar, o al día. */
 export function textoSinReportar(f: SinReportarLinea): { texto: string; alerta: boolean } {
-  if (f.sinReportarMin === null) return { texto: "falta cargar el PT", alerta: false }
   if (f.sinReportarMin <= TOLERANCIA_SIN_REPORTAR_MIN) return { texto: "al día", alerta: false }
   return { texto: `faltan ${fmtDuracion(f.sinReportarMin)} por reportar`, alerta: true }
 }

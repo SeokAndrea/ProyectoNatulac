@@ -48,14 +48,14 @@ describe("minutosSinReportar", () => {
     expect(f.paradasMin).toBe(90)
   })
 
-  it("con alguna corrida sin PT no se mide", () => {
+  it("una corrida sin PT aporta 0 de producido: su tiempo sale como sin reportar", () => {
     const [f] = minutosSinReportar({
       ...base,
       corridas: [corrida("c1", "LINEA_1", "1000", 6000), corrida("c2", "LINEA_1", "1000", 6000)],
       productoTerminado: [pt("c1", "1000", 6000)],
     })
-    expect(f.sinReportarMin).toBeNull()
-    expect(textoSinReportar(f).texto).toBe("falta cargar el PT")
+    expect(f.sinReportarMin).toBe(turnoMin - 60)
+    expect(textoSinReportar(f).texto).toBe("faltan 7 h por reportar")
   })
 
   it("turno abierto: solo lo que va del turno; nunca negativo", () => {
