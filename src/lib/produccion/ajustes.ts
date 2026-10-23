@@ -117,9 +117,15 @@ interface FilaParadaQueDetiene {
   parada_id: string
   pendiente: boolean
   tipo_nombre: string
+  clase: string
+  tiempo_guia_min: number | string | null
+  nota: string | null
+  inicio: string
+  fin: string | null
+  de_mantenimiento: boolean
 }
 
-/** Paradas ligadas a las líneas del turno (la del CIP, por ejemplo). [] si la lectura falla. */
+/** Paradas ligadas a las líneas del turno (la de una Parada, la del CIP). [] si la lectura falla. */
 export async function paradasQueDetienenLineas(turnoId: string): Promise<ParadaQueDetiene[]> {
   const { data, error } = await supabase.rpc("paradas_que_detienen_lineas", { p_turno_id: turnoId })
   if (error || !data) return []
@@ -128,5 +134,22 @@ export async function paradasQueDetienenLineas(turnoId: string): Promise<ParadaQ
     paradaId: f.parada_id,
     pendiente: f.pendiente,
     tipoNombre: f.tipo_nombre,
+    clase: f.clase,
+    tiempoGuiaMin: f.tiempo_guia_min == null ? null : Number(f.tiempo_guia_min),
+    nota: f.nota,
+    inicio: f.inicio,
+    fin: f.fin,
+    deMantenimiento: f.de_mantenimiento,
   }))
+}
+
+/**
+ * Pone en Parada las líneas con una parada abierta de 15 min o más (de
+ * Registrar Paradas, Mantenimiento o el Sheet), desde su hora de inicio.
+ * Devuelve cuántas cambió (0 si falla: es solo un empujón, la regla vive
+ * en la base, migración 20261111590000).
+ */
+export async function aplicarParadasALineas(area: string | null): Promise<number> {
+  const { data, error } = await supabase.rpc("aplicar_paradas_a_lineas", { p_area_codigo: area })
+  return error ? 0 : Number(data) || 0
 }

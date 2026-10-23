@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { AlertTriangle, Clock3, Workflow } from "lucide-react"
 import { CintaEstadoLinea, type EstadoCinta } from "@/components/CintaEstadoLinea"
+import { TextoDesplazable } from "@/components/TextoDesplazable"
 import { colorTextoPorNivel, nivelMerma, type NivelMerma } from "@/lib/estadisticas"
 import { textoParadaEnVivo } from "@/lib/paradasEnVivo"
 import { cn } from "@/lib/utils"
@@ -103,9 +104,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
           )}
           {/* Descripción de la parada (máx. LARGO_NOTA_PARADA), ej. "Arreglo del piso" (dueña, 2026-10-14). */}
           {fila.paradaEnVivo?.visible && fila.paradaEnVivo.nota && (
-            <p className="truncate text-xs text-foreground" title={fila.paradaEnVivo.nota}>
-              {fila.paradaEnVivo.nota}
-            </p>
+            <TextoDesplazable texto={fila.paradaEnVivo.nota} className="text-xs text-foreground" />
           )}
           {fila.observacion && (
             <p className="mt-1 flex items-start gap-1 text-xs leading-snug text-danger">

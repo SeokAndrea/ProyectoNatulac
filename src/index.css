@@ -488,7 +488,38 @@
   }
 }
 
+/*
+ * Texto que no entra en su renglón (descripción de una parada en los
+ * paneles): va y vuelve despacio, con una pausa en cada punta. Lo arma
+ * src/components/TextoDesplazable.tsx, que pone --desplazar (cuánto falta
+ * ver) y --duracion solo si el texto no entra.
+ */
+@utility texto-desplazable {
+  animation: texto-desplazable var(--duracion, 8s) ease-in-out infinite alternate;
+}
+
+@keyframes texto-desplazable {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(var(--desplazar, 0));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* Sin movimiento: el texto entero, en dos renglones. */
+  .texto-desplazable-caja {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .texto-desplazable {
+    animation: none;
+  }
   .rise-in,
   .liquid-bubble,
   .dot-ring,

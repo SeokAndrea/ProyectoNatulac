@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { duracionMin, esParadaLNPE, fmtDuracion, listarParadas, type Parada } from "@/lib/paradas"
+import { aplicarParadasALineas } from "@/lib/produccion/ajustes"
 import { actualizarDesdeSheet, ultimaActualizacionSheet } from "@/lib/sheetMantenimiento"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 
@@ -9,7 +10,9 @@ import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
  *
  *   * Una línea se ve parada si tiene una parada ABIERTA (sin fin): la de
  *     Líneas ("Parada", corrida pausada), una de Registrar Paradas con hora
- *     de inicio, o una en curso de Mantenimiento (su Sheet).
+ *     de inicio, o una en curso de Mantenimiento (su Sheet). Desde la
+ *     migración 20261111590000 esas últimas también pausan la corrida a los
+ *     15 min (lo aplica la base; cargar() le da el empujón cada minuto).
  *   * Margen de 15 min: las paradas cortas (4-5 min) no se muestran, y el
  *     supervisor tiene ese tiempo para registrarla. Antes de los 15 min la
  *     cinta sigue corriendo con un aviso chico; después, la escena de parada.
@@ -117,6 +120,8 @@ export function useParadasAbiertas(area: string | null, sincronizarComo: string 
 
     async function cargar() {
       await sincronizarSiHaceFalta()
+      // Las abiertas de 15 min o más ponen su línea en Parada (migración 20261111590000): los paneles quedan abiertos todo el día.
+      await aplicarParadasALineas(area)
       const hoy = fechaPlanta()
       const paradas = await listarParadas({ desde: restarDias(hoy, DIAS_ATRAS), hasta: hoy, area })
       if (vivo) setAbiertas(paradas.filter((p) => sigueEnVivo(p, new Date())))

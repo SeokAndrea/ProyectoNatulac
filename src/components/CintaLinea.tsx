@@ -1,6 +1,7 @@
 import { BroomSparkles, Pause, PauseCircle, RefreshCw, Square, Wrench } from "lucide-react"
 import { colorSabor } from "@/lib/coloresSabor"
 import { cn } from "@/lib/utils"
+import { TextoDesplazable } from "@/components/TextoDesplazable"
 import { CintaPixel } from "@/components/pixel/CintaPixel"
 import { interpretarSabor } from "@/components/pixel/armarJugo"
 
@@ -84,11 +85,8 @@ export function CintaLinea({
         </span>
       )}
       {aviso && nota && (
-        <span
-          className="absolute right-2 top-[2.8rem] z-20 max-w-[85%] truncate rounded-md border border-border bg-background/90 px-1.5 py-0.5 text-[10px] text-foreground"
-          title={nota}
-        >
-          {nota}
+        <span className="absolute right-2 top-[2.8rem] z-20 max-w-[85%] rounded-md border border-border bg-background/90 px-1.5 py-0.5 text-[10px] text-foreground">
+          <TextoDesplazable texto={nota} />
         </span>
       )}
 

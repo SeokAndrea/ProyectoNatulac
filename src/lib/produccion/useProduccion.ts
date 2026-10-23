@@ -29,6 +29,7 @@ import type {
   DatosCambiarLinea,
   DatosCipLinea,
   DatosNuevoContador,
+  DatosPausarLinea,
   FilaContador,
   FilaCorrida,
   FilaLineaEstado,
@@ -51,8 +52,8 @@ export interface UseProduccionResultado {
   /** Como recargar, pero sin pasar por "cargando" (la pantalla no se desarma). */
   refrescar: () => Promise<void>
   activarLinea: (datos: DatosActivarLinea) => Promise<Resultado>
-  pausarLinea: (corridaId: string, motivo?: string) => Promise<Resultado>
-  continuarLinea: (corridaId: string) => Promise<Resultado>
+  pausarLinea: (corridaId: string, datos: DatosPausarLinea) => Promise<Resultado>
+  continuarLinea: (corridaId: string, justificacion?: string | null) => Promise<Resultado>
   terminarSaborLinea: (corridaId: string) => Promise<Resultado>
   terminarLinea: (corridaId: string) => Promise<Resultado>
   detenerLineaPorFalla: (corridaId: string, motivo: string) => Promise<Resultado>
