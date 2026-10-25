@@ -1,17 +1,62 @@
 import { useEffect, useState } from "react"
-import { Loader2, Lock, UserCheck } from "lucide-react"
+import { CheckCheck, Loader2, Lock, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { asignarResponsableSif, cerrarSif, listarSupervisoresEntrega, type Sif, type SupervisorEntrega } from "@/lib/sif"
+import {
+  asignarResponsableSif,
+  cerrarSif,
+  errorDesactualizado,
+  listarSupervisoresEntrega,
+  marcarRevisadaSif,
+  type Sif,
+  type SupervisorEntrega,
+} from "@/lib/sif"
+import { ErrorSif } from "./ErrorSif"
 
 const PAGINA = "Solicitudes de Intervención"
 /** Opción del selector para escribir otro nombre (sin turno abierto, o recibe otra persona). */
 const OTRO = "__otro__"
 
 const claseCaja = "flex flex-col gap-3 rounded-lg border border-dashed border-border bg-muted/40 p-4"
+/** En pantalla angosta la acción va a todo el ancho: se alcanza sin apuntar (los 44 px con el dedo los da el botón). */
+export const CLASE_BOTON_ACCION = "self-stretch sm:self-start"
+
+/** Inspección → revisada: una nota opcional de lo que se revisó. Si la falla vuelve, pasa a Intervención. */
+export function MarcarRevisada({ sif, usuario, onHecho }: { sif: Sif; usuario: string; onHecho: () => void }) {
+  const [revision, setRevision] = useState("")
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function guardar() {
+    setEnviando(true)
+    setError(null)
+    const r = await marcarRevisadaSif(usuario, sif.id, revision.trim(), PAGINA)
+    setEnviando(false)
+    if (!r.ok) return setError(r.error)
+    onHecho()
+  }
+
+  return (
+    <div className={claseCaja}>
+      <div>
+        <h3 className="text-sm font-semibold">Marcar revisada</h3>
+        <p className="text-xs text-muted-foreground">Si la falla se repite otra vez en la jornada, pasa a Solicitud de Intervención.</p>
+      </div>
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground" htmlFor="sif-revision">
+        Qué se revisó (opcional)
+        <Textarea id="sif-revision" value={revision} onChange={(e) => setRevision(e.target.value)} placeholder="Qué se revisó o se ajustó" rows={3} />
+      </label>
+      <Button className={CLASE_BOTON_ACCION} onClick={guardar} disabled={enviando}>
+        {enviando ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
+        Marcar revisada
+      </Button>
+      {error && <ErrorSif mensaje={error} {...(errorDesactualizado(error) ? { accion: "Actualizar", onAccion: onHecho } : {})} />}
+    </div>
+  )
+}
 
 /** Pendiente → en reparación: el responsable se escribe a mano. Al guardar queda la hora de inicio. */
 export function AsignarResponsable({ sif, usuario, onHecho }: { sif: Sif; usuario: string; onHecho: () => void }) {
@@ -39,11 +84,11 @@ export function AsignarResponsable({ sif, usuario, onHecho }: { sif: Sif; usuari
         Responsable de la reparación
         <Input id="sif-responsable" value={responsable} onChange={(e) => setResponsable(e.target.value)} placeholder="Nombre y apellido" />
       </label>
-      <Button className="self-start" onClick={guardar} disabled={enviando || !responsable.trim()}>
+      <Button className={CLASE_BOTON_ACCION} onClick={guardar} disabled={enviando || !responsable.trim()}>
         {enviando ? <Loader2 className="size-4 animate-spin" /> : <UserCheck className="size-4" />}
         Guardar e iniciar reparación
       </Button>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <ErrorSif mensaje={error} {...(errorDesactualizado(error) ? { accion: "Actualizar", onAccion: onHecho } : {})} />}
     </div>
   )
 }
@@ -57,11 +102,15 @@ export function CerrarSif({ sif, usuario, onHecho }: { sif: Sif; usuario: string
   const [confirmando, setConfirmando] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorSupervisores, setErrorSupervisores] = useState(false)
 
   useEffect(() => {
     let vivo = true
-    listarSupervisoresEntrega(usuario, sif.id).then((lista) => {
+    listarSupervisoresEntrega(usuario, sif.id).then((r) => {
       if (!vivo) return
+      // Si no cargan, se escribe quién recibe: que falle la red no frena el cierre.
+      const lista = r.ok ? r.data : []
+      setErrorSupervisores(!r.ok)
       setSupervisores(lista)
       setEleccion(lista[0]?.nombre ?? OTRO)
     })
@@ -98,30 +147,44 @@ export function CerrarSif({ sif, usuario, onHecho }: { sif: Sif; usuario: string
         {supervisores === null ? (
           <Loader2 className="size-4 animate-spin" />
         ) : (
-          <Select value={eleccion} onValueChange={setEleccion}>
-            <SelectTrigger className="w-full" aria-label="Se entrega a">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {supervisores.map((s) => (
-                <SelectItem key={`${s.nombre}-${s.turnoCodigo}`} value={s.nombre}>
-                  {s.nombre} · turno {s.turnoCodigo}
-                </SelectItem>
-              ))}
-              <SelectItem value={OTRO}>Otra persona (escribir)</SelectItem>
-            </SelectContent>
-          </Select>
+          supervisores.length > 0 && (
+            <Select value={eleccion} onValueChange={setEleccion}>
+              <SelectTrigger className="w-full" aria-label="Se entrega a">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {supervisores.map((s) => (
+                  <SelectItem key={`${s.nombre}-${s.turnoCodigo}`} value={s.nombre}>
+                    {s.nombre} · turno {s.turnoCodigo}
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTRO}>Otra persona (escribir)</SelectItem>
+              </SelectContent>
+            </Select>
+          )
         )}
-        {supervisores?.length === 0 && <span>No hay un turno abierto en esta área: escriba quién recibe.</span>}
+        {supervisores?.length === 0 && (
+          <span>
+            {errorSupervisores
+              ? "No se pudo cargar la lista de supervisores: escriba quién recibe."
+              : "No hay un turno abierto en esta área: escriba quién recibe."}
+          </span>
+        )}
         {eleccion === OTRO && (
-          <Input id="sif-entrega-otro" value={otro} onChange={(e) => setOtro(e.target.value)} placeholder="Nombre de quien recibe" />
+          <Input
+            id="sif-entrega-otro"
+            aria-label="Nombre de quien recibe"
+            value={otro}
+            onChange={(e) => setOtro(e.target.value)}
+            placeholder="Nombre de quien recibe"
+          />
         )}
       </div>
-      <Button className="self-start" onClick={() => setConfirmando(true)} disabled={!listo || enviando}>
+      <Button className={CLASE_BOTON_ACCION} onClick={() => setConfirmando(true)} disabled={!listo || enviando}>
         <Lock className="size-4" />
         Cerrar solicitud
       </Button>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <ErrorSif mensaje={error} {...(errorDesactualizado(error) ? { accion: "Actualizar", onAccion: onHecho } : {})} />}
 
       <Dialog open={confirmando} onOpenChange={(a) => !a && !enviando && setConfirmando(false)}>
         <DialogContent>
