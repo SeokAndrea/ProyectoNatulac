@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { Beaker, PlayCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { LineaCodigo } from "@/lib/catalogos"
@@ -6,6 +6,13 @@ import type { CondicionLinea, LineaEstado, ParadaQueDetiene } from "@/lib/produc
 import { EstadoCipLinea } from "./EstadoCipLinea"
 import { FilaAcciones } from "./FilaAcciones"
 import { MensajeError } from "@/components/MensajeError"
+import { ahoraPlanta, conSegundos, sumarMinutos } from "@/components/paradas/FormCompletarParada"
+import { duracionBaseTurnoMin } from "@/lib/eficiencia"
+import { anotarParada } from "@/lib/paradas"
+import { useTiposActivos } from "@/lib/paradasCatalogo"
+import { esLineaNoProgramada } from "@/lib/paradasTurnoCompleto"
+import { useSesionTurno } from "@/lib/sesionTurno"
+import { restarDias } from "@/lib/tiempoPlanta"
 import type { AccionesLinea } from "./tipos"
 import { useAccion } from "@/lib/useAccion"
 
@@ -42,6 +49,35 @@ export function PanelLineaLibre({
 }) {
   const { enviando, error, ejecutar } = useAccion()
   const cambiar = (nueva: CondicionLinea) => ejecutar(() => cambiarCondicion({ linea: lineaCodigo, condicion: nueva }))
+  const sesion = useSesionTurno()
+  const motivosLnp = useTiposActivos().filter(esLineaNoProgramada)
+  const [eligiendoLnp, setEligiendoLnp] = useState(false)
+
+  /** Fin del turno en curso ('YYYY-MM-DDTHH:MM'), o null si no se sabe. */
+  function finDelTurno(): string | null {
+    if (!sesion.horaInicio || !sesion.turnoTipo) return null
+    const minutos = duracionBaseTurnoMin(sesion.turnoTipo, { horaInicio: sesion.horaInicio })
+    if (!minutos) return null
+    const ahora = ahoraPlanta()
+    let inicio = `${ahora.slice(0, 10)}T${sesion.horaInicio.slice(0, 5)}`
+    if (inicio > ahora) inicio = `${restarDias(ahora.slice(0, 10), 1)}T${sesion.horaInicio.slice(0, 5)}`
+    return sumarMinutos(inicio, minutos)
+  }
+
+  /**
+   * LNP automático (dueña, 2026-10-25): «Sin programación» con su motivo anota la LNPE
+   * desde ahora hasta el fin del turno; si la línea arranca, la base la corta
+   * (migración 20261111890000).
+   */
+  function sinProgramacionPor(tipoCodigo: string) {
+    setEligiendoLnp(false)
+    void ejecutar(async () => {
+      const r = await cambiarCondicion({ linea: lineaCodigo, condicion: "SIN_PROGRAMACION" })
+      const fin = finDelTurno()
+      if (!r.ok || !fin || !sesion.usuario) return r
+      return anotarParada(sesion.usuario, { lineaCodigo, tipoCodigo, inicio: conSegundos(ahoraPlanta()), fin: conSegundos(fin), nota: null }, "Líneas")
+    })
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -74,7 +110,7 @@ export function PanelLineaLibre({
                 size="sm"
                 variant={condicion === "SIN_PROGRAMACION" ? "default" : "outline"}
                 disabled={enviando}
-                onClick={() => cambiar("SIN_PROGRAMACION")}
+                onClick={() => (condicion === "SIN_PROGRAMACION" || motivosLnp.length === 0 ? cambiar("SIN_PROGRAMACION") : setEligiendoLnp(true))}
               >
                 Sin programación
               </Button>
@@ -91,6 +127,21 @@ export function PanelLineaLibre({
                 Iniciar CIP
               </Button>
             </FilaAcciones>
+          )}
+          {eligiendoLnp && (
+            <div className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3">
+              <p className="text-sm font-medium">¿Por qué no está programada? Cubre el turno hasta que arranque.</p>
+              <div className="flex flex-wrap gap-2">
+                {motivosLnp.map((t) => (
+                  <Button key={t.codigo} size="sm" variant="outline" disabled={enviando} onClick={() => sinProgramacionPor(t.codigo)}>
+                    {t.nombre}
+                  </Button>
+                ))}
+              </div>
+              <Button size="sm" variant="ghost" className="self-start" onClick={() => setEligiendoLnp(false)}>
+                Cancelar
+              </Button>
+            </div>
           )}
           <MensajeError error={error} />
         </div>

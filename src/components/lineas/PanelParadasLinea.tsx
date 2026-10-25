@@ -248,7 +248,7 @@ export function PanelParadasLinea({
 
       <div className="flex flex-col gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {cubrir ? `¿Qué pasó en ese tiempo? Falta cubrir ${fmtDuracion(cubrir.faltaMin)}` : "Anotar una que ya pasó"}
+          {cubrir ? (cubrir.faltaMin > 0 ? `¿Qué pasó en ese tiempo? Falta cubrir ${fmtDuracion(cubrir.faltaMin)}` : "Todo el turno está cubierto") : "Anotar una que ya pasó"}
         </p>
         {tipo ? (
           <div className="flex flex-col gap-2">

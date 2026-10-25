@@ -8,7 +8,10 @@ import { tramosLibres, ubicarMinutos } from "@/lib/cubrirTurno"
 import { duracionBaseTurnoMin, ventanaTurnoMin } from "@/lib/eficiencia"
 import { minutosSinReportar } from "@/lib/minutosSinReportar"
 import type { LineaCodigo } from "@/lib/catalogos"
-import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
+import { obtenerEstadoPlantaActual, obtenerTurnoDeFechaTipo } from "@/lib/panelProduccion"
+import { useProduccion } from "@/lib/produccion/useProduccion"
+import { TURNOS_COMPLETOS } from "@/lib/paradasTurnoCompleto"
+import { restarDias } from "@/lib/tiempoPlanta"
 import { fmtDuracion, minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { useProductoTerminado } from "@/lib/productoTerminado"
@@ -33,6 +36,8 @@ import { PanelParadasLinea } from "./PanelParadasLinea"
  */
 
 const REFRESCO_MS = 60_000
+/** El turno de antes de cada uno (3x8): T1 ← T3 del día anterior, T2 ← T1, T3 ← T2. */
+const ANTERIOR: Record<string, [string, number]> = { TURNO_1: ["TURNO_3", 1], TURNO_2: ["TURNO_1", 0], TURNO_3: ["TURNO_2", 0] }
 const numero = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
 
 interface LineaModo {
@@ -62,21 +67,32 @@ export function ModoParadas({
   onCambio: () => Promise<void>
 }) {
   const areaParadas = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
-  const [turno, setTurno] = useState<TurnoActivo | null | undefined>(undefined)
+  const [actual, setActual] = useState<TurnoActivo | null | undefined>(undefined)
+  const [anterior, setAnterior] = useState<TurnoActivo | null>(null)
+  /** Como en el PT: el turno anterior también se puede cubrir después de cerrado. */
+  const [verAnterior, setVerAnterior] = useState(false)
+  const turno = verAnterior && anterior ? anterior : actual
   const [paradas, setParadas] = useState<Parada[] | null>(null)
   /** La hora con la que se hace la cuenta: se renueva en cada recarga (cada minuto y al guardar). */
   const [ahora, setAhora] = useState(() => new Date())
   const [abierto, setAbierto] = useState<{ linea: string; modo: "cubrir" | "paradas" } | null>(null)
   const pt = useProductoTerminado(turno?.id ?? null)
   const { recargar: recargarPt } = pt
+  // Las corridas del turno anterior (las del en curso llegan por props).
+  const delAnterior = useProduccion(verAnterior && anterior ? anterior.id : null)
+  const corridasTurno = verAnterior && anterior ? delAnterior.corridas : corridas
 
   const cargar = useCallback(async () => {
     const t = await obtenerEstadoPlantaActual(areaParadas)
-    setTurno(t)
-    setParadas(t ? await cargarParadasDelTurno(t.id) : [])
+    setActual(t)
+    const previo = t && ANTERIOR[t.turnoTipo]
+    const ant = previo ? await obtenerTurnoDeFechaTipo(restarDias(t.fecha, previo[1]), previo[0], areaParadas) : null
+    setAnterior(ant)
+    const ver = verAnterior && ant ? ant : t
+    setParadas(ver ? await cargarParadasDelTurno(ver.id) : [])
     await recargarPt()
     setAhora(new Date())
-  }, [areaParadas, recargarPt])
+  }, [areaParadas, recargarPt, verAnterior])
 
   useEffect(() => {
     void cargar()
@@ -88,7 +104,7 @@ export function ModoParadas({
     await Promise.all([cargar(), onCambio()])
   }
 
-  if (turno === undefined || paradas === null) {
+  if (actual === undefined || paradas === null) {
     return (
       <div className="flex justify-center py-8 text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
@@ -106,21 +122,37 @@ export function ModoParadas({
     horaInicio: turno.horaInicio,
     estado: turno.estado,
     horasTranscurridas: horas,
-    corridas,
+    corridas: corridasTurno,
     productoTerminado: pt.registros,
     paradas,
     ahora,
   })
   const turnoMin = duracionBaseTurnoMin(turno.turnoTipo, turno) ?? 0
   const ventanaMin = ventanaTurnoMin(turnoMin, turno.estado, horas)
-  const desdeMs = new Date(`${turno.fecha}T${turno.horaInicio.slice(0, 5)}:00`).getTime()
-  const hastaMs = Math.min(desdeMs + ventanaMin * 60_000, ahora.getTime())
+  // Dónde caben las paradas que cubren: desde el horario oficial del turno (T1 07:00…) si abrió tarde,
+  // porque la cuenta le suma el turno entero igual; hasta el fin de ese horario o ahora.
+  const abrio = new Date(`${turno.fecha}T${turno.horaInicio.slice(0, 5)}:00`).getTime()
+  const oficial = TURNOS_COMPLETOS.find((t) => t.tipo === turno.turnoTipo)
+  const desdeOficial = oficial ? new Date(`${turno.fecha}T${oficial.desde}:00`).getTime() : abrio
+  const desdeMs = Math.min(abrio, desdeOficial)
+  const hastaMs = Math.min(desdeMs + turnoMin * 60_000, ahora.getTime())
 
   return (
+    <>
+    {anterior && actual && (
+      <div role="group" aria-label="Qué turno cubrir" className="mx-auto mb-3 flex max-w-6xl flex-wrap gap-2">
+        <Button size="sm" variant={verAnterior ? "outline" : "default"} onClick={() => setVerAnterior(false)}>
+          Turno en curso · {actual.codigo}
+        </Button>
+        <Button size="sm" variant={verAnterior ? "default" : "outline"} onClick={() => setVerAnterior(true)}>
+          Turno anterior · {anterior.codigo}
+        </Button>
+      </div>
+    )}
     <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-3">
       {lineas.map((l) => {
         const paradasLinea = paradas.filter((p) => numero(p.lineaCodigo) === numero(l.codigo))
-        const corridasLinea = corridas.filter((c) => numero(c.linea) === numero(l.codigo))
+        const corridasLinea = corridasTurno.filter((c) => numero(c.linea) === numero(l.codigo))
         const fila = filas.find((f) => f.linea === numero(l.codigo))
         // Una línea que no corrió también tiene que quedar cubierta (con su LNP): lo producido es 0.
         const porClase = minutosPorClaseSinSolape(paradasLinea, ahora)
@@ -205,6 +237,7 @@ export function ModoParadas({
         )
       })}
     </div>
+    </>
   )
 }
 
