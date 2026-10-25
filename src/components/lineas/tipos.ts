@@ -1,10 +1,10 @@
-import type { DatosActivarLinea, DatosCambiarLinea, DatosCipLinea, Resultado } from "@/lib/produccion/tipos"
+import type { DatosActivarLinea, DatosCambiarLinea, DatosCipLinea, DatosPausarLinea, Resultado } from "@/lib/produccion/tipos"
 
 /** Las mutaciones de Producción que usa la tarjeta de una línea (ver LineasEstadoPlanta, que las arma desde useProduccion). */
 export interface AccionesLinea {
   activar: (datos: DatosActivarLinea) => Promise<Resultado>
-  pausar: (corridaId: string, motivo?: string) => Promise<Resultado>
-  continuar: (corridaId: string) => Promise<Resultado>
+  pausar: (corridaId: string, datos: DatosPausarLinea) => Promise<Resultado>
+  continuar: (corridaId: string, justificacion?: string | null) => Promise<Resultado>
   detener: (corridaId: string, motivo: string) => Promise<Resultado>
   continuarSiguienteLote: (corridaId: string, numeroTanque?: number) => Promise<Resultado>
   seguirMismoLote: (corridaId: string) => Promise<Resultado>

@@ -103,6 +103,12 @@ export default function RegistrarParadas() {
     return corrida ? Number(corrida.presentacion) || null : null
   }
 
+  /** La línea tiene una corrida corriendo (ni en pausa ni con el lote terminado). */
+  function corriendo(lineaCodigo: string): boolean {
+    const numero = lineaCodigo.replace(/^LINEA_/, "")
+    return prod.corridas.some((c) => c.activa && !c.pausadaEn && c.loteTerminado == null && c.linea.replace(/^LINEA_T?/, "") === numero)
+  }
+
   async function terminar(id: string) {
     setError(null)
     const r = await cerrarParadaMantenimiento(usuario, id, PAGINA)
@@ -231,6 +237,7 @@ export default function RegistrarParadas() {
                   equipos={equipos}
                   pendientes={pendientes}
                   presentacionDe={presentacionDe}
+                  corriendo={corriendo}
                   onCancelar={() => setAnotando(false)}
                   onGuardada={async () => {
                     setAnotando(false)
@@ -280,6 +287,7 @@ function FormNuevaParada({
   equipos,
   pendientes,
   presentacionDe,
+  corriendo,
   onCancelar,
   onGuardada,
   onCompletadaPrevia,
@@ -289,6 +297,7 @@ function FormNuevaParada({
   equipos: EquipoParada[]
   pendientes: Parada[]
   presentacionDe: (lineaCodigo: string) => number | null
+  corriendo: (lineaCodigo: string) => boolean
   onCancelar: () => void
   onGuardada: () => void | Promise<void>
   onCompletadaPrevia: () => void | Promise<void>
@@ -457,6 +466,13 @@ function FormNuevaParada({
             {conHoras ? "Quitar horas (sumar +1 y poner los minutos después)" : "Ya sé la hora de inicio"}
           </button>
     
+          {/* En curso en una línea que corre: a los 15 min de su inicio la deja en Parada (migración 20261111590000). */}
+          {conHoras && !fin && corriendo(linea) && !esLineaNoProgramada(tipo) && (
+            <p className="text-xs text-muted-foreground">
+              {nombreLineaParada(linea)} está corriendo: si la parada sigue abierta 15 min después de su inicio, la línea queda en
+              Parada desde esa hora. Al terminarla, la línea sigue sola.
+            </p>
+          )}
           {faltan.length > 0 && (tipo || ocioso) && (
             <ul className="list-disc pl-4 text-xs text-danger-foreground">
               {faltan.map((f) => (

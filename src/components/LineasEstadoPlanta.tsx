@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
-import { paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
+import { aplicarParadasALineas, paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import type { ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
 
@@ -42,7 +42,7 @@ export function LineasEstadoPlanta({
   const produccion = useProduccion(turnoId)
   const { corridas, lineasEstado, cargando: cargandoProduccion } = produccion
 
-  // Qué parada (+1) tiene detenida a cada línea: hasta completarla no se termina el CIP.
+  // Qué parada tiene detenida a cada línea: la abierta de una Parada, o el +1 del CIP (hasta completarlo no se termina el CIP).
   const sesion = useSesionTurno()
   const idTurno = turnoId === undefined ? sesion.turnoId : turnoId
   const [paradasDetienen, setParadasDetienen] = useState<ParadaQueDetiene[]>([])
@@ -52,6 +52,24 @@ export function LineasEstadoPlanta({
   useEffect(() => {
     void recargarParadas()
   }, [recargarParadas])
+
+  // Una parada abierta de 15 min o más (Registrar Paradas, Mantenimiento, Sheet) pone la línea en Parada sola: cada minuto se aplica y, si cambió algo, se relee.
+  const areaParadas = session?.area === "PRUEBAS" ? "PRUEBAS" : session?.area ? "ASEPTICO" : null
+  const { refrescar } = produccion
+  useEffect(() => {
+    let vivo = true
+    async function aplicar() {
+      if ((await aplicarParadasALineas(areaParadas)) > 0 && vivo) {
+        await Promise.all([refrescar(), recargarParadas()])
+      }
+    }
+    void aplicar()
+    const id = setInterval(() => void aplicar(), 60_000)
+    return () => {
+      vivo = false
+      clearInterval(id)
+    }
+  }, [areaParadas, refrescar, recargarParadas])
 
   /** Después de un CIP o de terminarlo, se vuelve a leer qué parada detiene a cada línea. */
   function yRecargarParadas<A extends unknown[]>(fn: (...args: A) => Promise<Resultado>) {
@@ -105,6 +123,7 @@ export function LineasEstadoPlanta({
             presentaciones={presentaciones}
             velocidades={velocidades}
             paradaQueDetiene={paradasDetienen.find((p) => p.linea === l.codigo && p.pendiente) ?? null}
+            paradaDeLinea={paradasDetienen.find((p) => p.linea === l.codigo) ?? null}
             acciones={acciones}
           />
         ))}
