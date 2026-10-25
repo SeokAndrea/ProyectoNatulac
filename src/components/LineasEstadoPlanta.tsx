@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import { LineaCard } from "@/components/lineas/LineaCard"
+import { ModoParadas } from "@/components/lineas/ModoParadas"
 import type { AccionesLinea } from "@/components/lineas/tipos"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
@@ -10,7 +12,9 @@ import { puede } from "@/lib/permisos"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { aplicarParadasALineas, paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
+import { sincronizarSheetSiHaceFalta } from "@/lib/paradasEnVivo"
 import { useSesionTurno } from "@/lib/sesionTurno"
+import { cn } from "@/lib/utils"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import type { ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
 
@@ -59,10 +63,13 @@ export function LineasEstadoPlanta({
   // Una parada abierta de 15 min o más (Registrar Paradas, Mantenimiento, Sheet) pone la línea en Parada sola: cada minuto se aplica y, si cambió algo, se relee.
   const areaParadas = session?.area === "PRUEBAS" ? "PRUEBAS" : session?.area ? "ASEPTICO" : null
   const { refrescar } = produccion
+  // Y el Sheet de Mantenimiento entra solo (cada 5 min, si nadie lo trajo): sus paradas llegan sin apretar el botón.
+  const usuarioSheet = areaParadas === "ASEPTICO" && (puede(session, "PARADAS_REGISTRAR") || session?.area === "MANTENIMIENTO") ? (session?.username ?? null) : null
   useEffect(() => {
     let vivo = true
     async function aplicar() {
-      if ((await aplicarParadasALineas(areaParadas)) > 0 && vivo) {
+      const delSheet = await sincronizarSheetSiHaceFalta(usuarioSheet)
+      if (((await aplicarParadasALineas(areaParadas)) > 0 || delSheet) && vivo) {
         await Promise.all([refrescar(), recargarParadas()])
       }
     }
@@ -72,7 +79,7 @@ export function LineasEstadoPlanta({
       vivo = false
       clearInterval(id)
     }
-  }, [areaParadas, refrescar, recargarParadas])
+  }, [areaParadas, usuarioSheet, refrescar, recargarParadas])
 
   // Los +1 sin minutos del área, para el botón «Paradas · N» de cada tarjeta (mismo rango que Registrar Paradas).
   const anotaParadas = puede(session, "PARADAS_REGISTRAR")
@@ -100,6 +107,17 @@ export function LineasEstadoPlanta({
     }
   }
 
+  // Modo Paradas (como el Modo Vacío de Preparación): solo en Líneas, con el turno en vivo y quien registra paradas.
+  const [params, setParams] = useSearchParams()
+  const conModoParadas = modo === "preparacion" && anotaParadas && (turnoId === undefined || turnoId === sesion.turnoId)
+  const modoParadas = conModoParadas && params.get("paradas") === "1"
+  function cambiarModoParadas() {
+    const p = new URLSearchParams(params)
+    if (modoParadas) p.delete("paradas")
+    else p.set("paradas", "1")
+    setParams(p, { replace: true })
+  }
+
   if (cargandoCatalogos || cargandoPreparacion || cargandoProduccion) {
     return (
       <div className="flex justify-center py-8 text-muted-foreground">
@@ -125,7 +143,46 @@ export function LineasEstadoPlanta({
   // Un tanque de Vacío no lo toma ninguna línea (el servidor también lo frena).
   const tanquesListos = tanques.filter((t) => t.condicion === "LISTO" && !t.paraVacio)
 
+  const interruptor = conModoParadas && (
+    <div className="mx-auto mb-3 flex max-w-6xl flex-wrap items-center justify-end gap-2">
+      {modoParadas && <p className="mr-auto text-xs font-medium text-info-foreground">Modo Paradas: la cuenta del turno de cada línea y lo que falta cubrir.</p>}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={modoParadas}
+        onClick={cambiarModoParadas}
+        className={cn(
+          "flex items-center gap-2 rounded-sm border-2 bg-card py-1 pl-1.5 pr-3 text-xs font-bold tracking-wide transition-colors pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info",
+          modoParadas ? "border-info text-info-foreground" : "border-border text-muted-foreground",
+        )}
+      >
+        <span className={cn("relative h-5 w-9 rounded-full transition-colors", modoParadas ? "bg-info" : "bg-border")}>
+          <span className={cn("absolute left-0.5 top-0.5 size-4 rounded-full bg-card transition-transform", modoParadas && "translate-x-4")} />
+        </span>
+        MODO PARADAS
+      </button>
+    </div>
+  )
+
+  if (modoParadas && session) {
+    return (
+      <div className="rounded-xl bg-info-soft/60 p-2">
+        {interruptor}
+        <ModoParadas
+          lineas={lineas.filter((l) => l.activo).map((l) => ({ codigo: l.codigo, nombre: l.nombre }))}
+          corridas={corridas}
+          usuario={session.username}
+          areaCodigo={session.area ?? null}
+          pendientes={pendientesParadas}
+          onCambio={paradasCambiaron}
+        />
+      </div>
+    )
+  }
+
   return (
+    <>
+    {interruptor}
     <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-3">
       {lineas
         .filter((l) => l.activo)
@@ -153,5 +210,6 @@ export function LineasEstadoPlanta({
           />
         ))}
     </div>
+    </>
   )
 }

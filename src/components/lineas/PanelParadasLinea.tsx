@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTiposActivos } from "@/lib/paradasCatalogo"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
-import { anotarParada, type Parada, type TipoParada } from "@/lib/paradas"
+import type { TramoHora } from "@/lib/cubrirTurno"
+import { anotarParada, fmtDuracion, type Parada, type TipoParada } from "@/lib/paradas"
 import { esLineaNoProgramada } from "@/lib/paradasTurnoCompleto"
 
 const PAGINA = "Líneas"
@@ -34,6 +35,7 @@ export function PanelParadasLinea({
   pendientes,
   onCambio,
   onCerrar,
+  cubrir,
 }: {
   lineaCodigo: string
   nombreLinea: string
@@ -45,6 +47,11 @@ export function PanelParadasLinea({
   /** Se anotó o completó una: volver a leer. */
   onCambio: () => Promise<void>
   onCerrar: () => void
+  /**
+   * Modo Paradas: cubrir lo sin reportar (cubrirTurno.ts). La parada va a
+   * tramos libres del turno, no a «terminó ahora», para que el tiempo sume.
+   */
+  cubrir?: { faltaMin: number; ubicar: (minutos: number) => TramoHora[] }
 }) {
   const tipos = useTiposActivos()
   const equipos = useEquiposParadas()
@@ -74,6 +81,7 @@ export function PanelParadasLinea({
   /** minutos = null → +1 pendiente (se completa después). */
   async function anotar(minutos: number | null) {
     if (!tipo) return
+    if (cubrir && minutos !== null) return cubrirMinutos(minutos)
     setEnviando(true)
     setError(null)
     const ahora = ahoraPlanta()
@@ -99,13 +107,37 @@ export function PanelParadasLinea({
     await onCambio()
   }
 
+  /** Cubrir: una parada por tramo libre (casi siempre uno solo). */
+  async function cubrirMinutos(minutos: number) {
+    if (!tipo || !cubrir) return
+    const tramos = cubrir.ubicar(minutos)
+    if (tramos.length === 0) {
+      return setError(`No queda tiempo libre en el turno para ${fmtDuracion(minutos)}: revisa las paradas ya cargadas en esta línea.`)
+    }
+    setEnviando(true)
+    setError(null)
+    for (const t of tramos) {
+      const r = await anotarParada(usuario, { lineaCodigo, tipoCodigo: tipo.codigo, inicio: t.inicio, fin: t.fin, nota: null }, PAGINA)
+      if (!r.ok) {
+        setEnviando(false)
+        await onCambio()
+        return setError(r.error)
+      }
+    }
+    setEnviando(false)
+    setHecho(`Cubierto: ${tipo.nombre} · ${fmtDuracion(minutos)}.`)
+    setTipo(null)
+    setOtroMin("")
+    await onCambio()
+  }
+
   const otro = Number(otroMin)
   const otroValido = Number.isInteger(otro) && otro > 0 && otro <= 24 * 60
 
   return (
     <section aria-label={`Paradas de ${nombreLinea}`} className="flex flex-col gap-4 rounded-lg border border-border bg-muted/40 p-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Paradas de {nombreLinea}</h3>
+        <h3 className="text-sm font-semibold">{cubrir ? `Cubrir lo sin reportar de ${nombreLinea}` : `Paradas de ${nombreLinea}`}</h3>
         <Button variant="ghost" size="icon-sm" aria-label="Cerrar paradas" onClick={onCerrar}>
           <X className="size-4" />
         </Button>
@@ -167,7 +199,9 @@ export function PanelParadasLinea({
       )}
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Anotar una que ya pasó</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {cubrir ? `¿Qué pasó en ese tiempo? Falta cubrir ${fmtDuracion(cubrir.faltaMin)}` : "Anotar una que ya pasó"}
+        </p>
         {tipo ? (
           <div className="flex flex-col gap-2">
             <p className="flex items-center justify-between gap-2 text-sm">
@@ -177,8 +211,15 @@ export function PanelParadasLinea({
               </Button>
             </p>
             <p className="text-xs text-muted-foreground">
-              ¿Cuánto duró? {finHora ? `Terminó a las ${finHora}.` : "Queda que terminó recién."}
+              {cubrir
+                ? "¿Cuántos minutos? Se guarda en un tramo del turno sin otras paradas."
+                : `¿Cuánto duró? ${finHora ? `Terminó a las ${finHora}.` : "Queda que terminó recién."}`}
             </p>
+            {cubrir && cubrir.faltaMin > 0 && (
+              <Button size="sm" className="self-start" disabled={enviando} onClick={() => void anotar(cubrir.faltaMin)}>
+                Todo lo que falta · <span className="num">{fmtDuracion(cubrir.faltaMin)}</span>
+              </Button>
+            )}
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               {MINUTOS.map((m) => (
                 <Button key={m} variant="outline" size="sm" disabled={enviando} onClick={() => void anotar(m)}>
@@ -200,7 +241,7 @@ export function PanelParadasLinea({
                 Guardar {otroValido ? `${otro} min` : ""}
               </Button>
             )}
-            {finHora === null ? (
+            {cubrir ? null : finHora === null ? (
               <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setFinHora(ahoraPlanta().slice(11, 16))}>
                 Terminó antes: elegir hora
               </Button>
@@ -210,7 +251,7 @@ export function PanelParadasLinea({
                 <Input type="time" value={finHora} onChange={(e) => setFinHora(e.target.value || null)} className="h-7 w-28" />
               </label>
             )}
-            {repetido ? (
+            {cubrir ? null : repetido ? (
               <p className="text-xs text-warning-foreground">Ya hay un +1 de este tipo pendiente arriba: ponle los minutos a ese.</p>
             ) : (
               <Button variant="ghost" size="sm" className="self-start text-muted-foreground" disabled={enviando} onClick={() => void anotar(null)}>
@@ -219,6 +260,20 @@ export function PanelParadasLinea({
             )}
             {enviando && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           </div>
+        ) : buscando === "LNP" ? (
+          // Son pocos: los motivos de Línea No Programada van directo, de un toque.
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
+              {tipos.filter(esLineaNoProgramada).map((t) => (
+                <Button key={t.codigo} variant="outline" size="sm" onClick={() => elegir(t)}>
+                  {t.nombre}
+                </Button>
+              ))}
+            </div>
+            <Button variant="ghost" size="sm" className="self-start" onClick={() => setBuscando(null)}>
+              Volver
+            </Button>
+          </div>
         ) : buscando ? (
           <div className="flex flex-col gap-2">
             <BuscadorTipoParada
@@ -226,7 +281,6 @@ export function PanelParadasLinea({
               area={areaParadas}
               equipos={equipos}
               presentacionMl={presentacionMl}
-              permitir={buscando === "LNP" ? (t) => esLineaNoProgramada(t) : undefined}
               onElegir={elegir}
             />
             <Button variant="ghost" size="sm" className="self-start" onClick={() => setBuscando(null)}>
