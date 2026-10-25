@@ -4,15 +4,17 @@ import { Button } from "@/components/ui/button"
 import type { LineaCodigo } from "@/lib/catalogos"
 import type { CondicionLinea, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
 import { EstadoCipLinea } from "./EstadoCipLinea"
+import { FilaAcciones } from "./FilaAcciones"
 import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
 import { useAccion } from "@/lib/useAccion"
 
 /**
  * Línea sin corrida: Arrancar línea + su condición (Sin programación /
- * Cambio de Presentación / Iniciar CIP). En CIP muestra el CIP en curso;
- * con el formulario de CIP abierto (`formCip`), lo muestra en lugar de
- * los botones.
+ * Cambio de Presentación / Iniciar CIP) en una sola fila (FilaAcciones),
+ * con `extra` (el botón de Paradas) después de Arrancar, para que se vea sin deslizar. En CIP muestra el CIP en
+ * curso; con el formulario de CIP abierto (`formCip`), lo muestra en lugar
+ * de los botones.
  */
 export function PanelLineaLibre({
   lineaCodigo,
@@ -24,6 +26,7 @@ export function PanelLineaLibre({
   terminarCip,
   onArrancar,
   onIniciarCip,
+  extra,
 }: {
   lineaCodigo: LineaCodigo
   condicion: CondicionLinea
@@ -34,16 +37,23 @@ export function PanelLineaLibre({
   terminarCip: AccionesLinea["terminarCip"]
   onArrancar: () => void
   onIniciarCip: () => void
+  /** Botón que va al final de la fila (Paradas). */
+  extra?: ReactNode
 }) {
   const { enviando, error, ejecutar } = useAccion()
   const cambiar = (nueva: CondicionLinea) => ejecutar(() => cambiarCondicion({ linea: lineaCodigo, condicion: nueva }))
 
   return (
     <div className="flex flex-col gap-2">
-      <Button variant="outline" size="sm" className="self-start" onClick={onArrancar}>
-        <PlayCircle className="size-3.5" />
-        Arrancar línea
-      </Button>
+      {(formCip || condicion === "CIP") && (
+        <FilaAcciones>
+          <Button variant="outline" size="sm" onClick={onArrancar}>
+            <PlayCircle className="size-3.5" />
+            Arrancar línea
+          </Button>
+          {extra}
+        </FilaAcciones>
+      )}
       {formCip ?? (
         <div className="flex flex-col gap-2">
           {condicion === "CIP" ? (
@@ -54,7 +64,12 @@ export function PanelLineaLibre({
               terminarCip={terminarCip}
             />
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <FilaAcciones>
+              <Button variant="outline" size="sm" onClick={onArrancar}>
+                <PlayCircle className="size-3.5" />
+                Arrancar línea
+              </Button>
+              {extra}
               <Button
                 size="sm"
                 variant={condicion === "SIN_PROGRAMACION" ? "default" : "outline"}
@@ -75,7 +90,7 @@ export function PanelLineaLibre({
                 <Beaker className="size-3.5" />
                 Iniciar CIP
               </Button>
-            </div>
+            </FilaAcciones>
           )}
           <MensajeError error={error} />
         </div>

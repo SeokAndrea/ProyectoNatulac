@@ -5,10 +5,13 @@ import { LineaCard } from "@/components/lineas/LineaCard"
 import type { AccionesLinea } from "@/components/lineas/tipos"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
+import { listarParadas, type Parada } from "@/lib/paradas"
+import { puede } from "@/lib/permisos"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { aplicarParadasALineas, paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
 import { useSesionTurno } from "@/lib/sesionTurno"
+import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import type { ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
 
 /*
@@ -71,6 +74,23 @@ export function LineasEstadoPlanta({
     }
   }, [areaParadas, refrescar, recargarParadas])
 
+  // Los +1 sin minutos del área, para el botón «Paradas · N» de cada tarjeta (mismo rango que Registrar Paradas).
+  const anotaParadas = puede(session, "PARADAS_REGISTRAR")
+  const [pendientesParadas, setPendientesParadas] = useState<Parada[]>([])
+  const recargarPendientes = useCallback(async () => {
+    if (!anotaParadas || !areaParadas) return
+    const hoy = fechaPlanta()
+    const lista = await listarParadas({ desde: restarDias(hoy, 30), hasta: hoy, area: areaParadas })
+    setPendientesParadas(lista.filter((p) => p.pendiente).sort((a, b) => a.inicio.localeCompare(b.inicio)))
+  }, [anotaParadas, areaParadas])
+  useEffect(() => {
+    void recargarPendientes()
+  }, [recargarPendientes])
+  /** Se anotó o completó una parada: pendientes, qué detiene a cada línea y las corridas (una larga pausa la línea sola). */
+  const paradasCambiaron = useCallback(async () => {
+    await Promise.all([recargarPendientes(), recargarParadas(), refrescar()])
+  }, [recargarPendientes, recargarParadas, refrescar])
+
   /** Después de un CIP o de terminarlo, se vuelve a leer qué parada detiene a cada línea. */
   function yRecargarParadas<A extends unknown[]>(fn: (...args: A) => Promise<Resultado>) {
     return async (...args: A) => {
@@ -125,6 +145,11 @@ export function LineasEstadoPlanta({
             paradaQueDetiene={paradasDetienen.find((p) => p.linea === l.codigo && p.pendiente) ?? null}
             paradaDeLinea={paradasDetienen.find((p) => p.linea === l.codigo) ?? null}
             acciones={acciones}
+            paradas={
+              anotaParadas && session
+                ? { usuario: session.username, pendientes: pendientesParadas.filter((p) => p.lineaCodigo === l.codigo), onCambio: paradasCambiaron }
+                : undefined
+            }
           />
         ))}
     </div>
