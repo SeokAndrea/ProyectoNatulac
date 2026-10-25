@@ -3,15 +3,13 @@ import { Factory, ListPlus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { LineaVisual } from "@/components/LineaVisual"
-import { CintaEstadoLinea } from "@/components/CintaEstadoLinea"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import type { LineaCodigo } from "@/lib/catalogos"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
-import { colorSabor } from "@/lib/coloresSabor"
 import type { Parada } from "@/lib/paradas"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
+import { AnimacionLinea } from "./AnimacionLinea"
 import { BotonCargarPtLote } from "./BotonCargarPtLote"
 import { ConfirmarInicioLinea, type NoCorre } from "./ConfirmarInicioLinea"
 import { EstadoCipLinea } from "./EstadoCipLinea"
@@ -290,24 +288,7 @@ export function LineaCard({
           </Badge>
         </div>
 
-        {aspecto.cinta ? (
-          <CintaEstadoLinea
-            estado={aspecto.cinta}
-            saborNombre={lineaTurno?.saborNombre}
-            presentacion={lineaTurno?.presentacion}
-            escala={1.8}
-            className="w-full"
-          />
-        ) : (
-          <LineaVisual
-            numeroLinea={Number(lineaCodigo.replace("LINEA_", "")) || 0}
-            estado={aspecto.visual}
-            color={colorSabor(lineaTurno?.saborNombre ?? null)}
-            square
-            saborNombre={lineaTurno?.saborNombre ?? null}
-            presentacion={lineaTurno?.presentacion ?? null}
-          />
-        )}
+        <AnimacionLinea lineaCodigo={lineaCodigo} lineaTurno={lineaTurno} aspecto={aspecto} />
 
         {lineaTurno && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm [&>div]:min-w-0">

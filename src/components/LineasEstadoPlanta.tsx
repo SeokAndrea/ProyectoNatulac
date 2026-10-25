@@ -171,6 +171,7 @@ export function LineasEstadoPlanta({
         <ModoParadas
           lineas={lineas.filter((l) => l.activo).map((l) => ({ codigo: l.codigo, nombre: l.nombre }))}
           corridas={corridas}
+          lineasEstado={lineasEstado}
           usuario={session.username}
           areaCodigo={session.area ?? null}
           pendientes={pendientesParadas}

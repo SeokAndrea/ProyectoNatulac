@@ -2,24 +2,28 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { CircleCheck, ListPlus, Loader2, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { tramosLibres, ubicarMinutos } from "@/lib/cubrirTurno"
 import { duracionBaseTurnoMin, ventanaTurnoMin } from "@/lib/eficiencia"
 import { minutosSinReportar } from "@/lib/minutosSinReportar"
+import type { LineaCodigo } from "@/lib/catalogos"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
 import { fmtDuracion, minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { useProductoTerminado } from "@/lib/productoTerminado"
-import type { Corrida } from "@/lib/produccion/tipos"
+import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import { horasTranscurridasTurno } from "@/lib/reportes"
 import type { TurnoActivo } from "@/lib/turno"
+import { AnimacionLinea } from "./AnimacionLinea"
+import { aspectoLinea } from "./estadoLinea"
 import { FilaAcciones } from "./FilaAcciones"
 import { PanelParadasLinea } from "./PanelParadasLinea"
 
 /*
  * Modo Paradas de Líneas (dueña, 2026-10-25), como el Modo Vacío de
- * Preparación: la pantalla queda solo para las paradas. Cada línea muestra la
- * cuenta de su turno con la misma regla que «sin reportar» y la eficiencia
+ * Preparación: la pantalla queda solo para las paradas. Cada línea conserva su
+ * animación de siempre y muestra la cuenta de su turno con la misma regla que «sin reportar» y la eficiencia
  * (minutosSinReportar.ts): lo producido según el PT, las paradas cargadas y
  * lo que falta cubrir. No es una barra de horas a propósito: la app sabe
  * cuándo se apretaron los botones, no cuándo corrió la máquina; el PT dice
@@ -32,13 +36,14 @@ const REFRESCO_MS = 60_000
 const numero = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
 
 interface LineaModo {
-  codigo: string
+  codigo: LineaCodigo
   nombre: string
 }
 
 export function ModoParadas({
   lineas,
   corridas,
+  lineasEstado,
   usuario,
   areaCodigo,
   pendientes,
@@ -47,6 +52,8 @@ export function ModoParadas({
   lineas: LineaModo[]
   /** Corridas del turno (las de useProduccion). */
   corridas: Corrida[]
+  /** Para la misma animación de la línea que en su tarjeta. */
+  lineasEstado: LineaEstado[]
   usuario: string
   areaCodigo: string | null
   /** +1 sin minutos del área. */
@@ -119,6 +126,9 @@ export function ModoParadas({
         const porClase = minutosPorClaseSinSolape(paradasLinea, ahora)
         const paradasMin = fila?.paradasMin ?? porClase.PROGRAMADA + porClase.NO_PROGRAMADA + porClase.OCIOSO
         const producidoMin = fila?.producidoMin ?? 0
+        const lineaTurno = corridasLinea.find((c) => c.activa) ?? null
+        const esperandoPt = lineaTurno === null && corridasLinea.some((c) => c.esperandoCierre)
+        const aspecto = aspectoLinea(lineaTurno, lineasEstado.find((le) => le.linea === l.codigo)?.condicion ?? "DETENIDA", esperandoPt)
         const faltaMin = Math.max(0, fila ? fila.sinReportarMin : ventanaMin - paradasMin)
         const sinPt = corridasLinea.filter((c) => !c.activa && !pt.registros.some((r) => r.corridaId === c.id))
         const enMarchaSinPt = corridasLinea.some((c) => c.activa && !pt.registros.some((r) => r.corridaId === c.id))
@@ -129,16 +139,18 @@ export function ModoParadas({
           <section key={l.codigo} aria-label={l.nombre} className="flex flex-col gap-3 rounded-xl bg-card p-4 text-card-foreground ring-1 ring-foreground/10">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold">{l.nombre}</h3>
-              {corridasLinea.length === 0 && faltaMin > 0 ? (
-                <Badge variant="muted">No corrió</Badge>
-              ) : faltaMin > 0 ? (
-                <Badge variant="warning">Falta {fmtDuracion(faltaMin)}</Badge>
-              ) : (
-                <Badge variant="success">Cubierto</Badge>
-              )}
+              <Badge variant={aspecto.variante}>{aspecto.badge}</Badge>
             </div>
 
-            <CuentaTurno ventanaMin={ventanaMin} producidoMin={producidoMin} paradasMin={paradasMin} faltaMin={faltaMin} />
+            <AnimacionLinea lineaCodigo={l.codigo} lineaTurno={lineaTurno} aspecto={aspecto} />
+
+            <CuentaTurno
+              ventanaMin={ventanaMin}
+              programadasMin={porClase.PROGRAMADA + porClase.OCIOSO}
+              producidoMin={producidoMin}
+              noProgramadasMin={porClase.NO_PROGRAMADA}
+              sinReportarMin={faltaMin}
+            />
 
             {sinPt.map((c) => (
               <p key={c.id} className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning-soft px-3 py-2 text-sm text-warning-foreground">
@@ -199,43 +211,70 @@ export function ModoParadas({
 /** Minutos para la cuenta: 0 es «0 min», no «< 1 min». */
 const dur = (min: number) => (min <= 0 ? "0 min" : fmtDuracion(min))
 
-/** La cuenta del turno en una barra: producido (PT) + paradas + lo que falta, sobre lo que va del turno. */
-function CuentaTurno({ ventanaMin, producidoMin, paradasMin, faltaMin }: { ventanaMin: number; producidoMin: number; paradasMin: number; faltaMin: number }) {
-  const total = Math.max(ventanaMin, producidoMin + paradasMin + faltaMin, 1)
+/**
+ * La cuenta del turno como la eficiencia (eficiencia.ts): las programadas (y el
+ * ocioso) restan del tiempo disponible; dentro de él, lo que produjo (PT), las
+ * no programadas y lo sin reportar, rayado porque falta explicarlo.
+ */
+function CuentaTurno({
+  ventanaMin,
+  programadasMin,
+  producidoMin,
+  noProgramadasMin,
+  sinReportarMin,
+}: {
+  ventanaMin: number
+  programadasMin: number
+  producidoMin: number
+  noProgramadasMin: number
+  sinReportarMin: number
+}) {
+  const total = Math.max(ventanaMin, programadasMin + producidoMin + noProgramadasMin + sinReportarMin, 1)
   const ancho = (min: number) => `${(min / total) * 100}%`
+  const disponibleMin = Math.max(0, ventanaMin - programadasMin)
+  const rayado = "repeating-linear-gradient(135deg, var(--warning) 0 4px, var(--warning-soft) 4px 8px)"
+  const filas: [string, number, React.CSSProperties][] = [
+    ["Programadas", programadasMin, { background: "var(--muted-foreground)" }],
+    ["Produjo", producidoMin, { background: "var(--success)" }],
+    ["No programadas", noProgramadasMin, { background: "var(--danger)" }],
+    ["Sin reportar", sinReportarMin, { background: rayado }],
+  ]
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex h-3 overflow-hidden rounded-sm bg-muted" role="img" aria-label={`Produjo ${dur(producidoMin)}, paradas ${dur(paradasMin)}, falta cubrir ${dur(faltaMin)}`}>
-        <span className="bg-success" style={{ width: ancho(producidoMin) }} />
-        <span className="bg-info" style={{ width: ancho(paradasMin) }} />
-        <span className="bg-warning" style={{ width: ancho(faltaMin) }} />
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <div
+          className="flex h-3.5 overflow-hidden rounded-sm bg-muted"
+          role="img"
+          aria-label={filas.map(([n, m]) => `${n} ${dur(m)}`).join(", ")}
+        >
+          {filas.map(([n, m, estilo]) => (
+            <span key={n} style={{ ...estilo, width: ancho(m) }} />
+          ))}
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>
+            Tiempo disponible <span className="num text-foreground">{dur(disponibleMin)}</span>
+          </span>
+          <span>
+            de <span className="num">{dur(ventanaMin)}</span>
+          </span>
+        </div>
       </div>
-      <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-        <span>
-          <span className="mr-1 inline-block size-2 rounded-full bg-success align-middle" />
-          Produjo <span className="num text-foreground">{dur(producidoMin)}</span>
-        </span>
-        <span>
-          <span className="mr-1 inline-block size-2 rounded-full bg-info align-middle" />
-          Paradas <span className="num text-foreground">{dur(paradasMin)}</span>
-        </span>
-        <span>
-          <span className="mr-1 inline-block size-2 rounded-full bg-warning align-middle" />
-          {faltaMin > 0 ? (
-            <>
-              Falta <span className="num text-foreground">{dur(faltaMin)}</span>
-            </>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-success-foreground">
-              <CircleCheck aria-hidden className="size-3" />
-              Todo cubierto
-            </span>
-          )}
-        </span>
-        <span className="ml-auto">
-          de <span className="num">{dur(ventanaMin)}</span>
-        </span>
-      </p>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+        {filas.map(([n, m, estilo]) => (
+          <div key={n} className="flex items-center gap-1.5">
+            <span aria-hidden className="size-2.5 shrink-0 rounded-[2px]" style={estilo} />
+            <dt className="text-muted-foreground">{n}</dt>
+            <dd className={cn("num ml-auto", n === "Sin reportar" && m > 0 ? "font-semibold text-warning-foreground" : "text-foreground")}>{dur(m)}</dd>
+          </div>
+        ))}
+      </dl>
+      {sinReportarMin <= 0 && (
+        <p className="flex items-center gap-1 text-xs text-success-foreground">
+          <CircleCheck aria-hidden className="size-3.5" />
+          Todo el turno está cubierto.
+        </p>
+      )}
     </div>
   )
 }
