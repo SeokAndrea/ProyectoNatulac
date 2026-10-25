@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { LogOut, Monitor, Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -58,7 +58,7 @@ export function AppHeader({
     <div className="sticky top-0 z-20 bg-background/95 backdrop-blur print:hidden">
       <FranjaVerComo />
       <div className="border-b border-border/70">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3 sm:px-6">
           {left}
 
           {title ? (
@@ -86,18 +86,25 @@ export function AppHeader({
           </Button>
 
           {/* Versión armada: el commit (si se conoce) y cuándo se armó. Así se ve si el servidor ya tiene lo último. */}
-          <span className="hidden shrink-0 font-mono text-[10.5px] leading-tight text-muted-foreground sm:block" title="Versión de la app (commit · cuándo se armó)">
+          <span className="hidden shrink-0 font-mono text-xs leading-tight text-muted-foreground sm:block" title="Versión de la app (commit · cuándo se armó)">
             {/^[0-9a-f]{7,10}$/.test(__APP_VERSION__) ? `${__APP_VERSION__} · ` : ""}
             {__APP_BUILD__}
           </span>
 
           {session && (
             <div className="flex items-center gap-2">
-              <Avatar className="size-8">
-                <AvatarFallback className="bg-secondary text-xs font-medium text-secondary-foreground">
-                  {initials(session.nombre)}
-                </AvatarFallback>
-              </Avatar>
+              <Link
+                to="/ajustes"
+                aria-label="Ajustes: tamaño de letra y tema"
+                title="Ajustes"
+                className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring pointer-coarse:p-1.5"
+              >
+                <Avatar className="size-8">
+                  <AvatarFallback className="bg-secondary text-xs font-medium text-secondary-foreground">
+                    {initials(session.nombre)}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"

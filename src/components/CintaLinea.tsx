@@ -26,13 +26,13 @@ export type EstadoLineaVista = "CORRIENDO" | "PARADA" | "DETENIDA" | "CIP" | "CA
 const CANT_CAJAS = 4
 
 const META: Record<EstadoLineaVista, { etiqueta: string; icono: typeof Pause; tono: string }> = {
-  CORRIENDO: { etiqueta: "Corriendo", icono: Pause, tono: "text-success" }, // icono sin uso (hay cajas)
-  PARADA: { etiqueta: "Parada", icono: Pause, tono: "text-warning" },
+  CORRIENDO: { etiqueta: "Corriendo", icono: Pause, tono: "text-success-foreground" }, // icono sin uso (hay cajas)
+  PARADA: { etiqueta: "Parada", icono: Pause, tono: "text-warning-foreground" },
   DETENIDA: { etiqueta: "Detenida", icono: Wrench, tono: "text-danger" },
   CIP: { etiqueta: "CIP", icono: BroomSparkles, tono: "text-info" },
   CAMBIO: { etiqueta: "Cambio Present.", icono: RefreshCw, tono: "text-muted-foreground" },
-  LIBRE: { etiqueta: "Libre", icono: PauseCircle, tono: "text-muted-foreground/60" },
-  TERMINO: { etiqueta: "Terminó Lote", icono: Square, tono: "text-warning" },
+  LIBRE: { etiqueta: "Libre", icono: PauseCircle, tono: "text-muted-foreground" },
+  TERMINO: { etiqueta: "Terminó Lote", icono: Square, tono: "text-warning-foreground" },
 }
 
 export function CintaLinea({
@@ -66,18 +66,18 @@ export function CintaLinea({
 
   return (
     <div className="relative h-28 overflow-hidden rounded-xl border border-border bg-muted/30">
-      <span className="absolute left-2 top-1.5 z-20 rounded-md border border-border bg-background/85 px-1.5 py-0.5 text-[10px] font-bold text-foreground">
+      <span className="absolute left-2 top-1.5 z-20 rounded-md border border-border bg-background/85 px-1.5 py-0.5 text-xs font-bold text-foreground">
         L{numeroLinea}
       </span>
-      <span className={cn("absolute right-2 top-1.5 z-20 flex items-center gap-1.5 text-[10px] font-semibold", meta.tono)}>
+      <span className={cn("absolute right-2 top-1.5 z-20 flex items-center gap-1.5 text-xs font-semibold", meta.tono)}>
         <span className={cn("size-1.5 rounded-full bg-current", estado === "CORRIENDO" && "alert-pulse")} />
         {meta.etiqueta}
       </span>
       {aviso && (
         <span
           className={cn(
-            "absolute right-2 top-6 z-20 rounded-md border bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold",
-            avisoUrgente ? "alert-pulse border-danger/40 text-danger" : "border-warning/40 text-warning",
+            "absolute right-2 top-6 z-20 rounded-md border bg-background/90 px-1.5 py-0.5 text-xs font-semibold",
+            avisoUrgente ? "alert-pulse border-danger/40 text-danger" : "border-warning/40 text-warning-foreground",
           )}
         >
           {aviso}
@@ -85,7 +85,7 @@ export function CintaLinea({
       )}
       {aviso && nota && (
         <span
-          className="absolute right-2 top-[2.8rem] z-20 max-w-[85%] truncate rounded-md border border-border bg-background/90 px-1.5 py-0.5 text-[10px] text-foreground"
+          className="absolute right-2 top-[2.8rem] z-20 max-w-[85%] truncate rounded-md border border-border bg-background/90 px-1.5 py-0.5 text-xs text-foreground"
           title={nota}
         >
           {nota}
@@ -131,7 +131,7 @@ export function CintaLinea({
             />
           ))}
           {estado === "PARADA" && (
-            <span className="absolute bottom-1.5 right-1.5 z-20 grid size-5 place-items-center rounded-full border border-warning/40 bg-background/90 text-warning">
+            <span className="absolute bottom-1.5 right-1.5 z-20 grid size-5 place-items-center rounded-full border border-warning/40 bg-background/90 text-warning-foreground">
               <PauseCircle className="size-3" aria-hidden="true" />
             </span>
           )}
@@ -139,11 +139,11 @@ export function CintaLinea({
       ) : (
         <div className={cn("absolute inset-0 grid place-items-center", meta.tono)}>
           <Icon className="size-7" strokeWidth={1.7} aria-hidden="true" />
-          <span className="absolute inset-x-0 top-[64%] text-center text-[10px] font-medium uppercase tracking-wide">{meta.etiqueta}</span>
+          <span className="absolute inset-x-0 top-[64%] text-center text-xs font-medium uppercase tracking-wide">{meta.etiqueta}</span>
         </div>
       )}
 
-      <p className="absolute bottom-1.5 left-2 max-w-[70%] truncate text-[10px] text-muted-foreground">
+      <p className="absolute bottom-1.5 left-2 max-w-[70%] truncate text-xs text-muted-foreground">
         {conCajas ? `${saborNombre ?? "Sin sabor"}${lote ? ` · Lote ${lote}` : ""}` : lote ? `Lote ${lote}` : ""}
       </p>
     </div>

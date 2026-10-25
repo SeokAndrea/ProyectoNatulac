@@ -20,8 +20,8 @@ export function DiasSinIncidentes({ dias }: { dias: number }) {
       aria-label={`${dias} días sin incidentes`}
       className={cn("flex items-center gap-3 rounded-xl px-5 py-2 shadow-sm", color)}
     >
-      <span className="font-mono text-[clamp(34px,3.2vw,60px)] font-bold leading-none tabular-nums">{dias.toLocaleString("es-CO")}</span>
-      <span className="text-[clamp(13px,1.05vw,19px)] font-bold leading-tight tracking-wider">
+      <span className="font-mono text-[clamp(2.125rem,3.2vw,3.75rem)] font-bold leading-none tabular-nums">{dias.toLocaleString("es-CO")}</span>
+      <span className="text-[clamp(0.8125rem,1.05vw,1.1875rem)] font-bold leading-tight tracking-wider">
         DÍAS SIN
         <br />
         INCIDENTES

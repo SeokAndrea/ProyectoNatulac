@@ -26,24 +26,24 @@ export function MatrizGrupoSupervisor({ filas }: { filas: FilaEstadistica[] }) {
   return (
     <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
       <div className="border-b border-border/70 bg-surface px-4 py-3">
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           <Grid3x3 className="size-4 text-primary" />
           Matriz supervisor × grupo
         </p>
-        <p className="mt-1 text-xs text-muted-foreground/80">Litros producidos por cruce; más intenso = más volumen.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Litros producidos por cruce; más intenso = más volumen.</p>
       </div>
 
       <div className="overflow-x-auto p-4">
         <table className="w-full min-w-[520px] border-separate border-spacing-1">
           <thead>
             <tr>
-              <th className="w-40 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Supervisor</th>
+              <th className="w-40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supervisor</th>
               {grupos.map((g) => (
-                <th key={g} className="text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <th key={g} className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {nombreGrupo(g)}
                 </th>
               ))}
-              <th className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Total</th>
+              <th className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total</th>
             </tr>
           </thead>
           <tbody>

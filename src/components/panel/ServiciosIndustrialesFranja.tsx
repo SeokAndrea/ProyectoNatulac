@@ -23,7 +23,7 @@ export function ServiciosIndustrialesFranja({ lectura, ahora }: { lectura: Lectu
       <div className="mb-3 flex items-center justify-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-2.5 py-1.5 text-xs">
         <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-0.5">
           <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Thermometer className="size-4 animate-pulse text-warning" />
+            <Thermometer className="size-4 animate-pulse text-warning-foreground" />
             Quantum:{" "}
             <span className="num font-bold text-foreground">
               {lectura?.temperaturaQuantum !== null && lectura?.temperaturaQuantum !== undefined ? `${lectura.temperaturaQuantum}°C` : "—"}
@@ -37,7 +37,7 @@ export function ServiciosIndustrialesFranja({ lectura, ahora }: { lectura: Lectu
             </span>
           </span>
           {lectura && (
-            <span className="text-[11px] text-muted-foreground/70">
+            <span className="text-xs text-muted-foreground">
               {tiempoRelativo(lectura.actualizadoEn, ahora)}
               {lectura.actualizadoPorNombre ? ` · ${lectura.actualizadoPorNombre}` : ""}
             </span>

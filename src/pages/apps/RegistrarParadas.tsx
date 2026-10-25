@@ -134,7 +134,7 @@ export default function RegistrarParadas() {
 
   return (
     <AppShell title="Registrar Paradas" description="Paradas de las líneas: se suman como +1 y después se pone cuánto duraron">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
         {areaParadas === "ASEPTICO" && <ActualizarDesdeSheet usuario={usuario} onListo={cargar} />}
         <SinReportarTurno turno={turno} corridas={prod.corridas} version={lista} />
 
@@ -251,7 +251,7 @@ export default function RegistrarParadas() {
               <button
                 type="button"
                 onClick={() => setVerHistorial((v) => !v)}
-                className="flex items-center gap-1.5 self-start text-sm text-muted-foreground hover:text-foreground"
+                className="flex min-h-11 items-center gap-1.5 self-start text-sm text-muted-foreground hover:text-foreground"
               >
                 <ChevronDown className={`size-4 transition-transform ${verHistorial ? "rotate-180" : ""}`} />
                 Últimos 30 días ({completas.length})
@@ -408,7 +408,7 @@ function FormNuevaParada({
           onChange={(e) => setNota(e.target.value)}
           className="h-9"
         />
-        <span className="self-end text-[11px] text-muted-foreground">
+        <span className="self-end text-xs text-muted-foreground">
           {nota.length}/{LARGO_NOTA_PARADA}
         </span>
       </label>

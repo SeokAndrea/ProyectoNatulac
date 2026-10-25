@@ -74,7 +74,7 @@ export default function ErroresCliente() {
                   </div>
                   <p className="text-sm text-foreground">{e.mensaje}</p>
                   {e.contexto && (
-                    <pre className="mt-1 overflow-x-auto rounded-lg bg-muted/50 p-2 text-[11px] text-muted-foreground">
+                    <pre className="mt-1 overflow-x-auto rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground">
                       {JSON.stringify(e.contexto, null, 2)}
                     </pre>
                   )}

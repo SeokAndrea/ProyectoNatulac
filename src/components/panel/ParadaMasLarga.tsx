@@ -27,7 +27,7 @@ export function ParadaMasLarga({ paradas, lineas, ahora }: { paradas: Parada[]; 
               </p>
             )}
           </div>
-          <span className="num shrink-0 text-lg font-bold text-warning">{formatDuracion(duracionMin(parada, ahora))}</span>
+          <span className="num shrink-0 text-lg font-bold text-warning-foreground">{formatDuracion(duracionMin(parada, ahora))}</span>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">Sin paradas registradas para este turno.</p>

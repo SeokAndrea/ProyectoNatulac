@@ -48,7 +48,7 @@ function DistribucionPerdidas({ grupos }: { grupos: AusentismoGrupo[] }) {
         <div className="flex w-full gap-1.5">
           {tramos.map((g) => (
             <div key={g.grupo} style={{ ...colorGrupo(g.grupo), flexGrow: g.partePerdidas!, flexBasis: 0 }} className="flex min-w-0 flex-col gap-1">
-              <span className="truncate text-center text-[clamp(14px,1.2vw,20px)] font-bold">
+              <span className="truncate text-center text-[clamp(0.875rem,1.2vw,1.25rem)] font-bold">
                 Grupo {g.grupo}
               </span>
               <Flecha />
@@ -63,7 +63,7 @@ function DistribucionPerdidas({ grupos }: { grupos: AusentismoGrupo[] }) {
               className="grid min-w-0 place-items-center rounded-md border-2 border-foreground/25 bg-[var(--c)]"
               title={`Grupo ${g.grupo}: ${fmt(g.partePerdidas, 2)} %`}
             >
-              <span className="truncate font-mono text-[clamp(18px,1.7vw,30px)] font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+              <span className="truncate font-mono text-[clamp(1.125rem,1.7vw,1.875rem)] font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
                 {fmt(g.partePerdidas, 2)} %
               </span>
             </div>
@@ -96,7 +96,7 @@ export function GruposAusentismo({ grupos }: { grupos: AusentismoGrupo[] }) {
               {g.dias != null && ` (${fmt(g.dias)} ${g.dias === 1 ? "día" : "días"})`}
             </span>
             {mayor === g.grupo && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2.5 py-0.5 text-sm font-semibold text-danger">
+              <span className="inline-flex items-center gap-1 rounded-sm bg-danger-soft px-2.5 py-0.5 text-sm font-semibold text-danger">
                 <Star className="size-4 fill-current" /> Mayor incidencia del período
               </span>
             )}

@@ -67,7 +67,7 @@ export default function Hub() {
     <div className="flex min-h-svh flex-col bg-background">
       <AppHeader left={<Logo />} />
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <AvisoSifPendientes />
         <div className="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
@@ -100,9 +100,9 @@ export default function Hub() {
           {atajos.length > 0 && (
             <div
               className={cn(
-                "grid grid-cols-1 gap-3 lg:w-auto lg:shrink-0",
-                // Con 4 atajos, 2×2 junto al saludo; en fila solo si sobra ancho.
-                atajos.length === 4 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3",
+                "grid min-w-0 grid-cols-1 gap-3 lg:w-auto",
+                // Con 4 atajos, 2×2 junto al saludo; en fila solo si sobra ancho (también con letra grande, ver Ajustes).
+                atajos.length === 4 ? "sm:grid-cols-2 2xl:grid-cols-4" : "sm:grid-cols-3",
               )}
             >
               {atajos.map((app) => (

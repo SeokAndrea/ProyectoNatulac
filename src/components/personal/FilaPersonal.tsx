@@ -115,7 +115,7 @@ export function FilaPersonal({
         <td className="py-1.5 pr-3 text-muted-foreground">
           {persona.area ? nombrePorCodigo(AREAS, persona.area) : "Todas"}
           {persona.areaOrigen && persona.areaOrigen !== persona.area && (
-            <span className="mt-0.5 block text-[11px] text-primary">De {nombrePorCodigo(AREAS, persona.areaOrigen)}</span>
+            <span className="mt-0.5 block text-xs text-primary">De {nombrePorCodigo(AREAS, persona.areaOrigen)}</span>
           )}
         </td>
         <td className="py-1.5 pr-3 text-muted-foreground">
@@ -126,7 +126,7 @@ export function FilaPersonal({
             </Badge>
           )}
           {extras.length > 0 && (
-            <span className="mt-0.5 block text-[11px] text-primary">
+            <span className="mt-0.5 block text-xs text-primary">
               + {extras.map((p) => nombrePorCodigo(PERMISOS, p)).join(", ")}
             </span>
           )}

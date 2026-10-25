@@ -18,7 +18,7 @@ export function TurnoCerrado({
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex flex-col items-center gap-2 py-6 text-center">
-        <CheckCircle2 className="size-10 text-success" />
+        <CheckCircle2 className="size-10 text-success-foreground" />
         <p className="text-lg font-semibold text-foreground">Turno cerrado</p>
         <p className="text-sm text-muted-foreground">Turno {codigoTurno}</p>
         <ul className="mt-1 flex flex-col gap-0.5 text-sm text-muted-foreground">

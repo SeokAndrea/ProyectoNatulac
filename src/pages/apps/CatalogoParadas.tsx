@@ -117,7 +117,7 @@ export default function CatalogoParadas() {
   return (
     <AppShell title="Catálogo de Paradas" description="Tipos de parada y equipos que ofrece el Registro">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <Button size="sm" variant={pestana === "TIPOS" ? "default" : "outline"} onClick={() => setPestana("TIPOS")}>
             Tipos de parada
           </Button>
@@ -191,7 +191,7 @@ export default function CatalogoParadas() {
           </p>
         )}
 
-        <p className="text-xs text-muted-foreground">
+        <p className="max-w-prose text-xs text-muted-foreground">
           {filas.length} de {catalogo.length} tipos. Solo las paradas Programadas tienen tiempo guía; se hereda a cada
           parada al registrarla y cambiarlo no modifica las ya guardadas. El código mostrado es el de la Línea 1: en las
           otras líneas solo cambia el número (los que no llevan «L» son iguales en todas). Si un tipo existe solo en algunas líneas, se muestra su código en la primera de ellas.

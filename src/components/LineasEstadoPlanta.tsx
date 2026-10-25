@@ -88,7 +88,7 @@ export function LineasEstadoPlanta({
   const tanquesListos = tanques.filter((t) => t.condicion === "LISTO" && !t.paraVacio)
 
   return (
-    <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-3">
       {lineas
         .filter((l) => l.activo)
         .map((l) => (

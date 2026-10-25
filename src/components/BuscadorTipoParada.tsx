@@ -94,7 +94,7 @@ export function BuscadorTipoParada({
             agruparTipos(sugerencias, equipos).flatMap((g) => [
               <li
                 key={g.clave}
-                className="sticky top-0 bg-muted px-3 py-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
+                className="sticky top-0 bg-muted px-3 py-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
               >
                 {g.titulo}
               </li>,

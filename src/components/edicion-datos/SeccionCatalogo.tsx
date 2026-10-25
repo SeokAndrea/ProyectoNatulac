@@ -51,7 +51,7 @@ export function SeccionCatalogo({
             {filas ? `${visibles.length} de ${filas.length} registros` : "Cargando…"}
           </p>
         </div>
-        <label className="flex h-10 min-w-56 items-center gap-2 rounded-lg border border-input bg-background px-3">
+        <label className="flex h-10 min-w-56 pointer-coarse:h-11 items-center gap-2 rounded-lg border border-input bg-background px-3">
           <Search className="size-4 text-muted-foreground" />
           <span className="sr-only">Buscar</span>
           <input
@@ -59,19 +59,19 @@ export function SeccionCatalogo({
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar…"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </label>
         <Button
           variant="outline"
-          className={cn("h-10", verInactivos && "bg-muted")}
+          className={cn("h-10 pointer-coarse:h-11", verInactivos && "bg-muted")}
           aria-pressed={verInactivos}
           onClick={() => setVerInactivos((v) => !v)}
         >
           Ver inactivos
         </Button>
         {!seccion.sinAgregar && (
-          <Button className="h-10" onClick={() => setAbierta("nuevo")}>
+          <Button className="h-10 pointer-coarse:h-11" onClick={() => setAbierta("nuevo")}>
             <Plus className="size-4" />
             Agregar {seccion.singular}
           </Button>

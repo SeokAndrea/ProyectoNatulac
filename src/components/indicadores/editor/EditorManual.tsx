@@ -19,7 +19,7 @@ import { EditorSemielaborado } from "@/components/indicadores/editor/EditorSemie
 type Resultado = { ok: true } | { ok: false; error: string }
 type Auto = DatosMes | { error: string }
 
-const pildora = "rounded-full border px-3 py-1 text-[12.5px] font-semibold"
+const pildora = "rounded-sm border px-3 py-1 text-[0.8125rem] font-semibold"
 const pildoraActiva = "border-primary bg-primary text-primary-foreground"
 
 /*

@@ -25,7 +25,7 @@ export function AppShell({
   description?: string
   /** A dónde lleva la flecha si la página se abrió directo (sin un paso anterior dentro de la app). Ej. una calculadora vuelve a Calculadoras. */
   volverA?: string
-  /** Usa todo el ancho disponible (sin max-w-6xl ni el padding lateral habitual) — para pantallas tipo dashboard que necesitan el espacio completo. */
+  /** Usa todo el ancho disponible (sin el tope de 1600 px ni el padding lateral habitual) — para pantallas tipo dashboard que necesitan el espacio completo. */
   fullWidth?: boolean
   /** Para pantallas que ya muestran Área/Supervisor/Turno en su propio banner (ej. Panel de Producción) — evita repetir esa misma info dos veces seguidas. */
   ocultarEstadoBanner?: boolean
@@ -84,7 +84,7 @@ export function AppShell({
           className={cn(
             fullWidth
               ? "w-full flex-1 px-3 py-4 sm:px-4 sm:py-5 print:p-0"
-              : "mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8 print:max-w-none print:p-0",
+              : "mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 sm:py-8 print:max-w-none print:p-0",
             // Lugar para el botón flotante: que no tape lo último de la página.
             !soloVista && "max-lg:pb-24",
           )}

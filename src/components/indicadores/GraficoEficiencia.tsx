@@ -18,7 +18,7 @@ export function GraficoEficiencia({ serie }: { serie: PuntoSerie[] }) {
           {[0, 25, 50, 75, 100].map((t) => (
             <g key={t}>
               <line x1={ml} x2={W - mr} y1={y(t)} y2={y(t)} className="stroke-border" />
-              <text x={ml - 5} y={y(t) + 3.5} textAnchor="end" className="fill-foreground font-mono text-[10px]">
+              <text x={ml - 5} y={y(t) + 3.5} textAnchor="end" className="fill-foreground font-mono text-xs">
                 {t}
               </text>
             </g>
@@ -27,7 +27,7 @@ export function GraficoEficiencia({ serie }: { serie: PuntoSerie[] }) {
             const elegido = i === serie.length - 1
             const cx = ml + i * paso + paso / 2
             const etiqueta = (
-              <text x={cx} y={H - 6} textAnchor="middle" className={elegido ? "fill-foreground text-[11px] font-semibold" : "fill-foreground text-[11px]"}>
+              <text x={cx} y={H - 6} textAnchor="middle" className={elegido ? "fill-foreground text-xs font-semibold" : "fill-foreground text-xs"}>
                 {capital(nombreMes(p.mes))}
               </text>
             )
@@ -61,7 +61,7 @@ export function GraficoEficiencia({ serie }: { serie: PuntoSerie[] }) {
             )
           })}
           <line x1={ml} x2={W - mr} y1={y(ESTANDAR)} y2={y(ESTANDAR)} strokeDasharray="5 4" className="stroke-muted-foreground" />
-          <text x={W - mr + 5} y={y(ESTANDAR) + 4} className="fill-foreground text-[10.5px]">
+          <text x={W - mr + 5} y={y(ESTANDAR) + 4} className="fill-foreground text-xs">
             Estándar {ESTANDAR} %
           </text>
         </svg>

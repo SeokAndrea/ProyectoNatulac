@@ -31,7 +31,7 @@ export function EditorLinea({
           valor={datos.eficiencia[linea] ?? null}
           onCambio={(v) => onCambio({ ...datos, eficiencia: { ...datos.eficiencia, [linea]: v } })}
           sufijo="%"
-          className="w-48 text-[13px] text-[var(--c-texto)]"
+          className="w-48 text-[0.8125rem] text-[var(--c-texto)]"
         />
         <span className="pb-2 text-xs text-muted-foreground">Estándar 85 %</span>
       </div>
@@ -42,7 +42,7 @@ export function EditorLinea({
             <section key={p.clave} style={colorPresentacion(linea, p.indice)} className="flex flex-col gap-2.5 rounded-xl border-2 border-[var(--c)] bg-card p-3">
               <header className="flex flex-wrap items-center justify-between gap-1.5">
                 <b className="text-lg text-[var(--c-texto)]">{p.nombre}</b>
-                <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px]">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 text-[0.8125rem]">
                   <Checkbox checked={x.corrio} onCheckedChange={(v) => cambiarPres(p.clave, { corrio: v === true })} />
                   Se corrió en {nombreMes}
                 </label>

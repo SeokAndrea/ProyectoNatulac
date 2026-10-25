@@ -21,6 +21,12 @@
         document.querySelector('meta[name="theme-color"]').setAttribute("content", "#1b2230")
       }
     } catch (e) {}
+    // Tamaño de letra elegido en Ajustes, antes de que cargue la app. Misma clave que src/lib/tamanoLetra.ts.
+    try {
+      var letra = localStorage.getItem("natulac-letra")
+      if (letra === "grande") document.documentElement.style.fontSize = "112.5%"
+      if (letra === "muy-grande") document.documentElement.style.fontSize = "125%"
+    } catch (e) {}
   </script>
 </head>
 

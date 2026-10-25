@@ -80,8 +80,8 @@ export function LineaVisual({
 
       {estado === "terminada" && (
         <div className="absolute inset-0 grid place-items-center">
-          <Square className={cn("text-warning", square ? "size-9" : "size-12")} aria-hidden="true" />
-          <span className="absolute inset-x-0 top-8 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <Square className={cn("text-warning-foreground", square ? "size-9" : "size-12")} aria-hidden="true" />
+          <span className="absolute inset-x-0 top-8 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Terminó Lote
           </span>
         </div>
@@ -90,7 +90,7 @@ export function LineaVisual({
       {estado === "cip" && (
         <div className="absolute inset-0 grid place-items-center">
           <BroomSparkles className={cn("text-foreground/70", square ? "size-10" : "size-11")} aria-hidden="true" />
-          <span className="absolute inset-x-0 top-8 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="absolute inset-x-0 top-8 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
             CIP
           </span>
         </div>
@@ -99,7 +99,7 @@ export function LineaVisual({
       {estado === "cambio_presentacion" && (
         <div className="absolute inset-0 grid place-items-center">
           <RefreshCw className={cn("text-muted-foreground", square ? "size-9" : "size-12")} aria-hidden="true" />
-          <span className="absolute inset-x-0 top-8 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="absolute inset-x-0 top-8 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Cambio Present.
           </span>
         </div>
@@ -107,19 +107,19 @@ export function LineaVisual({
 
       {estado === "libre" && (
         <div className="absolute inset-0 grid place-items-center">
-          <PauseCircle className={cn("text-muted-foreground/50", square ? "size-9" : "size-12")} aria-hidden="true" />
-          <span className="absolute inset-x-0 top-8 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <PauseCircle className={cn("text-muted-foreground", square ? "size-9" : "size-12")} aria-hidden="true" />
+          <span className="absolute inset-x-0 top-8 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Libre
           </span>
         </div>
       )}
 
-      <span className="absolute left-2 top-2 rounded-md border border-border bg-background/80 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-foreground">
+      <span className="absolute left-2 top-2 rounded-md border border-border bg-background/80 px-1.5 py-0.5 text-xs font-bold tracking-wide text-foreground">
         L{numeroLinea}
       </span>
 
       {estado === "parada" && (
-        <span className="absolute right-2 top-2 grid size-5 place-items-center rounded-full border border-warning/40 bg-background/85 text-warning">
+        <span className="absolute right-2 top-2 grid size-5 place-items-center rounded-full border border-warning/40 bg-background/85 text-warning-foreground">
           <PauseCircle className="size-3" aria-hidden="true" />
         </span>
       )}

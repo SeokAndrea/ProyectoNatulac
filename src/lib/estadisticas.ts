@@ -135,7 +135,7 @@ export const badgeVariantPorNivel = { ok: "success", warn: "warning", danger: "d
 
 /** Clase de texto (Tailwind) para un nivel de merma — null cuando no hay dato todavía. */
 export function colorTextoPorNivel(nivel: NivelMerma | null): string {
-  return nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : "text-muted-foreground"
+  return nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning-foreground" : nivel === "ok" ? "text-success-foreground" : "text-muted-foreground"
 }
 
 /**

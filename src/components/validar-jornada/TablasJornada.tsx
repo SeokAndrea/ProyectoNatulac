@@ -32,7 +32,7 @@ function Tabla({ columnas, children, vacio }: { columnas: { texto: string; derec
               <th
                 key={c.texto}
                 className={cn(
-                  "border-b border-border px-2 py-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap",
+                  "border-b border-border px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap",
                   c.derecha ? "text-right" : "text-left",
                 )}
               >
@@ -53,7 +53,7 @@ const tdR = cn(td, "text-right")
 function Merma({ pct, limite }: { pct: number | null; limite: number }) {
   if (pct === null) return <span className="text-muted-foreground">—</span>
   return (
-    <span className={cn("num font-semibold", pct > limite ? "text-danger" : pct > limite * (2 / 3) ? "text-warning" : "text-foreground")}>
+    <span className={cn("num font-semibold", pct > limite ? "text-danger" : pct > limite * (2 / 3) ? "text-warning-foreground" : "text-foreground")}>
       {pct.toFixed(2).replace(".", ",")}%
     </span>
   )
@@ -114,7 +114,7 @@ export function TablaEnvases({ filas, bloqueada, onAccion }: { filas: FilaEnvase
             <td className={tdR}>
               <Merma pct={merma} limite={LIMITE_ENVASES} />
               {merma !== null && merma > LIMITE_ENVASES && (
-                <p className={cn("text-[11px]", f.justificacion ? "text-muted-foreground" : "text-danger")}>{f.justificacion ?? "Sin justificar"}</p>
+                <p className={cn("text-xs", f.justificacion ? "text-muted-foreground" : "text-danger")}>{f.justificacion ?? "Sin justificar"}</p>
               )}
             </td>
             <td className={tdR}>
@@ -166,7 +166,7 @@ export function TablaLotes({ filas, bloqueada, onAccion }: { filas: FilaLote[]; 
           <td className={cn(tdR, "num")}>{fmt(Math.round(f.pt))}</td>
           <td className={tdR}>
             <Merma pct={mermaLote(f)} limite={LIMITE_SEMIELABORADO} />
-            {f.sinContraste && <p className="text-[11px] text-warning">{MOTIVO[f.sinContraste]}</p>}
+            {f.sinContraste && <p className="text-xs text-warning-foreground">{MOTIVO[f.sinContraste]}</p>}
           </td>
           <td className={tdR}>
             <AccionesFila validacion={f.validacion} valorOriginal={Math.round(f.final)} bloqueada={bloqueada} onAccion={(a) => onAccion(f, a)} />
@@ -201,10 +201,10 @@ export function TablaParadas({ filas, bloqueada, onAccion }: { filas: FilaParada
             <td className={cn(td, "whitespace-nowrap")}>{f.cuando}</td>
             <td className={td}>
               <span className={cn(excluida && "line-through")}>{f.tipoNombre}</span>
-              {f.seSolapa && <p className="text-[11px] font-semibold text-warning">Se pisa con una de Mantenimiento</p>}
-              {f.larga && <p className="text-[11px] font-semibold text-warning">Más de 4 horas</p>}
-              {f.pendiente && <p className="text-[11px] font-semibold text-danger">Sin minutos (+1 sin completar)</p>}
-              {f.abierta && <p className="text-[11px] font-semibold text-danger">Todavía abierta</p>}
+              {f.seSolapa && <p className="text-xs font-semibold text-warning-foreground">Se pisa con una de Mantenimiento</p>}
+              {f.larga && <p className="text-xs font-semibold text-warning-foreground">Más de 4 horas</p>}
+              {f.pendiente && <p className="text-xs font-semibold text-danger">Sin minutos (+1 sin completar)</p>}
+              {f.abierta && <p className="text-xs font-semibold text-danger">Todavía abierta</p>}
             </td>
             <td className={td}>{CLASE[f.clase]}</td>
             <td className={td}>{f.deMantenimiento ? "Mantenimiento" : "Supervisor"}</td>

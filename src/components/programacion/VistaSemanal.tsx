@@ -32,7 +32,7 @@ const ESTADO: Record<EstadoItem["tipo"], { clase: string; texto: (e: EstadoItem)
 function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detalle: string }) {
   return (
     <div className="flex flex-col gap-0.5 rounded-xl border bg-card px-4 py-2.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</span>
+      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{titulo}</span>
       <span className="font-mono text-2xl font-semibold tabular-nums">{valor}</span>
       <span className="text-xs text-muted-foreground">{detalle}</span>
     </div>
@@ -119,7 +119,7 @@ export function VistaSemanal({
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] border-collapse text-sm">
             <thead>
-              <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+              <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2.5 font-semibold">Producto</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Plan semana</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Producido</th>
@@ -169,7 +169,7 @@ export function VistaSemanal({
                               key={fecha}
                               style={colorLinea(x.lineaCodigo)}
                               title={`${NOMBRES_DIA[i]} · Línea ${numeroDeLinea(x.lineaCodigo)}: ${fmt(c)} cajas`}
-                              className={cn("flex h-9 flex-col items-center justify-center rounded-md border-t-[3px] border-[var(--lc)] bg-muted text-[11px] leading-tight", esHoy && "outline-1 outline-offset-1 outline-dashed outline-muted-foreground")}
+                              className={cn("flex h-9 flex-col items-center justify-center rounded-md border-t-[3px] border-[var(--lc)] bg-muted text-xs leading-tight", esHoy && "outline-1 outline-offset-1 outline-dashed outline-muted-foreground")}
                             >
                               <b className="font-mono">{fmt(c)}</b>L{numeroDeLinea(x.lineaCodigo)}
                             </div>
@@ -182,7 +182,7 @@ export function VistaSemanal({
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <span className={cn("whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold", ESTADO[e.tipo].clase)}>{ESTADO[e.tipo].texto(e)}</span>
+                      <span className={cn("whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-semibold", ESTADO[e.tipo].clase)}>{ESTADO[e.tipo].texto(e)}</span>
                     </td>
                     {editable && (
                       <td className="px-1 py-2">
@@ -198,7 +198,7 @@ export function VistaSemanal({
           </table>
         </div>
         {editable && <AgregarProducto sabores={sabores} presentaciones={presentaciones} onAgregar={onAgregar} />}
-        <div className="flex flex-wrap gap-x-5 gap-y-1 border-t px-4 py-2.5 text-[12.5px] text-muted-foreground" title="Las cajas planeadas de cada línea, para Indicadores">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 border-t px-4 py-2.5 text-sm text-muted-foreground" title="Las cajas planeadas de cada línea, para Indicadores">
           Plan por línea (para Indicadores):
           {["1", "2", "3"].map((l) => (
             <span key={l} className="inline-flex items-center gap-1.5">

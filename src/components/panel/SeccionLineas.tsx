@@ -41,7 +41,7 @@ export function SeccionLineas({ filas, conLinks }: { filas: FilaLineaCompacta[];
       ) : (
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
-            <div className="linea-fila-grid border-b border-border px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="linea-fila-grid border-b border-border px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <span>Línea</span>
               <span className="text-right">Cajas producidas</span>
               <span className="text-right">Merma</span>
@@ -94,7 +94,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
             <p
               className={cn(
                 "mt-0.5 flex items-center gap-1 text-xs font-semibold",
-                fila.paradaEnVivo.visible ? "text-danger" : "text-warning",
+                fila.paradaEnVivo.visible ? "text-danger" : "text-warning-foreground",
               )}
             >
               <Clock3 className="size-3 shrink-0" />
@@ -120,7 +120,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
       <p className={cn("num text-right font-semibold", colorPor(nivelMermaFila))}>
         {fila.mermaPct !== null ? `${fila.mermaPct.toFixed(2)}%` : "—"}
       </p>
-      <p className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning" : "italic text-muted-foreground/60")}>
+      <p className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning-foreground" : "italic text-muted-foreground")}>
         {fila.minutosParada !== null ? formatDuracion(fila.minutosParada) : "—"}
       </p>
       <p className={cn("num text-right font-semibold", colorPor(nivelEficiencia))}>

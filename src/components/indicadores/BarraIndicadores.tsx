@@ -5,7 +5,7 @@ import type { ModoMes } from "@/lib/indicadores/tipos"
 import { cn } from "@/lib/utils"
 import { SECCIONES, type Seccion } from "@/components/indicadores/secciones"
 
-const chip = "inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-[12.5px] font-semibold tracking-wide"
+const chip = "inline-flex items-center gap-1.5 rounded-sm border bg-card px-3 py-1 pointer-coarse:min-h-11 text-[0.8125rem] font-semibold tracking-wide"
 const activo = "border-primary bg-primary text-primary-foreground"
 
 /** Filtros: línea o semielaborado y el mes. La analista ve además el modo del mes (AUTOMÁTICO / MANUAL) y el botón para cargar datos. */
@@ -73,7 +73,7 @@ export function BarraIndicadores({
               aria-pressed={modo === m}
               disabled={cambiandoModo}
               onClick={() => modo !== m && onModo(m)}
-              className={cn("rounded-full px-3 py-1 text-[11.5px] font-semibold tracking-wide text-foreground disabled:cursor-default", modo === m && activo)}
+              className={cn("rounded-sm px-3 py-1 text-xs font-semibold tracking-wide text-foreground disabled:cursor-default pointer-coarse:min-h-10", modo === m && activo)}
             >
               {m === "AUTO" ? "AUTOMÁTICO" : "MANUAL"}
             </button>

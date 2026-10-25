@@ -42,11 +42,11 @@ export function ResumenPlanta({ areaCodigo }: { areaCodigo: AreaCodigo | null })
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-3">
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Desde</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Desde</span>
           <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="w-40" />
         </div>
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Hasta</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Hasta</span>
           <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="w-40" />
         </div>
         <Button variant="outline" size="sm" onClick={buscar} disabled={cargando}>
@@ -85,7 +85,7 @@ export function ResumenPlanta({ areaCodigo }: { areaCodigo: AreaCodigo | null })
 function EstadisticaTile({ icon: Icon, label, valor }: { icon: LucideIcon; label: string; valor: string }) {
   return (
     <div className="rounded-xl border border-border bg-background/60 p-3.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <Icon className="size-3.5 text-primary" />
         {label}
       </div>
@@ -96,7 +96,7 @@ function EstadisticaTile({ icon: Icon, label, valor }: { icon: LucideIcon; label
 
 function EstadisticaMerma({ titulo, pct }: { titulo: string; pct: number | null }) {
   const nivel = pct === null ? null : nivelMerma(pct)
-  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : "text-success"
+  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning-foreground" : "text-success-foreground"
   return (
     <div
       className={cn(
@@ -104,13 +104,13 @@ function EstadisticaMerma({ titulo, pct }: { titulo: string; pct: number | null 
         nivel === "danger" ? "border-danger/35 bg-danger-soft" : nivel === "warn" ? "border-warning/35 bg-warning-soft" : "border-border bg-background/60",
       )}
     >
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <Gauge className="size-3.5 text-primary" />
         {titulo}
       </div>
       <p className={cn("num mt-2 text-3xl font-bold leading-none", nivel !== null && color)}>{pct !== null ? `${pct}%` : "—"}</p>
       {nivel === "danger" && (
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-danger">
+        <p className="mt-1 flex items-center gap-1 text-xs text-danger">
           <AlertTriangle className="size-3" /> Fuera de tolerancia
         </p>
       )}

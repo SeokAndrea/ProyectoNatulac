@@ -51,7 +51,7 @@ export function VistaLinea({
           <h2 className="flex items-baseline gap-2 text-base font-bold tracking-wider text-[var(--c-texto)]">
             EFICIENCIA <span className="text-xs font-medium tracking-normal text-foreground">Línea {linea}</span>
           </h2>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-foreground">
             <span className="inline-flex items-center gap-1.5">
               <i className="inline-block size-2.5 rounded-sm bg-[var(--c)]" />
               {capital(nombreMes(elegido.mes))}

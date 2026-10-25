@@ -82,11 +82,11 @@ export function Kpi({
     // NÚMERO ‖ datos, aprovechando el ancho (dueña, 2026-10-15). Si la tarjeta es angosta, se apila centrado.
     return (
       <div className="@container flex min-w-0 flex-col justify-center gap-1 rounded-lg bg-card px-3 py-2">
-        {titulo && <div className="text-center text-[13px] font-bold tracking-wide text-[var(--c-texto)]">{titulo}</div>}
+        {titulo && <div className="text-center text-[0.8125rem] font-bold tracking-wide text-[var(--c-texto)]">{titulo}</div>}
         <div className="flex flex-col items-center gap-1 text-center @[19rem]:flex-row @[19rem]:justify-center @[19rem]:gap-4 @[19rem]:text-left">
           <div className="flex shrink-0 flex-col items-center gap-0.5">
             {estado && (
-              <span className={cn("rounded-full px-2 text-[12px] font-semibold", estado.ok ? "bg-success-soft text-success-foreground" : "bg-danger-soft text-danger")}>
+              <span className={cn("rounded-sm px-2 text-xs font-semibold", estado.ok ? "bg-success-soft text-success-foreground" : "bg-danger-soft text-danger-foreground")}>
                 {estado.texto}
               </span>
             )}
@@ -95,7 +95,7 @@ export function Kpi({
             </span>
           </div>
           {datos.length > 0 && (
-            <div className="flex min-w-0 flex-col gap-0.5 text-[clamp(12px,4.2cqi,14.5px)] leading-snug text-foreground @[19rem]:border-l-2 @[19rem]:border-[var(--c)] @[19rem]:pl-4">
+            <div className="flex min-w-0 flex-col gap-0.5 text-[clamp(0.75rem,4.2cqi,0.9062rem)] leading-snug text-foreground @[19rem]:border-l-2 @[19rem]:border-[var(--c)] @[19rem]:pl-4">
               {datos.map((d, i) => (
                 <span key={i}>{d}</span>
               ))}
@@ -109,10 +109,10 @@ export function Kpi({
   return (
     <div className={cn("flex min-w-0 flex-col gap-0.5 rounded-lg bg-card px-2.5 py-1.5", centrado && "items-center text-center")}>
       {(titulo || estado) && (
-        <div className={cn("flex items-center gap-1.5 text-[11.5px] font-bold tracking-wide text-[var(--c-texto)]", centrado ? "justify-center" : "justify-between")}>
+        <div className={cn("flex items-center gap-1.5 text-xs font-bold tracking-wide text-[var(--c-texto)]", centrado ? "justify-center" : "justify-between")}>
           {titulo}
           {estado && (
-            <span className={cn("rounded-full px-1.5 text-[10px] font-semibold", estado.ok ? "bg-success-soft text-success-foreground" : "bg-danger-soft text-danger")}>
+            <span className={cn("rounded-sm px-1.5 text-xs font-semibold", estado.ok ? "bg-success-soft text-success-foreground" : "bg-danger-soft text-danger-foreground")}>
               {estado.texto}
             </span>
           )}
@@ -120,7 +120,7 @@ export function Kpi({
       )}
       <span className={cn("font-mono font-semibold tabular-nums leading-tight", claseValor ?? (grande ? "text-3xl" : "text-xl"))}>{texto(actual.valor)}</span>
       {/* Sin dato (del mes o del anterior) no se dice nada: la línea queda vacía (dueña, 2026-10-15). */}
-      <span className="min-h-[1lh] truncate text-[11px] text-foreground">
+      <span className="min-h-[1lh] truncate text-xs text-foreground">
         {detalle}
         {detalle && dif != null && " · "}
         {dif == null ? null : Math.abs(dif) < 10 ** -decimales / 2 ? (
@@ -137,10 +137,10 @@ export function Kpi({
       </span>
       {verExtremos && ext && (
         <>
-          <span className="truncate text-[10.5px] text-foreground">
+          <span className="truncate text-xs text-foreground">
             ▲ Más alto <b className="text-foreground">{`${mesCorto(ext.alto.mes)} ${texto(ext.alto.valor)}`}</b>
           </span>
-          <span className="truncate text-[10.5px] text-foreground">
+          <span className="truncate text-xs text-foreground">
             ▼ Más bajo <b className="text-foreground">{`${mesCorto(ext.bajo.mes)} ${texto(ext.bajo.valor)}`}</b>
           </span>
         </>

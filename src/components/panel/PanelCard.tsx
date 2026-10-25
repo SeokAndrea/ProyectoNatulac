@@ -22,14 +22,14 @@ export function PanelCard({
     <Card className={cn("shadow-panel gap-0 overflow-hidden border-border py-0", className)}>
       <div className="flex items-start justify-between gap-2 border-b border-border/70 bg-surface px-4 py-3">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             <Icon className="size-4 text-primary" />
             {titulo}
           </p>
-          {descripcion && <p className="mt-1 truncate text-xs text-muted-foreground/80">{descripcion}</p>}
+          {descripcion && <p className="mt-1 truncate text-xs text-muted-foreground">{descripcion}</p>}
         </div>
         {meta && (
-          <span className="num shrink-0 rounded-full border border-border bg-background/70 px-2 py-0.5 text-[11px] font-semibold text-foreground">
+          <span className="num shrink-0 rounded-sm border border-border bg-background/70 px-2 py-0.5 text-xs font-semibold text-foreground">
             {meta}
           </span>
         )}
@@ -43,7 +43,7 @@ export function PanelCard({
 export function TituloSeccion({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{children}</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{children}</h2>
       <span className="h-px flex-1 bg-border" />
     </div>
   )

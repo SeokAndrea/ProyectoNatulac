@@ -47,16 +47,16 @@ export function MetaPorLinea({
                 style={{ width: `${barra}%` }}
               />
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               Producción {horas(m.produccionMin)} h · No prog. {horas(m.noProgramadaMin)} h · Eficiencia {m.eficienciaPct !== null ? m.eficienciaPct + "%" : "—"}
             </p>
             {m.sinReportarMin !== null && m.sinReportarMin > 0 && (
-              <p className={cn("mt-1 text-[11px]", m.sinReportarMin > TOLERANCIA_SIN_REPORTAR_MIN ? "text-warning" : "text-muted-foreground")}>
+              <p className={cn("mt-1 text-xs", m.sinReportarMin > TOLERANCIA_SIN_REPORTAR_MIN ? "text-warning-foreground" : "text-muted-foreground")}>
                 Sin reportar {dur(m.sinReportarMin)}
               </p>
             )}
             {m.paradasExcedenTiempo && (
-              <p className="mt-1 text-[11px] text-warning">Las paradas cargadas suman más que el tiempo del turno: revísalas.</p>
+              <p className="mt-1 text-xs text-warning-foreground">Las paradas cargadas suman más que el tiempo del turno: revísalas.</p>
             )}
           </div>
         )

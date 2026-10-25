@@ -13,21 +13,21 @@ const PASOS: { campo: keyof Pick<Incidencia, "quePaso" | "comoPaso" | "accionCor
 ]
 
 // Letra que crece con la pantalla: se lee proyectada, como una diapositiva (dueña, 2026-10-14).
-const TEXTO = "text-[clamp(17px,1.5vw,28px)] leading-snug"
-const TEXTO_LISTA = "text-[clamp(19px,1.8vw,32px)] leading-snug"
+const TEXTO = "text-[clamp(1.0625rem,1.5vw,1.75rem)] leading-snug"
+const TEXTO_LISTA = "text-[clamp(1.1875rem,1.8vw,2rem)] leading-snug"
 
 function Encabezado({ inc }: { inc: Incidencia }) {
   return (
     <header className="flex flex-col gap-2">
       <span
         className={cn(
-          "self-start rounded-full px-3 py-1 text-[clamp(13px,1vw,18px)] font-bold tracking-wider",
+          "self-start rounded-sm px-3 py-1 text-[clamp(0.8125rem,1vw,1.125rem)] font-bold tracking-wider",
           inc.tipo === "INCIDENCIA" ? "bg-danger-soft text-danger-foreground" : "bg-info/10 text-info",
         )}
       >
         {inc.tipo}
       </span>
-      <h3 className="text-[clamp(24px,2.3vw,40px)] font-bold leading-tight [text-wrap:balance]">{inc.evento.trim() || "—"}</h3>
+      <h3 className="text-[clamp(1.5rem,2.3vw,2.5rem)] font-bold leading-tight [text-wrap:balance]">{inc.evento.trim() || "—"}</h3>
     </header>
   )
 }
@@ -42,7 +42,7 @@ function Camino({ inc }: { inc: Incidencia }) {
         <Fragment key={p.campo}>
           {i > 0 && <ArrowRight aria-hidden className="size-7 shrink-0 self-center max-lg:rotate-90" strokeWidth={2.6} />}
           <div className={cn("flex flex-1 flex-col gap-2 rounded-xl p-4", p.fondo)}>
-            <span className={cn("flex items-center gap-2 text-[clamp(13px,1vw,18px)] font-bold tracking-wider", p.tinta)}>
+            <span className={cn("flex items-center gap-2 text-[clamp(0.8125rem,1vw,1.125rem)] font-bold tracking-wider", p.tinta)}>
               <p.icono className="size-[1.6em] shrink-0" strokeWidth={2.4} />
               {p.titulo}
             </span>
@@ -98,7 +98,7 @@ export function VistaIncidencias({
   return (
     <section aria-label="Incidencias y seguimiento" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-        <h2 className="text-[clamp(26px,2.4vw,44px)] font-bold uppercase tracking-wide">{titulo?.trim() || TITULO_INCIDENCIAS}</h2>
+        <h2 className="text-[clamp(1.625rem,2.4vw,2.75rem)] font-bold uppercase tracking-wide">{titulo?.trim() || TITULO_INCIDENCIAS}</h2>
         <span className="ml-auto flex items-center gap-3">
           {diasSinIncidentes != null && <DiasSinIncidentes dias={diasSinIncidentes} />}
           {editar}

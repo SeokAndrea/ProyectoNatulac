@@ -67,7 +67,7 @@ export function TopFallasPanel({
                         <span className="min-w-0 truncate">
                           <b className="num mr-1.5 text-primary">0{i + 1}</b>
                           {g.nombre}
-                          <span className="ml-1 text-muted-foreground/70">({g.veces})</span>
+                          <span className="ml-1 text-muted-foreground">({g.veces})</span>
                         </span>
                         <span className="num shrink-0 text-foreground">{fmtDuracion(g.minutos)}</span>
                       </li>

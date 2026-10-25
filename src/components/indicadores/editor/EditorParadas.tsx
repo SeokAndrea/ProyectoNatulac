@@ -10,7 +10,7 @@ export const LISTA_CAUSAS = "indicadores-causas"
 export function EditorParadas({ paradas, onCambio, titulo = "Paradas" }: { paradas: ParadaMes[]; onCambio: (p: ParadaMes[]) => void; titulo?: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{titulo}</span>
+      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{titulo}</span>
       {paradas.map((p, i) => (
         <div key={i} className="grid grid-cols-[22px_minmax(0,1fr)_28px] items-center gap-1">
           <span className="text-sm font-semibold text-muted-foreground">{i + 1}.</span>

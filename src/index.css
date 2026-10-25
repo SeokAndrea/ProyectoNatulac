@@ -62,6 +62,8 @@
     --color-danger-foreground: var(--danger-foreground);
     --color-danger-soft: var(--danger-soft);
     --color-info: var(--info);
+    --color-info-foreground: var(--info-foreground);
+    --color-info-soft: var(--info-soft);
     --color-vacio: var(--vacio);
     --color-vacio-soft: var(--vacio-soft);
     --color-flavor-orange: var(--flavor-orange);
@@ -94,8 +96,8 @@
  * "background" para dar profundidad sutil).
  */
 :root {
-    --radius: 0.5rem;
-    --background: oklch(0.972 0.003 247.858);
+    --radius: 0.25rem;
+    --background: oklch(0.958 0.005 247.858);
     --surface: oklch(0.988 0.002 247.858);
     --success: oklch(0.63 0.16 156);
     --success-foreground: oklch(0.38 0.11 156);
@@ -107,6 +109,8 @@
     --danger-foreground: oklch(0.42 0.17 24);
     --danger-soft: oklch(0.94 0.05 22);
     --info: oklch(0.55 0.16 245);
+    --info-foreground: oklch(0.46 0.15 245);
+    --info-soft: oklch(0.94 0.04 245);
     /* Vacío (latas): tanques de Aséptico con producto de Vacío y el Modo Vacío de Preparación. */
     --vacio: oklch(0.45 0.13 268);
     --vacio-soft: oklch(0.94 0.03 268);
@@ -126,12 +130,12 @@
     --secondary: oklch(0.968 0.007 247.896);
     --secondary-foreground: oklch(0.208 0.042 265.755);
     --muted: oklch(0.968 0.007 247.896);
-    --muted-foreground: oklch(0.42 0.035 257.417);
+    --muted-foreground: oklch(0.34 0.035 257.4);
     --accent: oklch(0.968 0.007 247.896);
     --accent-foreground: oklch(0.208 0.042 265.755);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.929 0.013 255.508);
-    --input: oklch(0.929 0.013 255.508);
+    --destructive: oklch(0.54 0.23 27.3);
+    --border: oklch(0.88 0.016 255.5);
+    --input: oklch(0.86 0.018 255.5);
     --ring: oklch(0.704 0.04 256.788);
     --chart-1: oklch(0.646 0.222 41.116);
     --chart-2: oklch(0.6 0.118 184.704);
@@ -150,18 +154,20 @@
 
 /* PALETA DE MARCA — modo oscuro. Misma fuente que :root. */
 .dark {
-    --background: oklch(0.196 0.02 258);
-    --surface: oklch(0.245 0.022 258);
+    --background: oklch(0.14 0.018 258);
+    --surface: oklch(0.2 0.02 258);
     --success: oklch(0.7 0.15 156);
     --success-foreground: oklch(0.9 0.09 156);
     --success-soft: oklch(0.32 0.06 156);
     --warning: oklch(0.8 0.15 80);
     --warning-foreground: oklch(0.92 0.1 84);
     --warning-soft: oklch(0.34 0.07 80);
-    --danger: oklch(0.64 0.2 24);
+    --danger: oklch(0.68 0.19 24);
     --danger-foreground: oklch(0.9 0.08 24);
     --danger-soft: oklch(0.34 0.09 24);
     --info: oklch(0.72 0.14 245);
+    --info-foreground: oklch(0.86 0.08 245);
+    --info-soft: oklch(0.32 0.07 245);
     --vacio: oklch(0.74 0.11 268);
     --vacio-soft: oklch(0.27 0.05 268);
     --flavor-orange: oklch(0.75 0.18 55);
@@ -171,34 +177,34 @@
     --flavor-lime: oklch(0.82 0.17 125);
     --flavor-amber: oklch(0.79 0.17 70);
     --foreground: oklch(0.98 0.003 247.858);
-    --card: oklch(0.245 0.022 258);
+    --card: oklch(0.235 0.022 258);
     --card-foreground: oklch(0.984 0.003 247.858);
-    --popover: oklch(0.208 0.042 265.755);
+    --popover: oklch(0.235 0.022 258);
     --popover-foreground: oklch(0.984 0.003 247.858);
     --primary: oklch(0.929 0.013 255.508);
     --primary-foreground: oklch(0.208 0.042 265.755);
-    --secondary: oklch(0.279 0.041 260.031);
+    --secondary: oklch(0.32 0.035 260);
     --secondary-foreground: oklch(0.984 0.003 247.858);
-    --muted: oklch(0.279 0.041 260.031);
-    --muted-foreground: oklch(0.704 0.04 256.788);
-    --accent: oklch(0.279 0.041 260.031);
+    --muted: oklch(0.32 0.035 260);
+    --muted-foreground: oklch(0.81 0.03 257);
+    --accent: oklch(0.32 0.035 260);
     --accent-foreground: oklch(0.984 0.003 247.858);
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
+    --border: oklch(1 0 0 / 20%);
+    --input: oklch(1 0 0 / 26%);
     --ring: oklch(0.551 0.027 264.364);
     --chart-1: oklch(0.488 0.243 264.376);
     --chart-2: oklch(0.696 0.17 162.48);
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.208 0.042 265.755);
+    --sidebar: oklch(0.18 0.024 262);
     --sidebar-foreground: oklch(0.984 0.003 247.858);
     --sidebar-primary: oklch(0.488 0.243 264.376);
     --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-    --sidebar-accent: oklch(0.279 0.041 260.031);
+    --sidebar-accent: oklch(0.32 0.035 260);
     --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-border: oklch(1 0 0 / 16%);
     --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
@@ -214,6 +220,20 @@
     }
   html {
     @apply font-sans;
+    }
+  /* Casillas y opciones nativas: con el dedo, de 13 a 24 px (las de la app ya amplían su área de toque). */
+  @media (pointer: coarse) {
+    input:is([type="checkbox"], [type="radio"]):not(.sr-only) {
+      width: 1.5rem;
+      height: 1.5rem;
+      }
+    }
+  /* Títulos repartidos parejo; párrafos sin una palabra sola en la última línea. */
+  h1, h2, h3 {
+    text-wrap: balance;
+    }
+  p {
+    text-wrap: pretty;
     }
 }
 
@@ -353,9 +373,9 @@
 /* Fila compacta de "Líneas activas" en el Panel de Producción: línea + 4 métricas alineadas a la derecha. */
 @utility linea-fila-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 2.6fr) repeat(5, minmax(80px, 1fr));
+  grid-template-columns: minmax(15rem, 2.6fr) repeat(5, minmax(4.5rem, 1fr));
   align-items: center;
-  column-gap: 1rem;
+  column-gap: 0.75rem;
 }
 
 /* Halo pulsante para el punto de línea activa. */
@@ -516,7 +536,7 @@
  */
 :root {
   --ind-mezcla: #0a1a3a;
-  --ind-l1: #2a78d6; --ind-l1-texto: #2a78d6; --ind-l1-cab: #ffffff;
+  --ind-l1: #2a78d6; --ind-l1-texto: #1d62b4; --ind-l1-cab: #ffffff;
   /* Línea 2 en «naranja Claude» (dueña, 2026-10-15: ni chillón ni marrón). Antes morado #7553d1. */
   --ind-l2: #d97757; --ind-l2-texto: #c15f3c; --ind-l2-cab: #ffffff; --ind-l2-mezcla: #a3360f;
   --ind-l3: #1baf7a; --ind-l3-texto: #11865c; --ind-l3-cab: #ffffff;
@@ -531,7 +551,7 @@
 }
 .dark {
   --ind-mezcla: #ffffff;
-  --ind-l1: #3987e5; --ind-l1-texto: #3987e5; --ind-l1-cab: #0b1220;
+  --ind-l1: #3987e5; --ind-l1-texto: #74abef; --ind-l1-cab: #0b1220;
   --ind-l2: #e08a6c; --ind-l2-texto: #eb9a7c; --ind-l2-cab: #0b1220; --ind-l2-mezcla: #ffffff;
   --ind-l3: #199e70; --ind-l3-texto: #2cc28c; --ind-l3-cab: #0b1220;
   --ind-clasicos: #7d8ce0; --ind-clasicos-texto: #9aa6ec; --ind-clasicos-cab: #0b1220;

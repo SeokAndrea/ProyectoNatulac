@@ -42,7 +42,7 @@ export function FormParadaLinea({
         className="text-sm"
       />
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-muted-foreground">{motivo.length}/140</span>
+        <span className="text-xs text-muted-foreground">{motivo.length}/140</span>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="ghost" onClick={onCerrar} disabled={enviando}>
             Cancelar

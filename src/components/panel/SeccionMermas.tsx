@@ -70,7 +70,7 @@ function MermaComparativaCard({
       )}
     >
       <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-surface px-4 py-3">
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           <ScanLine className="size-4 text-primary" />
           {titulo}
         </p>
@@ -83,7 +83,7 @@ function MermaComparativaCard({
       </div>
 
       {nivelActual === "danger" && !invertido && (
-        <p className="flex items-center gap-1 border-t border-border/70 px-3 py-2 text-[11px] font-medium text-danger">
+        <p className="flex items-center gap-1 border-t border-border/70 px-3 py-2 text-xs font-medium text-danger">
           <AlertTriangle className="size-3" />
           El turno actual está fuera de tolerancia.
         </p>
@@ -106,11 +106,11 @@ function MermaBloque({
   invertido?: boolean
 }) {
   const nivel = pct === null ? null : nivelMerma(pct, dangerDesde, warnDesde)
-  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : nivel === "ok" ? "text-success" : undefined
+  const color = nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning-foreground" : nivel === "ok" ? "text-success-foreground" : undefined
   const valorMostrado = pct === null ? null : invertido ? Math.round((100 - pct) * 100) / 100 : pct
   return (
     <div className="min-w-0 px-3 py-5 text-center">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
       <p className={cn("num mt-2 truncate text-3xl font-bold leading-none", color)}>{valorMostrado !== null ? `${valorMostrado}%` : "—"}</p>
     </div>
   )

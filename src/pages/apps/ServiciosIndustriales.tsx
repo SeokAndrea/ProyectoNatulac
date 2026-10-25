@@ -86,7 +86,7 @@ export default function ServiciosIndustriales() {
             ) : (
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
-                  <Thermometer className="size-4 shrink-0 text-warning" />
+                  <Thermometer className="size-4 shrink-0 text-warning-foreground" />
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Quantum</p>
                     <p className="num font-semibold text-foreground">
@@ -176,7 +176,7 @@ export default function ServiciosIndustriales() {
                 {error}
               </p>
             )}
-            {guardado && !error && <p className="text-sm text-success">Lectura guardada.</p>}
+            {guardado && !error && <p className="text-sm text-success-foreground">Lectura guardada.</p>}
 
             <Button disabled={!valido || enviando} onClick={guardar}>
               {enviando ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -209,7 +209,7 @@ function BarraGasoilDisponible({ litros }: { litros: number }) {
         <span
           className={cn(
             "num text-sm font-semibold",
-            nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning" : "text-success",
+            nivel === "danger" ? "text-danger" : nivel === "warn" ? "text-warning-foreground" : "text-success-foreground",
           )}
         >
           {horas.toLocaleString("es-CO", { maximumFractionDigits: 1 })} h
@@ -224,7 +224,7 @@ function BarraGasoilDisponible({ litros }: { litros: number }) {
           style={{ width: `${barra}%` }}
         />
       </div>
-      <p className="mt-1.5 text-[11px] text-muted-foreground">{GASOIL_CONSUMO_L_POR_HORA} L/h</p>
+      <p className="mt-1.5 text-xs text-muted-foreground">{GASOIL_CONSUMO_L_POR_HORA} L/h</p>
     </div>
   )
 }
