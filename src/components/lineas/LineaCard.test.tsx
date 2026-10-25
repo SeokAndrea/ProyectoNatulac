@@ -31,6 +31,8 @@ vi.mock("@/components/BuscadorTipoParada", () => ({
   ),
 }))
 vi.mock("@/lib/paradasEquipos", () => ({ useEquiposParadas: () => [] }))
+// «Sin programación» lee el turno de la sesión (LNP automático); acá no hay sesión.
+vi.mock("@/lib/sesionTurno", () => ({ useSesionTurno: () => ({ horaInicio: null, turnoTipo: null, usuario: null }) }))
 const ultimaConfiguracion = vi.fn()
 vi.mock("@/lib/lineas", () => ({
   obtenerUltimaConfiguracionLinea: (...args: unknown[]) => ultimaConfiguracion(...args),
