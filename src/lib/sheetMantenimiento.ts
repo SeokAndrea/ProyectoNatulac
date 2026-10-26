@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { TipoParada } from "@/lib/paradas"
 import { catalogoParadas } from "@/lib/paradasCatalogo"
-import { fechaPlanta, horaPlanta } from "@/lib/tiempoPlanta"
+import { fechaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
 
 /*
  * Paradas de Mantenimiento desde su Google Sheet (docs/plan-sheet-vacio-produccion.md,
@@ -273,14 +273,31 @@ export async function fechaDesdeSheet(): Promise<string> {
   return typeof data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : DESDE_POR_DEFECTO
 }
 
+/** Días hacia atrás que se vuelven a mandar en cada actualización. */
+export const DIAS_SHEET = 7
+
+/**
+ * Qué filas del Sheet se mandan (dueña, 2026-10-26): mandar todo desde el
+ * 08/10 en cada actualización ya era una petición enorme y fallaba ("Failed
+ * to fetch", jguerrero 26/10 10:14). La base solo crea o actualiza, nunca
+ * borra lo que no llega, así que alcanza con lo reciente: lo que empezó en
+ * los últimos DIAS_SHEET días, lo que sigue abierto y lo que terminó en esos
+ * días (una parada vieja que recién cerraron). Nunca lo anterior a `desde`.
+ */
+export function filasParaMandar(filas: FilaSheet[], desde: string, hoy: string, dias = DIAS_SHEET): FilaSheet[] {
+  const limite = restarDias(hoy, dias)
+  return filas.filter(
+    (f) => f.inicio.slice(0, 10) >= desde && (f.inicio.slice(0, 10) >= limite || f.fin === null || f.fin.slice(0, 10) >= limite),
+  )
+}
+
 export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<ResumenSync>> {
   const lectura = await leerCsvSheet()
   if (!lectura.ok) return lectura
   const csv = lectura.datos
   const desde = await fechaDesdeSheet()
   const leidas = filasDelSheet(csv, (await catalogoParadas()).filter((t) => t.activo), `${fechaPlanta()}T${horaPlanta()}`)
-  // Lo anterior a la fecha de inicio no se manda (el servidor también lo ignora).
-  const filas = leidas.filas.filter((f) => f.inicio.slice(0, 10) >= desde)
+  const filas = filasParaMandar(leidas.filas, desde, fechaPlanta())
   const corregidas = leidas.corregidas
   const { data, error } = await supabase.rpc("sincronizar_paradas_mantenimiento", { p_usuario: usuario, p_filas: filas })
   if (error) return { ok: false, error: error.message || "No se pudieron guardar las paradas." }

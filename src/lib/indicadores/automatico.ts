@@ -10,8 +10,10 @@ import { finDeMes, numeroLinea } from "@/lib/indicadores/calculos"
 import { claveP, mesVacio, presentacionVacia, type DatosMes, type DatosPresentacion } from "@/lib/indicadores/tipos"
 
 /*
- * Modo AUTOMÁTICO: el mes calculado SOLO con las jornadas VALIDADAS y con lo
- * que corrigió la Analista en Validar jornada (dueña, 2026-10-14). Usa las
+ * Modo AUTOMÁTICO: el mes calculado SOLO con los días que tienen todas sus
+ * cajas confirmadas en el Resumen Diario, o validados en Validar jornada
+ * (dueña, 2026-10-26, migración 20261112190000), y con lo que corrigió la
+ * Analista (dueña, 2026-10-14). Usa las
  * mismas cuentas que el resto de la app, no fórmulas nuevas; todo se arma
  * día por día (como en Validar jornada) y después se suma:
  *

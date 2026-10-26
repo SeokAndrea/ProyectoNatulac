@@ -110,11 +110,75 @@ export const SECCIONES_CATALOGO: Seccion[] = [
       },
     ],
   },
+  {
+    // Calculadora de Fórmula (migración 20261112390000).
+    id: "formulas",
+    titulo: "Fórmulas",
+    singular: "fórmula",
+    agruparPor: "familia",
+    campos: [
+      { clave: "nombre", etiqueta: "Sabor", tipo: "texto", ancho: "minmax(0, 2fr)" },
+      {
+        clave: "familia",
+        etiqueta: "Familia",
+        tipo: "opciones",
+        opciones: [
+          { valor: "CLASICOS", etiqueta: "Clásicos", orden: 0 },
+          { valor: "PREMIUM", etiqueta: "Premium", orden: 1 },
+          { valor: "TE", etiqueta: "Té", orden: 2 },
+        ],
+      },
+      {
+        clave: "unidad_base",
+        etiqueta: "Por",
+        tipo: "opciones",
+        opciones: [
+          { valor: "tambor", etiqueta: "Tambor" },
+          { valor: "kit", etiqueta: "Kit" },
+        ],
+      },
+    ],
+  },
+  {
+    // Lo que lleva cada fórmula por tambor o kit: azúcar, micros, agua…
+    id: "insumos",
+    titulo: "Insumos de fórmula",
+    singular: "insumo",
+    agruparPor: "variante_id",
+    campos: [
+      { clave: "insumo", etiqueta: "Insumo", tipo: "texto", ancho: "minmax(0, 2fr)" },
+      { clave: "variante_id", etiqueta: "Fórmula", tipo: "opciones", opcionesDe: "formulas" },
+      { clave: "cantidad", etiqueta: "Cantidad", tipo: "numero" },
+      {
+        clave: "unidad",
+        etiqueta: "Unidad",
+        tipo: "opciones",
+        opciones: [
+          { valor: "kg", etiqueta: "kg" },
+          { valor: "L", etiqueta: "L" },
+        ],
+      },
+    ],
+  },
+  {
+    // Inventario diario (migraciones 20261112290000 y 20261112390000).
+    id: "empaque",
+    titulo: "Material de empaque",
+    singular: "material",
+    campos: [
+      { clave: "nombre", etiqueta: "Material", tipo: "texto", ancho: "minmax(0, 2fr)" },
+      { clave: "unidad", etiqueta: "Se cuenta en", tipo: "texto" },
+      { clave: "orden", etiqueta: "Orden en la lista", tipo: "numero" },
+    ],
+    ordenar: (a, b) => Number(a.orden) - Number(b.orden),
+  },
 ]
 
-/** Grupos del menú de la izquierda. Fórmulas e Insumos llegan en la fase 2 del rework. */
+/** Grupos del menú de la izquierda. */
 export const GRUPOS_MENU: { titulo: string; secciones: string[] }[] = [
   { titulo: "Planta", secciones: ["sabores", "presentaciones", "velocidades", "lineas"] },
+  { titulo: "Materia prima", secciones: ["formulas", "insumos"] },
+  { titulo: "Inventario", secciones: ["empaque"] },
   { titulo: "Calculadoras", secciones: ["bobinas", "conteo"] },
 ]
 

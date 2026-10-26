@@ -13,8 +13,8 @@ export interface Opcion {
   orden?: number
 }
 
-/** Listas que vienen de otros catálogos: familias de sabor, líneas, presentaciones. */
-export type OpcionesExternas = Partial<Record<"familias" | "lineas" | "presentaciones", Opcion[]>>
+/** Listas que vienen de otros catálogos: familias de sabor, líneas, presentaciones, fórmulas. */
+export type OpcionesExternas = Partial<Record<"familias" | "lineas" | "presentaciones" | "formulas", Opcion[]>>
 
 export interface Campo {
   /** Columna en la base. */

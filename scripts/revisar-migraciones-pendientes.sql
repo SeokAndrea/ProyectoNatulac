@@ -88,6 +88,14 @@ from (
   ('20261111990000', 'Panel en vivo: el turno más reciente es el último creado',
     exists (select 1 from fn where proname = 'estado_planta_actual' and prosrc like '%order by (t.estado = ''ABIERTO'') desc, t.created_at desc%')),
   ('20261112090000', 'Día extraordinario',
-    to_regclass('public.dias_extraordinarios') is not null and exists (select 1 from fn where proname = 'guardar_dia_extraordinario'))
+    to_regclass('public.dias_extraordinarios') is not null and exists (select 1 from fn where proname = 'guardar_dia_extraordinario')),
+  ('20261112190000', 'Indicadores: el día cuenta con las cajas confirmadas',
+    exists (select 1 from fn where proname = 'indicadores_turnos' and prosrc like '%cajas confirmadas en el Resumen Diario%')),
+  ('20261112290000', 'Inventario diario',
+    to_regclass('public.inventario_conteos') is not null and exists (select 1 from fn where proname = 'registrar_inventario')),
+  ('20261112390000', 'Edición de Datos: fórmulas, insumos y empaque',
+    exists (select 1 from fn where proname = 'tabla_de_catalogo' and prosrc like '%inventario_empaque%')),
+  ('20261112490000', 'Correo de Mantenimiento en Ajustes de planta',
+    exists (select 1 from fn where proname = 'estado_correos'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

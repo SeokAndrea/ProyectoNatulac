@@ -19,6 +19,7 @@ import { listarFamilias, type Familia } from "@/lib/sabores"
  * la URL (?s=velocidades). Personal tiene su propia pantalla.
  */
 const AJUSTES = "ajustes"
+const NOMBRE_FAMILIA: Record<string, string> = { CLASICOS: "Clásicos", PREMIUM: "Premium", TE: "Té" }
 
 export default function EdicionDatos() {
   const { session } = useAuth()
@@ -65,8 +66,10 @@ export default function EdicionDatos() {
       presentaciones: [...(filas.presentaciones ?? [])]
         .sort((a, b) => Number(b.volumen_ml) - Number(a.volumen_ml))
         .map((p) => ({ valor: p.id, etiqueta: `${p.volumen_ml} ml`, orden: Number(p.volumen_ml) })),
+      // Ya vienen por familia y sabor (listar_catalogo_edicion).
+      formulas: (filas.formulas ?? []).map((f, i) => ({ valor: f.id, etiqueta: `${NOMBRE_FAMILIA[String(f.familia)] ?? f.familia} · ${f.nombre}`, orden: i })),
     }),
-    [familias, filasVisibles.lineas, filas.presentaciones],
+    [familias, filasVisibles.lineas, filas.presentaciones, filas.formulas],
   )
 
   const grupos: { titulo: string; items: ItemMenuSeccion[] }[] = GRUPOS_MENU.map((g) => ({

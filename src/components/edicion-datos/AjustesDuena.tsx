@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { guardarCalidadLibera, useCalidadLibera } from "@/lib/calidad"
+import { CorreoMantenimiento } from "./CorreoMantenimiento"
 import { EnlaceSheetMantenimiento } from "./EnlaceSheetMantenimiento"
 
 /** Sección "Ajustes de planta" de Edición de Datos: solo la dueña. */
@@ -14,6 +15,7 @@ export function AjustesDuena({ usuario }: { usuario: string }) {
       </div>
       <InterruptorCalidad usuario={usuario} />
       <EnlaceSheetMantenimiento usuario={usuario} />
+      <CorreoMantenimiento usuario={usuario} />
     </div>
   )
 }

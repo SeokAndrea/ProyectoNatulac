@@ -32,7 +32,8 @@ import { useAccion } from "@/lib/useAccion"
 /*
  * Indicadores (prototipo aprobado 2026-10-14): una pantalla, sin scroll en
  * PC. Por línea (eficiencia, paradas y una columna por presentación) o
- * semielaborado; cada mes AUTOMÁTICO (solo jornadas validadas) o MANUAL. Cuentas en
+ * semielaborado; cada mes AUTOMÁTICO (solo los días con las cajas confirmadas en el
+ * Resumen Diario) o MANUAL. Cuentas en
  * src/lib/indicadores/, piezas en src/components/indicadores/.
  */
 export default function Indicadores() {
@@ -201,13 +202,13 @@ export default function Indicadores() {
             )
           ) : calculando ? (
             <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con las jornadas validadas…
+              <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con los días confirmados…
             </p>
           ) : sinValidadas ? (
             <p className="m-auto max-w-md text-center text-sm text-muted-foreground">
               {/* Quien no carga datos no ve nada del modo manual (se expone en reuniones, dueña 2026-10-14). */}
               {puedeCargar
-                ? `${capital(nombreMes(mes))} no tiene jornadas validadas todavía. El modo automático cuenta solo lo validado en Validar jornada; mientras tanto, se puede pasar el mes a MANUAL.`
+                ? `${capital(nombreMes(mes))} no tiene días confirmados todavía. El modo automático cuenta solo los días con todas sus cajas confirmadas en el Resumen Diario (el mensaje de WhatsApp); mientras tanto, se puede pasar el mes a MANUAL.`
                 : `${capital(nombreMes(mes))} todavía no tiene datos.`}
             </p>
           ) : seccion === "semi" ? (

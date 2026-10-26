@@ -34,6 +34,7 @@ const RegistrosServiciosIndustriales = lazy(() => import("@/pages/apps/Registros
 const ErroresCliente = lazy(() => import("@/pages/apps/ErroresCliente"))
 const PreparacionPLC = lazy(() => import("@/pages/apps/PreparacionPLC"))
 const Calidad = lazy(() => import("@/pages/apps/Calidad"))
+const InventarioDiario = lazy(() => import("@/pages/apps/InventarioDiario"))
 
 function CargandoPantalla() {
   return (
@@ -263,6 +264,14 @@ export default function App() {
             element={
               <ProtectedRoute app="errores">
                 <ErroresCliente />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventario"
+            element={
+              <ProtectedRoute app="inventario">
+                <InventarioDiario />
               </ProtectedRoute>
             }
           />

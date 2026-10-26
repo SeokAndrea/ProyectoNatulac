@@ -154,6 +154,8 @@
 
 /* PALETA DE MARCA — modo oscuro. Misma fuente que :root. */
 .dark {
+    /* Las listas nativas (<select>, hora) en oscuro: sin esto salen en blanco con letra clara. */
+    color-scheme: dark;
     --background: oklch(0.14 0.018 258);
     --surface: oklch(0.2 0.02 258);
     --success: oklch(0.7 0.15 156);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { TipoParada } from "@/lib/paradas"
-import { filasDelSheet, parsearCsv, resolverHoras, sugerirTipo, urlCsvDelSheet } from "@/lib/sheetMantenimiento"
+import { filasDelSheet, filasParaMandar, parsearCsv, resolverHoras, sugerirTipo, urlCsvDelSheet, type FilaSheet } from "@/lib/sheetMantenimiento"
 
 // Hora de planta en que se leyó el Sheet (casos reales del 08/10/2026).
 const AHORA = "2026-10-08T13:30:00"
@@ -133,5 +133,21 @@ describe("lectura del Sheet", () => {
         tipo_sugerido: null,
       },
     ])
+  })
+})
+
+describe("qué filas se mandan", () => {
+  const fila = (id: string, inicio: string, fin: string | null): FilaSheet => ({
+    id, area: "ASÉPTICO", linea: "LINEA 1", equipo: "", subsistema: "", falla: "", estatus: "", inicio, fin, tipo_sugerido: null,
+  })
+  it("solo lo reciente, lo abierto y lo que cerró hace poco; nunca antes de la fecha de inicio", () => {
+    const filas = [
+      fila("vieja", "2026-10-10T08:00:00", "2026-10-10T09:00:00"),
+      fila("reciente", "2026-10-22T08:00:00", "2026-10-22T09:00:00"),
+      fila("abierta", "2026-10-12T08:00:00", null),
+      fila("cerro-hace-poco", "2026-10-15T08:00:00", "2026-10-21T10:00:00"),
+      fila("antes-del-inicio", "2026-10-05T08:00:00", null),
+    ]
+    expect(filasParaMandar(filas, "2026-10-08", "2026-10-26").map((f) => f.id)).toEqual(["reciente", "abierta", "cerro-hace-poco"])
   })
 })

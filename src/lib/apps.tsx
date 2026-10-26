@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import {
+  Warehouse,
   PlayCircle,
   PackageCheck,
   ClipboardCheck,
@@ -127,6 +128,17 @@ export const apps: AppDef[] = [
     rolesPermitidos: ["CALIDAD", "SUPERVISOR_CALIDAD"],
     color: "purple",
     seccion: "apoyo",
+  },
+  {
+    slug: "inventario",
+    title: "Inventario diario",
+    description: "Materia prima y material de empaque: inventario de la mañana y de la tarde.",
+    href: "/inventario",
+    icon: Warehouse,
+    requiereTurno: false,
+    // Analista, Jefe y Supervisor (migración 20261112290000).
+    permiso: "INVENTARIO_CARGAR",
+    seccion: "produccion",
   },
   {
     slug: "lineas",

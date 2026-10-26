@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase"
  * editado_en); el detalle de cada cambio queda en Auditoría.
  */
 
-export type CatalogoId = "sabores" | "presentaciones" | "velocidades" | "lineas" | "bobinas" | "conteo"
+export type CatalogoId = "sabores" | "presentaciones" | "velocidades" | "lineas" | "bobinas" | "conteo" | "formulas" | "insumos" | "empaque"
 
 /** Fila tal cual la devuelve la base (columnas de la tabla + editado_por_nombre). */
 export type FilaCatalogo = Record<string, unknown> & {

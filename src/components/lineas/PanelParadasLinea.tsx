@@ -80,6 +80,8 @@ export function PanelParadasLinea({
   const [ahoraHora, setAhoraHora] = useState("")
   /** Inicio y fin escritos a mano; null = se calculan solos. */
   const [horas, setHoras] = useState<{ ini: string; fin: string } | null>(null)
+  /** Inicio y fin ocultos: casi siempre basta con los minutos (dueña, 2026-10-26). */
+  const [verHoras, setVerHoras] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hecho, setHecho] = useState<string | null>(null)
@@ -97,6 +99,7 @@ export function PanelParadasLinea({
     setMinutos(cubrir && cubrir.faltaMin > 0 ? String(cubrir.faltaMin) : "")
     setAhoraHora(ahoraPlanta().slice(11, 16))
     setHoras(null)
+    setVerHoras(false)
   }
 
   const min = Number(minutos)
@@ -276,18 +279,35 @@ export function PanelParadasLinea({
                 Guardar
               </Button>
             </div>
-            {/* Abajo y chico: de qué hora a qué hora. Se calculan solas; si las corrigen, mandan esas. */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <label className="flex items-center gap-1.5">
-                Inicio
-                <Input type="time" value={ini} onChange={(e) => cambiarInicio(e.target.value)} className="num h-7 w-32 px-1.5 text-xs" aria-label="Hora de inicio" />
-              </label>
-              <label className="flex items-center gap-1.5">
-                Fin
-                <Input type="time" value={fin} onChange={(e) => cambiarFin(e.target.value)} className="num h-7 w-32 px-1.5 text-xs" aria-label="Hora de fin" />
-              </label>
-              {!horas && (cubrir ? (ubicacion.length > 1 ? <span>(en {ubicacion.length} tramos libres)</span> : <span>(tramo libre del turno)</span>) : <span>(terminó recién)</span>)}
-            </div>
+            {/* Opcional: de qué hora a qué hora. Se calculan solas; si las corrigen, mandan esas. */}
+            {verHoras ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <label className="flex items-center gap-1.5">
+                  Inicio
+                  <Input type="time" value={ini} onChange={(e) => cambiarInicio(e.target.value)} className="num h-7 w-32 px-1.5 text-xs" aria-label="Hora de inicio" />
+                </label>
+                <label className="flex items-center gap-1.5">
+                  Fin
+                  <Input type="time" value={fin} onChange={(e) => cambiarFin(e.target.value)} className="num h-7 w-32 px-1.5 text-xs" aria-label="Hora de fin" />
+                </label>
+                {!horas && (cubrir ? (ubicacion.length > 1 ? <span>(en {ubicacion.length} tramos libres)</span> : <span>(tramo libre del turno)</span>) : <span>(terminó recién)</span>)}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    setHoras(null)
+                    setVerHoras(false)
+                  }}
+                >
+                  Quitar hora
+                </Button>
+              </div>
+            ) : (
+              <Button variant="ghost" size="sm" className="self-start text-xs text-muted-foreground" onClick={() => setVerHoras(true)}>
+                Poner hora de inicio y fin (opcional)
+              </Button>
+            )}
             {cubrir ? null : repetido ? (
               <p className="text-xs text-warning-foreground">Ya hay un +1 de este tipo pendiente arriba: ponle los minutos a ese.</p>
             ) : (
