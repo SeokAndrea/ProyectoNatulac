@@ -20,7 +20,7 @@ export function ProgramacionCarrusel({ items }: { items: ProgramacionItem[] }) {
     return (
       <div>
         <p className="text-lg font-bold uppercase tracking-[0.14em] text-muted-foreground">Por programar</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">Sin programación cargada para hoy</p>
+        <p className="mt-1 text-xs text-muted-foreground">Sin programación cargada para hoy</p>
       </div>
     )
   }

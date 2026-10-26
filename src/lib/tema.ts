@@ -32,8 +32,8 @@ function aplicarTema(tema: Tema) {
   if (meta) meta.setAttribute("content", oscuro ? "#1b2230" : "#ffffff")
 }
 
-/** Tema elegido y cómo pasar al siguiente (Claro → Oscuro → Sistema). */
-export function useTema(): { tema: Tema; siguiente: () => void } {
+/** Tema elegido, cómo pasar al siguiente (Claro → Oscuro → Sistema) y cómo elegir uno (Ajustes). */
+export function useTema(): { tema: Tema; siguiente: () => void; elegir: (t: Tema) => void } {
   const [tema, setTema] = useState<Tema>(leerTema)
 
   useEffect(() => {
@@ -52,5 +52,5 @@ export function useTema(): { tema: Tema; siguiente: () => void } {
     return () => mq?.removeEventListener("change", alCambiar)
   }, [tema])
 
-  return { tema, siguiente: () => setTema((t) => ORDEN[(ORDEN.indexOf(t) + 1) % ORDEN.length]) }
+  return { tema, siguiente: () => setTema((t) => ORDEN[(ORDEN.indexOf(t) + 1) % ORDEN.length]), elegir: setTema }
 }

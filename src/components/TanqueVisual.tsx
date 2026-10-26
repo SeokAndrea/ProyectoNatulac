@@ -169,7 +169,7 @@ export function TanqueVisual({
       )}
 
       {deVacio && (
-        <span className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md border border-vacio/50 bg-background/90 py-0.5 pl-0.5 pr-1.5 text-[9px] font-bold tracking-wide text-vacio">
+        <span className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md border border-vacio/50 bg-background/90 py-0.5 pl-0.5 pr-1.5 text-xs font-bold tracking-wide text-vacio">
           <LataPixel saborNombre={saborNombre} zoom={square ? 1 : 2} />
           VACÍO
         </span>
@@ -187,7 +187,7 @@ export function TanqueVisual({
               background: `conic-gradient(from 20deg, transparent 0 16%, ${color} 18% 31%, transparent 34% 52%, ${color} 55% 68%, transparent 72%)`,
             }}
           />
-          <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full border border-warning/40 bg-background/85 text-warning">
+          <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full border border-warning/40 bg-background/85 text-warning-foreground">
             <Clock3 className="size-3" aria-hidden="true" />
           </span>
         </div>
@@ -202,7 +202,7 @@ export function TanqueVisual({
               style={{ left: g.left, bottom: g.bottom, width: g.size, height: g.size, backgroundColor: color, opacity: 0.65 }}
             />
           ))}
-          <span className="absolute inset-x-0 top-2 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="absolute inset-x-0 top-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Sucio
           </span>
         </>
@@ -213,12 +213,12 @@ export function TanqueVisual({
           {BRILLITOS_LIMPIO.map((b, i) => (
             <Sparkle
               key={i}
-              className="liquid-bubble absolute fill-current text-warning/70"
+              className="liquid-bubble absolute fill-current text-warning-foreground/70"
               style={{ left: b.left, bottom: b.bottom, width: b.size, height: b.size, animationDelay: `${i * 0.4}s` }}
               aria-hidden="true"
             />
           ))}
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Limpio</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Limpio</span>
         </div>
       )}
 
@@ -261,7 +261,7 @@ export function TanqueVisual({
             ))}
           </div>
 
-          <span className="absolute inset-x-0 top-9 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="absolute inset-x-0 top-9 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
             CIP · lavando
           </span>
         </div>
@@ -277,7 +277,7 @@ export function TanqueVisual({
       ))}
       <div className="tank-glass pointer-events-none absolute inset-0" />
 
-      <span className="absolute left-2 top-2 rounded-md border border-border bg-background/80 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-foreground">
+      <span className="absolute left-2 top-2 rounded-md border border-border bg-background/80 px-1.5 py-0.5 text-xs font-bold tracking-wide text-foreground">
         T{numeroTanque}
       </span>
 
@@ -290,7 +290,7 @@ export function TanqueVisual({
       {llenando && (
         <>
           {/* Aviso "Llenando" arriba a la derecha */}
-          <span className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md border border-info/40 bg-background/85 px-1.5 py-0.5 text-[10px] font-bold text-info">
+          <span className="absolute right-1.5 top-1.5 z-20 flex items-center gap-1 rounded-md border border-info/40 bg-background/85 px-1.5 py-0.5 text-xs font-bold text-info">
             <Droplets className="alert-pulse size-3" aria-hidden="true" />
             {pctSetpoint != null ? `${pctSetpoint.toFixed(0)}%` : "Llenando"}
           </span>

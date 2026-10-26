@@ -12,7 +12,7 @@ function Dato({ titulo, valor, detalle }: { titulo: string; valor: string; detal
   return (
     <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border bg-card px-4 py-2 text-center">
       <span className="text-sm font-semibold uppercase tracking-wider text-foreground">{titulo}</span>
-      <span className="font-mono text-[clamp(36px,6.5vh,60px)] font-semibold leading-none tabular-nums">{valor}</span>
+      <span className="font-mono text-[clamp(2.25rem,6.5vh,3.75rem)] font-semibold leading-none tabular-nums">{valor}</span>
       <span className="text-sm text-foreground">{detalle}</span>
     </div>
   )
@@ -31,7 +31,7 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
   return (
     <section aria-label="Ausentismo" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border bg-card p-3">
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
-        <h2 className="text-[28px] font-bold tracking-wide">AUSENTISMO</h2>
+        <h2 className="text-[1.75rem] font-bold tracking-wide">AUSENTISMO</h2>
         <span className="text-sm text-foreground">Índice de ausentismo laboral</span>
         <span className="ml-auto">{editar}</span>
       </div>
@@ -52,7 +52,7 @@ export function VistaAusentismo({ meses, editar }: { meses: { mes: string; datos
                 mayorEsMejor={false}
                 centrado
                 sinExtremos
-                claseValor="text-[clamp(36px,6.5vh,60px)] leading-none"
+                claseValor="text-[clamp(2.25rem,6.5vh,3.75rem)] leading-none"
                 detalle="Horas perdidas ÷ horas teóricas"
               />
             </div>

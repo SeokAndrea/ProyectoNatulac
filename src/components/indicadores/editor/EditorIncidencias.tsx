@@ -22,7 +22,7 @@ export function EditorIncidencias({ datos, onCambio }: { datos: DatosMes; onCamb
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex min-w-0 max-w-md flex-1 flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+        <label className="flex min-w-0 max-w-md flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground">
           Título de la pantalla
           <Input
             value={datos.tituloIncidencias ?? ""}
@@ -49,7 +49,7 @@ export function EditorIncidencias({ datos, onCambio }: { datos: DatosMes; onCamb
                   type="button"
                   aria-pressed={inc.tipo === t}
                   onClick={() => cambiar(i, { tipo: t })}
-                  className={cn("rounded-full px-3 py-1 text-xs font-bold tracking-wider text-muted-foreground", inc.tipo === t && "bg-primary text-primary-foreground")}
+                  className={cn("rounded-sm px-3 py-1 text-xs font-bold tracking-wider text-muted-foreground", inc.tipo === t && "bg-primary text-primary-foreground")}
                 >
                   {t === "INCIDENCIA" ? "Incidencia" : "Seguimiento"}
                 </button>
@@ -60,21 +60,21 @@ export function EditorIncidencias({ datos, onCambio }: { datos: DatosMes; onCamb
             </Button>
           </div>
           {/* Los dos llevan evento. Incidencia: el formato del informe; seguimiento: un texto (dueña, 2026-10-14). */}
-          <label className="flex flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+          <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
             Evento
             <Input value={inc.evento} onChange={(e) => cambiar(i, { evento: e.target.value })} placeholder="Ej.: Bobina TPA-200 en llenadora con formato TPA-250" />
           </label>
           {inc.tipo === "INCIDENCIA" ? (
             <div className="grid gap-2 md:grid-cols-3">
               {TEXTOS.map((t) => (
-                <label key={t.campo} className="flex flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+                <label key={t.campo} className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
                   {t.titulo}
                   <Textarea value={inc[t.campo]} onChange={(e) => cambiar(i, { [t.campo]: e.target.value })} className="min-h-28 text-sm" />
                 </label>
               ))}
             </div>
           ) : (
-            <label className="flex flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
               Texto
               {/* Uno cargado antes con qué pasó / cómo pasó / acción arranca con eso junto. */}
               <Textarea value={inc.texto ?? textoSeguimiento(inc)} onChange={(e) => cambiar(i, { texto: e.target.value })} className="min-h-36 text-sm" />

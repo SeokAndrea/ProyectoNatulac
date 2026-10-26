@@ -6,7 +6,7 @@ import { Observacion } from "@/components/indicadores/Observacion"
 import { fmt } from "@/components/indicadores/formato"
 import type { MesIndicadores } from "@/components/indicadores/useIndicadores"
 
-const Subtitulo = ({ children }: { children: string }) => <h3 className="text-[15px] font-bold tracking-wide text-[var(--c-texto)]">{children}</h3>
+const Subtitulo = ({ children }: { children: string }) => <h3 className="text-[0.9375rem] font-bold tracking-wide text-[var(--c-texto)]">{children}</h3>
 
 /** Una presentación: merma de envases, cajas producidas y planeadas, cumplimiento en anillos y observaciones. */
 export function ColumnaPresentacion({
@@ -41,7 +41,7 @@ export function ColumnaPresentacion({
       style={color}
       className="flex min-h-0 min-w-0 flex-col gap-2 rounded-xl border-2 border-[var(--c)] bg-[color-mix(in_srgb,var(--c)_8%,var(--card))] px-3 pb-3"
     >
-      <h2 className="-mx-3 flex items-baseline gap-2 rounded-t-[10px] bg-[var(--c)] px-3 py-1.5 text-[22px] font-bold text-[var(--c-cab)]">
+      <h2 className="-mx-3 flex items-baseline gap-2 rounded-t-[10px] bg-[var(--c)] px-3 py-1.5 text-[1.375rem] font-bold text-[var(--c-cab)]">
         {nombre} <span className="text-xs font-semibold opacity-85">Línea {linea}</span>
       </h2>
       <Subtitulo>MERMA DE ENVASES</Subtitulo>

@@ -15,7 +15,7 @@ export function AvisoActa({ estado }: { estado: EstadoActa }) {
   }
   if (estado === "lista") {
     return (
-      <p className="flex flex-wrap items-center gap-2 text-sm text-success">
+      <p className="flex flex-wrap items-center gap-2 text-sm text-success-foreground">
         <CheckCircle2 className="size-4" />
         Acta actualizada.
         <Link to="/mis-actas" className="underline">

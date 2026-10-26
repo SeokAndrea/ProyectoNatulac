@@ -53,7 +53,7 @@ export function AnillosCumplimiento({ meses }: { meses: { mes: string; datos: Da
             const cx = centros[i]
             const q = cumplimiento(m.datos)
             const nombre = (
-              <text x={cx} y={cy + r + Math.max(6, r * 0.22) / 2 + 14} textAnchor="middle" className={elegido ? "text-[13px] font-bold" : "fill-foreground text-[11.5px]"} style={elegido ? { fill: "var(--c-texto)" } : undefined}>
+              <text x={cx} y={cy + r + Math.max(6, r * 0.22) / 2 + 14} textAnchor="middle" className={elegido ? "text-[0.8125rem] font-bold" : "fill-foreground text-xs"} style={elegido ? { fill: "var(--c-texto)" } : undefined}>
                 {capital(nombreMes(m.mes))}
               </text>
             )

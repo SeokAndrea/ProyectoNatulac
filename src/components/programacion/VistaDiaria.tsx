@@ -77,7 +77,7 @@ export function VistaDiaria({
       <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
         <section aria-label="Plan del día" className="flex flex-col gap-2.5 rounded-xl border bg-card p-3.5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold">
+            <h2 className="text-lg font-bold">
               Plan del {nombre} {Number(dia.slice(8, 10))}
             </h2>
             <span className="text-xs text-muted-foreground">{pasado ? "Ya pasó: solo lectura" : futuro ? "Proyección con lo producido hasta hoy" : "En vivo con el PT del supervisor"}</span>
@@ -94,10 +94,10 @@ export function VistaDiaria({
             return (
               <div key={x.item.id} style={colorLinea(x.lineaCodigo)} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 rounded-xl border border-l-[5px] border-l-[var(--lc)] p-3">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <b className="text-[15px]">{x.item.saborNombre}</b>
+                  <b className="text-base">{x.item.saborNombre}</b>
                   <span className="text-xs text-muted-foreground">{x.item.presentacionMl} ml</span>
                   {x.viene && (
-                    <span className="rounded-full bg-warning-soft px-2 py-px text-[11px] font-semibold text-warning-foreground" title="Quedó pendiente del día anterior">
+                    <span className="rounded-sm bg-warning-soft px-2 py-px text-xs font-semibold text-warning-foreground" title="Quedó pendiente del día anterior">
                       Viene del {NOMBRES_DIA[i - 1].toLowerCase()}
                     </span>
                   )}
@@ -107,7 +107,7 @@ export function VistaDiaria({
                     {fmt(hecho)}
                     <small className="text-base font-semibold text-muted-foreground"> / {fmt(pend)}</small>
                   </div>
-                  <div className="text-[11.5px] text-muted-foreground">{futuro ? "pendiente al día de hoy" : "producido hoy / pendiente al empezar"}</div>
+                  <div className="text-xs text-muted-foreground">{futuro ? "pendiente al día de hoy" : "producido hoy / pendiente al empezar"}</div>
                 </div>
                 <div role="group" aria-label="Línea" className="flex flex-wrap gap-1.5">
                   {lineasQueLlenan(x.item.presentacionMl, velocidades).map((l) => (
@@ -119,7 +119,7 @@ export function VistaDiaria({
                       onClick={() => onProgramar(x.item, l)}
                       style={colorLinea(l)}
                       className={cn(
-                        "rounded-full border px-2.5 py-0.5 text-xs font-bold",
+                        "rounded-sm border px-2.5 py-0.5 text-xs font-bold",
                         x.lineaCodigo === l ? "border-[var(--lc)] bg-[var(--lc)] text-white" : "bg-card disabled:opacity-60",
                       )}
                     >
@@ -144,7 +144,7 @@ export function VistaDiaria({
 
         <section aria-label="Pendiente del plan semanal" className="flex flex-col gap-2.5 rounded-xl border bg-card p-3.5">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold">Del plan semanal</h2>
+            <h2 className="text-lg font-bold">Del plan semanal</h2>
             <span className="text-xs text-muted-foreground">{pendientes.length} con pendiente</span>
           </div>
           {pendientes.length === 0 && <p className="py-4 text-sm text-muted-foreground">Todo lo de la semana ya está en el {nombre} o se cumplió.</p>}

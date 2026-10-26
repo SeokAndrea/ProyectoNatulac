@@ -312,7 +312,7 @@ export default function Historial() {
                 )}
 
               {actaGeneradaUrl && (
-                <p className="text-sm text-success">
+                <p className="text-sm text-success-foreground">
                   Acta generada —{" "}
                   <a href={actaGeneradaUrl} target="_blank" rel="noreferrer" className="underline">
                     descargarla

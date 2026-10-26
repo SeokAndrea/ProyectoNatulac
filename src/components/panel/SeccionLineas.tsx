@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { AlertTriangle, Clock3, Workflow } from "lucide-react"
 import { CintaEstadoLinea, type EstadoCinta } from "@/components/CintaEstadoLinea"
+import { TextoDesplazable } from "@/components/TextoDesplazable"
 import { colorTextoPorNivel, nivelMerma, type NivelMerma } from "@/lib/estadisticas"
 import { textoParadaEnVivo } from "@/lib/paradasEnVivo"
 import { cn } from "@/lib/utils"
@@ -41,7 +42,7 @@ export function SeccionLineas({ filas, conLinks }: { filas: FilaLineaCompacta[];
       ) : (
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
-            <div className="linea-fila-grid border-b border-border px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="linea-fila-grid border-b border-border px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <span>Línea</span>
               <span className="text-right">Cajas producidas</span>
               <span className="text-right">Merma</span>
@@ -94,7 +95,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
             <p
               className={cn(
                 "mt-0.5 flex items-center gap-1 text-xs font-semibold",
-                fila.paradaEnVivo.visible ? "text-danger" : "text-warning",
+                fila.paradaEnVivo.visible ? "text-danger" : "text-warning-foreground",
               )}
             >
               <Clock3 className="size-3 shrink-0" />
@@ -103,9 +104,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
           )}
           {/* Descripción de la parada (máx. LARGO_NOTA_PARADA), ej. "Arreglo del piso" (dueña, 2026-10-14). */}
           {fila.paradaEnVivo?.visible && fila.paradaEnVivo.nota && (
-            <p className="truncate text-xs text-foreground" title={fila.paradaEnVivo.nota}>
-              {fila.paradaEnVivo.nota}
-            </p>
+            <TextoDesplazable texto={fila.paradaEnVivo.nota} className="text-xs text-foreground" />
           )}
           {fila.observacion && (
             <p className="mt-1 flex items-start gap-1 text-xs leading-snug text-danger">
@@ -120,7 +119,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
       <p className={cn("num text-right font-semibold", colorPor(nivelMermaFila))}>
         {fila.mermaPct !== null ? `${fila.mermaPct.toFixed(2)}%` : "—"}
       </p>
-      <p className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning" : "italic text-muted-foreground/60")}>
+      <p className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning-foreground" : "italic text-muted-foreground")}>
         {fila.minutosParada !== null ? formatDuracion(fila.minutosParada) : "—"}
       </p>
       <p className={cn("num text-right font-semibold", colorPor(nivelEficiencia))}>

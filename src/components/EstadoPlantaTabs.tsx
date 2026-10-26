@@ -143,7 +143,7 @@ export function EstadoPlantaTabs({
             aria-checked={modoVacio}
             onClick={cambiarModoVacio}
             className={cn(
-              "flex items-center gap-2 rounded-full border-2 bg-card py-1 pl-1.5 pr-3 text-xs font-bold tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vacio",
+              "flex items-center gap-2 rounded-sm border-2 bg-card py-1 pl-1.5 pr-3 text-xs pointer-coarse:min-h-11 font-bold tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vacio",
               modoVacio ? "border-vacio text-vacio" : "border-border text-muted-foreground",
             )}
           >

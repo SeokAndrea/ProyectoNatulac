@@ -165,7 +165,7 @@ function CampoFormulario({
     return (
       <div className="flex flex-col gap-1.5">
         {etiqueta}
-        <div className="flex h-11 items-center gap-2 rounded-lg bg-muted px-3 text-[15px] text-foreground">
+        <div className="flex h-11 items-center gap-2 rounded-lg bg-muted px-3 text-base text-foreground">
           <Lock className="size-3.5 text-muted-foreground" />
           {textoCelda(campo, valor, externas)}
           <span className="ml-auto text-xs text-muted-foreground">No se cambia</span>
@@ -207,7 +207,7 @@ function CampoFormulario({
         value={valor}
         inputMode={campo.tipo === "numero" ? "decimal" : "text"}
         onChange={(e) => onCambiar(e.target.value)}
-        className={cn("h-11 text-[15px]", campo.tipo === "numero" && "text-right tabular-nums", cambiado && "border-info bg-info/5")}
+        className={cn("h-11 text-base", campo.tipo === "numero" && "text-right tabular-nums", cambiado && "border-info bg-info/5")}
       />
     </label>
   )

@@ -22,7 +22,7 @@ export function TablaPorGrupo({ filas }: { filas: FilaEstadistica[] }) {
   return (
     <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
       <div className="border-b border-border/70 bg-surface px-4 py-3">
-        <CardTitle className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           <Users className="size-4 text-primary" />
           Por Grupo
         </CardTitle>
@@ -32,10 +32,10 @@ export function TablaPorGrupo({ filas }: { filas: FilaEstadistica[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="text-[11px] uppercase tracking-wide">Grupo</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Litros</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Horas</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Merma real</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Grupo</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Litros</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Horas</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Merma real</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -75,7 +75,7 @@ export function TablaPorSupervisor({ filas }: { filas: FilaEstadistica[] }) {
   return (
     <Card className="shadow-panel gap-0 overflow-hidden border-border py-0">
       <div className="border-b border-border/70 bg-surface px-4 py-3">
-        <CardTitle className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           <UserRound className="size-4 text-primary" />
           Por Supervisor
         </CardTitle>
@@ -85,9 +85,9 @@ export function TablaPorSupervisor({ filas }: { filas: FilaEstadistica[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="text-[11px] uppercase tracking-wide">Supervisor</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Litros</TableHead>
-              <TableHead className="text-right text-[11px] uppercase tracking-wide">Merma real</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Supervisor</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Litros</TableHead>
+              <TableHead className="text-right text-xs uppercase tracking-wide">Merma real</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

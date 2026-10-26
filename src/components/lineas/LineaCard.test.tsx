@@ -22,6 +22,19 @@ vi.mock("@/components/CintaEstadoLinea", () => ({
 vi.mock("@/components/LineaVisual", () => ({
   LineaVisual: ({ estado }: { estado: string }) => <div data-testid="visual">{estado}</div>,
 }))
+// El buscador del catálogo se prueba aparte: acá basta con elegir un tipo.
+vi.mock("@/components/BuscadorTipoParada", () => ({
+  BuscadorTipoParada: ({ onElegir }: { onElegir: (t: unknown) => void }) => (
+    <button type="button" onClick={() => onElegir({ codigo: "DESVASE_PRODUCTO", nombre: "Desvase de Producto", clase: "NO_PROGRAMADA", tiempoGuiaMin: null })}>
+      Elegir tipo
+    </button>
+  ),
+}))
+vi.mock("@/lib/paradasEquipos", () => ({ useEquiposParadas: () => [] }))
+// «Sin programación» lee el turno de la sesión (LNP automático); acá no hay sesión.
+vi.mock("@/lib/sesionTurno", () => ({ useSesionTurno: () => ({ horaInicio: null, turnoTipo: null, usuario: null }) }))
+// Sin motivos LNP en el catálogo, «Sin programación» cambia la condición directo.
+vi.mock("@/lib/paradasCatalogo", async (orig) => ({ ...(await orig<object>()), useTiposActivos: () => [] }))
 const ultimaConfiguracion = vi.fn()
 vi.mock("@/lib/lineas", () => ({
   obtenerUltimaConfiguracionLinea: (...args: unknown[]) => ultimaConfiguracion(...args),
@@ -101,7 +114,18 @@ const VELOCIDADES: VelocidadLive[] = [
   { id: "v1", linea: "LINEA_1", presentacion: "1000", maquina: "A3", envasesHora: 6000, litrosHora: 6000, activo: true },
 ]
 
-const PARADA_PENDIENTE: ParadaQueDetiene = { linea: "LINEA_1", paradaId: "p-9", pendiente: true, tipoNombre: "Parada por clasificar" }
+const PARADA_PENDIENTE: ParadaQueDetiene = {
+  linea: "LINEA_1",
+  paradaId: "p-9",
+  pendiente: true,
+  tipoNombre: "Parada por clasificar",
+  clase: "NO_PROGRAMADA",
+  tiempoGuiaMin: null,
+  nota: null,
+  inicio: "2026-10-23T15:00:00",
+  fin: "2026-10-23T15:00:00",
+  deMantenimiento: false,
+}
 
 interface Escenario {
   modo?: ModoEstadoPlanta
@@ -109,6 +133,7 @@ interface Escenario {
   corridaEsperandoPt?: Corrida | null
   lineaEstado?: LineaEstado | null
   paradaQueDetiene?: ParadaQueDetiene | null
+  paradaDeLinea?: ParadaQueDetiene | null
   tanquesListos?: TanqueRecepcion[]
 }
 
@@ -146,6 +171,7 @@ function renderCard(e: Escenario = {}, acciones: Acciones = crearAcciones()) {
         presentaciones={PRESENTACIONES}
         velocidades={VELOCIDADES}
         paradaQueDetiene={e.paradaQueDetiene ?? null}
+        paradaDeLinea={e.paradaDeLinea ?? e.paradaQueDetiene ?? null}
         acciones={acciones}
       />
     </MemoryRouter>,
@@ -180,14 +206,16 @@ describe("LineaCard — corriendo", () => {
     expect(screen.getByRole("link", { name: /Cargar PT · Lote 0000/ })).toHaveAttribute("href", "/producto-terminado")
   })
 
-  it("Parada: exige el motivo, pausa con él y cierra el formulario", async () => {
+  it("Parada: exige el tipo y la descripción, pausa con ellos y cierra el formulario", async () => {
     const u = userEvent.setup()
     const a = renderCard({ lineaTurno: corrida() })
     await u.click(boton("Parada"))
     expect(boton("Confirmar parada")).toBeDisabled()
-    await u.type(screen.getByPlaceholderText(/Motivo de la parada/), "Se trancó la tapadora")
+    await u.type(screen.getByPlaceholderText(/Qué pasó/), "Se trancó la tapadora")
+    expect(boton("Confirmar parada")).toBeDisabled()
+    await u.click(boton("Elegir tipo"))
     await u.click(boton("Confirmar parada"))
-    expect(a.pausar).toHaveBeenCalledWith("c1", "Se trancó la tapadora")
+    expect(a.pausar).toHaveBeenCalledWith("c1", { motivo: "Se trancó la tapadora", tipoCodigo: "DESVASE_PRODUCTO", inicio: null })
     await waitFor(() => noHayBoton("Confirmar parada"))
     boton("Cambiar de lote")
   })
@@ -198,7 +226,8 @@ describe("LineaCard — corriendo", () => {
     a.pausar.mockResolvedValue(falla("No se pudo pausar"))
     renderCard({ lineaTurno: corrida() }, a)
     await u.click(boton("Parada"))
-    await u.type(screen.getByPlaceholderText(/Motivo de la parada/), "x")
+    await u.click(boton("Elegir tipo"))
+    await u.type(screen.getByPlaceholderText(/Qué pasó/), "x")
     await u.click(boton("Confirmar parada"))
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo pausar")
     boton("Confirmar parada")
@@ -283,6 +312,34 @@ describe("LineaCard — revisión de Status", () => {
     expect(a.confirmarEstado).toHaveBeenCalledWith("c1")
   })
 
+  it("No está corriendo → Parada: pide desde qué hora, confirma la corrida y la pausa", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({ modo: "status", lineaTurno: corrida({ confirmadoInicioEn: null }) })
+    await u.click(boton("No está corriendo"))
+    await u.click(boton("Parada"))
+    expect(screen.getByText("Empezó a las")).toBeInTheDocument()
+    await u.click(boton("Elegir tipo"))
+    await u.type(screen.getByPlaceholderText(/Qué pasó/), "Caída de presión")
+    await u.click(boton("Confirmar parada"))
+    expect(a.confirmarEstado).toHaveBeenCalledWith("c1")
+    expect(a.pausar).toHaveBeenCalledWith("c1", expect.objectContaining({ motivo: "Caída de presión", tipoCodigo: "DESVASE_PRODUCTO" }))
+    expect(a.pausar.mock.calls[0][1].inicio).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00$/)
+  })
+
+  it("No está corriendo → Parada: si Confirmar falla, no pausa", async () => {
+    const u = userEvent.setup()
+    const a = crearAcciones()
+    a.confirmarEstado.mockResolvedValue(falla("Turno cerrado"))
+    renderCard({ modo: "status", lineaTurno: corrida({ confirmadoInicioEn: null }) }, a)
+    await u.click(boton("No está corriendo"))
+    await u.click(boton("Parada"))
+    await u.click(boton("Elegir tipo"))
+    await u.type(screen.getByPlaceholderText(/Qué pasó/), "x")
+    await u.click(boton("Confirmar parada"))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Turno cerrado")
+    expect(a.pausar).not.toHaveBeenCalled()
+  })
+
   it("si Confirmar falla, muestra el error", async () => {
     const u = userEvent.setup()
     const a = crearAcciones()
@@ -317,8 +374,37 @@ describe("LineaCard — en pausa", () => {
     expect(screen.getAllByText("Parada")[0]).toBeInTheDocument()
     expect(screen.getByTestId("cinta")).toHaveTextContent("parada")
     await u.click(boton("Continuar"))
-    expect(a.continuar).toHaveBeenCalledWith("c1")
+    expect(a.continuar).toHaveBeenCalledWith("c1", null)
     boton("Pasar a CIP")
+  })
+
+  it("con su parada abierta: la muestra y, si una Programada pasó su guía, pide la justificación", async () => {
+    const u = userEvent.setup()
+    const abierta: ParadaQueDetiene = {
+      ...PARADA_PENDIENTE,
+      pendiente: false,
+      tipoNombre: "Cambio de Lote",
+      clase: "PROGRAMADA",
+      tiempoGuiaMin: 10,
+      nota: "Faltó la etiqueta",
+      inicio: "2026-10-05T09:00:00",
+      fin: null,
+    }
+    const a = renderCard({ lineaTurno: pausada(), lineaEstado: estado("LISTA"), paradaDeLinea: abierta })
+    expect(screen.getByText("Faltó la etiqueta")).toBeInTheDocument()
+    expect(boton("Continuar")).toBeDisabled()
+    await u.type(screen.getByRole("textbox"), "Se buscó en el almacén")
+    await u.click(boton("Continuar"))
+    expect(a.continuar).toHaveBeenCalledWith("c1", "Se buscó en el almacén")
+  })
+
+  it("con una parada de Mantenimiento abierta: Continuar no pide nada y avisa que queda abierta", async () => {
+    const u = userEvent.setup()
+    const deMtto: ParadaQueDetiene = { ...PARADA_PENDIENTE, pendiente: false, tipoNombre: "Bomba", fin: null, inicio: "2026-10-05T09:00:00", deMantenimiento: true }
+    const a = renderCard({ lineaTurno: pausada(), lineaEstado: estado("LISTA"), paradaDeLinea: deMtto })
+    expect(screen.getByText(/Es de Mantenimiento/)).toBeInTheDocument()
+    await u.click(boton("Continuar"))
+    expect(a.continuar).toHaveBeenCalledWith("c1", null)
   })
 
   it("con la parada sin completar, Continuar queda bloqueado y lleva a Registrar Paradas", () => {

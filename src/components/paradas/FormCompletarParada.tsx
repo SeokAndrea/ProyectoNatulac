@@ -23,7 +23,7 @@ export function minutosEntre(inicio: string, fin: string): number | null {
   return Number.isNaN(ms) ? null : Math.round(ms / 60000)
 }
 /** Campo 'YYYY-MM-DDTHH:MM' + minutos → 'YYYY-MM-DDTHH:MM' (mismo reloj que el campo). */
-function sumarMinutos(v: string, min: number): string {
+export function sumarMinutos(v: string, min: number): string {
   const d = new Date(new Date(conSegundos(v)).getTime() + min * 60000)
   const dd = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}T${dd(d.getHours())}:${dd(d.getMinutes())}`

@@ -88,8 +88,8 @@ export function BannerSuperior({
           type="button"
           onClick={onAlternarFiltros}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
-            enVivo ? "border-success/50 bg-success-soft text-success" : "border-primary/50 bg-primary/10 text-primary",
+            "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-semibold transition-colors",
+            enVivo ? "border-success/50 bg-success-soft text-success-foreground" : "border-primary/50 bg-primary/10 text-primary",
           )}
         >
           {enVivo ? (
@@ -108,13 +108,13 @@ export function BannerSuperior({
           )}
         </button>
 
-        {textoUltimaActualizacion && <span className="text-[11px] text-muted-foreground">Última actualización {textoUltimaActualizacion}</span>}
+        {textoUltimaActualizacion && <span className="text-xs text-muted-foreground">Última actualización {textoUltimaActualizacion}</span>}
 
         {puedeElegirArea && (
           <button
             type="button"
             onClick={onAbrirFiltros}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground"
+            className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground"
           >
             <Building2 className="size-3.5" />
             {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(AREAS, areaFiltro)}
@@ -123,7 +123,7 @@ export function BannerSuperior({
 
         {turno && (
           <>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
               <UserRound className="size-3.5 text-primary" />
               {turno.supervisorNombre}
               {supervisorCargo && <span className="text-muted-foreground">· {nombrePorCodigo(CARGOS, supervisorCargo)}</span>}
@@ -142,7 +142,7 @@ export function BannerSuperior({
             {/* HORA */}
             <BannerCelda icon={Clock} label="Hora" centrado>
               <RelojPlanta />
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {horario ? `Turno de ${horario.inicio} a ${horario.fin}` : "Sin horario definido"}
               </p>
             </BannerCelda>
@@ -152,14 +152,14 @@ export function BannerSuperior({
               <div className="flex items-stretch divide-x divide-border/70">
                 <div className="flex flex-1 flex-col items-center px-3">
                   <p className="num text-3xl font-bold leading-none tracking-tight text-foreground">{cajas.toLocaleString("es-CO")}</p>
-                  <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Cajas</p>
+                  <p className="mt-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Cajas</p>
                 </div>
                 <div className="flex flex-1 flex-col items-center px-3">
                   <p className="num text-3xl font-bold leading-none tracking-tight text-info">
                     {litros.toLocaleString("es-CO")}
-                    <span className="ml-0.5 text-sm font-semibold text-info/60">L</span>
+                    <span className="ml-0.5 text-sm font-semibold text-info-foreground">L</span>
                   </p>
-                  <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Litros</p>
+                  <p className="mt-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Litros</p>
                 </div>
               </div>
             </BannerCelda>
@@ -197,7 +197,7 @@ function BannerCelda({
     <div className={cn("px-4 py-3", acento && "bg-background/40", centrado && "text-center")}>
       <div
         className={cn(
-          "flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground",
+          "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground",
           centrado && "justify-center",
         )}
       >
@@ -215,7 +215,7 @@ function MetaAnillo({ pct, ritmoPct, reales, esperadas }: { pct: number | null; 
     return (
       <div>
         <p className="num text-2xl font-bold leading-none tracking-tight text-muted-foreground">—</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">Ninguna línea en uso.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Ninguna línea en uso.</p>
       </div>
     )
   }
@@ -233,7 +233,7 @@ function MetaAnillo({ pct, ritmoPct, reales, esperadas }: { pct: number | null; 
         style={{ background: `conic-gradient(${color} ${clamped * 3.6}deg, color-mix(in oklab, var(--muted) 90%, transparent) 0deg)` }}
       >
         <div className="grid size-8 place-items-center rounded-full bg-background">
-          <span className="num text-[11px] font-bold" style={{ color }}>
+          <span className="num text-xs font-bold" style={{ color }}>
             {pct}%
           </span>
         </div>
@@ -243,7 +243,7 @@ function MetaAnillo({ pct, ritmoPct, reales, esperadas }: { pct: number | null; 
           {reales.toLocaleString("es-CO")}
           <span className="text-xs font-medium text-muted-foreground"> / {esperadas.toLocaleString("es-CO")}</span>
         </p>
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           Cajas reales vs. meta del turno{ritmoPct !== null ? " · eficiencia " + ritmoPct + "%" : ""}
         </p>
       </div>

@@ -30,7 +30,7 @@ export function EditorAusentismo({ datos, onCambio }: { datos: DatosMes; onCambi
               <CampoNumero etiqueta="% de las horas perdidas" valor={g.partePerdidas} sufijo="%" onCambio={(v) => cambiarGrupo(g.grupo, { partePerdidas: v })} />
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-2">
-              <label className="flex min-w-0 flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground">
+              <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">
                 Quién incidió más
                 <Input value={g.quien} onChange={(e) => cambiarGrupo(g.grupo, { quien: e.target.value })} placeholder="Nombre y apellido" />
               </label>

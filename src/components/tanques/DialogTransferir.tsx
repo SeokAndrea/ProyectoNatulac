@@ -151,7 +151,7 @@ export function DialogTransferir({
                     { valor: "LOTE", texto: "Lote" },
                   ]}
                 />
-                <p className="text-[11px] break-words text-muted-foreground">
+                <p className="text-xs break-words text-muted-foreground">
                   {modo === "LIQUIDO"
                     ? "El líquido se suma al lote que ya tiene el destino."
                     : "Este lote se muda al tanque destino y absorbe lo que el destino ya tenía."}
@@ -165,7 +165,7 @@ export function DialogTransferir({
                 {destinoElegido.numeroTanque} queda con ~<span className="font-medium text-foreground">{litros(volumenResultante)} L</span>{" "}
                 (calculado — falta medir el tanque).
                 {volumenResultante > TANK_CAPACITY && !excedeMax && (
-                  <span className="text-warning"> Queda sobre los {litros(TANK_CAPACITY)} L nominales del tanque.</span>
+                  <span className="text-warning-foreground"> Queda sobre los {litros(TANK_CAPACITY)} L nominales del tanque.</span>
                 )}
               </p>
             )}
@@ -178,7 +178,7 @@ export function DialogTransferir({
             )}
 
             {confirmandoRedireccion && hayCorridaEnEsteTanque && (
-              <p className="text-xs text-warning">
+              <p className="text-xs text-warning-foreground">
                 La corrida activa de esta línea va a pasar a tomar del tanque destino al confirmar. ¿Continuar?
               </p>
             )}

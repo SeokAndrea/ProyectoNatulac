@@ -327,8 +327,8 @@ export function PanelParadasVista({
         {/* ---- Hero: ranking + líneas (en vivo + sus números) ----
              Ya no hay columna de KPIs globales: OEE, minutos no
              programados y paradas registradas van DENTRO de cada línea. */}
-        <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-[300px_repeat(3,340px)] lg:justify-center">
-          <div className="flex flex-col gap-3">
+        <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-3 xl:grid-cols-[minmax(240px,300px)_repeat(3,minmax(0,340px))] xl:justify-center">
+          <div className="flex flex-col gap-3 lg:col-span-3 lg:grid lg:grid-cols-3 xl:col-span-1 xl:flex">
             <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <div className="mb-1 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">Vista</h2>
@@ -358,12 +358,12 @@ export function PanelParadasVista({
                 <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase text-muted-foreground">Producción</p>
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">Producción</p>
                       <h2 className="text-lg font-bold text-foreground">{l.nombre}</h2>
                     </div>
                     {enVivo && (
                       <span
-                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-success/10 px-2 py-1 text-[10px] font-bold uppercase text-success"
+                        className="flex shrink-0 items-center gap-1.5 rounded-sm bg-success/10 px-2 py-1 text-xs font-bold uppercase text-success-foreground"
                         title="La cinta muestra el turno activo real, no el filtro de arriba"
                       >
                         <span className="alert-pulse size-1.5 rounded-full bg-current" />
@@ -413,7 +413,7 @@ export function PanelParadasVista({
       )}
 
       {abiertas > 0 && (
-        <div className="flex items-center gap-1.5 rounded-lg border border-warning/40 bg-warning-soft/40 px-3 py-2 text-sm text-warning">
+        <div className="flex items-center gap-1.5 rounded-lg border border-warning/40 bg-warning-soft/40 px-3 py-2 text-sm text-warning-foreground">
           <AlertTriangle className="size-4 shrink-0" />
           {abiertas === 1 ? "Hay 1 parada en curso" : `Hay ${abiertas} paradas en curso`} en el rango filtrado.
         </div>
@@ -453,7 +453,7 @@ function OeeLinea({ oee }: { oee: OeePeriodo | null | "cargando" }) {
   if (oee === null || oee.oeePct === null) {
     return (
       <div className="mt-2 flex h-[104px] flex-col items-center justify-center rounded-lg bg-muted/40 text-center text-xs text-muted-foreground">
-        <span className="text-[10px] font-bold uppercase tracking-wide">OEE</span>
+        <span className="text-xs font-bold uppercase tracking-wide">OEE</span>
         Sin producción en el período
       </div>
     )
@@ -462,7 +462,7 @@ function OeeLinea({ oee }: { oee: OeePeriodo | null | "cargando" }) {
     <div className="mt-2 flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2">
       <AnilloPct pct={oee.oeePct} tamano={88} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
           OEE · {oee.turnos} {oee.turnos === 1 ? "turno" : "turnos"}
         </p>
         <FactorOee etiqueta="Disponibilidad" pct={oee.disponibilidadPct} />
@@ -475,7 +475,7 @@ function OeeLinea({ oee }: { oee: OeePeriodo | null | "cargando" }) {
 function FactorOee({ etiqueta, pct }: { etiqueta: string; pct: number | null }) {
   return (
     <div>
-      <div className="mb-0.5 flex items-center justify-between text-[11px]">
+      <div className="mb-0.5 flex items-center justify-between text-xs">
         <span className="text-muted-foreground">{etiqueta}</span>
         <span className="num font-semibold text-foreground">{pct === null ? "—" : `${pct}%`}</span>
       </div>
@@ -586,7 +586,7 @@ function DatoLinea({ etiqueta, valor, tono }: { etiqueta: string; valor: number;
   return (
     <div className="flex flex-col items-center rounded-lg border border-border bg-background/60 px-2 py-2 text-center">
       <p className={cn("num text-2xl font-extrabold leading-none", tono)}>{valor.toLocaleString("es-CO")}</p>
-      <p className="mt-1 text-[11px] font-medium leading-snug text-muted-foreground">{etiqueta}</p>
+      <p className="mt-1 text-xs font-medium leading-snug text-muted-foreground">{etiqueta}</p>
     </div>
   )
 }

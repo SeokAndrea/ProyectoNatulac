@@ -1,32 +1,84 @@
+import { useState } from "react"
 import { Beaker, Loader2, PlayCircle, Square } from "lucide-react"
+import { ahoraPlanta, minutosEntre } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import type { Corrida, ParadaQueDetiene } from "@/lib/produccion/tipos"
+import { fmtDuracion } from "@/lib/paradas"
+import { horaCortaPlanta } from "@/lib/tiempoPlanta"
 import { AvisoParadaPendiente } from "./EstadoCipLinea"
 import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
 import { useAccion } from "@/lib/useAccion"
 
-/** Corrida en pausa por una Parada: Continuar (cuando la parada esté completa), Pasar a CIP o Detener. */
+/**
+ * Corrida en pausa por una Parada: Continuar (termina la parada abierta con
+ * la hora de ahora), Pasar a CIP o Detener. Un +1 viejo sin completar
+ * («Parada por clasificar») sigue trabando Continuar hasta completarlo.
+ */
 export function PanelPausada({
   corrida,
   paradaQueDetiene,
+  paradaDeLinea,
   continuar,
   onCip,
   onDetener,
 }: {
   corrida: Corrida
+  /** +1 sin completar ligado a la línea. */
   paradaQueDetiene: ParadaQueDetiene | null
+  /** La parada ligada a la línea (abierta o +1). */
+  paradaDeLinea: ParadaQueDetiene | null
   continuar: AccionesLinea["continuar"]
   onCip: () => void
   onDetener: () => void
 }) {
   const { enviando, error, ejecutar } = useAccion()
+  const [justificacion, setJustificacion] = useState("")
+  const abierta = paradaDeLinea && !paradaDeLinea.pendiente && paradaDeLinea.fin === null ? paradaDeLinea : null
+  const minutos = abierta ? (minutosEntre(abierta.inicio.slice(0, 16), ahoraPlanta()) ?? 0) : 0
+  // Programada que pasó su tiempo guía: Continuar pide por qué (el servidor también lo exige).
+  const pideJustificacion =
+    abierta !== null &&
+    !abierta.deMantenimiento &&
+    abierta.clase === "PROGRAMADA" &&
+    abierta.tiempoGuiaMin != null &&
+    (minutos > abierta.tiempoGuiaMin || (error?.includes("justificación") ?? false))
+  const falta = paradaQueDetiene !== null || (pideJustificacion && justificacion.trim() === "")
+
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-muted-foreground">Parada.</p>
+      {abierta ? (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <p className="text-muted-foreground">
+            Parada desde las {horaCortaPlanta(abierta.inicio, abierta.inicio)} ({fmtDuracion(minutos)}) ·{" "}
+            <span className="font-medium text-foreground">{abierta.tipoNombre}</span>
+          </p>
+          {abierta.nota && <p className="text-foreground">{abierta.nota}</p>}
+          {abierta.deMantenimiento && (
+            <p className="text-muted-foreground">
+              Es de Mantenimiento: al continuar, la línea sigue y la parada queda abierta para que Mantenimiento la cierre.
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Parada{corrida.pausadaEn ? ` desde las ${horaCortaPlanta(corrida.pausadaEn, corrida.pausadaEn)}` : ""}.
+        </p>
+      )}
       <AvisoParadaPendiente parada={paradaQueDetiene} />
+      {pideJustificacion && abierta && (
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Pasó su tiempo guía ({fmtDuracion(abierta.tiempoGuiaMin ?? 0)}): ¿por qué?
+          <Textarea value={justificacion} onChange={(e) => setJustificacion(e.target.value)} rows={2} className="text-sm" />
+        </label>
+      )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => ejecutar(() => continuar(corrida.id))} disabled={enviando || paradaQueDetiene !== null}>
+        <Button
+          size="sm"
+          onClick={() => ejecutar(() => continuar(corrida.id, pideJustificacion ? justificacion.trim() : null))}
+          disabled={enviando || falta}
+        >
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
           Continuar
         </Button>

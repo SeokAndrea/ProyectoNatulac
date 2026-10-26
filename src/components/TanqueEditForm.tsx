@@ -139,7 +139,7 @@ export function TanqueEditForm({
               onChange={(e) => setTambores(e.target.value)}
             />
           ) : sinVolumen ? (
-            <p className="self-center text-[11px] text-muted-foreground">
+            <p className="self-center text-xs text-muted-foreground">
               Litros: se corrigen con «Medir tanque»
             </p>
           ) : (
@@ -160,12 +160,12 @@ export function TanqueEditForm({
             disabled={datosFijos}
           />
           {datosFijos && (
-            <p className="col-span-2 text-[11px] text-muted-foreground">
+            <p className="col-span-2 text-xs text-muted-foreground">
               Con Calidad, el sabor y el lote de un tanque liberado no se cambian. Un lote nuevo va En Preparación.
             </p>
           )}
           {condicion === "EN_PREPARACION" && (
-            <p className="col-span-2 text-[11px] text-muted-foreground">
+            <p className="col-span-2 text-xs text-muted-foreground">
               {volumenDeTambores !== null
                 ? `≈ ${volumenDeTambores.toLocaleString("es-CO")} L (${unidadPrep} × volumen del sabor). Se guarda sin liberar.`
                 : `Sabor + ${unidadPrep} + lote — o deja los 3 vacíos para marcar el tanque En Preparación sin datos.`}

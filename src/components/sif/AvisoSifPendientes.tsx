@@ -1,13 +1,16 @@
 import { Link, useLocation } from "react-router-dom"
-import { TriangleAlert } from "lucide-react"
+import { Search, TriangleAlert } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
-import { RUTA_SIF, useSifPendientes } from "@/lib/sif"
+import { RUTA_SIF, textoPorAtender, useSifPendientes } from "@/lib/sif"
+import { cn } from "@/lib/utils"
 
 /**
- * Aviso grande, arriba de todas las pantallas, para quien gestiona las SIF
- * (Mantenimiento): cuántas hay pendientes y un botón para abrir la primera.
- * Se revisa cada 2 min. No sale en la propia pantalla de solicitudes.
+ * Aviso arriba de todas las pantallas para quien gestiona las SIF: cuántas
+ * Intervenciones esperan responsable y cuántas Inspecciones esperan revisión,
+ * con un botón para abrir la primera. Grande para el área de Mantenimiento;
+ * una línea discreta para el resto (ej. Super Administrador). Se revisa cada
+ * 2 min. No sale en la propia pantalla de solicitudes.
  */
 export function AvisoSifPendientes() {
   const { session } = useAuth()
@@ -17,19 +20,41 @@ export function AvisoSifPendientes() {
 
   if (pendientes.length === 0 || pathname === RUTA_SIF) return null
   const primera = pendientes[0]
+  const hayIntervencion = primera.estado === "PENDIENTE"
+  const enlace = `${RUTA_SIF}?sif=${primera.id}`
 
+  if (session?.area !== "MANTENIMIENTO") {
+    return (
+      <Link
+        to={enlace}
+        className="mb-4 flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 print:hidden"
+      >
+        <span className={cn("size-2 shrink-0 rounded-full", hayIntervencion ? "bg-danger" : "bg-warning")} />
+        <span className="min-w-0 flex-1 truncate">{textoPorAtender(pendientes)} en Mantenimiento</span>
+        <span className="shrink-0 font-medium text-primary">Ver</span>
+      </Link>
+    )
+  }
+
+  const Icono = hayIntervencion ? TriangleAlert : Search
   return (
     <div
-      role="alert"
-      className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl border border-warning/50 bg-warning-soft px-4 py-3.5 print:hidden"
+      role="status"
+      className={cn(
+        "mb-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl border px-4 py-3.5 print:hidden",
+        hayIntervencion ? "border-danger/40 bg-danger-soft" : "border-warning/50 bg-warning-soft",
+      )}
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning text-warning-foreground">
-        <TriangleAlert className="size-5" />
+      <span
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-full",
+          hayIntervencion ? "bg-danger/15 text-danger" : "bg-warning text-warning-foreground",
+        )}
+      >
+        <Icono className="size-5" />
       </span>
       <div className="min-w-[200px] flex-1">
-        <p className="text-base font-semibold text-foreground">
-          {pendientes.length === 1 ? "1 solicitud de intervención pendiente" : `${pendientes.length} solicitudes de intervención pendientes`}
-        </p>
+        <p className="text-base font-semibold text-foreground">{textoPorAtender(pendientes)}</p>
         <p className="text-sm text-muted-foreground">
           {pendientes
             .slice(0, 3)
@@ -38,8 +63,8 @@ export function AvisoSifPendientes() {
         </p>
       </div>
       <Link
-        to={`${RUTA_SIF}?sif=${primera.id}`}
-        className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        to={enlace}
+        className="inline-flex h-9 items-center rounded-md bg-primary px-4 pointer-coarse:h-11 text-sm font-medium text-primary-foreground hover:bg-primary/90"
       >
         Abrir
       </Link>

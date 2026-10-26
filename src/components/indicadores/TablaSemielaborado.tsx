@@ -25,9 +25,9 @@ export function TablaSemielaborado({ familias, meses, renderObservacion }: Props
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-x-auto">
-        <table className="h-full max-h-[520px] w-full min-w-[640px] border-separate border-spacing-0 text-[15px]">
+        <table className="h-full max-h-[520px] w-full min-w-[640px] border-separate border-spacing-0 text-[0.9375rem]">
           <thead>
-            <tr className="text-[11.5px] uppercase tracking-wider text-foreground">
+            <tr className="text-xs uppercase tracking-wider text-foreground">
               <th className="border-b-2 px-3.5 py-2.5 text-left">Producto</th>
               <th className="border-b-2 px-3.5 py-2.5">Estándar</th>
               {meses.map((m) => (
@@ -64,7 +64,7 @@ export function TablaSemielaborado({ familias, meses, renderObservacion }: Props
           </tbody>
         </table>
       </div>
-      <p className="flex flex-wrap gap-x-4 px-3.5 pt-2 text-[11.5px] text-foreground">
+      <p className="flex flex-wrap gap-x-4 px-3.5 pt-2 text-xs text-foreground">
         <span>Verde: 99 % o más · Rojo: menos de 99 %</span>
         <span>La barrita va de 90 % (vacía) a 100 % (llena)</span>
         <span>— = sin datos</span>

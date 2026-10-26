@@ -58,7 +58,7 @@ export function FranjaVerComo() {
   if (!vistaComo) return null
   return (
     <div className="border-b border-warning/40 bg-warning-soft px-4 py-1.5 text-sm text-warning-foreground">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2">
         <span>
           Viendo la app como <b>{nombrePorCodigo(ROLES, vistaComo.rol)}</b>. Lo que hagas queda con tu usuario.
         </span>

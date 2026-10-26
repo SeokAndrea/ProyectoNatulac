@@ -81,7 +81,7 @@ export function FilaEdicionPersonal({
       <td className="py-1.5 pr-3">
         <div className="flex flex-col gap-1">
           <SelectArea value={area} onChange={cambiarArea} areas={areasDisponibles} className="h-7 w-full" />
-          <SelectAreaOrigen value={areaOrigen} onChange={setAreaOrigen} className="h-6 w-full text-[11px] text-muted-foreground" />
+          <SelectAreaOrigen value={areaOrigen} onChange={setAreaOrigen} className="h-6 w-full text-xs text-muted-foreground" />
         </div>
       </td>
       <td className="py-1.5 pr-3">

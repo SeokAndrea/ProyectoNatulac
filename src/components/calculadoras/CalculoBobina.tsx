@@ -119,7 +119,7 @@ export function CalculoBobina() {
               {error}
             </p>
           )}
-          {guardado && !error && <p className="text-sm text-success">Cálculo guardado.</p>}
+          {guardado && !error && <p className="text-sm text-success-foreground">Cálculo guardado.</p>}
 
           <Button disabled={!valido || guardando} onClick={guardar}>
             {guardando ? <Loader2 className="size-4 animate-spin" /> : null}

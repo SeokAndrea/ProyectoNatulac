@@ -1,4 +1,5 @@
 import { PauseCircle } from "lucide-react"
+import { TextoDesplazable } from "@/components/TextoDesplazable"
 import type { LineaLive } from "@/lib/catalogosLive"
 import { duracionMin, type Parada } from "@/lib/paradas"
 import { codigoDeParadaLive } from "@/lib/paradasCatalogo"
@@ -21,13 +22,9 @@ export function ParadaMasLarga({ paradas, lineas, ahora }: { paradas: Parada[]; 
               {parada.tipoNombre}
             </p>
             {/* La descripción que escribió quien la registró (máx. LARGO_NOTA_PARADA). */}
-            {parada.nota && (
-              <p className="truncate text-xs text-foreground" title={parada.nota}>
-                {parada.nota}
-              </p>
-            )}
+            {parada.nota && <TextoDesplazable texto={parada.nota} className="text-xs text-foreground" />}
           </div>
-          <span className="num shrink-0 text-lg font-bold text-warning">{formatDuracion(duracionMin(parada, ahora))}</span>
+          <span className="num shrink-0 text-lg font-bold text-warning-foreground">{formatDuracion(duracionMin(parada, ahora))}</span>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">Sin paradas registradas para este turno.</p>

@@ -57,9 +57,9 @@ export function CierreTransferencia({
         <div className="flex flex-col gap-1.5">
           <p className="text-xs break-words text-foreground">¿El Tanque {origen} quedó vacío? Si no, ¿cuántos L quedaron?</p>
           <CampoLitros value={restoOrigen} onChange={setRestoOrigen} />
-          <p className="text-[11px] text-muted-foreground">0 = quedó vacío.</p>
+          <p className="text-xs text-muted-foreground">0 = quedó vacío.</p>
           {resto > 0 && (
-            <p className="text-[11px] break-words text-muted-foreground">
+            <p className="text-xs break-words text-muted-foreground">
               Esos {resto.toLocaleString("es-CO")} L vuelven como resto en el Tanque {origen} y se le descuentan al Tanque{" "}
               {destino.numeroTanque}.
             </p>

@@ -47,7 +47,7 @@ export function VistaSemielaborado({
   return (
     <section aria-label="Semielaborado" className="flex min-h-0 flex-1 flex-col gap-2.5 rounded-xl border bg-card p-3" style={colorFamilia("Clasicos")}>
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
-        <h2 className="text-[28px] font-bold tracking-wide text-[var(--c-texto)]">SEMIELABORADO</h2>
+        <h2 className="text-[1.75rem] font-bold tracking-wide text-[var(--c-texto)]">SEMIELABORADO</h2>
         <span className="text-sm text-foreground">Rendimiento por producto · estándar 100 %</span>
         <div role="group" aria-label="Ver como" className="ml-auto inline-flex rounded-full border bg-card p-0.5">
           {(["graficas", "tabla"] as const).map((v) => (
@@ -56,7 +56,7 @@ export function VistaSemielaborado({
               type="button"
               aria-pressed={vista === v}
               onClick={() => onVista(v)}
-              className={cn("rounded-full px-3.5 py-1 text-[12.5px] font-semibold text-foreground", vista === v && "bg-[var(--c)] text-[var(--c-cab)]")}
+              className={cn("rounded-sm px-3.5 py-1 text-[0.8125rem] font-semibold text-foreground", vista === v && "bg-[var(--c)] text-[var(--c-cab)]")}
             >
               {v === "graficas" ? "Gráficas" : "Tabla"}
             </button>
@@ -91,7 +91,7 @@ export function VistaSemielaborado({
                 <GraficoFamilia serie={serie} />
                 {/* La observación ocupa solo lo que necesita: el resto del alto es del gráfico. */}
                 <div className="flex shrink-0 flex-col gap-2">
-                  {renderObservacion(claveSemi(f), <h4 className="text-[13px] font-bold tracking-wide text-[var(--c-texto)]">OBSERVACIONES</h4>)}
+                  {renderObservacion(claveSemi(f), <h4 className="text-[0.8125rem] font-bold tracking-wide text-[var(--c-texto)]">OBSERVACIONES</h4>)}
                 </div>
               </div>
             )

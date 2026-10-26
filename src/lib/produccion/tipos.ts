@@ -163,10 +163,31 @@ export interface DatosCipLinea {
   loteSigue?: boolean | null
 }
 
-/** Parada (+1) que tiene detenida a una línea: hasta completarla no se termina el CIP. */
+/**
+ * Parada ligada a una línea (migración 20261111590000): la abierta de una
+ * Parada (con inicio, sin fin) o el +1 del CIP. Si es un +1 sin completar
+ * (`pendiente`), no se termina el CIP ni se continúa hasta completarlo.
+ */
 export interface ParadaQueDetiene {
   linea: LineaCodigo
   paradaId: string
   pendiente: boolean
   tipoNombre: string
+  clase: string
+  tiempoGuiaMin: number | null
+  nota: string | null
+  /** ISO local 'YYYY-MM-DDTHH:MM:SS'. */
+  inicio: string
+  /** null = sigue abierta. */
+  fin: string | null
+  /** Del Sheet o cargada por Mantenimiento: Continuar no la cierra. */
+  deMantenimiento: boolean
+}
+
+/** Parada desde Líneas: el tipo es obligatorio; sin `inicio`, empieza ahora. */
+export interface DatosPausarLinea {
+  motivo: string
+  tipoCodigo: string
+  /** 'YYYY-MM-DDTHH:MM:SS' de planta, o null = ahora. */
+  inicio: string | null
 }

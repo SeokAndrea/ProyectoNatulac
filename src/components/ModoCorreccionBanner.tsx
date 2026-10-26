@@ -27,7 +27,7 @@ import type { TurnoCorregido } from "@/lib/turnoCorreccion"
 export function ModoCorreccionBanner({ turno, onSalir }: { turno: TurnoCorregido; onSalir: () => void }) {
   const cierre = turno.fechaFin && turno.horaFin ? ` al ${turno.fechaFin} ${turno.horaFin.slice(0, 5)}` : ""
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2.5 text-sm text-warning">
+    <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2.5 text-sm text-warning-foreground">
       <div className="flex flex-wrap items-center gap-3">
         <Wrench className="size-4 shrink-0" />
         <div className="min-w-0 flex-1">

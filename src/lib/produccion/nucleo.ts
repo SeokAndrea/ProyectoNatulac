@@ -15,7 +15,7 @@
  */
 import { supabase } from "@/lib/supabase"
 import { litrosHoraDeLive, type VelocidadLive } from "@/lib/catalogosLive"
-import type { DatosActivarLinea, DatosCambiarLinea, DatosNuevoContador, Resultado } from "./tipos"
+import type { DatosActivarLinea, DatosCambiarLinea, DatosNuevoContador, DatosPausarLinea, Resultado } from "./tipos"
 
 export async function activarLinea(
   usuario: string,
@@ -40,24 +40,38 @@ export async function activarLinea(
   return { ok: true, data }
 }
 
+/** Parada: pausa la corrida y deja abierta su parada (tipo, descripción y desde qué hora). */
 export async function pausarLinea(
   usuario: string,
   turnoId: string,
   corridaId: string,
-  motivo?: string,
+  datos: DatosPausarLinea,
 ): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("pausar_linea", {
     p_usuario: usuario,
     p_turno_id: turnoId,
     p_turno_linea_id: corridaId,
-    p_motivo: motivo ?? null,
+    p_motivo: datos.motivo,
+    p_tipo_codigo: datos.tipoCodigo,
+    p_inicio: datos.inicio,
   })
   if (error || !data) return { ok: false, error: error?.message ?? "No se pudo pausar la línea. Intenta de nuevo." }
   return { ok: true, data }
 }
 
-export async function continuarLinea(usuario: string, turnoId: string, corridaId: string): Promise<Resultado & { data?: unknown }> {
-  const { data, error } = await supabase.rpc("continuar_linea", { p_usuario: usuario, p_turno_id: turnoId, p_turno_linea_id: corridaId })
+/** Continuar: termina la parada abierta de la línea con la hora de ahora (justificación si una Programada pasó su tiempo guía). */
+export async function continuarLinea(
+  usuario: string,
+  turnoId: string,
+  corridaId: string,
+  justificacion?: string | null,
+): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("continuar_linea", {
+    p_usuario: usuario,
+    p_turno_id: turnoId,
+    p_turno_linea_id: corridaId,
+    p_justificacion: justificacion ?? null,
+  })
   if (error || !data) return { ok: false, error: error?.message ?? "No se pudo continuar la línea. Intenta de nuevo." }
   return { ok: true, data }
 }

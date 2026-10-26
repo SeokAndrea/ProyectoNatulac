@@ -25,6 +25,7 @@ const SolicitudesIntervencion = lazy(() => import("@/pages/apps/SolicitudesInter
 const CatalogoParadas = lazy(() => import("@/pages/apps/CatalogoParadas"))
 const Programacion = lazy(() => import("@/pages/apps/Programacion"))
 const EdicionDatos = lazy(() => import("@/pages/apps/EdicionDatos"))
+const Ajustes = lazy(() => import("@/pages/Ajustes"))
 const Personal = lazy(() => import("@/pages/apps/Personal"))
 const Calculadoras = lazy(() => import("@/pages/apps/Calculadoras"))
 const Historial = lazy(() => import("@/pages/apps/Historial"))
@@ -72,6 +73,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <InicioSegunRol />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ajustes"
+            element={
+              <ProtectedRoute>
+                <Ajustes />
               </ProtectedRoute>
             }
           />

@@ -27,7 +27,8 @@ producto terminado, paradas, calidad, indicadores, programación y paneles en vi
 
 En el servidor de planta corre con Docker:
 `docker compose --env-file .env.local --profile preview up -d --build`
-(app en el 4035, plc-bridge en el 4036, PostgREST en el 4037, PDF de actas en el 4038).
+(app en el 4035, plc-bridge en el 4036, PostgREST en el 4037, PDF de actas en el 4038; el servicio
+`correo` manda los avisos de Solicitudes de Inspección / Intervención si `SMTP_*` y `CORREO_PARA` están puestos).
 Los PDF quedan en `../natulac-actas` (al lado de la carpeta del proyecto).
 
 ## Base de datos

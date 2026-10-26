@@ -94,26 +94,26 @@ function TanquePanel({ tanque, preparaciones }: { tanque: TanqueRecepcion; prepa
           <>
             <p className="num truncate text-base font-bold leading-none">
               {(tanque.volumenL ?? 0).toLocaleString("es-CO")}
-              <span className="text-[11px] font-medium text-muted-foreground"> L</span>
+              <span className="text-xs font-medium text-muted-foreground"> L</span>
             </p>
             {(tanque.volumenL ?? 0) > TANK_CAPACITY && (
-              <span className="w-fit max-w-full truncate rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+              <span className="w-fit max-w-full truncate rounded-md bg-warning/15 px-1.5 py-0.5 text-xs font-semibold text-warning-foreground">
                 En espera de corte
               </span>
             )}
             <span
-              className="w-fit max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-background"
+              className="w-fit max-w-full truncate rounded-md px-1.5 py-0.5 text-xs font-semibold text-background"
               style={{ backgroundColor: color }}
             >
               {tanque.saborNombre ?? "Sabor"}
             </span>
             {tanque.paraVacio && (
-              <span className="w-fit max-w-full truncate rounded-md bg-vacio-soft px-1.5 py-0.5 text-[10px] font-semibold text-vacio">
+              <span className="w-fit max-w-full truncate rounded-md bg-vacio-soft px-1.5 py-0.5 text-xs font-semibold text-vacio">
                 Para Vacío
               </span>
             )}
             {tanque.lote && (
-              <p className="truncate text-[10px] text-muted-foreground">
+              <p className="truncate text-xs text-muted-foreground">
                 {standby ? "Resto del lote " : "Lote "}
                 {tanque.lote}
               </p>
@@ -124,14 +124,14 @@ function TanquePanel({ tanque, preparaciones }: { tanque: TanqueRecepcion; prepa
             <Badge variant="warning" className="w-fit">
               En Preparación
             </Badge>
-            <p className="truncate text-[10px] text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               {ultimaPrep
                 ? `${ultimaPrep.tambores.toLocaleString("es-CO")}t · ${ultimaPrep.saborNombre ?? "Sin sabor"}${tanque.lote ? ` · Lote ${tanque.lote}` : ""}`
                 : "Sin registrar aún."}
             </p>
           </>
         ) : (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {tanque.condicion === "SUCIO"
               ? "Pendiente de limpieza."
               : tanque.condicion === "CIP"

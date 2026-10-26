@@ -47,7 +47,7 @@ export function TablaCatalogo({
               key={item.fila.id}
               className={cn(
                 "grid items-center border-b border-border/60",
-                compacta ? "min-h-10 text-sm" : "min-h-12 text-[15px]",
+                compacta ? "min-h-10 text-sm" : "min-h-12 text-base",
                 seleccionada === item.fila.id ? "bg-info/10 shadow-[inset_3px_0_0_var(--info)]" : "hover:bg-muted/40",
                 !item.fila.activo && "text-muted-foreground",
               )}
@@ -62,8 +62,8 @@ export function TablaCatalogo({
                   onClick={() => onEditar(item.fila.id)}
                   aria-label={`Editar ${item.celdas[0] || ""}`}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg border border-info/30 bg-info/10 px-3 text-[13px] font-semibold text-info transition-colors hover:bg-info/20",
-                    compacta ? "h-7" : "h-8",
+                    "inline-flex items-center gap-1.5 rounded-lg border border-info/30 bg-info-soft px-3 text-sm font-semibold text-info-foreground transition-colors hover:bg-info/20",
+                    compacta ? "h-7 pointer-coarse:h-11" : "h-8 pointer-coarse:h-11",
                   )}
                 >
                   <Pencil className="size-3.5" />

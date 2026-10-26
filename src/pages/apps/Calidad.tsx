@@ -332,7 +332,7 @@ function LoteParaAnalizar({
             </div>
 
             {completo && (
-              <p className={cn("text-sm font-medium", conforme ? "text-success" : "text-destructive")}>
+              <p className={cn("text-sm font-medium", conforme ? "text-success-foreground" : "text-destructive")}>
                 {conforme ? "Resultado: conforme. Al guardar, el lote queda liberado." : `Resultado: no conforme (${motivos.join(", ")}). Se guarda con su hora, pero el lote no se libera.`}
               </p>
             )}
@@ -391,7 +391,7 @@ function CampoMedicion({
         aria-invalid={enRango === false}
         className={cn(enRango === false && "border-destructive")}
       />
-      <span className={cn("text-xs", enRango === false ? "text-destructive" : enRango ? "text-success" : "text-muted-foreground")}>
+      <span className={cn("text-xs", enRango === false ? "text-destructive" : enRango ? "text-success-foreground" : "text-muted-foreground")}>
         {rango === null ? "Sin rango cargado" : `Rango ${rango}`}
         {enRango === false ? " · fuera de rango" : enRango ? " · en rango" : ""}
       </span>

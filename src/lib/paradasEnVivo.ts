@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { duracionMin, esParadaLNPE, fmtDuracion, listarParadas, type Parada } from "@/lib/paradas"
+import { aplicarParadasALineas } from "@/lib/produccion/ajustes"
 import { actualizarDesdeSheet, ultimaActualizacionSheet } from "@/lib/sheetMantenimiento"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 
@@ -9,7 +10,9 @@ import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
  *
  *   * Una línea se ve parada si tiene una parada ABIERTA (sin fin): la de
  *     Líneas ("Parada", corrida pausada), una de Registrar Paradas con hora
- *     de inicio, o una en curso de Mantenimiento (su Sheet).
+ *     de inicio, o una en curso de Mantenimiento (su Sheet). Desde la
+ *     migración 20261111590000 esas últimas también pausan la corrida a los
+ *     15 min (lo aplica la base; cargar() le da el empujón cada minuto).
  *   * Margen de 15 min: las paradas cortas (4-5 min) no se muestran, y el
  *     supervisor tiene ese tiempo para registrarla. Antes de los 15 min la
  *     cinta sigue corriendo con un aviso chico; después, la escena de parada.
@@ -93,6 +96,26 @@ export function textoParadaEnVivo(p: ParadaEnVivo): string {
   return `${p.deMantenimiento ? "Mantenimiento" : "Parada"} · ${fmtDuracion(p.minutos)}`
 }
 
+let ultimoIntentoSync = 0
+
+/**
+ * Trae el Sheet de Mantenimiento si nadie lo hizo en los últimos 5 min (lo
+ * mira en la base, así varias pantallas abiertas no lo piden a la vez). La
+ * usan los paneles y Líneas (dueña, 2026-10-25: que entre solo). Sin conexión
+ * o sin permiso no hace nada.
+ */
+export async function sincronizarSheetSiHaceFalta(usuario: string | null): Promise<boolean> {
+  if (!usuario || Date.now() - ultimoIntentoSync < SYNC_SHEET_MS) return false
+  ultimoIntentoSync = Date.now()
+  try {
+    const ultima = await ultimaActualizacionSheet()
+    if (ultima && Date.now() - new Date(ultima).getTime() < SYNC_SHEET_MS) return false
+    return (await actualizarDesdeSheet(usuario)).ok
+  } catch {
+    return false
+  }
+}
+
 /**
  * Paradas abiertas del área, releídas cada minuto. Con `sincronizarComo`
  * (usuario con permiso para el Sheet), además trae el Sheet de
@@ -105,18 +128,11 @@ export function useParadasAbiertas(area: string | null, sincronizarComo: string 
   useEffect(() => {
     if (!habilitado) return
     let vivo = true
-    let ultimoIntentoSync = 0
-
-    async function sincronizarSiHaceFalta() {
-      if (!sincronizarComo || Date.now() - ultimoIntentoSync < SYNC_SHEET_MS) return
-      ultimoIntentoSync = Date.now()
-      const ultima = await ultimaActualizacionSheet()
-      if (ultima && Date.now() - new Date(ultima).getTime() < SYNC_SHEET_MS) return
-      await actualizarDesdeSheet(sincronizarComo)
-    }
 
     async function cargar() {
-      await sincronizarSiHaceFalta()
+      await sincronizarSheetSiHaceFalta(sincronizarComo)
+      // Las abiertas de 15 min o más ponen su línea en Parada (migración 20261111590000): los paneles quedan abiertos todo el día.
+      await aplicarParadasALineas(area)
       const hoy = fechaPlanta()
       const paradas = await listarParadas({ desde: restarDias(hoy, DIAS_ATRAS), hasta: hoy, area })
       if (vivo) setAbiertas(paradas.filter((p) => sigueEnVivo(p, new Date())))

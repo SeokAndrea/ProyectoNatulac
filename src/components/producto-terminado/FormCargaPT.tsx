@@ -267,10 +267,10 @@ export function FormCargaPT({
             className={cn(
               "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
               previa.nivel === "danger"
-                ? "border-danger/40 bg-danger-soft text-danger"
+                ? "border-danger/40 bg-danger-soft text-danger-foreground"
                 : previa.nivel === "warn"
-                  ? "border-warning/40 bg-warning-soft text-warning"
-                  : "border-success/35 bg-success-soft text-success",
+                  ? "border-warning/40 bg-warning-soft text-warning-foreground"
+                  : "border-success/35 bg-success-soft text-success-foreground",
             )}
           >
             {requiereJustificacion && <AlertTriangle className="size-4 shrink-0" />}
@@ -299,7 +299,7 @@ export function FormCargaPT({
         )}
 
         {faltaPt && (
-          <p className="text-sm text-warning">
+          <p className="text-sm text-warning-foreground">
             Para cerrar la corrida hay que cargar el Producto Terminado. Si no produjo nada, pon 0 paletas y 0 cajas.
           </p>
         )}

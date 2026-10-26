@@ -150,7 +150,7 @@ export function DesgloseCalculosPanel({
 
       {ajustes.length > 0 && (
         <div className="rounded-xl border border-border bg-background/60 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Correcciones de volumen (teórico → real)</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Correcciones de volumen (teórico → real)</p>
           <ul className="mt-1.5 flex flex-col gap-1 text-xs">
             {ajustes.map((a, i) => (
               <li key={i} className="text-foreground">
@@ -174,9 +174,9 @@ export function DesgloseCalculosPanel({
 function DesgloseDato({ etiqueta, valor, formula }: { etiqueta: string; valor: string; formula: string }) {
   return (
     <div className="rounded-xl border border-border bg-background/60 p-3">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{etiqueta}</p>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{etiqueta}</p>
       <p className="num mt-1 text-xl font-bold leading-none text-foreground">{valor}</p>
-      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{formula}</p>
+      <p className="mt-1.5 text-xs leading-snug text-muted-foreground">{formula}</p>
     </div>
   )
 }

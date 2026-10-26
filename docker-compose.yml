@@ -67,6 +67,31 @@ services:
     profiles:
       - preview
 
+  # Manda los avisos de Solicitudes de Inspección / Intervención que la base
+  # deja en correos_pendientes (ver correo/servidor.mjs). La base, con las
+  # mismas DB_* del servicio api; la cuenta que manda, con SMTP_* y CORREO_*
+  # de .env.local. Sin SMTP_HOST o CORREO_PARA no manda nada.
+  correo:
+    build:
+      context: ./correo
+    environment:
+      - PGHOST=${DB_HOST:?Falta DB_HOST - levantar con --env-file .env.local}
+      - PGPORT=${DB_PORT:-5432}
+      - PGDATABASE=${DB_NAME:?Falta DB_NAME}
+      - PGUSER=${DB_USER:?Falta DB_USER}
+      - PGPASSWORD=${DB_PASSWORD:?Falta DB_PASSWORD}
+      - PGSSLMODE=prefer
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PUERTO=${SMTP_PUERTO:-587}
+      - SMTP_USUARIO=${SMTP_USUARIO:-}
+      - SMTP_CLAVE=${SMTP_CLAVE:-}
+      - CORREO_DE=${CORREO_DE:-}
+      - CORREO_PARA=${CORREO_PARA:-}
+      - APP_URL=${APP_URL:-}
+    restart: unless-stopped
+    profiles:
+      - preview
+
   plc-bridge:
     build:
       context: ./plc-bridge

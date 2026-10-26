@@ -22,7 +22,7 @@ export function ControlesPresentacion({
 }) {
   const i = secciones.indexOf(seccion)
   return (
-    <div className="fixed right-3 bottom-3 z-[60] flex items-center gap-1 rounded-full border bg-card/90 px-1.5 py-1 text-sm opacity-40 shadow-sm transition-opacity hover:opacity-100 focus-within:opacity-100">
+    <div className="fixed right-3 bottom-3 z-[60] flex items-center gap-1 rounded-sm border bg-card/90 px-1.5 py-1 text-sm opacity-40 shadow-sm transition-opacity hover:opacity-100 focus-within:opacity-100">
       <button type="button" className={boton} aria-label="Pantalla anterior" disabled={i <= 0} onClick={() => onSeccion(secciones[i - 1])}>
         <ChevronLeft className="size-4" />
       </button>

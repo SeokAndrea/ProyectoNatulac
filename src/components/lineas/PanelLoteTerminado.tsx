@@ -50,7 +50,7 @@ export function PanelLoteTerminado({
           Detener línea
         </Button>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         "Seguir con el mismo lote" solo deshace el aviso — no toca el tanque ni los litros.
       </p>
       <MensajeError error={siguiente.error} />

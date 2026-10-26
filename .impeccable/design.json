@@ -1,0 +1,557 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T16:51:40+00:00",
+  "title": "Design System: Producción Natulac",
+  "extensions": {
+    "colorMeta": {
+      "tinta-pizarra": {
+        "role": "primary",
+        "displayName": "Tinta pizarra",
+        "canonical": "oklch(0.208 0.042 265.755)",
+        "tonalRamp": [
+          "oklch(0.150 0.042 265.755)",
+          "oklch(0.264 0.042 265.755)",
+          "oklch(0.379 0.042 265.755)",
+          "oklch(0.493 0.042 265.755)",
+          "oklch(0.607 0.042 265.755)",
+          "oklch(0.721 0.042 265.755)",
+          "oklch(0.836 0.042 265.755)",
+          "oklch(0.950 0.042 265.755)"
+        ]
+      },
+      "piso-gris-azulado": {
+        "role": "neutral",
+        "displayName": "Piso gris azulado",
+        "canonical": "oklch(0.958 0.005 247.858)",
+        "tonalRamp": [
+          "oklch(0.150 0.003 247.858)",
+          "oklch(0.264 0.003 247.858)",
+          "oklch(0.379 0.003 247.858)",
+          "oklch(0.493 0.003 247.858)",
+          "oklch(0.607 0.003 247.858)",
+          "oklch(0.721 0.003 247.858)",
+          "oklch(0.836 0.003 247.858)",
+          "oklch(0.950 0.003 247.858)"
+        ]
+      },
+      "superficie-clara": {
+        "role": "neutral",
+        "displayName": "Superficie clara",
+        "canonical": "oklch(0.988 0.002 247.858)",
+        "tonalRamp": [
+          "oklch(0.150 0.002 247.858)",
+          "oklch(0.264 0.002 247.858)",
+          "oklch(0.379 0.002 247.858)",
+          "oklch(0.493 0.002 247.858)",
+          "oklch(0.607 0.002 247.858)",
+          "oklch(0.721 0.002 247.858)",
+          "oklch(0.836 0.002 247.858)",
+          "oklch(0.950 0.002 247.858)"
+        ]
+      },
+      "tarjeta-blanca": {
+        "role": "neutral",
+        "displayName": "Tarjeta blanca",
+        "canonical": "oklch(1 0 0)",
+        "tonalRamp": [
+          "oklch(0.150 0.000 0)",
+          "oklch(0.264 0.000 0)",
+          "oklch(0.379 0.000 0)",
+          "oklch(0.493 0.000 0)",
+          "oklch(0.607 0.000 0)",
+          "oklch(0.721 0.000 0)",
+          "oklch(0.836 0.000 0)",
+          "oklch(0.950 0.000 0)"
+        ]
+      },
+      "texto-noche": {
+        "role": "neutral",
+        "displayName": "Texto noche",
+        "canonical": "oklch(0.129 0.042 264.695)",
+        "tonalRamp": [
+          "oklch(0.150 0.042 264.695)",
+          "oklch(0.264 0.042 264.695)",
+          "oklch(0.379 0.042 264.695)",
+          "oklch(0.493 0.042 264.695)",
+          "oklch(0.607 0.042 264.695)",
+          "oklch(0.721 0.042 264.695)",
+          "oklch(0.836 0.042 264.695)",
+          "oklch(0.950 0.042 264.695)"
+        ]
+      },
+      "texto-apagado": {
+        "role": "neutral",
+        "displayName": "Texto apagado",
+        "canonical": "oklch(0.34 0.035 257.4)",
+        "tonalRamp": [
+          "oklch(0.150 0.035 257.417)",
+          "oklch(0.264 0.035 257.417)",
+          "oklch(0.379 0.035 257.417)",
+          "oklch(0.493 0.035 257.417)",
+          "oklch(0.607 0.035 257.417)",
+          "oklch(0.721 0.035 257.417)",
+          "oklch(0.836 0.035 257.417)",
+          "oklch(0.950 0.035 257.417)"
+        ]
+      },
+      "borde-niebla": {
+        "role": "neutral",
+        "displayName": "Borde niebla",
+        "canonical": "oklch(0.88 0.016 255.5)",
+        "tonalRamp": [
+          "oklch(0.150 0.013 255.508)",
+          "oklch(0.264 0.013 255.508)",
+          "oklch(0.379 0.013 255.508)",
+          "oklch(0.493 0.013 255.508)",
+          "oklch(0.607 0.013 255.508)",
+          "oklch(0.721 0.013 255.508)",
+          "oklch(0.836 0.013 255.508)",
+          "oklch(0.950 0.013 255.508)"
+        ]
+      },
+      "relleno-niebla": {
+        "role": "neutral",
+        "displayName": "Relleno niebla",
+        "canonical": "oklch(0.968 0.007 247.896)",
+        "tonalRamp": [
+          "oklch(0.150 0.007 247.896)",
+          "oklch(0.264 0.007 247.896)",
+          "oklch(0.379 0.007 247.896)",
+          "oklch(0.493 0.007 247.896)",
+          "oklch(0.607 0.007 247.896)",
+          "oklch(0.721 0.007 247.896)",
+          "oklch(0.836 0.007 247.896)",
+          "oklch(0.950 0.007 247.896)"
+        ]
+      },
+      "verde-en-marcha": {
+        "role": "status",
+        "displayName": "Verde en marcha",
+        "canonical": "oklch(0.63 0.16 156)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 156)",
+          "oklch(0.264 0.128 156)",
+          "oklch(0.379 0.160 156)",
+          "oklch(0.493 0.160 156)",
+          "oklch(0.607 0.160 156)",
+          "oklch(0.721 0.160 156)",
+          "oklch(0.836 0.160 156)",
+          "oklch(0.950 0.123 156)"
+        ]
+      },
+      "verde-en-marcha-texto": {
+        "role": "status",
+        "displayName": "Verde en marcha (texto)",
+        "canonical": "oklch(0.38 0.11 156)"
+      },
+      "verde-en-marcha-suave": {
+        "role": "status",
+        "displayName": "Verde en marcha (suave)",
+        "canonical": "oklch(0.94 0.05 156)"
+      },
+      "ambar-atencion": {
+        "role": "status",
+        "displayName": "Ámbar atención",
+        "canonical": "oklch(0.76 0.15 74)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 74)",
+          "oklch(0.264 0.128 74)",
+          "oklch(0.379 0.150 74)",
+          "oklch(0.493 0.150 74)",
+          "oklch(0.607 0.150 74)",
+          "oklch(0.721 0.150 74)",
+          "oklch(0.836 0.150 74)",
+          "oklch(0.950 0.123 74)"
+        ]
+      },
+      "ambar-atencion-texto": {
+        "role": "status",
+        "displayName": "Ámbar atención (texto)",
+        "canonical": "oklch(0.4 0.1 66)"
+      },
+      "ambar-atencion-suave": {
+        "role": "status",
+        "displayName": "Ámbar atención (suave)",
+        "canonical": "oklch(0.95 0.06 84)"
+      },
+      "rojo-falla": {
+        "role": "status",
+        "displayName": "Rojo falla",
+        "canonical": "oklch(0.56 0.21 22)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 22)",
+          "oklch(0.264 0.128 22)",
+          "oklch(0.379 0.166 22)",
+          "oklch(0.493 0.204 22)",
+          "oklch(0.607 0.210 22)",
+          "oklch(0.721 0.200 22)",
+          "oklch(0.836 0.161 22)",
+          "oklch(0.950 0.123 22)"
+        ]
+      },
+      "rojo-falla-texto": {
+        "role": "status",
+        "displayName": "Rojo falla (texto)",
+        "canonical": "oklch(0.42 0.17 24)"
+      },
+      "rojo-falla-suave": {
+        "role": "status",
+        "displayName": "Rojo falla (suave)",
+        "canonical": "oklch(0.94 0.05 22)"
+      },
+      "rojo-destructivo": {
+        "role": "status",
+        "displayName": "Rojo destructivo",
+        "canonical": "oklch(0.54 0.23 27.3)"
+      },
+      "azul-dato": {
+        "role": "status",
+        "displayName": "Azul dato",
+        "canonical": "oklch(0.55 0.16 245)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 245)",
+          "oklch(0.264 0.128 245)",
+          "oklch(0.379 0.160 245)",
+          "oklch(0.493 0.160 245)",
+          "oklch(0.607 0.160 245)",
+          "oklch(0.721 0.160 245)",
+          "oklch(0.836 0.160 245)",
+          "oklch(0.950 0.123 245)"
+        ]
+      },
+      "azul-dato-texto": {
+        "role": "status",
+        "displayName": "Azul dato (texto)",
+        "canonical": "oklch(0.46 0.15 245)"
+      },
+      "azul-dato-suave": {
+        "role": "status",
+        "displayName": "Azul dato (suave)",
+        "canonical": "oklch(0.94 0.04 245)"
+      },
+      "violeta-vacio": {
+        "role": "status",
+        "displayName": "Violeta vacío",
+        "canonical": "oklch(0.45 0.13 268)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 268)",
+          "oklch(0.264 0.128 268)",
+          "oklch(0.379 0.130 268)",
+          "oklch(0.493 0.130 268)",
+          "oklch(0.607 0.130 268)",
+          "oklch(0.721 0.130 268)",
+          "oklch(0.836 0.130 268)",
+          "oklch(0.950 0.123 268)"
+        ]
+      },
+      "violeta-vacio-suave": {
+        "role": "status",
+        "displayName": "Violeta vacío (suave)",
+        "canonical": "oklch(0.94 0.03 268)"
+      },
+      "sabor-naranja": {
+        "role": "flavor",
+        "displayName": "Sabor naranja",
+        "canonical": "oklch(0.72 0.18 55)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 55)",
+          "oklch(0.264 0.128 55)",
+          "oklch(0.379 0.166 55)",
+          "oklch(0.493 0.180 55)",
+          "oklch(0.607 0.180 55)",
+          "oklch(0.721 0.180 55)",
+          "oklch(0.836 0.161 55)",
+          "oklch(0.950 0.123 55)"
+        ]
+      },
+      "sabor-amarillo": {
+        "role": "flavor",
+        "displayName": "Sabor amarillo",
+        "canonical": "oklch(0.84 0.16 92)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 92)",
+          "oklch(0.264 0.128 92)",
+          "oklch(0.379 0.160 92)",
+          "oklch(0.493 0.160 92)",
+          "oklch(0.607 0.160 92)",
+          "oklch(0.721 0.160 92)",
+          "oklch(0.836 0.160 92)",
+          "oklch(0.950 0.123 92)"
+        ]
+      },
+      "sabor-rojo": {
+        "role": "flavor",
+        "displayName": "Sabor rojo",
+        "canonical": "oklch(0.58 0.22 26)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 26)",
+          "oklch(0.264 0.128 26)",
+          "oklch(0.379 0.166 26)",
+          "oklch(0.493 0.204 26)",
+          "oklch(0.607 0.220 26)",
+          "oklch(0.721 0.200 26)",
+          "oklch(0.836 0.161 26)",
+          "oklch(0.950 0.123 26)"
+        ]
+      },
+      "sabor-verde": {
+        "role": "flavor",
+        "displayName": "Sabor verde",
+        "canonical": "oklch(0.68 0.16 148)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 148)",
+          "oklch(0.264 0.128 148)",
+          "oklch(0.379 0.160 148)",
+          "oklch(0.493 0.160 148)",
+          "oklch(0.607 0.160 148)",
+          "oklch(0.721 0.160 148)",
+          "oklch(0.836 0.160 148)",
+          "oklch(0.950 0.123 148)"
+        ]
+      },
+      "sabor-lima": {
+        "role": "flavor",
+        "displayName": "Sabor lima",
+        "canonical": "oklch(0.8 0.17 125)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 125)",
+          "oklch(0.264 0.128 125)",
+          "oklch(0.379 0.166 125)",
+          "oklch(0.493 0.170 125)",
+          "oklch(0.607 0.170 125)",
+          "oklch(0.721 0.170 125)",
+          "oklch(0.836 0.161 125)",
+          "oklch(0.950 0.123 125)"
+        ]
+      },
+      "sabor-ambar": {
+        "role": "flavor",
+        "displayName": "Sabor ámbar",
+        "canonical": "oklch(0.77 0.17 70)",
+        "tonalRamp": [
+          "oklch(0.150 0.090 70)",
+          "oklch(0.264 0.128 70)",
+          "oklch(0.379 0.166 70)",
+          "oklch(0.493 0.170 70)",
+          "oklch(0.607 0.170 70)",
+          "oklch(0.721 0.170 70)",
+          "oklch(0.836 0.161 70)",
+          "oklch(0.950 0.123 70)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Cifras grandes de los paneles en vivo."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Saludo del Hub y títulos grandes."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Título de cada pantalla y de tarjetas importantes."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Texto de trabajo; 16 px en campos del teléfono."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Títulos de sección y nombres de datos, en mayúsculas."
+      },
+      "number": {
+        "displayName": "Number",
+        "purpose": "Códigos, horas y cantidades en mono tabular."
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel",
+        "value": "0 1px 0 0 color-mix(in oklab, var(--border) 80%, transparent), 0 12px 28px -18px color-mix(in oklab, var(--foreground) 35%, transparent)",
+        "purpose": "Tarjetas de los paneles en vivo, que se miran de lejos."
+      },
+      {
+        "name": "card-ring",
+        "value": "0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent)",
+        "purpose": "El filo de 1 px de toda tarjeta de trabajo."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-entrada",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Entrada suave de tarjetas del panel (0.45 s) y del carrusel (0.35 s)."
+      },
+      {
+        "name": "liquid-wave",
+        "value": "5s ease-in-out infinite (segunda capa: 7s en reversa)",
+        "purpose": "Ola del líquido en los tanques."
+      },
+      {
+        "name": "liquid-bubble",
+        "value": "4.5s ease-in-out infinite",
+        "purpose": "Burbujas lentas del líquido."
+      },
+      {
+        "name": "belt-move",
+        "value": "4.8s linear infinite",
+        "purpose": "Cajas sobre la cinta del Panel de Paradas."
+      },
+      {
+        "name": "dot-ring",
+        "value": "1.8s ease-out infinite",
+        "purpose": "Halo del punto de línea activa."
+      },
+      {
+        "name": "alert-pulse",
+        "value": "1.4s ease-in-out infinite",
+        "purpose": "Estados críticos."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "telefono",
+        "value": "400px"
+      },
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón principal",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "La acción principal de cada bloque.",
+      "html": "<button class=\"ds-btn-primary\">Guardar e iniciar reparación</button>",
+      "css": ".ds-btn-primary { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 10px; border:1px solid transparent; border-radius:4px; background:var(--primary); color:var(--primary-foreground); font:500 14px/1 'IBM Plex Sans', system-ui, sans-serif; cursor:pointer; transition:background .15s, transform .1s; } .ds-btn-primary:hover { background:color-mix(in oklab, var(--primary) 80%, transparent); } .ds-btn-primary:active { transform:translateY(1px); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }"
+    },
+    {
+      "name": "Botón con borde",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Acciones secundarias.",
+      "html": "<button class=\"ds-btn-outline\">Cancelar</button>",
+      "css": ".ds-btn-outline { height:32px; padding:0 10px; border:1px solid var(--border); border-radius:4px; background:var(--background); color:var(--foreground); font:500 14px/1 'IBM Plex Sans', system-ui, sans-serif; cursor:pointer; transition:background .15s; } .ds-btn-outline:hover { background:var(--muted); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }"
+    },
+    {
+      "name": "Botón destructivo",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Borrar o cerrar sin vuelta atrás, siempre con confirmación.",
+      "html": "<button class=\"ds-btn-destructive\">Sí, cerrar solicitud</button>",
+      "css": ".ds-btn-destructive { height:32px; padding:0 10px; border:1px solid transparent; border-radius:4px; background:color-mix(in oklab, var(--destructive) 10%, transparent); color:var(--destructive); font:500 14px/1 'IBM Plex Sans', system-ui, sans-serif; cursor:pointer; transition:background .15s; } .ds-btn-destructive:hover { background:color-mix(in oklab, var(--destructive) 20%, transparent); } .ds-btn-destructive:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo con su etiqueta arriba.",
+      "html": "<label class=\"ds-campo\">Responsable de la reparación<input class=\"ds-input\" placeholder=\"Nombre y apellido\"></label>",
+      "css": ".ds-campo { display:flex; flex-direction:column; gap:4px; font:400 12px/1.4 'IBM Plex Sans', system-ui, sans-serif; color:var(--muted-foreground); } .ds-input { height:32px; padding:4px 10px; border:1px solid var(--input); border-radius:4px; background:transparent; color:var(--foreground); font:400 14px 'IBM Plex Sans', system-ui, sans-serif; transition:border-color .15s; } .ds-input::placeholder { color:var(--muted-foreground); } .ds-input:focus-visible { outline:none; border-color:var(--ring); box-shadow:0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }"
+    },
+    {
+      "name": "Etiquetas de estado",
+      "kind": "chip",
+      "refersTo": "badge-atencion",
+      "description": "Nivel y estado en una píldora: ámbar, rojo, verde.",
+      "html": "<span class=\"ds-badge ds-badge-atencion\">Inspección</span> <span class=\"ds-badge ds-badge-falla\">Intervención pendiente</span> <span class=\"ds-badge ds-badge-ok\">Cerrada</span>",
+      "css": ".ds-badge { display:inline-flex; align-items:center; height:20px; padding:2px 8px; border-radius:2.4px; font:500 12px/1 'IBM Plex Sans', system-ui, sans-serif; white-space:nowrap; } .ds-badge-atencion { background:var(--warning-soft); color:var(--warning-foreground); } .ds-badge-falla { background:var(--danger-soft); color:var(--danger-foreground); } .ds-badge-ok { background:var(--success-soft); color:var(--success-foreground); }"
+    },
+    {
+      "name": "Tarjeta de lista con Ver",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Elemento de lista cerrado; el detalle se abre aparte.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-txt\"><p class=\"ds-card-tit\">Línea 3 · Retraso en la Limpieza</p><p class=\"ds-card-meta\"><span class=\"ds-badge-mini\">Intervención pendiente</span><span class=\"ds-num\">SIF20261025_3 · EPTL3-6</span> · 4 fallas</p></div><button class=\"ds-card-btn\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>Ver</button></div>",
+      "css": ".ds-card { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px; border-radius:5.6px; background:var(--card); color:var(--card-foreground); box-shadow:0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent); font-family:'IBM Plex Sans', system-ui, sans-serif; } .ds-card-txt { display:flex; flex-direction:column; gap:4px; min-width:0; } .ds-card-tit { margin:0; font-size:14px; font-weight:600; } .ds-card-meta { margin:0; display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; font-size:12px; color:var(--muted-foreground); } .ds-badge-mini { height:20px; display:inline-flex; align-items:center; padding:2px 8px; border-radius:2.4px; background:var(--danger-soft); color:var(--danger-foreground); font-weight:500; } .ds-num { font-family:'JetBrains Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums; letter-spacing:-0.02em; } .ds-card-btn { display:inline-flex; align-items:center; gap:4px; height:28px; padding:0 10px; border:0; border-radius:3.2px; background:var(--primary); color:var(--primary-foreground); font:500 13px 'IBM Plex Sans', system-ui, sans-serif; cursor:pointer; } .ds-card-btn:hover { background:color-mix(in oklab, var(--primary) 80%, transparent); } .ds-card-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }"
+    },
+    {
+      "name": "Aviso de arriba",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Lo que hay que atender, grande para quien gestiona.",
+      "html": "<div class=\"ds-aviso\" role=\"alert\"><span class=\"ds-aviso-ico\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg></span><div class=\"ds-aviso-txt\"><p class=\"ds-aviso-tit\">1 solicitud de intervención y 1 de inspección por atender</p><p class=\"ds-aviso-sub\">SIF20261025_1 · Línea 2 · Empacaduras Deterioradas</p></div><button class=\"ds-aviso-btn\">Abrir</button></div>",
+      "css": ".ds-aviso { display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; padding:14px 16px; border:1px solid color-mix(in oklab, var(--danger) 40%, transparent); border-radius:5.6px; background:var(--danger-soft); font-family:'IBM Plex Sans', system-ui, sans-serif; } .ds-aviso-ico { display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:color-mix(in oklab, var(--danger) 15%, transparent); color:var(--danger); } .ds-aviso-txt { flex:1; min-width:200px; } .ds-aviso-tit { margin:0; font-size:16px; font-weight:600; color:var(--foreground); } .ds-aviso-sub { margin:0; font-size:14px; color:var(--muted-foreground); } .ds-aviso-btn { height:36px; padding:0 16px; border:0; border-radius:4px; background:var(--primary); color:var(--primary-foreground); font:500 14px 'IBM Plex Sans', system-ui, sans-serif; cursor:pointer; } .ds-aviso-btn:hover { background:color-mix(in oklab, var(--primary) 90%, transparent); } .ds-aviso-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }"
+    },
+    {
+      "name": "Navegación lateral",
+      "kind": "nav",
+      "refersTo": "button-outline",
+      "description": "Barra lateral de escritorio con secciones y la app actual.",
+      "html": "<nav class=\"ds-nav\"><p class=\"ds-nav-sec\">Servicios de apoyo</p><a class=\"ds-nav-item\" href=\"#\">Registrar Paradas</a><a class=\"ds-nav-item ds-nav-activo\" href=\"#\" aria-current=\"page\">Solicitudes de Intervención</a></nav>",
+      "css": ".ds-nav { display:flex; flex-direction:column; gap:2px; width:224px; padding:8px; background:var(--sidebar); font-family:'IBM Plex Sans', system-ui, sans-serif; } .ds-nav-sec { margin:8px 8px 4px; font-size:11px; font-weight:600; letter-spacing:.025em; text-transform:uppercase; color:var(--muted-foreground); } .ds-nav-item { padding:8px; border-radius:4px; color:var(--sidebar-foreground); font-size:14px; text-decoration:none; transition:background .15s; } .ds-nav-item:hover { background:var(--sidebar-accent); } .ds-nav-activo { background:var(--sidebar-accent); font-weight:500; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El tablero de turno",
+    "overview": "La app es el tablero que el supervisor lleva en el bolsillo durante el turno: práctico, directo y hecho para usarse con apuro en el piso de planta. El objetivo es llevar el control, pero cargar ya tiene fama de tedioso, así que cada pantalla se juzga por lo poco que pide. La base es sobria: fondo gris azulado claro, tarjetas blancas que se despegan de él, tinta azul pizarra casi negra y una sola familia de letra. El color no decora: dice el estado de algo (en marcha, atención, falla, dato, vacío) o el sabor de un tanque.\n\nLa vida viene de la planta misma, no de adornos. Los tanques muestran el líquido con su ola y burbujas, la cinta transportadora corre en el Panel de Paradas y el punto de una línea activa late. Los números van siempre en letra monoespaciada, alineados como en una planilla. Los paneles en vivo se miran de lejos en una TV, y las pantallas de carga se usan con apuro en un teléfono chico. Las dos cosas mandan sobre cualquier gusto.\n\nLa dirección está confirmada: el aspecto actual se conserva. Cada cambio visual es un refinamiento que le quita a la app lo que tenga de plantilla genérica, sin cambiar su identidad.",
+    "keyCharacteristics": [
+      "Base sobria de grises azulados con tinta pizarra; color solo para estado y sabor.",
+      "Esquinas casi rectas (base 4 px) y etiquetas sin forma de píldora: aire de tablero industrial, no de plantilla.",
+      "Números en JetBrains Mono tabular, texto en IBM Plex Sans.",
+      "Planos con un filo de 1 px; la sombra se reserva para los paneles en vivo.",
+      "Movimiento que imita la planta (líquido, cinta, pulso), nunca adorno.",
+      "Pensada primero para el teléfono a 400 px y para la TV de planta.",
+      "Modo claro y oscuro con los mismos papeles de color."
+    ],
+    "rules": [
+      {
+        "name": "The Señal-No-Adorno Rule",
+        "body": "Un color fuerte en pantalla siempre significa un estado o un sabor. Si no comunica nada, va en gris.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tres-Tonos Rule",
+        "body": "Un aviso usa el fondo suave, el texto del mismo estado y, si hace falta, el tono fuerte en el punto o la barra. Como letra va siempre el tono texto, nunca el fuerte, y nunca texto fuerte sobre fondo fuerte.",
+        "section": "colors"
+      },
+      {
+        "name": "The Doce-Mínimo Rule",
+        "body": "Ningún texto de la app baja de 12 px (0.75rem): ni etiquetas, ni datos de paneles, ni notas. Lo secundario se marca con el gris y el peso, no achicando la letra.",
+        "section": "typography"
+      },
+      {
+        "name": "The Número-en-Mono Rule",
+        "body": "Todo número que se compare o se copie a mano va en JetBrains Mono tabular. Texto en Plex, cifras en Mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Plano-por-Defecto Rule",
+        "body": "Una tarjeta de trabajo es plana con su filo de 1 px. La sombra es para lo que se mira de lejos.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do refinar sobre lo que ya existe: la dueña está conforme con el aspecto actual. El trabajo es pulir para que no se vea como una app genérica hecha con IA, no rediseñar.",
+      "Do dejar que cada pantalla de carga pida lo mínimo: un dato por campo y un botón fuerte por bloque.",
+      "Do hacer los botones de las pantallas de carga en planta de al menos 44 px de alto (tamaño `lg` o mayor). El tamaño por defecto actual (32 px) es chico para tocar con apuro en el teléfono.",
+      "Do escribir números, códigos y horas con la utilidad mono tabular (`num`).",
+      "Do usar el estado con sus tres tonos (fuerte, texto, suave) y el mismo color para el mismo significado en toda la app.",
+      "Do probar cada pantalla a 400 px de ancho y cada panel en vivo como se ve de lejos.",
+      "Do mantener los dos modos, claro y oscuro, tocando solo los tokens."
+    ],
+    "donts": [
+      "Don't usar formas de píldora en etiquetas, chips ni selectores: esquinas de 2 a 3 px.",
+      "Don't usar el ámbar o el verde fuertes como color de letra: va su tono texto.",
+      "Don't usar letras de menos de 12 px ni tamaños fijos en px (`text-[11px]`): rompen la escala y el ajuste de tamaño de letra.",
+      "Don't aclarar el gris con transparencia (`text-muted-foreground/60`): si algo es secundario, ya es gris.",
+      "Don't poner párrafos ni explicaciones largas en pantalla: una línea de ayuda como máximo, y un bloqueo o botón directo en vez de un aviso de texto.",
+      "Don't caer en el aspecto genérico de IA: degradados vistosos, tarjetas dentro de tarjetas, grillas de tarjetas idénticas con ícono-título-texto para todo, o una sola letra de moda para todo.",
+      "Don't usar color fuerte sin significado: si no es estado ni sabor, va en gris.",
+      "Don't agregar movimiento que no venga de la planta (líquido, cinta, pulso de línea activa) ni animaciones que distraigan del dato."
+    ]
+  }
+}

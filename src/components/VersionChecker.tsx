@@ -50,7 +50,7 @@ export function VersionChecker() {
   if (!hayVersionNueva) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-center gap-3 border-t border-warning/40 bg-warning-soft px-4 py-2.5 text-sm text-warning shadow-lg">
+    <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-center gap-3 border-t border-warning/40 bg-warning-soft px-4 py-2.5 text-sm text-warning-foreground shadow-lg">
       <span className="font-medium">Tienes la app desactualizada — actualízala para evitar errores.</span>
       <Button size="sm" onClick={() => window.location.reload()}>
         <RefreshCw className="size-3.5" />

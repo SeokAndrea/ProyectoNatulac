@@ -81,18 +81,18 @@ export function TransferenciaTanques({
 
         {/* Rótulo: flecha, modo y litros */}
         <div className="absolute inset-x-0 top-6 flex flex-col items-center gap-1 text-center">
-          <span className="flex items-center gap-0.5 text-[10px] font-bold text-foreground">
+          <span className="flex items-center gap-0.5 text-xs font-bold text-foreground">
             T{origen.numeroTanque}
             <ArrowRight className={cn("size-3.5", activa && "alert-pulse")} aria-hidden="true" />
             T{destino.numeroTanque}
           </span>
-          <span className="rounded-md bg-background/85 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+          <span className="rounded-md bg-background/85 px-1.5 py-0.5 text-xs font-semibold uppercase text-muted-foreground">
             {modo === "LOTE" ? "Lote" : "Líquido"}
             {porManifold ? " · Manifold" : ""}
           </span>
           <span className="num text-xs font-bold text-foreground">{Math.round(litrosTransferidos).toLocaleString("es-CO")} L</span>
           {caudalLMin != null && activa && (
-            <span className="num text-[10px] text-muted-foreground">{caudalLMin.toFixed(0)} L/min</span>
+            <span className="num text-xs text-muted-foreground">{caudalLMin.toFixed(0)} L/min</span>
           )}
         </div>
       </div>

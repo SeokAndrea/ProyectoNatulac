@@ -25,7 +25,7 @@ export function CampoNumero({
   // cambia desde afuera ("Traer lo automático"), el editor vuelve a montar los campos.
   const [texto, setTexto] = useState(mostrar(valor))
   return (
-    <label className={cn("flex min-w-0 flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground", className)}>
+    <label className={cn("flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground", className)}>
       {etiqueta}
       <span className="flex items-center gap-1">
         <Input
@@ -47,7 +47,7 @@ export function CampoNumero({
 /** Lo que el editor calcula solo (no se escribe): mismo lugar y etiqueta que un campo. */
 export function DatoCalculado({ etiqueta, texto, className }: { etiqueta: string; texto: string; className?: string }) {
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1 text-[11.5px] font-semibold text-muted-foreground", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground", className)}>
       {etiqueta}
       <span title="Se calcula solo" className="flex h-9 items-center rounded-md border border-dashed bg-muted/40 px-3 font-mono text-sm text-foreground">
         {texto}

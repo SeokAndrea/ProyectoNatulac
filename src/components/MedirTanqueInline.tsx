@@ -84,7 +84,7 @@ export function MedirTanqueInline({
         />
         <span className="text-xs text-muted-foreground">L</span>
       </div>
-      {esCero && notaCero && <p className="text-[11px] text-warning">{notaCero}</p>}
+      {esCero && notaCero && <p className="text-xs text-warning-foreground">{notaCero}</p>}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={!valido || enviando} onClick={guardar}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : null}

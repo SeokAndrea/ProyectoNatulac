@@ -17,7 +17,7 @@ export function ValorValidado({ original, validacion, unidad = "" }: { original:
   if (validacion?.valor == null) return <span className="num">{n(original)}</span>
   return (
     <span className="num whitespace-nowrap">
-      <span className="mr-1 text-[11px] text-muted-foreground line-through">{n(original)}</span>
+      <span className="mr-1 text-xs text-muted-foreground line-through">{n(original)}</span>
       <span className="font-semibold text-info">{n(validacion.valor)}</span>
     </span>
   )

@@ -62,7 +62,7 @@ export function MenuLateral({ plegadoInicial = false }: { plegadoInicial?: boole
               i > 0 && <div className="mx-2 my-2 border-t border-border/70" />
             ) : (
               titulo && (
-                <p className="truncate px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
+                <p className="truncate px-2 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
               )
             )}
             {apps.map((app) => (
@@ -115,7 +115,7 @@ function ItemMenu({
               ? `${app.title}: se habilita al iniciar un turno`
               : `${app.title}: ya tienes un turno en curso`
         }
-        className={cn(base, "cursor-not-allowed text-muted-foreground/60")}
+        className={cn(base, "cursor-not-allowed text-muted-foreground")}
       >
         <Lock className="size-4 shrink-0" />
         {!plegado && <span className="truncate">{app.title}</span>}

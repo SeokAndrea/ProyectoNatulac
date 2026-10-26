@@ -94,13 +94,13 @@ export default function Programacion() {
                 type="button"
                 aria-pressed={vista === v}
                 onClick={() => setVista(v)}
-                className={cn("rounded-full px-3.5 py-1 text-xs font-semibold tracking-wide text-muted-foreground", vista === v && "bg-primary text-primary-foreground")}
+                className={cn("rounded-sm px-3.5 py-1 text-xs font-semibold tracking-wide text-muted-foreground", vista === v && "bg-primary text-primary-foreground")}
               >
                 {v}
               </button>
             ))}
           </div>
-          <div role="group" aria-label="Semana" className="inline-flex items-center gap-1 rounded-full border bg-card px-1 py-0.5">
+          <div role="group" aria-label="Semana" className="inline-flex items-center gap-1 rounded-sm border bg-card px-1 py-0.5">
             <button type="button" aria-label="Semana anterior" onClick={() => irASemana(-1)} className="grid size-7 place-items-center rounded-full hover:bg-muted">
               <ChevronLeft className="size-4" />
             </button>

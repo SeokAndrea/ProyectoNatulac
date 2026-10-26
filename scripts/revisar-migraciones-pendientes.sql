@@ -76,6 +76,8 @@ from (
   ('20261111390000', 'Resumen Diario: observaciones por corrida',
     to_regclass('public.observaciones_corrida') is not null),
   ('20261111490000', 'Edición de Datos con permiso y autor',
-    exists (select 1 from fn where proname = 'guardar_catalogo'))
+    exists (select 1 from fn where proname = 'guardar_catalogo')),
+  ('20261111590000', 'Paradas: la parada abierta de la línea',
+    exists (select 1 from fn where proname = 'aplicar_paradas_a_lineas'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

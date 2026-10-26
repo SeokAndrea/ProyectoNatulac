@@ -1,0 +1,15 @@
+{
+  "name": "natulac-correo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Manda los correos que la base deja en correos_pendientes (avisos de Solicitudes de Inspección e Intervención).",
+  "main": "servidor.mjs",
+  "scripts": {
+    "start": "node servidor.mjs"
+  },
+  "dependencies": {
+    "nodemailer": "^7.0.10",
+    "pg": "^8.16.3"
+  }
+}
