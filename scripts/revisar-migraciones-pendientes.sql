@@ -88,6 +88,8 @@ from (
   ('20261111990000', 'Panel en vivo: el turno más reciente es el último creado',
     exists (select 1 from fn where proname = 'estado_planta_actual' and prosrc like '%order by (t.estado = ''ABIERTO'') desc, t.created_at desc%')),
   ('20261112090000', 'Día extraordinario',
-    to_regclass('public.dias_extraordinarios') is not null and exists (select 1 from fn where proname = 'guardar_dia_extraordinario'))
+    to_regclass('public.dias_extraordinarios') is not null and exists (select 1 from fn where proname = 'guardar_dia_extraordinario')),
+  ('20261112150000', 'Paradas: de quién es lo decide quién la registra',
+    exists (select 1 from fn where proname = 'es_de_mantenimiento'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;
