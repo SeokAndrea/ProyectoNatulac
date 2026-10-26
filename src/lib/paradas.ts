@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { restarDias } from "@/lib/tiempoPlanta"
 
@@ -295,6 +296,8 @@ export interface Parada {
   pendiente?: boolean
   /** Qué hizo Mantenimiento para resolver la falla (migración 20261112590000). */
   solucion?: string | null
+  /** Falla abierta en un área con «Mantenimiento termina las fallas»: Producción no la puede continuar. */
+  laTerminaMantenimiento?: boolean
 }
 
 /**
@@ -605,6 +608,7 @@ export interface FilaParada {
   supervisor_nombre: string | null
   pendiente?: boolean | null
   solucion?: string | null
+  la_termina_mantenimiento?: boolean | null
 }
 
 /** Lee `listar_paradas` (migración 20261061). Devuelve [] si la lectura falla. */
@@ -639,6 +643,7 @@ export function mapearFilaParada(f: FilaParada): Parada {
     supervisorNombre: f.supervisor_nombre,
     pendiente: f.pendiente === true,
     solucion: f.solucion ?? null,
+    laTerminaMantenimiento: f.la_termina_mantenimiento === true,
   }
 }
 
@@ -718,6 +723,44 @@ export async function clasificarFalla(usuario: string, paradaId: string, tipoCod
     p_pagina: pagina,
   })
   return error ? { ok: false, error: error.message || "No se pudo clasificar la falla. Intenta de nuevo." } : { ok: true }
+}
+
+/** Mantenimiento termina una falla: código, qué se hizo y fin = ahora; la línea sigue sola (migración 20261112590000). */
+export async function finalizarFalla(usuario: string, paradaId: string, tipoCodigo: string, solucion: string, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("finalizar_falla", {
+    p_usuario: usuario,
+    p_parada_id: paradaId,
+    p_tipo_codigo: tipoCodigo,
+    p_solucion: solucion,
+    p_pagina: pagina,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo terminar la falla. Intenta de nuevo." } : { ok: true }
+}
+
+/**
+ * Interruptor por área «Mantenimiento termina las fallas» (areas.mantenimiento_finaliza):
+ * encendido, Producción inicia la falla y Mantenimiento la finaliza; apagado, la
+ * termina Producción con Continuar. null mientras carga.
+ */
+export function useMantenimientoFinaliza(area: string | null): boolean | null {
+  const [resultado, setResultado] = useState<{ area: string | null; valor: boolean } | null>(null)
+  useEffect(() => {
+    let vivo = true
+    supabase.rpc("mantenimiento_finaliza_area", { p_area_codigo: area }).then(({ data, error }) => {
+      // Sin la migración en el servidor, la función no existe: se comporta como apagado.
+      if (vivo) setResultado({ area, valor: !error && data === true })
+    })
+    return () => {
+      vivo = false
+    }
+  }, [area])
+  return resultado?.area === area ? resultado.valor : null
+}
+
+/** Prende / apaga «Mantenimiento termina las fallas» en un área. Solo el dueño. */
+export async function guardarMantenimientoFinaliza(usuario: string, area: string, activo: boolean): Promise<Resultado> {
+  const { error } = await supabase.rpc("guardar_mantenimiento_finaliza", { p_usuario: usuario, p_area_codigo: area, p_activo: activo })
+  return error ? { ok: false, error: error.message || "No se pudo cambiar el ajuste." } : { ok: true }
 }
 
 /** Elimina una parada cargada por error (queda en Auditoría). */

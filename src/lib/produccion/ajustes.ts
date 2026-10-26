@@ -123,6 +123,7 @@ interface FilaParadaQueDetiene {
   inicio: string
   fin: string | null
   de_mantenimiento: boolean
+  la_termina_mantenimiento?: boolean | null
 }
 
 /** Paradas ligadas a las líneas del turno (la de una Parada, la del CIP). [] si la lectura falla. */
@@ -140,6 +141,7 @@ export async function paradasQueDetienenLineas(turnoId: string): Promise<ParadaQ
     inicio: f.inicio,
     fin: f.fin,
     deMantenimiento: f.de_mantenimiento,
+    laTerminaMantenimiento: f.la_termina_mantenimiento === true,
   }))
 }
 

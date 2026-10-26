@@ -29,10 +29,12 @@ vi.mock("@/lib/produccion/useProduccion", () => ({ useProduccion: () => producci
 
 const listarParadas = vi.fn()
 const clasificarFalla = vi.fn()
+const finalizarFalla = vi.fn()
 vi.mock("@/lib/paradas", async (orig) => ({
   ...(await orig<object>()),
   listarParadas: (...a: unknown[]) => listarParadas(...a),
   clasificarFalla: (...a: unknown[]) => clasificarFalla(...a),
+  finalizarFalla: (...a: unknown[]) => finalizarFalla(...a),
 }))
 
 const { default: Mantenimiento } = await import("./Mantenimiento")
@@ -64,6 +66,8 @@ beforeEach(() => {
   listarParadas.mockReset()
   clasificarFalla.mockReset()
   clasificarFalla.mockResolvedValue({ ok: true })
+  finalizarFalla.mockReset()
+  finalizarFalla.mockResolvedValue({ ok: true })
 })
 
 function renderPagina() {
@@ -101,7 +105,7 @@ describe("Mantenimiento", () => {
     listarParadas.mockResolvedValue([])
     await u.click(boton("Guardar"))
     await waitFor(() => expect(clasificarFalla).toHaveBeenCalledWith("mtto1", "p1", "FALLA_NIVEL_BTD", "Se cambió el sello", "Mantenimiento"))
-    await waitFor(() => expect(screen.getByText("Nada por clasificar")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Nada por atender")).toBeInTheDocument())
   })
 
   it("si el servidor la rechaza, muestra el error y deja el formulario", async () => {
@@ -115,6 +119,20 @@ describe("Mantenimiento", () => {
     await u.click(boton("Guardar"))
     expect(await screen.findByRole("alert")).toHaveTextContent("Esa parada ya está clasificada.")
     boton("Guardar")
+  })
+
+  it("una falla abierta que termina Mantenimiento se termina (no solo se clasifica)", async () => {
+    const u = userEvent.setup()
+    listarParadas.mockResolvedValue([parada({ fin: null, laTerminaMantenimiento: true })])
+    renderPagina()
+    expect(await screen.findByText(/en curso/)).toBeInTheDocument()
+    await u.click(boton("Terminar"))
+    expect(screen.getByText(/la línea sigue sola/)).toBeInTheDocument()
+    await u.click(boton("Elegir tipo"))
+    await u.type(screen.getByPlaceholderText("Qué se hizo para resolverla"), "Se cambió el rodamiento")
+    await u.click(boton("Terminar falla"))
+    await waitFor(() => expect(finalizarFalla).toHaveBeenCalledWith("mtto1", "p1", "FALLA_NIVEL_BTD", "Se cambió el rodamiento", "Mantenimiento"))
+    expect(clasificarFalla).not.toHaveBeenCalled()
   })
 
   it("la falla que tomó un reporte del Sheet trae lo que escribió Mantenimiento", async () => {

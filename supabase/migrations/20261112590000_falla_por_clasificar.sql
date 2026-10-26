@@ -17,7 +17,13 @@
 --     equivalencia lo tiene) y la descripción como «qué se hizo». La hora
 --     sigue siendo la de la línea. Las siguientes sincronizaciones solo
 --     actualizan eso (paradas_puente_sheet).
---   * listar_paradas(): + la columna «solucion».
+--   * listar_paradas(): + las columnas «solucion» y «la_termina_mantenimiento».
+--   * Interruptor «Mantenimiento termina las fallas» por área
+--     (areas.mantenimiento_finaliza), como el de Calidad: Producción inicia,
+--     Mantenimiento finaliza. Encendido, el supervisor no puede darle
+--     Continuar a una falla: Mantenimiento la termina (finalizar_falla, o
+--     cerrando su reporte del Sheet) y la línea sigue sola. Apagado (Aséptico
+--     por ahora), la termina Producción con Continuar. Pruebas, encendido.
 -- ============================================================
 
 alter table paradas add column if not exists solucion text;
@@ -27,6 +33,95 @@ comment on column paradas.solucion is
   'Qué hizo Mantenimiento para resolver la falla (20261112590000).';
 comment on column paradas.clasificada_por is
   'Quién le puso el código a una «Falla sin especificar» en la app (null si vino del Sheet).';
+
+alter table areas add column if not exists mantenimiento_finaliza boolean not null default false;
+update areas set mantenimiento_finaliza = true where codigo = 'PRUEBAS';
+comment on column areas.mantenimiento_finaliza is
+  'Encendido: las fallas que para Producción las termina Mantenimiento (20261112590000).';
+
+-- Una falla (sin clasificar, o clasificada desde que la reportó la línea)
+-- abierta, en un área donde la termina Mantenimiento.
+create or replace function la_termina_mantenimiento(p_parada_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce((
+    select p.fin is null
+       and not p.pendiente
+       and (t.codigo = 'FALLA_SIN_ESPECIFICAR' or p.clasificada_en is not null)
+       and a.mantenimiento_finaliza
+    from paradas p
+    join lineas l on l.id = p.linea_id
+    join areas a on a.id = l.area_id
+    left join paradas_tipos t on t.id = p.tipo_id
+    where p.id = p_parada_id
+  ), false);
+$$;
+revoke execute on function la_termina_mantenimiento(uuid) from public, anon, authenticated;
+
+-- Para el front (Ajustes de planta y Mantenimiento). Sin área: Aséptico.
+create or replace function mantenimiento_finaliza_area(p_area_codigo text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce((select mantenimiento_finaliza from areas where codigo = coalesce(p_area_codigo, 'ASEPTICO')), false);
+$$;
+grant execute on function mantenimiento_finaliza_area(text) to anon, authenticated;
+
+create or replace function guardar_mantenimiento_finaliza(p_usuario text, p_area_codigo text, p_activo boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_area_id uuid;
+  v_antes boolean;
+begin
+  if not es_dueno(p_usuario) then
+    raise exception 'Solo el dueño puede cambiar este ajuste.';
+  end if;
+  select id, mantenimiento_finaliza into v_area_id, v_antes from areas where codigo = p_area_codigo;
+  if v_area_id is null then
+    raise exception 'Esa área no existe.';
+  end if;
+  update areas set mantenimiento_finaliza = p_activo where id = v_area_id;
+  perform registrar_auditoria(
+    p_usuario, 'EDITAR', 'mantenimiento_finaliza', v_area_id::text, 'Edición de Datos',
+    case when p_activo then 'Prendió' else 'Apagó' end || ' "Mantenimiento termina las fallas" en ' || p_area_codigo,
+    jsonb_build_object('mantenimiento_finaliza', v_antes), jsonb_build_object('mantenimiento_finaliza', p_activo)
+  );
+end;
+$$;
+grant execute on function guardar_mantenimiento_finaliza(text, text, boolean) to anon, authenticated;
+
+-- Copia de 20261111590000 + las fallas que termina Mantenimiento: Detener
+-- línea y CIP las dejan abiertas (la línea siguió), como las del Sheet.
+create or replace function parada_de_mantenimiento(p_parada_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce((
+    select p.origen = 'SHEET'
+        or exists (
+          select 1 from usuario_roles ur
+          join areas a on a.id = ur.area_id
+          where ur.usuario_id = p.creado_por and a.codigo = 'MANTENIMIENTO'
+        )
+        or la_termina_mantenimiento(p.id)
+    from paradas p where p.id = p_parada_id
+  ), false);
+$$;
+revoke execute on function parada_de_mantenimiento(uuid) from public, anon, authenticated;
 
 -- ------------------------------------------------------------
 -- 1. pausar_linea(): copia de 20261111590000 que acepta FALLA_SIN_ESPECIFICAR.
@@ -183,6 +278,168 @@ end;
 $$;
 grant execute on function clasificar_falla(text, uuid, text, text, text) to anon, authenticated;
 
+-- Mantenimiento termina una falla (con el interruptor encendido): código,
+-- qué se hizo y fin = ahora. Al cerrarse, la línea sigue sola
+-- (paradas_mueven_lineas → reanudar_lineas_de_parada).
+create or replace function finalizar_falla(
+  p_usuario text,
+  p_parada_id uuid,
+  p_tipo_codigo text,
+  p_solucion text,
+  p_pagina text default 'Mantenimiento'
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_usuario_id uuid;
+  v_p paradas;
+  v_tipo paradas_tipos;
+  v_nombre text;
+  v_min integer;
+  v_solucion text := nullif(btrim(coalesce(p_solucion, '')), '');
+begin
+  perform area_de_paradas_mantenimiento(p_usuario);
+  select id into v_usuario_id from usuarios where usuario = lower(p_usuario);
+
+  select * into v_p from paradas where id = p_parada_id for update;
+  if not found then
+    raise exception 'No se encontró la parada.';
+  end if;
+  if v_p.fin is not null then
+    raise exception 'Esa falla ya terminó.';
+  end if;
+  if not la_termina_mantenimiento(p_parada_id) then
+    raise exception 'Esa parada la termina Producción con Continuar.';
+  end if;
+
+  if v_solucion is null then
+    raise exception 'Escribe qué se hizo para resolver la falla.';
+  end if;
+  select * into v_tipo from paradas_tipos where codigo = p_tipo_codigo and activo;
+  if v_tipo.id is null or v_tipo.codigo in ('POR_CLASIFICAR', 'FALLA_SIN_ESPECIFICAR') then
+    raise exception 'Elige el código de la parada del catálogo.';
+  end if;
+  v_nombre := nombre_tipo_en_linea(v_tipo, v_p.linea_id, (select area_id from lineas where id = v_p.linea_id));
+  v_min := round(extract(epoch from (now() - v_p.inicio)) / 60);
+
+  update paradas
+  set tipo_id = v_tipo.id,
+      clase = v_tipo.clase,
+      tipo_nombre = v_nombre,
+      tiempo_guia_min = case when v_tipo.clase = 'PROGRAMADA' then v_tipo.tiempo_guia_min else null end,
+      solucion = left(v_solucion, 300),
+      clasificada_por = v_usuario_id,
+      clasificada_en = now(),
+      fin = now()
+  where id = p_parada_id;
+
+  perform registrar_auditoria(
+    p_usuario, 'EDITAR', 'paradas', p_parada_id::text, p_pagina,
+    format('Terminó la falla de la %s como «%s» (%s min): %s', (select nombre from lineas where id = v_p.linea_id), v_nombre, v_min, v_solucion),
+    jsonb_build_object('fin', null, 'tipo', v_p.tipo_nombre),
+    jsonb_build_object('fin', now(), 'tipo', v_nombre, 'minutos', v_min, 'solucion', v_solucion)
+  );
+end;
+$$;
+grant execute on function finalizar_falla(text, uuid, text, text, text) to anon, authenticated;
+
+-- continuar_linea(): copia de 20261111590000 que no deja continuar una falla
+-- que termina Mantenimiento.
+create or replace function continuar_linea(
+  p_usuario text,
+  p_turno_id uuid,
+  p_turno_linea_id uuid,
+  p_justificacion text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_usuario_id uuid;
+  v_c turno_lineas;
+  v_le lineas_estado;
+begin
+  perform exigir_turno_escribible(p_usuario, p_turno_id, false);
+  select id into v_usuario_id from usuarios where usuario = lower(p_usuario);
+
+  select * into v_c from turno_lineas where id = p_turno_linea_id and turno_id = p_turno_id and activa for update;
+  if found then
+    select * into v_le from lineas_estado where turno_id = p_turno_id and linea_id = v_c.linea_id;
+    if v_le.condicion = 'CIP' then
+      raise exception 'La línea está en CIP: usa «Terminó CIP» para continuar el lote.';
+    end if;
+    if v_le.parada_id is not null and exists (select 1 from paradas where id = v_le.parada_id and pendiente) then
+      raise exception 'Completa la parada (tipo y minutos) en Registrar Paradas antes de continuar.';
+    end if;
+    if v_le.parada_id is not null and la_termina_mantenimiento(v_le.parada_id) then
+      raise exception 'Esta falla la termina Mantenimiento: la línea sigue sola cuando la terminen.';
+    end if;
+
+    perform soltar_parada_de_linea(p_usuario, p_turno_id, v_c.linea_id, 'Líneas (Continuar)', p_justificacion, true);
+    -- Las demás paradas abiertas de la línea (de Mantenimiento) ya no la vuelven a poner en Parada.
+    update paradas
+    set linea_siguio_en = now()
+    where linea_id = v_c.linea_id and fin is null and not pendiente and linea_siguio_en is null;
+  end if;
+
+  update turno_lineas
+  set pausada_en = null,
+      pausa_motivo = null,
+      actualizada_por = v_usuario_id
+  where id = p_turno_linea_id and turno_id = p_turno_id and activa;
+
+  if v_c.id is not null and v_c.pausada_en is not null then
+    perform registrar_auditoria(
+      p_usuario, 'EDITAR', 'turno_lineas', v_c.id::text, 'Líneas',
+      format('Continuó la %s', (select nombre from lineas where id = v_c.linea_id)),
+      jsonb_build_object('pausada_en', v_c.pausada_en),
+      jsonb_build_object('pausada_en', null)
+    );
+  end if;
+
+  return turno_json(p_turno_id);
+end;
+$$;
+grant execute on function continuar_linea(text, uuid, uuid, text) to anon, authenticated;
+
+-- paradas_que_detienen_lineas(): igual que 20261111590000 + la_termina_mantenimiento.
+drop function if exists paradas_que_detienen_lineas(uuid);
+create function paradas_que_detienen_lineas(p_turno_id uuid)
+returns table (
+  linea_codigo text,
+  parada_id uuid,
+  pendiente boolean,
+  tipo_nombre text,
+  clase text,
+  tiempo_guia_min numeric,
+  nota text,
+  inicio text,
+  fin text,
+  de_mantenimiento boolean,
+  la_termina_mantenimiento boolean
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select l.codigo, p.id, p.pendiente, p.tipo_nombre, p.clase, p.tiempo_guia_min, p.nota,
+         to_char(p.inicio at time zone 'America/Caracas', 'YYYY-MM-DD"T"HH24:MI:SS'),
+         to_char(p.fin at time zone 'America/Caracas', 'YYYY-MM-DD"T"HH24:MI:SS'),
+         parada_de_mantenimiento(p.id),
+         la_termina_mantenimiento(p.id)
+  from lineas_estado le
+  join lineas l on l.id = le.linea_id
+  join paradas p on p.id = le.parada_id
+  where le.turno_id = p_turno_id;
+$$;
+grant execute on function paradas_que_detienen_lineas(uuid) to anon, authenticated;
+
 -- ------------------------------------------------------------
 -- 3. Puente con el Sheet. La sincronización se envuelve para marcar la
 --    transacción; los triggers solo actúan con esa marca.
@@ -255,12 +512,17 @@ begin
   end if;
 
   if tg_op = 'UPDATE' and old.origen <> 'SHEET' and old.ref_sheet is not null then
-    -- Una falla que tomó un reporte del Sheet: la hora, la línea y la
-    -- descripción son de quien la paró; del Sheet solo llega qué se hizo y,
-    -- si nadie la clasificó en la app, el código.
+    -- Una falla que tomó un reporte del Sheet: el inicio, la línea y la
+    -- descripción son de quien la paró; del Sheet llega qué se hizo, el
+    -- código si nadie la clasificó en la app y, si la termina Mantenimiento,
+    -- el fin (al cerrar su reporte).
     new.linea_id := old.linea_id;
     new.inicio := old.inicio;
-    new.fin := old.fin;
+    if la_termina_mantenimiento(old.id) and new.fin is not null then
+      new.fin := least(greatest(new.fin, old.inicio), now());
+    else
+      new.fin := old.fin;
+    end if;
     new.solucion := left(new.nota, 300);
     new.nota := old.nota;
     if old.clasificada_por is not null or new.tipo_id is null or new.tipo_id = v_falla then
@@ -285,7 +547,7 @@ before insert or update on paradas
 for each row execute function paradas_puente_sheet();
 
 -- ------------------------------------------------------------
--- 4. listar_paradas(): igual que 20261090 + «solucion» al final.
+-- 4. listar_paradas(): igual que 20261090 + «solucion» y «la_termina_mantenimiento» al final.
 -- ------------------------------------------------------------
 drop function if exists listar_paradas(date, date, text, text, uuid, text);
 
@@ -313,7 +575,8 @@ returns table (
   fin text,
   supervisor_nombre text,
   pendiente boolean,
-  solucion text
+  solucion text,
+  la_termina_mantenimiento boolean
 )
 language sql
 security definer
@@ -336,7 +599,8 @@ as $$
     to_char(e.fin at time zone 'America/Caracas', 'YYYY-MM-DD"T"HH24:MI:SS'),
     u.nombre,
     coalesce((select pp.pendiente from paradas pp where pp.id = e.id), false),
-    (select pp.solucion from paradas pp where pp.id = e.id)
+    (select pp.solucion from paradas pp where pp.id = e.id),
+    la_termina_mantenimiento(e.id)
   from paradas_efectivas_turno(p_turno_id) e
   join lineas l on l.id = e.linea_id
   join turnos tu on tu.id = p_turno_id
@@ -365,7 +629,8 @@ as $$
     to_char(p.fin at time zone 'America/Caracas', 'YYYY-MM-DD"T"HH24:MI:SS'),
     u.nombre,
     p.pendiente,
-    p.solucion
+    p.solucion,
+    la_termina_mantenimiento(p.id)
   from paradas p
   join lineas l on l.id = p.linea_id
   join areas ar on ar.id = l.area_id

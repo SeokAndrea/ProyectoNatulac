@@ -182,6 +182,8 @@ export interface ParadaQueDetiene {
   fin: string | null
   /** Del Sheet o cargada por Mantenimiento: Continuar no la cierra. */
   deMantenimiento: boolean
+  /** Falla que termina Mantenimiento (interruptor encendido): Producción no le puede dar Continuar. */
+  laTerminaMantenimiento?: boolean
 }
 
 /** Parada desde Líneas: el tipo es obligatorio; sin `inicio`, empieza ahora. */

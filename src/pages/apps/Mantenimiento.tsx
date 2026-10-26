@@ -16,6 +16,7 @@ import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
 import {
   clasificarFalla,
   duracionMin,
+  finalizarFalla,
   fmtDuracion,
   listarParadas,
   nombreLineaParada,
@@ -39,6 +40,9 @@ import { useAccion } from "@/lib/useAccion"
  *    falla» (Falla sin especificar). Mantenimiento pone qué hizo y el código
  *    del catálogo (clasificar_falla, migración 20261112590000). Los minutos
  *    no cambian: los puso la línea.
+ *  - Con «Mantenimiento termina las fallas» encendido, las abiertas se
+ *    terminan aquí (finalizar_falla): código, qué se hizo y la hora de ahora;
+ *    la línea sigue sola.
  *  - Sus propias paradas se siguen registrando en Registrar Paradas.
  */
 const PAGINA = "Mantenimiento"
@@ -68,7 +72,7 @@ export default function Mantenimiento() {
       listarParadas({ desde: restarDias(hoy, 30), hasta: hoy, area }),
       t ? paradasQueDetienenLineas(t.id) : Promise.resolve([]),
     ])
-    setFallas(lista.filter(porClasificar).sort((a, b) => a.inicio.localeCompare(b.inicio)))
+    setFallas(lista.filter((p) => porClasificar(p) || p.laTerminaMantenimiento).sort((a, b) => a.inicio.localeCompare(b.inicio)))
     setDetienen(det)
     await refrescar()
   }, [area, refrescar])
@@ -129,7 +133,7 @@ export default function Mantenimiento() {
         <section aria-labelledby="fallas" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id="fallas" className="text-base font-semibold">
-              Fallas por clasificar
+              Fallas por atender
             </h2>
             <Button asChild variant="outline" size="sm">
               <Link to="/paradas">Registrar una parada</Link>
@@ -140,7 +144,7 @@ export default function Mantenimiento() {
               <Loader2 className="size-5 animate-spin" />
             </div>
           ) : fallas.length === 0 ? (
-            <EmptyState icon={Wrench} title="Nada por clasificar" description="Cuando el supervisor pare una línea con «No sé / es una falla», aparece aquí." />
+            <EmptyState icon={Wrench} title="Nada por atender" description="Cuando el supervisor pare una línea con «No sé / es una falla», aparece aquí." />
           ) : (
             <ul className="flex flex-col gap-3">
               {fallas.map((p) => (
@@ -159,6 +163,7 @@ export default function Mantenimiento() {
                       parada={p}
                       area={area}
                       usuario={usuario}
+                      terminar={p.laTerminaMantenimiento === true}
                       onCerrar={() => setAbierta(null)}
                       onGuardado={async () => {
                         setAbierta(null)
@@ -167,7 +172,7 @@ export default function Mantenimiento() {
                     />
                   ) : (
                     <Button size="sm" className="self-start" onClick={() => setAbierta(p.id)}>
-                      Clasificar
+                      {p.laTerminaMantenimiento ? "Terminar" : "Clasificar"}
                     </Button>
                   )}
                 </li>
@@ -180,17 +185,19 @@ export default function Mantenimiento() {
   )
 }
 
-/** Código del catálogo + qué se hizo. La hora no se toca. */
+/** Código del catálogo + qué se hizo. Clasificar no toca la hora; Terminar la cierra ahora y la línea sigue sola. */
 function FormClasificar({
   parada,
   area,
   usuario,
+  terminar,
   onCerrar,
   onGuardado,
 }: {
   parada: Parada
   area: string
   usuario: string
+  terminar: boolean
   onCerrar: () => void
   onGuardado: () => Promise<void>
 }) {
@@ -202,11 +209,13 @@ function FormClasificar({
 
   async function guardar() {
     if (!tipo || !listo) return
-    if (await ejecutar(() => clasificarFalla(usuario, parada.id, tipo.codigo, solucion.trim(), PAGINA))) await onGuardado()
+    const guardarCon = terminar ? finalizarFalla : clasificarFalla
+    if (await ejecutar(() => guardarCon(usuario, parada.id, tipo.codigo, solucion.trim(), PAGINA))) await onGuardado()
   }
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+      {terminar && <p className="text-xs text-muted-foreground">Termina con la hora de ahora y la línea sigue sola.</p>}
       <BuscadorTipoParada
         lineaCodigo={parada.lineaCodigo}
         area={area}
@@ -228,7 +237,7 @@ function FormClasificar({
         </Button>
         <Button size="sm" onClick={guardar} disabled={enviando || !listo}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-          Guardar
+          {terminar ? "Terminar falla" : "Guardar"}
         </Button>
       </div>
       <MensajeError error={error} />

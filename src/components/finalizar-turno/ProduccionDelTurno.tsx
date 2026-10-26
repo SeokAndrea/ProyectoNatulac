@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { mermaPromedioLinea } from "@/lib/actaPdf"
+import { mermaLineaTurno } from "@/lib/reportes"
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import type { EficienciaTurno } from "@/lib/eficiencia"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
@@ -59,7 +59,8 @@ export function ProduccionDelTurno({
           <TableBody>
             {lineas.map((l) => {
               const e = eficiencia.porLinea.get(l.codigo)
-              const merma = mermaPromedioLinea(corridas, contadores, productoTerminado, presentaciones, l.codigo)
+              // La misma merma que el Panel y el acta: envases de todas las corridas de la línea, no el promedio de cada una.
+              const merma = mermaLineaTurno(corridas, l.codigo, contadores, productoTerminado, presentaciones).pct
               return (
                 <TableRow key={l.codigo}>
                   <TableCell>{l.nombre}</TableCell>

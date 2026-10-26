@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import { LineaCard } from "@/components/lineas/LineaCard"
@@ -117,6 +117,9 @@ export function LineasEstadoPlanta({
     else p.set("paradas", "1")
     setParams(p, { replace: true })
   }
+  // Status (revisión de inicio): confirmada la línea, parar y continuar también se hacen en el Modo Paradas de Líneas.
+  const navigate = useNavigate()
+  const irAModoParadas = modo === "status" && anotaParadas ? () => navigate("/lineas?paradas=1") : undefined
 
   if (cargandoCatalogos || cargandoPreparacion || cargandoProduccion) {
     return (
@@ -216,7 +219,7 @@ export function LineasEstadoPlanta({
                 ? { usuario: session.username, pendientes: pendientesParadas.filter((p) => p.lineaCodigo === l.codigo), onCambio: paradasCambiaron }
                 : undefined
             }
-            aModoParadas={conModoParadas ? cambiarModoParadas : undefined}
+            aModoParadas={conModoParadas ? cambiarModoParadas : irAModoParadas}
           />
         ))}
     </div>

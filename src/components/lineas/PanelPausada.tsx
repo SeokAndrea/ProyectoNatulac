@@ -16,7 +16,8 @@ import { useAccion } from "@/lib/useAccion"
  * la hora de ahora), Pasar a CIP o Detener. Un +1 viejo sin completar
  * («Parada por clasificar») sigue trabando Continuar hasta completarlo.
  * Cada botón sale solo si llega su acción: en Líneas, CIP y el atajo al
- * Modo Paradas; en el Modo Paradas, Continuar y Detener.
+ * Modo Paradas; en el Modo Paradas, Continuar y Detener. Una falla que
+ * termina Mantenimiento (interruptor encendido) no tiene Continuar.
  */
 export function PanelPausada({
   corrida,
@@ -59,7 +60,9 @@ export function PanelPausada({
             <span className="font-medium text-foreground">{abierta.tipoNombre}</span>
           </p>
           {abierta.nota && <p className="text-foreground">{abierta.nota}</p>}
-          {abierta.deMantenimiento && (
+          {abierta.laTerminaMantenimiento ? (
+            <p className="text-muted-foreground">La termina Mantenimiento: cuando la terminen, la línea sigue sola.</p>
+          ) : abierta.deMantenimiento && (
             <p className="text-muted-foreground">
               Es de Mantenimiento: al continuar, la línea sigue y la parada queda abierta para que Mantenimiento la cierre.
             </p>
@@ -78,7 +81,7 @@ export function PanelPausada({
         </label>
       )}
       <div className="flex flex-wrap gap-2">
-        {continuar && (
+        {continuar && !abierta?.laTerminaMantenimiento && (
           <Button
             size="sm"
             onClick={() => ejecutar(() => continuar(corrida.id, pideJustificacion ? justificacion.trim() : null))}
