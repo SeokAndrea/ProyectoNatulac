@@ -642,7 +642,7 @@ function AjustesDeTurnos({ area }: { area: AreaCodigo }) {
       {puedeEsquema && (
         <label
           className="flex cursor-pointer items-center gap-2"
-          title="Hoy se trabaja aunque no toque (T3 del viernes, sábado o domingo): el sistema lo trata como un día normal, con respaldo y continuidad. Vale para la jornada de hoy."
+          title="Hoy se trabaja aunque no toque (T3 del viernes, sábado o domingo). En 12x12 el turno pasa solo al siguiente con el mismo supervisor; los demás turnos se inician a mano. La producción cuenta en la Programación. Vale para la jornada de hoy (7:00 a 7:00)."
         >
           <Switch
             checked={ajustes.diaExtraordinario}

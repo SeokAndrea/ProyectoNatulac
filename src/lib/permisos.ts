@@ -21,7 +21,7 @@ export const PERMISOS = [
   { codigo: "CATALOGO_PARADAS", nombre: "Editar Catálogo de Paradas" },
   { codigo: "EDICION_DATOS", nombre: "Edición de Datos" },
   { codigo: "CALCULADORAS", nombre: "Calculadoras" },
-  { codigo: "ESQUEMA_TURNOS", nombre: "Cambiar esquema de turnos (3x8 / 12x12)" },
+  { codigo: "ESQUEMA_TURNOS", nombre: "Cambiar esquema de turnos (3x8 / 12x12) y día extraordinario" },
   { codigo: "LOTE_LIBERAR", nombre: "Analizar y liberar lotes (Calidad)" },
   { codigo: "CALIDAD_PARAMETROS", nombre: "Editar parámetros de Calidad (Brix y acidez por sabor)" },
   { codigo: "SIF_GESTIONAR", nombre: "Gestionar solicitudes de intervención de falla" },

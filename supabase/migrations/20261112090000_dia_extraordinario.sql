@@ -7,8 +7,31 @@
 -- no abre ni continúa nada en una franja no laborable. Pasa muy rara vez,
 -- pero pasa (también un sábado). Se resuelve con un interruptor por área,
 -- como el 12x12: "Día extraordinario" marca la jornada de hoy como
--- laborable, y esa jornada se comporta como cualquier día de trabajo
--- (respaldo, continuidad 12x12, relevo temprano).
+-- laborable para quien YA está trabajando: la continuidad 12x12 (T1 → T2,
+-- T2 de la noche → T3) y el relevo temprano siguen como un día normal.
+-- Lo que NO hace es abrir turnos "sin responsable": no se sabe qué franjas
+-- de un día extraordinario se trabajan (un sábado puede ser solo el T1), y
+-- abrirlas todas dejaría turnos fantasma. Cada turno que no viene de una
+-- continuidad se inicia a mano; el que queda abierto sin seguir se cierra
+-- 30 min después del cambio de franja, como siempre.
+--
+-- Casos:
+--   * 12x12, viernes con el interruptor: a las 22:30 el T2 de la noche pasa
+--     solo al T3 con el mismo supervisor; el sábado a las 7:30 ese T3 se
+--     cierra (el sábado no es laborable) y su acta queda pendiente.
+--   * 12x12, sábado/domingo con el interruptor: T1 → T2 a las 15:00 solo;
+--     el T2 de la noche se comienza a mano a las 19:00; a las 22:30 pasa
+--     solo al T3.
+--   * 3x8 con el interruptor: cada turno se inicia a mano (como siempre en
+--     3x8); el interruptor sirve para el relevo temprano y para que la
+--     producción cuente en la Programación.
+--   * Sin el interruptor (viernes T3, sábado, domingo): se puede iniciar
+--     cualquier turno a mano, pero no hay continuidad: a las 22:30 el T2 no
+--     pasa al T3, y el turno abierto se cierra 30 min después del cambio.
+--     Lo producido un sábado o domingo no entra en la Programación.
+--
+-- Los interruptores 12x12 y Día extraordinario pasan a verlos también los
+-- supervisores (permiso ESQUEMA_TURNOS al rol SUPERVISOR).
 --
 --   * dias_extraordinarios: (área, fecha operativa). La fecha operativa es
 --     la de turno_de_hora(): la madrugada pertenece a la jornada anterior,
@@ -18,7 +41,8 @@
 --   * ajustes_turnos() gana dia_extraordinario (de la jornada actual).
 --   * guardar_dia_extraordinario(): lo prende/apaga quien tiene el permiso
 --     ESQUEMA_TURNOS, con auditoría.
---   * relevo_de_respaldo_en(): usa el calendario con el área.
+--   * relevo_de_respaldo_en(): en una franja que solo es laborable por el
+--     día extraordinario, solo continúa; nunca abre sin responsable.
 -- ============================================================
 
 create table if not exists dias_extraordinarios (
@@ -121,7 +145,7 @@ grant execute on function guardar_dia_extraordinario(text, text, boolean) to ano
 -- 4. Respaldo: el calendario cuenta los días extraordinarios.
 -- ------------------------------------------------------------
 -- Última versión: 20261108090000_relevo_temprano_pasa_al_turno_siguiente.sql
--- (idéntica salvo las dos llamadas a franja_laborable, que ahora llevan el área)
+-- Cambios: el día extraordinario entra solo a la continuidad (ver v_extra).
 create or replace function relevo_de_respaldo_en(p_ahora timestamp, p_area_codigo text default null)
 returns void
 language plpgsql
@@ -138,6 +162,7 @@ declare
   v_tipo_abierto text;
   v_grupo text;
   v_continua boolean;
+  v_extra boolean;
   v_nuevo uuid;
 begin
   select * into v_franja from turno_de_hora(v_ahora);
@@ -160,10 +185,11 @@ begin
     -- 12x12 (20261106): desde las 19:30, si no hay un T2 de la noche (abierto
     -- desde las 17:00), se abre sin responsable. abrir_turno cierra el T2 del
     -- día si sigue abierto, entregando las corridas; su acta queda pendiente.
+    -- Calendario normal: en un día extraordinario no se abre sin responsable.
     if v_area.esquema_turnos = '12x12'
        and v_franja.tipo_codigo = 'TURNO_2'
        and v_ahora::time >= time '19:30'
-       and franja_laborable(v_franja.fecha, 'TURNO_2', v_area.id)
+       and franja_laborable(v_franja.fecha, 'TURNO_2')
        and not exists (
          select 1 from turnos t join turno_tipos tt on tt.id = t.turno_tipo_id
          where t.area_id = v_area.id and t.fecha = v_franja.fecha and tt.codigo = 'TURNO_2'
@@ -193,8 +219,9 @@ begin
       continue;
     end if;
 
-    -- Franja que no se trabaja (viernes T3, sábado, domingo): no se abre nada;
-    -- el turno que quedó abierto se cierra 30 min después de su fin.
+    -- Franja que no se trabaja (viernes T3, sábado, domingo) ni es día
+    -- extraordinario: no se abre nada; el turno que quedó abierto se cierra
+    -- 30 min después de su fin.
     if not franja_laborable(v_franja.fecha, v_franja.tipo_codigo, v_area.id) then
       if v_abierto.id is not null and v_vencio then
         perform cerrar_turno_forzado(v_abierto.id, v_ahora);
@@ -230,6 +257,17 @@ begin
           and r.desde >= (v_franja.inicio - interval '4 hours') at time zone 'America/Caracas'
       )
     );
+
+    -- Día extraordinario (20261112): la franja solo se trabaja por el
+    -- interruptor. Sigue quien ya está (continuidad); si no, como en una
+    -- franja no laborable: nada de abrir sin responsable.
+    v_extra := not franja_laborable(v_franja.fecha, v_franja.tipo_codigo);
+    if v_extra and not v_continua then
+      if v_abierto.id is not null and v_vencio then
+        perform cerrar_turno_forzado(v_abierto.id, v_ahora);
+      end if;
+      continue;
+    end if;
 
     if not v_continua and not v_vencio then
       continue;
@@ -365,3 +403,15 @@ as $$
   );
 $$;
 grant execute on function programacion_semanal_de(text, date, date) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- 6. Los supervisores también manejan 12x12 y Día extraordinario.
+-- ------------------------------------------------------------
+-- Los permisos se releen al abrir la app (perfil_sesion): no hace falta
+-- volver a entrar, solo recargar.
+insert into rol_permisos (rol_id, permiso_codigo)
+select r.id, 'ESQUEMA_TURNOS' from roles r where r.codigo = 'SUPERVISOR'
+on conflict do nothing;
+
+update permisos set nombre = 'Cambiar esquema de turnos (3x8 / 12x12) y día extraordinario'
+where codigo = 'ESQUEMA_TURNOS';
