@@ -13,8 +13,11 @@ import { useAccion } from "@/lib/useAccion"
 
 /**
  * "Parada": pausa la corrida y deja abierta su parada (migración
- * 20261111590000). El tipo y la descripción son obligatorios; empieza
- * ahora, o a la hora que se ponga si empezó antes. Continuar la termina.
+ * 20261111590000). Empieza ahora, o a la hora que se ponga si empezó
+ * antes; Continuar la termina. Dos caminos (20261112590000):
+ *  - «Sé la causa»: el tipo del catálogo.
+ *  - «No sé / es una falla»: solo la descripción; queda como «Falla sin
+ *    especificar» y Mantenimiento le pone el código después.
  */
 export function FormParadaLinea({
   corridaId,
@@ -35,42 +38,58 @@ export function FormParadaLinea({
   onCerrar: () => void
 }) {
   const equipos = useEquiposParadas()
+  const [noSe, setNoSe] = useState(false)
   const [tipo, setTipo] = useState<TipoParada | null>(null)
   const [motivo, setMotivo] = useState("")
   const [conInicio, setConInicio] = useState(desdeAntes)
   const [inicio, setInicio] = useState(ahoraPlanta)
   const { enviando, error, ejecutar } = useAccion()
   const area = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
-  const listo = tipo !== null && motivo.trim() !== "" && (!conInicio || inicio !== "")
+  const tipoCodigo = noSe ? TIPO_FALLA_SIN_ESPECIFICAR : tipo?.codigo
+  const listo = tipoCodigo !== undefined && motivo.trim() !== "" && (!conInicio || inicio !== "")
 
   async function confirmar() {
-    if (!tipo || !listo) return
-    const datos = { motivo: motivo.trim(), tipoCodigo: tipo.codigo, inicio: conInicio ? conSegundos(inicio) : null }
+    if (!tipoCodigo || !listo) return
+    const datos = { motivo: motivo.trim(), tipoCodigo, inicio: conInicio ? conSegundos(inicio) : null }
     if (await ejecutar(() => pausar(corridaId, datos))) onCerrar()
   }
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
       <p className="text-xs text-foreground">
-        Parada: la corrida se pausa y la parada queda abierta. Al darle Continuar, termina sola con esa hora.
+        Parada: la línea se para ya y el tiempo empieza a contar. Al darle Continuar, termina con esa hora.
       </p>
-      <BuscadorTipoParada
-        lineaCodigo={lineaCodigo}
-        area={area}
-        equipos={equipos}
-        presentacionMl={presentacionMl}
-        permitir={(t) => t.codigo !== TIPO_FALLA_SIN_ESPECIFICAR}
-        onElegir={setTipo}
-      />
-      {tipo?.clase === "PROGRAMADA" && tipo.tiempoGuiaMin != null && (
-        <p className="text-xs text-muted-foreground">Tiempo guía: {fmtDuracion(tipo.tiempoGuiaMin)}.</p>
+      <div role="radiogroup" aria-label="¿Sabes la causa?" className="grid grid-cols-2 gap-2">
+        <Button type="button" size="sm" role="radio" aria-checked={!noSe} variant={noSe ? "outline" : "default"} onClick={() => setNoSe(false)}>
+          Sé la causa
+        </Button>
+        <Button type="button" size="sm" role="radio" aria-checked={noSe} variant={noSe ? "default" : "outline"} onClick={() => setNoSe(true)}>
+          No sé / es una falla
+        </Button>
+      </div>
+      {noSe ? (
+        <p className="text-xs text-muted-foreground">Queda como «Falla sin especificar»: Mantenimiento le pone el código después.</p>
+      ) : (
+        <>
+          <BuscadorTipoParada
+            lineaCodigo={lineaCodigo}
+            area={area}
+            equipos={equipos}
+            presentacionMl={presentacionMl}
+            permitir={(t) => t.codigo !== TIPO_FALLA_SIN_ESPECIFICAR}
+            onElegir={setTipo}
+          />
+          {tipo?.clase === "PROGRAMADA" && tipo.tiempoGuiaMin != null && (
+            <p className="text-xs text-muted-foreground">Tiempo guía: {fmtDuracion(tipo.tiempoGuiaMin)}.</p>
+          )}
+        </>
       )}
       <Textarea
         value={motivo}
         onChange={(e) => setMotivo(e.target.value.slice(0, LARGO_NOTA_PARADA))}
         maxLength={LARGO_NOTA_PARADA}
         rows={2}
-        placeholder="Qué pasó — se muestra en los paneles"
+        placeholder={noSe ? "Qué está pasando — lo ve Mantenimiento" : "Qué pasó — se muestra en los paneles"}
         className="text-sm"
       />
       {conInicio ? (

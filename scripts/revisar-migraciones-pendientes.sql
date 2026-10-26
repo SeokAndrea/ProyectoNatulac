@@ -96,6 +96,8 @@ from (
   ('20261112390000', 'Edición de Datos: fórmulas, insumos y empaque',
     exists (select 1 from fn where proname = 'tabla_de_catalogo' and prosrc like '%inventario_empaque%')),
   ('20261112490000', 'Correo de Mantenimiento en Ajustes de planta',
-    exists (select 1 from fn where proname = 'estado_correos'))
+    exists (select 1 from fn where proname = 'estado_correos')),
+  ('20261112590000', 'Paradas: falla sin clasificar y puente con el Sheet',
+    exists (select 1 from fn where proname = 'clasificar_falla') and exists (select 1 from fn where proname = 'paradas_puente_sheet'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

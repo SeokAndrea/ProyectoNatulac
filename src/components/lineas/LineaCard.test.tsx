@@ -135,6 +135,7 @@ interface Escenario {
   paradaQueDetiene?: ParadaQueDetiene | null
   paradaDeLinea?: ParadaQueDetiene | null
   tanquesListos?: TanqueRecepcion[]
+  aModoParadas?: () => void
 }
 
 function crearAcciones() {
@@ -173,6 +174,7 @@ function renderCard(e: Escenario = {}, acciones: Acciones = crearAcciones()) {
         paradaQueDetiene={e.paradaQueDetiene ?? null}
         paradaDeLinea={e.paradaDeLinea ?? e.paradaQueDetiene ?? null}
         acciones={acciones}
+        aModoParadas={e.aModoParadas}
       />
     </MemoryRouter>,
   )
@@ -218,6 +220,18 @@ describe("LineaCard — corriendo", () => {
     expect(a.pausar).toHaveBeenCalledWith("c1", { motivo: "Se trancó la tapadora", tipoCodigo: "DESVASE_PRODUCTO", inicio: null })
     await waitFor(() => noHayBoton("Confirmar parada"))
     boton("Cambiar de lote")
+  })
+
+  it("Parada: «No sé / es una falla» no pide el tipo y la deja como Falla sin especificar", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({ lineaTurno: corrida() })
+    await u.click(boton("Parada"))
+    await u.click(screen.getByRole("radio", { name: "No sé / es una falla" }))
+    noHayBoton("Elegir tipo")
+    expect(boton("Confirmar parada")).toBeDisabled()
+    await u.type(screen.getByPlaceholderText(/Qué está pasando/), "Ruido en la llenadora")
+    await u.click(boton("Confirmar parada"))
+    expect(a.pausar).toHaveBeenCalledWith("c1", { motivo: "Ruido en la llenadora", tipoCodigo: "FALLA_SIN_ESPECIFICAR", inicio: null })
   })
 
   it("Parada: si falla, muestra el error y deja el formulario", async () => {
@@ -362,6 +376,26 @@ describe("LineaCard — revisión de Status", () => {
     expect(screen.getByText(/Vas a arrancar/)).toHaveTextContent("Vas a arrancar Línea 1 con Fresa · Lote 0001 del Tanque 1, a 1000 ml · 6000 env/h. ¿Confirmar?")
     await u.click(boton("Sí, arrancar línea"))
     expect(a.activar).toHaveBeenCalledWith({ linea: "LINEA_1", presentacion: "1000", envasesHora: 6000, numeroTanque: 1, confirmarInicio: true })
+  })
+})
+
+describe("LineaCard — con Modo Paradas", () => {
+  it("corriendo: no ofrece Parada (vive en el Modo Paradas)", () => {
+    renderCard({ lineaTurno: corrida(), aModoParadas: vi.fn() })
+    noHayBoton("Parada")
+    boton("CIP")
+    boton("Cambiar de lote")
+  })
+
+  it("parada: lleva al Modo Paradas y deja Pasar a CIP; Continuar y Detener están allá", async () => {
+    const u = userEvent.setup()
+    const aModo = vi.fn()
+    renderCard({ lineaTurno: corrida({ pausadaEn: "2026-10-05T09:00:00" }), lineaEstado: estado("LISTA"), aModoParadas: aModo })
+    noHayBoton("Continuar")
+    noHayBoton("Detener línea")
+    boton("Pasar a CIP")
+    await u.click(boton("Ir a Modo Paradas"))
+    expect(aModo).toHaveBeenCalled()
   })
 })
 

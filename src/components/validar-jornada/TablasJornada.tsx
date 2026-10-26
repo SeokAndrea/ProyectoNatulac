@@ -204,6 +204,7 @@ export function TablaParadas({ filas, bloqueada, onAccion }: { filas: FilaParada
               {f.seSolapa && <p className="text-xs font-semibold text-warning-foreground">Se pisa con una de Mantenimiento</p>}
               {f.larga && <p className="text-xs font-semibold text-warning-foreground">Más de 4 horas</p>}
               {f.pendiente && <p className="text-xs font-semibold text-danger">Sin minutos (+1 sin completar)</p>}
+              {f.sinClasificar && <p className="text-xs font-semibold text-warning-foreground">Falla sin clasificar: falta el código de Mantenimiento</p>}
               {f.abierta && <p className="text-xs font-semibold text-danger">Todavía abierta</p>}
             </td>
             <td className={td}>{CLASE[f.clase]}</td>

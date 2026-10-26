@@ -223,6 +223,17 @@ export const apps: AppDef[] = [
     seccion: "produccion",
   },
   {
+    slug: "mantenimiento",
+    title: "Mantenimiento",
+    description: "Líneas en vivo y fallas por clasificar.",
+    href: "/mantenimiento",
+    icon: Wrench,
+    requiereTurno: false,
+    // En lugar del Sheet (dueña, 2026-10-26): clasifica las fallas que el supervisor paró sin saber la causa.
+    permiso: "PARADAS_MANTENIMIENTO",
+    seccion: "produccion",
+  },
+  {
     slug: "solicitudes-intervencion",
     title: "Solicitudes de Intervención",
     description: "Fallas repetidas para Mantenimiento.",

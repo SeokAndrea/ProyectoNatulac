@@ -21,6 +21,7 @@ const Indicadores = lazy(() => import("@/pages/apps/Indicadores"))
 const PanelProduccion = lazy(() => import("@/pages/apps/PanelProduccion"))
 const PanelParadas = lazy(() => import("@/pages/apps/PanelParadas"))
 const RegistrarParadas = lazy(() => import("@/pages/apps/RegistrarParadas"))
+const Mantenimiento = lazy(() => import("@/pages/apps/Mantenimiento"))
 const SolicitudesIntervencion = lazy(() => import("@/pages/apps/SolicitudesIntervencion"))
 const CatalogoParadas = lazy(() => import("@/pages/apps/CatalogoParadas"))
 const Programacion = lazy(() => import("@/pages/apps/Programacion"))
@@ -167,6 +168,14 @@ export default function App() {
           />
           {/* La pantalla de Mantenimiento pasó a ser Registrar Paradas, para todos (migración 20261090). */}
           <Route path="/paradas-mantenimiento" element={<Navigate to="/paradas" replace />} />
+          <Route
+            path="/mantenimiento"
+            element={
+              <ProtectedRoute app="mantenimiento">
+                <Mantenimiento />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/panel-paradas"
             element={

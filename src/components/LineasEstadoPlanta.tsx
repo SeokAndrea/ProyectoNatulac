@@ -160,6 +160,12 @@ export function LineasEstadoPlanta({
           <span className={cn("absolute left-0.5 top-0.5 size-4 rounded-full bg-card transition-transform", modoParadas && "translate-x-4")} />
         </span>
         MODO PARADAS
+        {/* Las tarjetas ya no tienen el botón de Paradas: sus +1 pendientes se ven aquí. */}
+        {!modoParadas && pendientesParadas.length > 0 && (
+          <span className="num rounded-sm bg-warning-soft px-1.5 font-semibold text-warning-foreground" aria-label={`${pendientesParadas.length} pendientes`}>
+            {pendientesParadas.length}
+          </span>
+        )}
       </button>
     </div>
   )
@@ -176,6 +182,8 @@ export function LineasEstadoPlanta({
           areaCodigo={session.area ?? null}
           pendientes={pendientesParadas}
           onCambio={paradasCambiaron}
+          acciones={acciones}
+          paradasDetienen={paradasDetienen}
         />
       </div>
     )
@@ -208,6 +216,7 @@ export function LineasEstadoPlanta({
                 ? { usuario: session.username, pendientes: pendientesParadas.filter((p) => p.lineaCodigo === l.codigo), onCambio: paradasCambiaron }
                 : undefined
             }
+            aModoParadas={conModoParadas ? cambiarModoParadas : undefined}
           />
         ))}
     </div>

@@ -52,6 +52,7 @@ export function LineaCard({
   paradaDeLinea,
   acciones,
   paradas,
+  aModoParadas,
 }: {
   lineaCodigo: LineaCodigo
   nombreLinea: string
@@ -75,6 +76,12 @@ export function LineaCard({
    * y anotar una que ya pasó. Sin esto (sin permiso), no hay botón de Paradas.
    */
   paradas?: { usuario: string; pendientes: Parada[]; onCambio: () => Promise<void> }
+  /**
+   * Líneas con Modo Paradas (dueña, 2026-10-26): parar, continuar, detener una
+   * línea parada y anotar paradas se hace solo allá. La tarjeta no muestra
+   * Parada ni Paradas; una línea parada muestra el atajo a ese modo.
+   */
+  aModoParadas?: () => void
 }) {
   const [panel, setPanel] = useState<Panel>(null)
   const cerrar = () => setPanel(null)
@@ -103,7 +110,7 @@ export function LineaCard({
     <FormCipLinea lineaCodigo={lineaCodigo} corrida={corrida} ponerEnCip={antesConfirmar(acciones.ponerEnCip)} onCerrar={cerrar} />
   )
 
-  const botonParadas = paradas && (
+  const botonParadas = paradas && !aModoParadas && (
     <Button variant="outline" size="sm" onClick={() => setPanel("paradas")}>
       <ListPlus className="size-3.5" />
       Paradas
@@ -205,9 +212,10 @@ export function LineaCard({
             corrida={lineaTurno}
             paradaQueDetiene={paradaQueDetiene}
             paradaDeLinea={paradaDeLinea ?? null}
-            continuar={acciones.continuar}
+            continuar={aModoParadas ? undefined : acciones.continuar}
             onCip={() => setPanel("cipConCorrida")}
-            onDetener={() => setPanel("detener")}
+            onDetener={aModoParadas ? undefined : () => setPanel("detener")}
+            aModoParadas={aModoParadas}
           />
         )
       }
@@ -226,7 +234,7 @@ export function LineaCard({
         <PanelCorriendo
           corregible={modo === "status"}
           onCorregir={() => setPanel("arrancar")}
-          onParada={() => setPanel("parada")}
+          onParada={aModoParadas ? undefined : () => setPanel("parada")}
           onCip={() => setPanel("cipConCorrida")}
           onCambiarLote={() => setPanel("cambioLote")}
           extra={botonParadas}

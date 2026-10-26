@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import { mapearTurnoHistorial, type TurnoHistorial } from "@/lib/historialTurnos"
-import { duracionMin, type Parada } from "@/lib/paradas"
+import { duracionMin, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { tramosPorLote, type MotivoSinContraste } from "@/lib/reportes/realidadPreparacion"
 import { cargarValidacionesTurno, validarTurno, type ValidacionTurno } from "@/lib/resumenDia"
@@ -353,6 +353,8 @@ export interface FilaParada {
   minutos: number
   /** Sin minutos todavía (+1 sin completar). */
   pendiente: boolean
+  /** «No sé / es una falla»: tiene sus minutos, falta el código de Mantenimiento. No traba el cierre. */
+  sinClasificar: boolean
   /** Sigue abierta (sin fin). */
   abierta: boolean
   /** Del supervisor y se pisa con una de Mantenimiento en la misma línea: probablemente la misma falla. */
@@ -392,6 +394,7 @@ export function filasParadas(paradas: Parada[], validadas: Map<string, Validacio
         deMantenimiento,
         minutos,
         pendiente: p.pendiente === true,
+        sinClasificar: porClasificar(p),
         abierta: p.fin === null,
         seSolapa,
         larga: minutos > MIN_PARADA_LARGA,
