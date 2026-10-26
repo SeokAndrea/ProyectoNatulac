@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Desplegable } from "@/components/Desplegable"
 import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
+import { SHEET_MANTENIMIENTO_ACTIVO } from "@/lib/sheetMantenimiento"
 import { duracionMin, fmtDuracion, nombreLineaParada, paradaAbierta, partesNotaSheet, type Parada } from "@/lib/paradas"
 
 /*
@@ -33,7 +34,7 @@ export function ReportesMantenimiento({
         <p className="text-xs text-muted-foreground">
           Las que reportó Mantenimiento (en su Sheet o en la app) con el filtro de arriba. Ya están sumadas en los números del panel.
         </p>
-        {usuarioSheet && <ActualizarDesdeSheet usuario={usuarioSheet} onListo={onActualizado} />}
+        {SHEET_MANTENIMIENTO_ACTIVO && usuarioSheet && <ActualizarDesdeSheet usuario={usuarioSheet} onListo={onActualizado} />}
         {paradas.length === 0 ? (
           <p className="text-sm text-muted-foreground">Mantenimiento no reportó paradas con este filtro.</p>
         ) : (

@@ -9,12 +9,28 @@ import { useAccion } from "@/lib/useAccion"
 /** Qué pasa de verdad con una línea que el turno anterior dejó corriendo. */
 export type NoCorre = "parada" | "detener" | "cip"
 
+/** «No está corriendo»: cada opción dice qué pasa con el lote (dueña, 2026-10-26: «Parada» y «Detener línea» confundían). */
+const OPCIONES_NO_CORRE: [NoCorre, (lote: string) => string, (lote: string) => string][] = [
+  [
+    "parada",
+    () => "Está parada, pero sigue con este lote",
+    (lote) => `No está produciendo ahora; cuando arranque, retoma ${lote}. Pones desde qué hora y por qué (o «No sé / es una falla»): el tiempo cuenta desde esa hora.`,
+  ],
+  [
+    "detener",
+    () => "Ya no sigue con este lote",
+    (lote) => `${lote[0].toUpperCase()}${lote.slice(1)} terminó o no se retoma. Queda esperando que cargues su PT.`,
+  ],
+  ["cip", () => "Está en CIP", () => "La línea se está lavando."],
+]
+
 /**
  * Status (revisión de inicio): una línea heredada corriendo que todavía no
  * se revisó ofrece Confirmar, Corregir (otra corrida) o «No está corriendo»
- * (Parada, Detener línea o CIP). La base no deja cargar contador ni PT de una
- * línea sin confirmar: la tarjeta confirma al mandar lo elegido, no antes.
- * Confirmada, tiene las MISMAS opciones que en Preparación.
+ * (está parada y sigue el lote, ya no sigue el lote, o CIP). La base no deja
+ * cargar contador ni PT de una línea sin confirmar: la tarjeta confirma al
+ * mandar lo elegido, no antes. Confirmada, parar y continuar se hacen en el
+ * Modo Paradas de Líneas, como en Líneas.
  */
 export function ConfirmarInicioLinea({
   nombreLinea,
@@ -33,6 +49,7 @@ export function ConfirmarInicioLinea({
   const [eligiendo, setEligiendo] = useState(false)
   // Solo si quedó corriendo: una en pausa o con el lote terminado ya no dice "corriendo".
   const corre = corrida.pausadaEn == null && corrida.loteTerminado == null
+  const lote = corrida.lote ? `el lote ${corrida.lote}` : "el lote"
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
       <p className="text-sm text-foreground">{nombreLinea}: así quedó del turno anterior — confirma o corrige.</p>
@@ -53,16 +70,18 @@ export function ConfirmarInicioLinea({
       {corre && eligiendo && (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs text-muted-foreground">¿Qué pasa con la línea?</p>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => onNoCorre("parada")}>
-              Parada
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => onNoCorre("detener")}>
-              Detener línea
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => onNoCorre("cip")}>
-              CIP
-            </Button>
+          <div className="flex flex-col gap-2">
+            {OPCIONES_NO_CORRE.map(([como, titulo, detalle]) => (
+              <button
+                key={como}
+                type="button"
+                onClick={() => onNoCorre(como)}
+                className="flex flex-col gap-0.5 rounded-md border border-border bg-card px-3 py-2 text-left hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                <span className="text-sm font-medium text-foreground">{titulo(lote)}</span>
+                <span className="text-xs text-muted-foreground">{detalle(lote)}</span>
+              </button>
+            ))}
           </div>
         </div>
       )}

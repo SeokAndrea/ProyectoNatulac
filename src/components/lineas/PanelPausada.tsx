@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Beaker, Loader2, PlayCircle, Square } from "lucide-react"
+import { Beaker, Loader2, PauseCircle, PlayCircle, Square } from "lucide-react"
 import { ahoraPlanta, minutosEntre } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -15,6 +15,8 @@ import { useAccion } from "@/lib/useAccion"
  * Corrida en pausa por una Parada: Continuar (termina la parada abierta con
  * la hora de ahora), Pasar a CIP o Detener. Un +1 viejo sin completar
  * («Parada por clasificar») sigue trabando Continuar hasta completarlo.
+ * Cada botón sale solo si llega su acción: en Líneas, CIP y el atajo al
+ * Modo Paradas; en el Modo Paradas, Continuar y Detener.
  */
 export function PanelPausada({
   corrida,
@@ -23,15 +25,17 @@ export function PanelPausada({
   continuar,
   onCip,
   onDetener,
+  aModoParadas,
 }: {
   corrida: Corrida
   /** +1 sin completar ligado a la línea. */
   paradaQueDetiene: ParadaQueDetiene | null
   /** La parada ligada a la línea (abierta o +1). */
   paradaDeLinea: ParadaQueDetiene | null
-  continuar: AccionesLinea["continuar"]
-  onCip: () => void
-  onDetener: () => void
+  continuar?: AccionesLinea["continuar"]
+  onCip?: () => void
+  onDetener?: () => void
+  aModoParadas?: () => void
 }) {
   const { enviando, error, ejecutar } = useAccion()
   const [justificacion, setJustificacion] = useState("")
@@ -67,35 +71,47 @@ export function PanelPausada({
         </p>
       )}
       <AvisoParadaPendiente parada={paradaQueDetiene} />
-      {pideJustificacion && abierta && (
+      {continuar && pideJustificacion && abierta && (
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Pasó su tiempo guía ({fmtDuracion(abierta.tiempoGuiaMin ?? 0)}): ¿por qué?
           <Textarea value={justificacion} onChange={(e) => setJustificacion(e.target.value)} rows={2} className="text-sm" />
         </label>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          onClick={() => ejecutar(() => continuar(corrida.id, pideJustificacion ? justificacion.trim() : null))}
-          disabled={enviando || falta}
-        >
-          {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
-          Continuar
-        </Button>
-        <Button size="sm" variant="outline" onClick={onCip} disabled={enviando}>
-          <Beaker className="size-3.5" />
-          Pasar a CIP
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-destructive/40 text-destructive hover:bg-destructive/10"
-          onClick={onDetener}
-          disabled={enviando}
-        >
-          <Square className="size-3.5" />
-          Detener línea
-        </Button>
+        {continuar && (
+          <Button
+            size="sm"
+            onClick={() => ejecutar(() => continuar(corrida.id, pideJustificacion ? justificacion.trim() : null))}
+            disabled={enviando || falta}
+          >
+            {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+            Continuar
+          </Button>
+        )}
+        {aModoParadas && (
+          <Button size="sm" onClick={aModoParadas}>
+            <PauseCircle className="size-3.5" />
+            Ir a Modo Paradas
+          </Button>
+        )}
+        {onCip && (
+          <Button size="sm" variant="outline" onClick={onCip} disabled={enviando}>
+            <Beaker className="size-3.5" />
+            Pasar a CIP
+          </Button>
+        )}
+        {onDetener && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+            onClick={onDetener}
+            disabled={enviando}
+          >
+            <Square className="size-3.5" />
+            Detener línea
+          </Button>
+        )}
       </div>
       <MensajeError error={error} />
     </div>

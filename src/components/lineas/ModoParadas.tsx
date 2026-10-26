@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { CircleCheck, ListPlus, Loader2, TriangleAlert } from "lucide-react"
+import { CircleCheck, ListPlus, Loader2, PauseCircle, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -15,13 +15,17 @@ import { restarDias } from "@/lib/tiempoPlanta"
 import { fmtDuracion, minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { useProductoTerminado } from "@/lib/productoTerminado"
-import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
+import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
 import { horasTranscurridasTurno } from "@/lib/reportes"
 import type { TurnoActivo } from "@/lib/turno"
 import { AnimacionLinea } from "./AnimacionLinea"
 import { aspectoLinea } from "./estadoLinea"
 import { FilaAcciones } from "./FilaAcciones"
+import { FormDetenerLinea } from "./FormDetenerLinea"
+import { FormParadaLinea } from "./FormParadaLinea"
 import { PanelParadasLinea } from "./PanelParadasLinea"
+import { PanelPausada } from "./PanelPausada"
+import type { AccionesLinea } from "./tipos"
 
 /*
  * Modo Paradas de Líneas (dueña, 2026-10-25), como el Modo Vacío de
@@ -33,6 +37,11 @@ import { PanelParadasLinea } from "./PanelParadasLinea"
  * cuánto, no cuándo. «Cubrir» anota el tipo y los minutos (cubrirTurno.ts).
  * Si a una corrida terminada le falta el PT, se avisa primero: sin el PT todo
  * su tiempo sale sin cubrir y no hay que taparlo con paradas.
+ *
+ * Todo lo de paradas vive aquí (dueña, 2026-10-26): «Parada» para la línea ya
+ * (con el tipo del catálogo)
+ * y una línea parada tiene Continuar y Detener línea. «Anotar» es para las que
+ * ya pasaron. Solo en el turno en curso.
  */
 
 const REFRESCO_MS = 60_000
@@ -53,6 +62,8 @@ export function ModoParadas({
   areaCodigo,
   pendientes,
   onCambio,
+  acciones,
+  paradasDetienen,
 }: {
   lineas: LineaModo[]
   /** Corridas del turno (las de useProduccion). */
@@ -65,6 +76,10 @@ export function ModoParadas({
   pendientes: Parada[]
   /** Se anotó o completó una parada (pendientes, líneas). */
   onCambio: () => Promise<void>
+  /** Parar, continuar y detener la corrida en marcha (las de LineasEstadoPlanta). */
+  acciones: Pick<AccionesLinea, "pausar" | "continuar" | "detener">
+  /** Qué parada tiene detenida a cada línea (paradas_que_detienen_lineas). */
+  paradasDetienen: ParadaQueDetiene[]
 }) {
   const areaParadas = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
   const [actual, setActual] = useState<TurnoActivo | null | undefined>(undefined)
@@ -75,7 +90,7 @@ export function ModoParadas({
   const [paradas, setParadas] = useState<Parada[] | null>(null)
   /** La hora con la que se hace la cuenta: se renueva en cada recarga (cada minuto y al guardar). */
   const [ahora, setAhora] = useState(() => new Date())
-  const [abierto, setAbierto] = useState<{ linea: string; modo: "cubrir" | "paradas" } | null>(null)
+  const [abierto, setAbierto] = useState<{ linea: string; modo: "cubrir" | "paradas" | "parada" | "detener" } | null>(null)
   const pt = useProductoTerminado(turno?.id ?? null)
   const { recargar: recargarPt } = pt
   // Las corridas del turno anterior (las del en curso llegan por props).
@@ -102,6 +117,15 @@ export function ModoParadas({
 
   async function cambio() {
     await Promise.all([cargar(), onCambio()])
+  }
+
+  /** Parar / continuar / detener: si salió bien, se relee la cuenta del turno. */
+  function yRecargar<A extends unknown[]>(fn: (...args: A) => Promise<Resultado>) {
+    return async (...args: A): Promise<Resultado> => {
+      const r = await fn(...args)
+      if (r.ok) await cambio()
+      return r
+    }
   }
 
   if (actual === undefined || paradas === null) {
@@ -160,7 +184,13 @@ export function ModoParadas({
         const producidoMin = fila?.producidoMin ?? 0
         const lineaTurno = corridasLinea.find((c) => c.activa) ?? null
         const esperandoPt = lineaTurno === null && corridasLinea.some((c) => c.esperandoCierre)
-        const aspecto = aspectoLinea(lineaTurno, lineasEstado.find((le) => le.linea === l.codigo)?.condicion ?? "DETENIDA", esperandoPt)
+        const condicion = lineasEstado.find((le) => le.linea === l.codigo)?.condicion ?? "DETENIDA"
+        const aspecto = aspectoLinea(lineaTurno, condicion, esperandoPt)
+        // Parar y continuar: solo en el turno en curso, con la corrida en marcha (no en CIP ni con el lote terminado).
+        const enVivo = !verAnterior && lineaTurno !== null && condicion !== "CIP" && lineaTurno.loteTerminado == null ? lineaTurno : null
+        const corriendo = enVivo !== null && enVivo.pausadaEn == null
+        const parada = enVivo !== null && enVivo.pausadaEn != null
+        const detiene = paradasDetienen.filter((p) => p.linea === l.codigo)
         const faltaMin = Math.max(0, fila ? fila.sinReportarMin : ventanaMin - paradasMin)
         const sinPt = corridasLinea.filter((c) => !c.activa && !pt.registros.some((r) => r.corridaId === c.id))
         const enMarchaSinPt = corridasLinea.some((c) => c.activa && !pt.registros.some((r) => r.corridaId === c.id))
@@ -201,7 +231,18 @@ export function ModoParadas({
               <p className="text-xs text-muted-foreground">La línea no corrió en este turno: cúbrelo con su motivo (LNP).</p>
             )}
 
-            {abiertoAca ? (
+            {abiertoAca === "parada" && enVivo ? (
+              <FormParadaLinea
+                corridaId={enVivo.id}
+                lineaCodigo={l.codigo}
+                areaCodigo={areaCodigo}
+                presentacionMl={Number(enVivo.presentacion) || null}
+                pausar={yRecargar(acciones.pausar)}
+                onCerrar={() => setAbierto(null)}
+              />
+            ) : abiertoAca === "detener" && enVivo ? (
+              <FormDetenerLinea corrida={enVivo} detener={yRecargar(acciones.detener)} onCerrar={() => setAbierto(null)} />
+            ) : abiertoAca === "cubrir" || abiertoAca === "paradas" ? (
               <PanelParadasLinea
                 lineaCodigo={l.codigo}
                 nombreLinea={l.nombre}
@@ -218,20 +259,37 @@ export function ModoParadas({
                 }
               />
             ) : (
-              <FilaAcciones>
-                {faltaMin > 0 && (
-                  <Button size="sm" onClick={() => setAbierto({ linea: l.codigo, modo: "cubrir" })}>
-                    Cubrir {fmtDuracion(faltaMin)}
-                  </Button>
+              <>
+                {parada && enVivo && (
+                  <PanelPausada
+                    corrida={enVivo}
+                    paradaQueDetiene={detiene.find((p) => p.pendiente) ?? null}
+                    paradaDeLinea={detiene[0] ?? null}
+                    continuar={yRecargar(acciones.continuar)}
+                    onDetener={() => setAbierto({ linea: l.codigo, modo: "detener" })}
+                  />
                 )}
-                <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "paradas" })}>
-                  <ListPlus className="size-3.5" />
-                  Paradas
-                  {pendientesLinea.length > 0 && (
-                    <span className="num rounded-sm bg-warning-soft px-1.5 text-xs font-semibold text-warning-foreground">{pendientesLinea.length}</span>
+                <FilaAcciones>
+                  {corriendo && (
+                    <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "parada" })}>
+                      <PauseCircle className="size-3.5" />
+                      Parada
+                    </Button>
                   )}
-                </Button>
-              </FilaAcciones>
+                  {faltaMin > 0 && (
+                    <Button size="sm" onClick={() => setAbierto({ linea: l.codigo, modo: "cubrir" })}>
+                      Cubrir {fmtDuracion(faltaMin)}
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "paradas" })}>
+                    <ListPlus className="size-3.5" />
+                    Anotar
+                    {pendientesLinea.length > 0 && (
+                      <span className="num rounded-sm bg-warning-soft px-1.5 text-xs font-semibold text-warning-foreground">{pendientesLinea.length}</span>
+                    )}
+                  </Button>
+                </FilaAcciones>
+              </>
             )}
           </section>
         )

@@ -4,7 +4,7 @@ import type { LineaLive, PresentacionLive, VelocidadLive } from "@/lib/catalogos
 import { eficienciaDelTurno, type ResultadoEficiencia } from "@/lib/eficiencia"
 import { agruparPorSaborYLote } from "@/lib/agruparProduccion"
 import { LIMITE_MERMA } from "@/lib/turno"
-import { mermaCorrida } from "@/lib/reportes"
+import { mermaLineaTurno } from "@/lib/reportes"
 import { mermaEnvasesDeCorridas } from "@/lib/reportes/realidadProduccion"
 import { FRANJA_ACTA, ICONO_CONTADOR_BUENOS, ICONO_CONTADOR_DESECHO, ICONO_CONTADOR_LLENADORA } from "@/lib/actaIconos"
 import { horaCortaPlanta } from "@/lib/tiempoPlanta"
@@ -47,22 +47,6 @@ const ROJO: [number, number, number] = [200, 30, 30]
 /** "8:42" a partir de un ISO local, en hora de planta. */
 function horaNovedad(iso: string): string {
   return horaCortaPlanta(iso, iso)
-}
-
-/** Merma promedio del turno para UNA línea — simple promedio de la merma de cada corrida comparable (mismo criterio que "Producido"). Finalizar Turno muestra la misma. */
-export function mermaPromedioLinea(
-  corridas: Corrida[],
-  contadores: ContadorRegistro[],
-  productoTerminado: ProductoTerminadoRegistro[],
-  presentaciones: PresentacionLive[],
-  lineaCodigo: string,
-): number | null {
-  const mermas = corridas
-    .filter((c) => c.linea === lineaCodigo)
-    .map((c) => mermaCorrida(c.id, contadores, productoTerminado, presentaciones))
-    .filter((m): m is NonNullable<typeof m> => m !== null)
-  if (mermas.length === 0) return null
-  return Math.round((mermas.reduce((a, m) => a + m.pct, 0) / mermas.length) * 100) / 100
 }
 
 const PREFIJO_SIN_REPORTAR = "Sin reportar:"
@@ -462,7 +446,7 @@ export async function generarActaPdf(params: {
     lineas.forEach((l, i) => {
       const x = M + i * bloque
       const e = eficiencia.porLinea.get(l.codigo)
-      const merma = mermaPromedioLinea(corridas, contadores, productoTerminado, presentaciones, l.codigo)
+      const merma = mermaLineaTurno(corridas, l.codigo, contadores, productoTerminado, presentaciones).pct
       celda(x, y, bloque, 4.5, l.nombre, { fondo: CELESTE, negrita: true })
       celda(x, y + 4.5, sub, 5, "Eficiencia", { fondo: CELESTE, negrita: true })
       celda(x + sub, y + 4.5, sub, 5, "Merma", { fondo: CELESTE, negrita: true })

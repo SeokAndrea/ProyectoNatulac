@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import { LineaCard } from "@/components/lineas/LineaCard"
@@ -117,6 +117,9 @@ export function LineasEstadoPlanta({
     else p.set("paradas", "1")
     setParams(p, { replace: true })
   }
+  // Status (revisión de inicio): confirmada la línea, parar y continuar también se hacen en el Modo Paradas de Líneas.
+  const navigate = useNavigate()
+  const irAModoParadas = modo === "status" && anotaParadas ? () => navigate("/lineas?paradas=1") : undefined
 
   if (cargandoCatalogos || cargandoPreparacion || cargandoProduccion) {
     return (
@@ -160,6 +163,12 @@ export function LineasEstadoPlanta({
           <span className={cn("absolute left-0.5 top-0.5 size-4 rounded-full bg-card transition-transform", modoParadas && "translate-x-4")} />
         </span>
         MODO PARADAS
+        {/* Las tarjetas ya no tienen el botón de Paradas: sus +1 pendientes se ven aquí. */}
+        {!modoParadas && pendientesParadas.length > 0 && (
+          <span className="num rounded-sm bg-warning-soft px-1.5 font-semibold text-warning-foreground" aria-label={`${pendientesParadas.length} pendientes`}>
+            {pendientesParadas.length}
+          </span>
+        )}
       </button>
     </div>
   )
@@ -176,6 +185,8 @@ export function LineasEstadoPlanta({
           areaCodigo={session.area ?? null}
           pendientes={pendientesParadas}
           onCambio={paradasCambiaron}
+          acciones={acciones}
+          paradasDetienen={paradasDetienen}
         />
       </div>
     )
@@ -208,6 +219,7 @@ export function LineasEstadoPlanta({
                 ? { usuario: session.username, pendientes: pendientesParadas.filter((p) => p.lineaCodigo === l.codigo), onCambio: paradasCambiaron }
                 : undefined
             }
+            aModoParadas={conModoParadas ? cambiarModoParadas : irAModoParadas}
           />
         ))}
     </div>

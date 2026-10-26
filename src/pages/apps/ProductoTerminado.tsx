@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { Loader2, PackageCheck } from "lucide-react"
+import { Factory, Loader2, PackageCheck } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
@@ -232,6 +232,14 @@ export default function ProductoTerminado() {
         <ListaCorridas corridas={pendientes} {...datosLista} />
 
         {cerradas.length > 0 && <CorridasCerradas corridas={cerradas} {...datosLista} />}
+        <div className="flex justify-center">
+          <Button asChild variant="outline">
+            <Link to={enModoCorreccion ? `/lineas?turnoId=${turnoIdCorreccion}` : "/lineas"}>
+              <Factory className="size-3.5" />
+              Ir a Líneas
+            </Link>
+          </Button>
+        </div>
       </div>
     </AppShell>
   )

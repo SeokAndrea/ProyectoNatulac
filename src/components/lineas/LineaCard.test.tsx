@@ -135,6 +135,7 @@ interface Escenario {
   paradaQueDetiene?: ParadaQueDetiene | null
   paradaDeLinea?: ParadaQueDetiene | null
   tanquesListos?: TanqueRecepcion[]
+  aModoParadas?: () => void
 }
 
 function crearAcciones() {
@@ -173,6 +174,7 @@ function renderCard(e: Escenario = {}, acciones: Acciones = crearAcciones()) {
         paradaQueDetiene={e.paradaQueDetiene ?? null}
         paradaDeLinea={e.paradaDeLinea ?? e.paradaQueDetiene ?? null}
         acciones={acciones}
+        aModoParadas={e.aModoParadas}
       />
     </MemoryRouter>,
   )
@@ -312,11 +314,11 @@ describe("LineaCard — revisión de Status", () => {
     expect(a.confirmarEstado).toHaveBeenCalledWith("c1")
   })
 
-  it("No está corriendo → Parada: pide desde qué hora, confirma la corrida y la pausa", async () => {
+  it("No está corriendo → está parada y sigue el lote: pide desde qué hora, confirma la corrida y la pausa", async () => {
     const u = userEvent.setup()
     const a = renderCard({ modo: "status", lineaTurno: corrida({ confirmadoInicioEn: null }) })
     await u.click(boton("No está corriendo"))
-    await u.click(boton("Parada"))
+    await u.click(boton(/Está parada, pero sigue con este lote/))
     expect(screen.getByText("Empezó a las")).toBeInTheDocument()
     await u.click(boton("Elegir tipo"))
     await u.type(screen.getByPlaceholderText(/Qué pasó/), "Caída de presión")
@@ -326,18 +328,28 @@ describe("LineaCard — revisión de Status", () => {
     expect(a.pausar.mock.calls[0][1].inicio).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00$/)
   })
 
-  it("No está corriendo → Parada: si Confirmar falla, no pausa", async () => {
+  it("No está corriendo → está parada y sigue el lote: si Confirmar falla, no pausa", async () => {
     const u = userEvent.setup()
     const a = crearAcciones()
     a.confirmarEstado.mockResolvedValue(falla("Turno cerrado"))
     renderCard({ modo: "status", lineaTurno: corrida({ confirmadoInicioEn: null }) }, a)
     await u.click(boton("No está corriendo"))
-    await u.click(boton("Parada"))
+    await u.click(boton(/Está parada, pero sigue con este lote/))
     await u.click(boton("Elegir tipo"))
     await u.type(screen.getByPlaceholderText(/Qué pasó/), "x")
     await u.click(boton("Confirmar parada"))
     expect(await screen.findByRole("alert")).toHaveTextContent("Turno cerrado")
     expect(a.pausar).not.toHaveBeenCalled()
+  })
+
+  it("No está corriendo: cada opción explica qué pasa con el lote; «Ya no sigue» abre Detener línea", async () => {
+    const u = userEvent.setup()
+    renderCard({ modo: "status", lineaTurno: corrida({ confirmadoInicioEn: null }) })
+    await u.click(boton("No está corriendo"))
+    expect(screen.getByText(/cuando arranque, retoma el lote 0001/)).toBeInTheDocument()
+    expect(screen.getByText(/El lote 0001 terminó o no se retoma/)).toBeInTheDocument()
+    await u.click(boton(/Ya no sigue con este lote/))
+    expect(screen.getByText(/esperando que cargues su Producto Terminado/)).toBeInTheDocument()
   })
 
   it("si Confirmar falla, muestra el error", async () => {
@@ -362,6 +374,26 @@ describe("LineaCard — revisión de Status", () => {
     expect(screen.getByText(/Vas a arrancar/)).toHaveTextContent("Vas a arrancar Línea 1 con Fresa · Lote 0001 del Tanque 1, a 1000 ml · 6000 env/h. ¿Confirmar?")
     await u.click(boton("Sí, arrancar línea"))
     expect(a.activar).toHaveBeenCalledWith({ linea: "LINEA_1", presentacion: "1000", envasesHora: 6000, numeroTanque: 1, confirmarInicio: true })
+  })
+})
+
+describe("LineaCard — con Modo Paradas", () => {
+  it("corriendo: no ofrece Parada (vive en el Modo Paradas)", () => {
+    renderCard({ lineaTurno: corrida(), aModoParadas: vi.fn() })
+    noHayBoton("Parada")
+    boton("CIP")
+    boton("Cambiar de lote")
+  })
+
+  it("parada: lleva al Modo Paradas y deja Pasar a CIP; Continuar y Detener están allá", async () => {
+    const u = userEvent.setup()
+    const aModo = vi.fn()
+    renderCard({ lineaTurno: corrida({ pausadaEn: "2026-10-05T09:00:00" }), lineaEstado: estado("LISTA"), aModoParadas: aModo })
+    noHayBoton("Continuar")
+    noHayBoton("Detener línea")
+    boton("Pasar a CIP")
+    await u.click(boton("Ir a Modo Paradas"))
+    expect(aModo).toHaveBeenCalled()
   })
 })
 

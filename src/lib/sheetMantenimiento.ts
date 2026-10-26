@@ -12,6 +12,14 @@ import { fechaPlanta, horaPlanta } from "@/lib/tiempoPlanta"
 
 type Resultado<T> = { ok: true; datos: T } | { ok: false; error: string }
 
+/**
+ * Apagado (dueña, 2026-10-26): ya no se trae el Sheet. Producción inicia y
+ * termina sus paradas en la app; Mantenimiento registra las suyas en
+ * Registrar Paradas. Lo ya traído queda como estaba. Para volver a
+ * traerlo, poner en true (vuelven el botón, el enlace y las equivalencias).
+ */
+export const SHEET_MANTENIMIENTO_ACTIVO = false
+
 export const PESTANA_REPORTES = "ÁREAS"
 
 /** Enlace del Sheet (cualquier forma: /edit, /view…) → CSV de la pestaña de reportes. null si no es un Sheet. */
@@ -274,6 +282,7 @@ export async function fechaDesdeSheet(): Promise<string> {
 }
 
 export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<ResumenSync>> {
+  if (!SHEET_MANTENIMIENTO_ACTIVO) return { ok: false, error: "El Sheet de Mantenimiento ya no se usa." }
   const lectura = await leerCsvSheet()
   if (!lectura.ok) return lectura
   const csv = lectura.datos

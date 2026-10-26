@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { Beaker, Factory, Loader2 } from "lucide-react"
+import { Beaker, Factory, Loader2, PackageCheck } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { LineasEstadoPlanta } from "@/components/LineasEstadoPlanta"
@@ -77,11 +77,17 @@ export default function Lineas() {
         <fieldset disabled={enModoCorreccion} className="m-0 min-w-0 border-0 p-0">
           <LineasEstadoPlanta modo="preparacion" turnoId={turnoIdEfectivo} />
         </fieldset>
-        <div className="flex justify-center">
+        <div className="flex flex-wrap justify-center gap-2">
           <Button asChild variant="outline">
             <Link to={enModoCorreccion ? `/preparacion?turnoId=${turnoIdEfectivo}` : "/preparacion"}>
               <Beaker className="size-3.5" />
               Ir a Preparación
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to={enModoCorreccion ? `/producto-terminado?turnoId=${turnoIdEfectivo}` : "/producto-terminado"}>
+              <PackageCheck className="size-3.5" />
+              Ir a Producto Terminado
             </Link>
           </Button>
         </div>
