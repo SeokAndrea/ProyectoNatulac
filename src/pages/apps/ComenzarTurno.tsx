@@ -6,6 +6,7 @@ import { RevisionInicioTurno } from "@/components/RevisionInicioTurno"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -24,7 +25,7 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { listarSabores, type Sabor } from "@/lib/sabores"
 import { useSesionTurno, type ResponsableTurno } from "@/lib/sesionTurno"
-import { franjaDeHora, franjaParaIniciar, franjaSiguienteTemprano, horaCortaPlanta, horaDelDiaPlanta } from "@/lib/tiempoPlanta"
+import { franjaDeHora, franjaParaIniciar, franjaSiguienteTemprano, horaCortaPlanta, horaDelDiaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { HORA_OFRECER_T2_NOCHE, esT2DelDia } from "@/lib/turno12x12"
 
 const fechaHoy = new Date().toLocaleDateString("es-CO", {
@@ -667,7 +668,81 @@ function AjustesDeTurnos({ area }: { area: AreaCodigo }) {
           <span className="text-xs text-muted-foreground">{ajustes.turnosAutomaticos ? "Encendido" : "Apagado"}</span>
         </label>
       )}
+      {puedeEsquema && !ajustes.franjaLaborable && !ajustes.diaExtraordinario && (
+        <p className="w-full text-xs font-medium text-warning-foreground" role="status">
+          Hoy no toca trabajar en este horario. Si se está trabajando, enciende Día extraordinario: sin él no hay continuidad 12x12 y la
+          producción no entra en la Programación.
+        </p>
+      )}
+      {puedeEsquema && (
+        <DiasQueVienen
+          dias={ajustes.diasExtraordinarios.filter((f) => f > franjaDeHora().fecha)}
+          guardando={guardando}
+          onCambiar={(fecha, activo) => cambiar(() => guardarDiaExtraordinario(session.username, area, activo, fecha))}
+        />
+      )}
       {error && <p className="w-full text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+const DIA_CORTO = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"]
+
+/** "sáb 31/10". */
+function fechaCorta(fecha: string) {
+  const [a, m, d] = fecha.split("-").map(Number)
+  return `${DIA_CORTO[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]} ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`
+}
+
+/** Días extraordinarios marcados con anticipación (después de hoy), y para marcar otro. */
+function DiasQueVienen({
+  dias,
+  guardando,
+  onCambiar,
+}: {
+  dias: string[]
+  guardando: boolean
+  onCambiar: (fecha: string, activo: boolean) => void
+}) {
+  const [fecha, setFecha] = useState("")
+  const manana = restarDias(franjaDeHora().fecha, -1)
+  return (
+    <div className="flex w-full flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <span>Marcar con anticipación:</span>
+      <Input
+        type="date"
+        aria-label="Fecha del día extraordinario"
+        min={manana}
+        value={fecha}
+        onChange={(e) => setFecha(e.target.value)}
+        className="h-7 w-36 text-xs"
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7"
+        disabled={!fecha || fecha < manana || guardando}
+        onClick={() => {
+          onCambiar(fecha, true)
+          setFecha("")
+        }}
+      >
+        Marcar
+      </Button>
+      {dias.map((d) => (
+        <Badge key={d} variant="outline" className="gap-1">
+          {fechaCorta(d)}
+          <button
+            type="button"
+            aria-label={`Quitar el día extraordinario del ${fechaCorta(d)}`}
+            disabled={guardando}
+            onClick={() => onCambiar(d, false)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            ×
+          </button>
+        </Badge>
+      ))}
     </div>
   )
 }

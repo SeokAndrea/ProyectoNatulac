@@ -38,11 +38,15 @@
 --     así que marcar el viernes cubre también el T3 hasta el sábado 7:00.
 --   * franja_laborable(fecha, tipo, area_id): el calendario de siempre, más
 --     los días extraordinarios del área. La de 2 argumentos queda igual.
---   * ajustes_turnos() gana dia_extraordinario (de la jornada actual).
+--   * ajustes_turnos() gana dia_extraordinario (de la jornada actual),
+--     franja_laborable (para avisar si falta encenderlo) y la lista de los
+--     que vienen.
 --   * guardar_dia_extraordinario(): lo prende/apaga quien tiene el permiso
---     ESQUEMA_TURNOS, con auditoría.
+--     ESQUEMA_TURNOS, con auditoría; hoy o con anticipación (hasta 60 días).
 --   * relevo_de_respaldo_en(): en una franja que solo es laborable por el
---     día extraordinario, solo continúa; nunca abre sin responsable.
+--     día extraordinario, solo continúa; nunca abre sin responsable. Y en
+--     12x12 el T3 de las 22:30 sigue SOLO al T2 de la noche: si el del día
+--     quedó abierto (no vino el de la noche), no se le pasa el T3.
 -- ============================================================
 
 create table if not exists dias_extraordinarios (
@@ -79,24 +83,33 @@ stable
 security definer
 set search_path = public
 as $$
+  with ahora as (select * from turno_de_hora(now() at time zone 'America/Caracas'))
   select jsonb_build_object(
     'esquema', a.esquema_turnos,
     'turnos_automaticos', a.turnos_automaticos,
     'dia_extraordinario', exists (
-      select 1 from dias_extraordinarios d
-      where d.area_id = a.id and d.fecha = (select fecha from turno_de_hora(now() at time zone 'America/Caracas'))
+      select 1 from dias_extraordinarios d where d.area_id = a.id and d.fecha = ahora.fecha
     ),
-    'dia_extraordinario_fecha', (select fecha from turno_de_hora(now() at time zone 'America/Caracas'))
+    'dia_extraordinario_fecha', ahora.fecha,
+    -- La franja de ahora es laborable por el calendario normal (si no, la app
+    -- avisa que falta encender el día extraordinario).
+    'franja_laborable', franja_laborable(ahora.fecha, ahora.tipo_codigo),
+    -- Los días extraordinarios ya marcados, de hoy en adelante.
+    'dias_extraordinarios', coalesce((
+      select jsonb_agg(d.fecha order by d.fecha) from dias_extraordinarios d
+      where d.area_id = a.id and d.fecha >= ahora.fecha
+    ), '[]'::jsonb)
   )
-  from areas a where a.codigo = p_area_codigo;
+  from areas a, ahora where a.codigo = p_area_codigo;
 $$;
 
 grant execute on function ajustes_turnos(text) to anon, authenticated;
 
 -- ------------------------------------------------------------
--- 3. Prender / apagar el día extraordinario de la jornada actual.
+-- 3. Prender / apagar un día extraordinario: el de la jornada actual
+--    (p_fecha null) o uno que viene, para dejarlo marcado con tiempo.
 -- ------------------------------------------------------------
-create or replace function guardar_dia_extraordinario(p_usuario text, p_area_codigo text, p_activo boolean)
+create or replace function guardar_dia_extraordinario(p_usuario text, p_area_codigo text, p_activo boolean, p_fecha date default null)
 returns void
 language plpgsql
 security definer
@@ -104,6 +117,7 @@ set search_path = public
 as $$
 declare
   v_area_id uuid;
+  v_hoy date;
   v_fecha date;
   v_usuario_id uuid;
 begin
@@ -114,7 +128,17 @@ begin
   if v_area_id is null then
     raise exception 'Área % no existe', p_area_codigo;
   end if;
-  select fecha into v_fecha from turno_de_hora(now() at time zone 'America/Caracas');
+  select fecha into v_hoy from turno_de_hora(now() at time zone 'America/Caracas');
+  v_fecha := coalesce(p_fecha, v_hoy);
+  if v_fecha < v_hoy then
+    raise exception 'No se puede cambiar un día que ya pasó.';
+  end if;
+  if v_fecha > v_hoy + 60 then
+    raise exception 'Solo se puede marcar hasta 60 días adelante.';
+  end if;
+  if p_activo and franja_laborable(v_fecha, 'TURNO_1') and franja_laborable(v_fecha, 'TURNO_3') then
+    raise exception 'Ese día ya es laborable: no hace falta marcarlo.';
+  end if;
   select id into v_usuario_id from usuarios where usuario = lower(p_usuario);
 
   if p_activo then
@@ -139,13 +163,14 @@ begin
 end;
 $$;
 
-grant execute on function guardar_dia_extraordinario(text, text, boolean) to anon, authenticated;
+grant execute on function guardar_dia_extraordinario(text, text, boolean, date) to anon, authenticated;
 
 -- ------------------------------------------------------------
 -- 4. Respaldo: el calendario cuenta los días extraordinarios.
 -- ------------------------------------------------------------
 -- Última versión: 20261108090000_relevo_temprano_pasa_al_turno_siguiente.sql
--- Cambios: el día extraordinario entra solo a la continuidad (ver v_extra).
+-- Cambios: el día extraordinario entra solo a la continuidad (ver v_extra), y
+-- la continuidad T2 → T3 del 12x12 sale solo del T2 de la noche.
 create or replace function relevo_de_respaldo_en(p_ahora timestamp, p_area_codigo text default null)
 returns void
 language plpgsql
@@ -237,7 +262,10 @@ begin
       and v_abierto.fecha = v_franja.fecha
       and (
         (v_tipo_abierto = 'TURNO_1' and v_franja.tipo_codigo = 'TURNO_2')
-        or (v_tipo_abierto = 'TURNO_2' and v_franja.tipo_codigo = 'TURNO_3')
+        -- Solo el T2 de la noche (abierto desde las 17:00, ver turno12x12.ts):
+        -- si sigue abierto el del día es que no vino el de la noche, y el T3
+        -- no es del supervisor del día (20261112).
+        or (v_tipo_abierto = 'TURNO_2' and v_franja.tipo_codigo = 'TURNO_3' and v_abierto.hora_inicio >= time '17:00')
       );
 
     -- Relevo temprano (20261108): quien tomó el turno de la franja anterior

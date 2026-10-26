@@ -19,13 +19,29 @@ export interface AjustesTurnos {
   turnosAutomaticos: boolean
   /** La jornada de hoy está marcada como día extraordinario (false también si la base todavía no tiene la migración 20261112). */
   diaExtraordinario: boolean
+  /** La franja de ahora se trabaja por el calendario normal (true si la base no lo dice). */
+  franjaLaborable: boolean
+  /** Días extraordinarios marcados, de hoy en adelante ('YYYY-MM-DD'). */
+  diasExtraordinarios: string[]
 }
 
 export async function obtenerAjustesTurnos(area: AreaCodigo): Promise<AjustesTurnos | null> {
   const { data, error } = await supabase.rpc("ajustes_turnos", { p_area_codigo: area })
   if (error || !data) return null
-  const fila = data as { esquema: EsquemaTurnos; turnos_automaticos: boolean; dia_extraordinario?: boolean }
-  return { esquema: fila.esquema, turnosAutomaticos: fila.turnos_automaticos, diaExtraordinario: fila.dia_extraordinario ?? false }
+  const fila = data as {
+    esquema: EsquemaTurnos
+    turnos_automaticos: boolean
+    dia_extraordinario?: boolean
+    franja_laborable?: boolean
+    dias_extraordinarios?: string[]
+  }
+  return {
+    esquema: fila.esquema,
+    turnosAutomaticos: fila.turnos_automaticos,
+    diaExtraordinario: fila.dia_extraordinario ?? false,
+    franjaLaborable: fila.franja_laborable ?? true,
+    diasExtraordinarios: fila.dias_extraordinarios ?? [],
+  }
 }
 
 export async function guardarEsquemaTurnos(
@@ -71,15 +87,18 @@ export async function guardarTurnosAutomaticos(
   return { ok: true }
 }
 
+/** Sin `fecha`, la jornada de hoy; con fecha, un día que viene (hasta 60 días). */
 export async function guardarDiaExtraordinario(
   usuario: string,
   area: AreaCodigo,
   activo: boolean,
+  fecha?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await supabase.rpc("guardar_dia_extraordinario", {
     p_usuario: usuario,
     p_area_codigo: area,
     p_activo: activo,
+    p_fecha: fecha ?? null,
   })
   if (error) return { ok: false, error: error.message || "No se pudo cambiar el día extraordinario." }
   return { ok: true }
