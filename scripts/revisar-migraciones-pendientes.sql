@@ -90,6 +90,8 @@ from (
   ('20261112090000', 'Día extraordinario',
     to_regclass('public.dias_extraordinarios') is not null and exists (select 1 from fn where proname = 'guardar_dia_extraordinario')),
   ('20261112150000', 'Paradas: de quién es lo decide quién la registra',
-    exists (select 1 from fn where proname = 'es_de_mantenimiento'))
+    exists (select 1 from fn where proname = 'es_de_mantenimiento')),
+  ('20261112160000', 'Paradas: Continuar pregunta cuánto duró',
+    exists (select 1 from fn where proname = 'continuar_linea' and prosrc like '%p_minutos%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

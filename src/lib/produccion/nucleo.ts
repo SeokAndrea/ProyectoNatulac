@@ -65,12 +65,16 @@ export async function continuarLinea(
   turnoId: string,
   corridaId: string,
   justificacion?: string | null,
+  /** Cuánto duró la parada (migración 20261112160000). Sin minutos, termina con la hora de ahora. */
+  minutos?: number | null,
 ): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("continuar_linea", {
     p_usuario: usuario,
     p_turno_id: turnoId,
     p_turno_linea_id: corridaId,
     p_justificacion: justificacion ?? null,
+    // Solo si hay: así funciona también contra una base sin la migración.
+    ...(minutos != null ? { p_minutos: minutos } : {}),
   })
   if (error || !data) return { ok: false, error: error?.message ?? "No se pudo continuar la línea. Intenta de nuevo." }
   return { ok: true, data }

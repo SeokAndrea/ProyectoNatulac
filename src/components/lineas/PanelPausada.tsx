@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Beaker, Loader2, PauseCircle, PlayCircle, Square } from "lucide-react"
 import { ahoraPlanta, minutosEntre } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { Corrida, ParadaQueDetiene } from "@/lib/produccion/tipos"
 import { fmtDuracion } from "@/lib/paradas"
@@ -41,14 +42,19 @@ export function PanelPausada({
   const [justificacion, setJustificacion] = useState("")
   const abierta = paradaDeLinea && !paradaDeLinea.pendiente && paradaDeLinea.fin === null ? paradaDeLinea : null
   const minutos = abierta ? (minutosEntre(abierta.inicio.slice(0, 16), ahoraPlanta()) ?? 0) : 0
+  // Cuánto duró (dueña, 2026-10-26): por defecto lo que marca el reloj; si la línea arrancó antes, se corrige (migración 20261112160000).
+  const [duroTexto, setDuroTexto] = useState<string | null>(null)
+  const pideMinutos = !!continuar && abierta !== null && !abierta.deMantenimiento
+  const duro = duroTexto === null ? minutos : Number(duroTexto)
+  const duroValido = duroTexto === null || (Number.isInteger(duro) && duro > 0)
   // Programada que pasó su tiempo guía: Continuar pide por qué (el servidor también lo exige).
   const pideJustificacion =
     abierta !== null &&
     !abierta.deMantenimiento &&
     abierta.clase === "PROGRAMADA" &&
     abierta.tiempoGuiaMin != null &&
-    (minutos > abierta.tiempoGuiaMin || (error?.includes("justificación") ?? false))
-  const falta = paradaQueDetiene !== null || (pideJustificacion && justificacion.trim() === "")
+    (duro > abierta.tiempoGuiaMin || (error?.includes("justificación") ?? false))
+  const falta = paradaQueDetiene !== null || !duroValido || (pideJustificacion && justificacion.trim() === "")
 
   return (
     <div className="flex flex-col gap-2">
@@ -71,6 +77,22 @@ export function PanelPausada({
         </p>
       )}
       <AvisoParadaPendiente parada={paradaQueDetiene} />
+      {pideMinutos && (
+        <label className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          ¿Cuánto duró?
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={duroTexto ?? String(minutos)}
+            onChange={(e) => setDuroTexto(e.target.value)}
+            className="num h-8 w-20 text-sm"
+            aria-label="Minutos que duró la parada"
+          />
+          min
+          <span className="basis-full">Si la línea arrancó antes de darle Continuar, pon los minutos reales.</span>
+        </label>
+      )}
       {continuar && pideJustificacion && abierta && (
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Pasó su tiempo guía ({fmtDuracion(abierta.tiempoGuiaMin ?? 0)}): ¿por qué?
@@ -81,7 +103,9 @@ export function PanelPausada({
         {continuar && (
           <Button
             size="sm"
-            onClick={() => ejecutar(() => continuar(corrida.id, pideJustificacion ? justificacion.trim() : null))}
+            onClick={() =>
+              ejecutar(() => continuar(corrida.id, pideJustificacion ? justificacion.trim() : null, pideMinutos && duroTexto !== null ? duro : null))
+            }
             disabled={enviando || falta}
           >
             {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
