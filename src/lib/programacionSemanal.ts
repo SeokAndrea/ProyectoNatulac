@@ -11,7 +11,8 @@ import { restarDias } from "@/lib/tiempoPlanta"
  *    mientras quede pendiente: "pendiente al empezar el día" = plan de la
  *    semana − lo producido los días anteriores.
  *  - El viernes cierra: lo que faltó queda incumplido y no pasa a la otra semana.
- *  - Lo producido es el PT del supervisor (en vivo), de lunes a viernes.
+ *  - Lo producido es el PT del supervisor (en vivo), de lunes a viernes, más
+ *    el sábado/domingo marcado como "Día extraordinario" (se muestra aparte).
  */
 
 export interface ItemSemana {
@@ -80,8 +81,12 @@ export const producidoEn = (s: Semana, item: ItemSemana, fecha: string) =>
 export const producidoAntes = (s: Semana, item: ItemSemana, fecha: string) =>
   s.producido.filter((p) => p.fecha >= s.lunes && p.fecha < fecha && esDe(item)(p)).reduce((a, p) => a + p.cajas, 0)
 
-/** Lo producido en toda la semana (lunes a viernes). */
-export const producidoSemana = (s: Semana, item: ItemSemana) => producidoAntes(s, item, restarDias(s.lunes, -5))
+/** Lo producido en toda la semana: lunes a viernes más el sábado/domingo que fue día extraordinario. */
+export const producidoSemana = (s: Semana, item: ItemSemana) => producidoAntes(s, item, restarDias(s.lunes, -7))
+
+/** Lo producido en sábado o domingo (día extraordinario); ya cuenta dentro de producidoSemana. */
+export const producidoExtraordinario = (s: Semana, item: ItemSemana) =>
+  s.producido.filter((p) => p.fecha > restarDias(s.lunes, -4) && esDe(item)(p)).reduce((a, p) => a + p.cajas, 0)
 
 /** Lo que falta al EMPEZAR el día: el plan de la semana menos lo producido antes. */
 export const pendienteAl = (s: Semana, item: ItemSemana, fecha: string) => Math.max(0, item.cajasPlan - producidoAntes(s, item, fecha))

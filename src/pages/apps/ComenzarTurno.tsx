@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import {
   grupoDeRotacion,
+  guardarDiaExtraordinario,
   guardarEsquemaTurnos,
   guardarTurnosAutomaticos,
   obtenerAjustesTurnos,
@@ -588,6 +589,8 @@ function FormularioNuevoTurno({
  *   - 12x12 (ESQUEMA_TURNOS): encendido = dos supervisores (7–19 y 19–7). A las
  *     19:00 se cierra el T2 del día y se abre el de la noche. Se aplica al turno abierto y a
  *     los siguientes (migración 20261085).
+ *   - Día extraordinario (ESQUEMA_TURNOS): marca la jornada de hoy como laborable aunque
+ *     sea el T3 del viernes, sábado o domingo (migración 20261112).
  *   - Respaldo automático (solo el dueño).
  */
 function AjustesDeTurnos({ area }: { area: AreaCodigo }) {
@@ -634,6 +637,20 @@ function AjustesDeTurnos({ area }: { area: AreaCodigo }) {
           />
           <span className="font-medium text-foreground">12x12</span>
           <span className="text-xs text-muted-foreground">{es12x12 ? "Encendido · Turno 2 se parte a las 19:00" : "Apagado"}</span>
+        </label>
+      )}
+      {puedeEsquema && (
+        <label
+          className="flex cursor-pointer items-center gap-2"
+          title="Hoy se trabaja aunque no toque (T3 del viernes, sábado o domingo): el sistema lo trata como un día normal, con respaldo y continuidad. Vale para la jornada de hoy."
+        >
+          <Switch
+            checked={ajustes.diaExtraordinario}
+            disabled={guardando}
+            onCheckedChange={(v) => cambiar(() => guardarDiaExtraordinario(session.username, area, v))}
+          />
+          <span className="font-medium text-foreground">Día extraordinario</span>
+          <span className="text-xs text-muted-foreground">{ajustes.diaExtraordinario ? "Encendido · hoy se trabaja" : "Apagado"}</span>
         </label>
       )}
       {esDueno && (

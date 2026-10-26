@@ -10,6 +10,7 @@ import {
   numeroDeLinea,
   planDelDia,
   producidoEn,
+  producidoExtraordinario,
   producidoSemana,
   programacionDe,
   semanaCerrada,
@@ -140,6 +141,7 @@ export function VistaSemanal({
               )}
               {semana.items.map((it) => {
                 const p = producidoSemana(semana, it)
+                const extra = producidoExtraordinario(semana, it)
                 const pct = Math.min(100, (p / it.cajasPlan) * 100)
                 const e = estadoDe(semana, it, hoy)
                 return (
@@ -151,7 +153,14 @@ export function VistaSemanal({
                     <td className="px-3 py-2 text-right">
                       {editable ? <CampoPlan item={it} onGuardar={(n) => onGuardarCajas(it, n)} /> : <span className="font-mono">{fmt(it.cajasPlan)}</span>}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(p)}</td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {fmt(p)}
+                      {extra > 0 && (
+                        <span className="block font-sans text-xs text-muted-foreground" title="Producido un sábado o domingo marcado como día extraordinario; ya está sumado">
+                          Día extraordinario: {fmt(extra)}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right font-mono">{fmt(Math.max(0, it.cajasPlan - p))}</td>
                     <td className="px-3 py-2">
                       <div className="h-1.5 min-w-24 overflow-hidden rounded-full bg-muted">

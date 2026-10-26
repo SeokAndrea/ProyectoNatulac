@@ -253,7 +253,8 @@ export default function FinalizarTurno() {
       responsables: sesion.responsables,
       esquema: sesion.esquema ?? undefined,
       horaInicio: sesion.horaInicio,
-      supervisorNombre: session.nombre || session.username,
+      // El responsable del turno, no quien lo finaliza (un jefe puede cerrar el turno de otro supervisor).
+      supervisorNombre: sesion.supervisorNombre || session.nombre || session.username,
       area: session.area,
       lineas,
       presentaciones,

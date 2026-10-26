@@ -78,6 +78,10 @@ from (
   ('20261111490000', 'Edición de Datos con permiso y autor',
     exists (select 1 from fn where proname = 'guardar_catalogo')),
   ('20261111590000', 'Paradas: la parada abierta de la línea',
-    exists (select 1 from fn where proname = 'aplicar_paradas_a_lineas'))
+    exists (select 1 from fn where proname = 'aplicar_paradas_a_lineas')),
+  ('20261111990000', 'Panel en vivo: el turno más reciente es el último creado',
+    exists (select 1 from fn where proname = 'estado_planta_actual' and prosrc like '%order by (t.estado = ''ABIERTO'') desc, t.created_at desc%')),
+  ('20261112090000', 'Día extraordinario',
+    to_regclass('public.dias_extraordinarios') is not null and exists (select 1 from fn where proname = 'guardar_dia_extraordinario'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

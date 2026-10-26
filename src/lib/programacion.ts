@@ -111,7 +111,8 @@ export async function leerSemanas(area: string, desde: string, hasta: string): P
   const semanas = lunes.map((l): Semana => {
     const items = r.items.filter((i) => i.semana === l)
     const ids = new Set(items.map((i) => i.id))
-    const viernes = restarDias(l, -4)
+    // Hasta el domingo: sábado y domingo solo traen producción si fueron día extraordinario.
+    const domingo = restarDias(l, -6)
     return {
       lunes: l,
       items: items.map((i) => ({
@@ -125,7 +126,7 @@ export async function leerSemanas(area: string, desde: string, hasta: string): P
       })),
       decisiones: r.dias.filter((d) => ids.has(d.item_id)).map((d) => ({ itemId: d.item_id, fecha: d.fecha, estado: d.estado, lineaCodigo: d.linea_codigo })),
       producido: r.producido
-        .filter((p) => p.fecha >= l && p.fecha <= viernes)
+        .filter((p) => p.fecha >= l && p.fecha <= domingo)
         .map((p) => ({ fecha: p.fecha, saborId: p.sabor_id, presentacionId: p.presentacion_id, cajas: Number(p.cajas) })),
     }
   })

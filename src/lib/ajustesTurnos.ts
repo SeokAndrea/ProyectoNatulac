@@ -10,17 +10,22 @@ import { supabase } from "@/lib/supabase"
  *     (migración 20261085).
  *   - respaldo automático (solo el dueño): si nadie hace el relevo, el cron
  *     abre el turno nuevo sin responsable 30 min después de su inicio.
+ *   - día extraordinario (permiso ESQUEMA_TURNOS, migración 20261112): marca la
+ *     jornada de hoy como laborable aunque sea el T3 del viernes, sábado o
+ *     domingo, para que el respaldo y la continuidad la traten como un día normal.
  */
 export interface AjustesTurnos {
   esquema: EsquemaTurnos
   turnosAutomaticos: boolean
+  /** La jornada de hoy está marcada como día extraordinario (false también si la base todavía no tiene la migración 20261112). */
+  diaExtraordinario: boolean
 }
 
 export async function obtenerAjustesTurnos(area: AreaCodigo): Promise<AjustesTurnos | null> {
   const { data, error } = await supabase.rpc("ajustes_turnos", { p_area_codigo: area })
   if (error || !data) return null
-  const fila = data as { esquema: EsquemaTurnos; turnos_automaticos: boolean }
-  return { esquema: fila.esquema, turnosAutomaticos: fila.turnos_automaticos }
+  const fila = data as { esquema: EsquemaTurnos; turnos_automaticos: boolean; dia_extraordinario?: boolean }
+  return { esquema: fila.esquema, turnosAutomaticos: fila.turnos_automaticos, diaExtraordinario: fila.dia_extraordinario ?? false }
 }
 
 export async function guardarEsquemaTurnos(
@@ -63,5 +68,19 @@ export async function guardarTurnosAutomaticos(
     p_activo: activo,
   })
   if (error) return { ok: false, error: error.message || "No se pudo cambiar el ajuste." }
+  return { ok: true }
+}
+
+export async function guardarDiaExtraordinario(
+  usuario: string,
+  area: AreaCodigo,
+  activo: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc("guardar_dia_extraordinario", {
+    p_usuario: usuario,
+    p_area_codigo: area,
+    p_activo: activo,
+  })
+  if (error) return { ok: false, error: error.message || "No se pudo cambiar el día extraordinario." }
   return { ok: true }
 }
