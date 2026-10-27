@@ -102,3 +102,35 @@ describe("Línea No Programada hasta el final del turno (dueña, 2026-10-14)", (
     expect(paradaEnVivo("LINEA_1", [lnpe], null, new Date("2026-10-12T15:30:00"))).toBeNull()
   })
 })
+
+describe("paradaEnVivo: Mantenimiento sin margen y minutos del turno", () => {
+  it("la de Mantenimiento abierta se ve a los 3 min; la Operacional espera los 15", () => {
+    const mtto = paradaEnVivo("LINEA_1", [abierta({ responsable: "MANTENIMIENTO", inicio: "2026-10-12T09:57:00" })], null, AHORA)
+    expect(mtto).toMatchObject({ minutos: 3, deMantenimiento: true, visible: true })
+    expect(textoParadaEnVivo(mtto!)).toBe("Mantenimiento · 3 min")
+    const oper = paradaEnVivo("LINEA_1", [abierta({ inicio: "2026-10-12T09:57:00" })], null, AHORA)
+    expect(oper).toMatchObject({ minutos: 3, visible: false })
+  })
+
+  it("si hay una de Mantenimiento corta y una Operacional larga, se muestra la de Mantenimiento", () => {
+    const p = paradaEnVivo(
+      "LINEA_1",
+      [abierta({ inicio: "2026-10-12T08:00:00" }), abierta({ responsable: "MANTENIMIENTO", inicio: "2026-10-12T09:58:00" })],
+      null,
+      AHORA,
+    )
+    expect(p).toMatchObject({ deMantenimiento: true, minutos: 2, visible: true })
+  })
+
+  it("con el inicio del turno, la cinta cuenta desde ahí y sigue visible por lo que lleva abierta", () => {
+    const desde = new Date("2026-10-12T09:50:00")
+    const p = paradaEnVivo("LINEA_1", [abierta({ inicio: "2026-10-12T07:00:00" })], null, AHORA, desde)
+    expect(p).toMatchObject({ minutos: 10, visible: true })
+    expect(textoParadaEnVivo(p!)).toBe("Parada · 10 min")
+  })
+
+  it("un turno que empezó antes de la parada no la recorta", () => {
+    const p = paradaEnVivo("LINEA_1", [abierta({ inicio: "2026-10-12T09:30:00" })], null, AHORA, new Date("2026-10-12T06:00:00"))
+    expect(p).toMatchObject({ minutos: 30, visible: true })
+  })
+})

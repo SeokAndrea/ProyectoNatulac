@@ -1,6 +1,6 @@
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import type { EficienciaTurno } from "@/lib/eficiencia"
-import { duracionMin, type Parada } from "@/lib/paradas"
+import { duracionMin, minutosPorLinea, type Parada } from "@/lib/paradas"
 import { paradaEnVivo, type ParadaEnVivo } from "@/lib/paradasEnVivo"
 import type { ProduccionDiaItem } from "@/lib/panelProduccion"
 import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
@@ -60,6 +60,8 @@ export interface FilaLineaCompacta extends LineaConEstado {
   mermaPct: number | null
   /** Suma de los minutos de TODAS las paradas registradas de esta línea en el turno (Módulo Paradas) — null si no tiene ninguna. */
   minutosParada: number | null
+  /** Total de la parada completa (todos los turnos), solo si alguna empezó en un turno anterior: va en el title de «Tiempo de parada». */
+  minutosParadaTotal: number | null
   /**
    * TP = Tiempo de Producción: minutos desde que se activó la corrida
    * (activadaEn) — null si no hay corrida activa ahora mismo. Por
@@ -187,11 +189,11 @@ export function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[],
  * estaba (la corrida pausada desde Líneas vuelve a verse "activa"), con el
  * aviso en `paradaEnVivo`. CIP y "esperando cierre" no cambian.
  */
-export function aplicarParadasEnVivo(lineas: LineaConEstado[], abiertas: Parada[], ahora: Date): LineaConEstado[] {
+export function aplicarParadasEnVivo(lineas: LineaConEstado[], abiertas: Parada[], ahora: Date, desdeTurno: Date | null = null): LineaConEstado[] {
   return lineas.map((le) => {
     if (le.estado === "cip" || le.estado === "esperando_cierre") return le
     const conCorrida = le.estado === "activa" || le.estado === "parada"
-    const parada = paradaEnVivo(le.codigo, abiertas, conCorrida ? (le.corrida?.pausadaEn ?? null) : null, ahora)
+    const parada = paradaEnVivo(le.codigo, abiertas, conCorrida ? (le.corrida?.pausadaEn ?? null) : null, ahora, desdeTurno)
     if (conCorrida) return { ...le, estado: parada?.visible ? "parada" : "activa", paradaEnVivo: parada }
     return { ...le, estado: parada?.visible ? "detenida" : le.estado, paradaEnVivo: parada }
   })
@@ -281,6 +283,8 @@ export function filasDeLineas(d: {
   eficiencia: EficienciaTurno | null
   /** Minutos de parada por línea, con la línea normalizada LINEA_1/2/3 (ver minutosPorLinea). */
   minutosParadaPorLinea: Map<string, number>
+  /** Total con el tramo de otros turnos, por línea normalizada (ver totalesParadaPorLinea). */
+  minutosParadaTotalPorLinea?: Map<string, number>
   ahora: Date
 }): FilaLineaCompacta[] {
   return d.lineasEstado.map((le) => {
@@ -304,6 +308,7 @@ export function filasDeLineas(d: {
       eficienciaPct: d.eficiencia?.porLinea.get(le.codigo)?.eficienciaPct ?? null,
       mermaPct: merma?.pct ?? null,
       minutosParada: minutosParadaAcumulado > 0 ? minutosParadaAcumulado : null,
+      minutosParadaTotal: d.minutosParadaTotalPorLinea?.get(lineaParadas) ?? null,
       minutosProduccion,
     }
   })
@@ -312,4 +317,21 @@ export function filasDeLineas(d: {
 /** La parada individual más larga del turno (Módulo Paradas) — null si el turno no tuvo ninguna. */
 export function paradaMasLargaDe(paradas: Parada[], ahora: Date): Parada | null {
   return [...paradas].sort((a, b) => duracionMin(b, ahora) - duracionMin(a, ahora))[0] ?? null
+}
+
+/**
+ * Minutos totales (todos los turnos) por línea, solo de las líneas con alguna
+ * parada que empezó en un turno anterior. `delTurno` trae el tramo del turno
+ * (el servidor ya lo recorta); `completas` la misma parada sin recortar, por id.
+ */
+export function totalesParadaPorLinea(delTurno: Parada[], completas: Map<string, Parada>, ahora: Date): Map<string, number> {
+  const vienenDeAntes = new Set(
+    delTurno.filter((p) => {
+      const c = completas.get(p.id)
+      return c !== undefined && new Date(c.inicio).getTime() < new Date(p.inicio).getTime()
+    }).map((p) => p.lineaCodigo),
+  )
+  if (vienenDeAntes.size === 0) return new Map()
+  const totales = minutosPorLinea(delTurno.map((p) => completas.get(p.id) ?? p), ahora)
+  return new Map(totales.filter((t) => vienenDeAntes.has(t.linea) && t.minutos > 0).map((t) => [t.linea, t.minutos]))
 }

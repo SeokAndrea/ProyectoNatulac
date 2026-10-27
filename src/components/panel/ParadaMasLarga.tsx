@@ -7,8 +7,22 @@ import { formatDuracion, paradaMasLargaDe } from "./calculosPanel"
 import { PanelCard } from "./PanelCard"
 
 /** Tarjeta "Parada con mayor duración": la parada individual más larga del turno (Módulo Paradas). */
-export function ParadaMasLarga({ paradas, lineas, ahora }: { paradas: Parada[]; lineas: LineaLive[]; ahora: Date }) {
+export function ParadaMasLarga({
+  paradas,
+  completas,
+  lineas,
+  ahora,
+}: {
+  paradas: Parada[]
+  /** Las mismas paradas sin recortar al turno, por id: de ahí sale el «Total» al pasar el cursor. */
+  completas?: Map<string, Parada>
+  lineas: LineaLive[]
+  ahora: Date
+}) {
+  // paradas ya trae el tramo de este turno: ese es el que se compara y se muestra.
   const parada = paradaMasLargaDe(paradas, ahora)
+  const total = parada && completas?.has(parada.id) ? duracionMin(completas.get(parada.id)!, ahora) : null
+  const tramo = parada ? duracionMin(parada, ahora) : 0
   return (
     <PanelCard icon={PauseCircle} titulo="Parada con mayor duración" meta={paradas.length > 0 ? `${paradas.length} paradas` : undefined}>
       {parada ? (
@@ -24,7 +38,12 @@ export function ParadaMasLarga({ paradas, lineas, ahora }: { paradas: Parada[]; 
             {/* La descripción que escribió quien la registró (máx. LARGO_NOTA_PARADA). */}
             {parada.nota && <TextoDesplazable texto={parada.nota} className="text-xs text-foreground" />}
           </div>
-          <span className="num shrink-0 text-lg font-bold text-warning-foreground">{formatDuracion(duracionMin(parada, ahora))}</span>
+          <span
+            className="num shrink-0 text-lg font-bold text-warning-foreground"
+            title={total !== null && total !== tramo ? `Total ${total} min` : undefined}
+          >
+            {formatDuracion(tramo)}
+          </span>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">Sin paradas registradas para este turno.</p>

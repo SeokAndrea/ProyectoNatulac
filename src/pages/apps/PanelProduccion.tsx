@@ -8,6 +8,7 @@ import {
   aplicarParadasEnVivo,
   estadoDeLineas,
   filasDeLineas,
+  totalesParadaPorLinea,
   produccionPorLineaDe,
   programacionDelDia,
   textoUltimaActualizacion,
@@ -67,6 +68,8 @@ export default function PanelProduccion() {
     planDia,
     produccionDia,
     paradasTurno,
+    paradasCompletas,
+    desdeTurno,
     prep,
     prod,
     pt,
@@ -116,7 +119,7 @@ export default function PanelProduccion() {
   const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
   const lineasBase = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
   // En vivo, las paradas abiertas de más de 15 min paran la cinta (src/lib/paradasEnVivo.ts).
-  const lineasEstado = enVivo ? aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora) : lineasBase
+  const lineasEstado = enVivo ? aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora, desdeTurno) : lineasBase
   const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, lineas, presentaciones) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   /*
@@ -159,6 +162,7 @@ export default function PanelProduccion() {
     presentaciones,
     eficiencia,
     minutosParadaPorLinea: new Map(minutosPorLinea(paradasTurno, ahora).map((r) => [r.linea, r.minutos])),
+    minutosParadaTotalPorLinea: totalesParadaPorLinea(paradasTurno, paradasCompletas, ahora),
     ahora,
   })
   const ultimaAccion = turno ? ultimaAccionDeTurno(prod.corridas, prep.tanques, prod.contadores, pt.registros, prep.preparaciones) : null
@@ -225,7 +229,7 @@ export default function PanelProduccion() {
                   ahora={ahora}
                   conLinks={esSupervisor}
                 />
-                <ParadaMasLarga paradas={paradasTurno} lineas={lineas} ahora={ahora} />
+                <ParadaMasLarga paradas={paradasTurno} completas={paradasCompletas} lineas={lineas} ahora={ahora} />
               </div>
 
               <div className="flex flex-col gap-4 xl:col-span-8">

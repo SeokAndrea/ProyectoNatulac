@@ -17,7 +17,8 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerPlanDelDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
-import { franjaDeHora } from "@/lib/tiempoPlanta"
+import { listarVentanasTurnos } from "@/lib/ventanasParadas"
+import { franjaDeHora, restarDias } from "@/lib/tiempoPlanta"
 import type { TurnoActivo } from "@/lib/turno"
 
 /**
@@ -27,6 +28,8 @@ import type { TurnoActivo } from "@/lib/turno"
  * cuando se está viendo un turno histórico elegido a mano.
  */
 const REFRESCO_EN_VIVO_MS = 15 * 60 * 1000
+/** Días hacia atrás donde buscar el comienzo de una parada que cruza turnos (para su «Total»). */
+const DIAS_ATRAS_TOTAL = 7
 
 /**
  * Todos los datos del Panel de Producción y cómo se cargan: el turno (en
@@ -73,6 +76,10 @@ export function usePanelTurno() {
    * de cada línea — ver src/lib/eficiencia.ts.
    */
   const [paradasTurno, setParadasTurno] = useState<Parada[]>([])
+  /** Las mismas paradas sin recortar al turno, por id (el «Total» de las que vienen de un turno anterior). */
+  const [paradasCompletas, setParadasCompletas] = useState<Map<string, Parada>>(new Map())
+  /** Hora real en que empieza el turno mostrado: la cinta en vivo cuenta desde ahí. */
+  const [desdeTurno, setDesdeTurno] = useState<Date | null>(null)
   useCatalogoParadas() // carga el catálogo: hace falta para mostrar el código de cada parada
   /*
    * Solo el Super Administrador tiene session.area === null ("ve
@@ -193,15 +200,29 @@ export function usePanelTurno() {
     let vivo = true
     if (!turno?.id) {
       setParadasTurno([])
+      setParadasCompletas(new Map())
+      setDesdeTurno(null)
       return
     }
     listarParadas({ desde: fecha, hasta: fecha, turnoId: turno.id }).then((filas) => {
       if (vivo) setParadasTurno(filas)
     })
+    // Las mismas paradas sin recortar al turno: de ahí sale el «Total» que se ve al pasar el cursor.
+    const areaParadas = areaEfectiva === "ASEPTICO" || areaEfectiva === "PRUEBAS" ? areaEfectiva : null
+    listarParadas({ desde: restarDias(fecha, DIAS_ATRAS_TOTAL), hasta: fecha, area: areaParadas }).then((filas) => {
+      if (vivo) setParadasCompletas(new Map(filas.map((p) => [p.id, p])))
+    })
+    // Desde cuándo cuenta el turno mostrado (sus horas reales), para la cinta en vivo.
+    if (areaEfectiva) {
+      listarVentanasTurnos(areaEfectiva, fecha, fecha).then((ventanas) => {
+        const v = ventanas.find((x) => x.id === turno.id)
+        if (vivo) setDesdeTurno(v ? new Date(v.desde) : null)
+      })
+    }
     return () => {
       vivo = false
     }
-  }, [fecha, turno?.id, tickRefresco])
+  }, [fecha, turno?.id, areaEfectiva, tickRefresco])
 
   async function cargarTurnoAnterior(turnoActualId: string | null) {
     if (!areaEfectiva) {
@@ -290,6 +311,8 @@ export function usePanelTurno() {
     planDia,
     produccionDia,
     paradasTurno,
+    paradasCompletas,
+    desdeTurno,
     prep,
     prod,
     pt,

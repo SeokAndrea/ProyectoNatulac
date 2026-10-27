@@ -119,7 +119,11 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
       <p className={cn("num text-right font-semibold", colorPor(nivelMermaFila))}>
         {fila.mermaPct !== null ? `${fila.mermaPct.toFixed(2)}%` : "—"}
       </p>
-      <p className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning-foreground" : "italic text-muted-foreground")}>
+      {/* El tramo de este turno; el total (si la parada viene de otro turno) al pasar el cursor. */}
+      <p
+        className={cn("num text-right font-semibold", fila.minutosParada !== null ? "text-warning-foreground" : "italic text-muted-foreground")}
+        title={fila.minutosParadaTotal !== null && fila.minutosParadaTotal !== fila.minutosParada ? `Total ${fila.minutosParadaTotal} min` : undefined}
+      >
         {fila.minutosParada !== null ? formatDuracion(fila.minutosParada) : "—"}
       </p>
       <p className={cn("num text-right font-semibold", colorPor(nivelEficiencia))}>

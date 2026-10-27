@@ -9,15 +9,19 @@ import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
  * (Panel de Paradas y Panel de Producción). Dueña, 2026-10-12:
  *
  *   * Una línea se ve parada si tiene una parada ABIERTA (sin fin): la de
- *     Líneas ("Parada", corrida pausada), una de Registrar Paradas con hora
- *     de inicio, o una en curso de Mantenimiento (su Sheet). Desde la
- *     migración 20261111590000 esas últimas también pausan la corrida a los
- *     15 min (lo aplica la base; cargar() le da el empujón cada minuto).
- *   * Margen de 15 min: las paradas cortas (4-5 min) no se muestran, y el
- *     supervisor tiene ese tiempo para registrarla. Antes de los 15 min la
- *     cinta sigue corriendo con un aviso chico; después, la escena de parada.
- *   * Mantenimiento manda: si tiene una abierta en la línea, se muestra esa
- *     (son las que más duran).
+ *     Líneas ("Parada", corrida pausada), una abierta desde el Modo Paradas
+ *     o una en curso de Mantenimiento. Desde la migración 20261111590000
+ *     esas últimas también pausan la corrida a los 15 min (lo aplica la
+ *     base; cargar() le da el empujón cada minuto).
+ *   * Margen de 15 min: las paradas Operacionales cortas (4-5 min) no se
+ *     muestran, y el supervisor tiene ese tiempo para registrarla. Antes de
+ *     los 15 min la cinta sigue corriendo con un aviso chico; después, la
+ *     escena de parada. La de Mantenimiento abierta no espera el margen: es
+ *     deliberada (rework de paradas, 2026-10-26).
+ *   * Mantenimiento manda: si tiene una abierta en la línea (Responsable
+ *     Mantenimiento), se muestra esa (son las que más duran).
+ *   * Los minutos de la cinta cuentan desde el inicio del turno en curso;
+ *     el margen mira lo que lleva abierta en total.
  *   * Lo que se carga tarde, ya con inicio y fin, es historia: cuenta en los
  *     reportes, no en la cinta.
  */
@@ -61,26 +65,39 @@ const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
  * corrida pausada desde Líneas. Con varias abiertas: primero la de
  * Mantenimiento; entre iguales, la que lleva más tiempo.
  */
-export function paradaEnVivo(lineaCodigo: string, abiertas: Parada[], pausadaEn: string | null, ahora: Date): ParadaEnVivo | null {
+export function paradaEnVivo(
+  lineaCodigo: string,
+  abiertas: Parada[],
+  pausadaEn: string | null,
+  ahora: Date,
+  desdeTurno: Date | null = null,
+): ParadaEnVivo | null {
   const n = numeroLinea(lineaCodigo)
+  // Los minutos que se muestran son los del turno en curso (el total va en el reporte); el margen mira lo que lleva abierta.
+  const minutosDelTurno = (inicio: string) =>
+    Math.max(0, Math.round((ahora.getTime() - Math.max(new Date(inicio).getTime(), desdeTurno?.getTime() ?? 0)) / 60000))
   const candidatas: ParadaEnVivo[] = abiertas
     .filter((p) => sigueEnVivo(p, ahora) && numeroLinea(p.lineaCodigo) === n)
     .map((p) => {
-      const minutos = duracionMin(p, ahora)
+      const total = duracionMin(p, ahora)
+      const minutos = minutosDelTurno(p.inicio)
       const lnp = esParadaLNPE(p)
+      const mtto = esDeMantenimiento(p) && !lnp
       // La LNPE se ve de entrada: no es una falla que haya que darle tiempo al supervisor para registrar.
+      // La de Mantenimiento tampoco espera: es deliberada (la abrió Mantenimiento con la línea corriendo).
       return {
         minutos,
-        deMantenimiento: esDeMantenimiento(p) && !lnp,
+        deMantenimiento: mtto,
         tipoNombre: p.tipoNombre,
-        visible: lnp || minutos >= MARGEN_PARADA_MIN,
+        visible: lnp || mtto || total >= MARGEN_PARADA_MIN,
         lineaNoProgramada: lnp,
         nota: p.nota,
       }
     })
   if (pausadaEn) {
-    const minutos = Math.max(0, Math.round((ahora.getTime() - new Date(pausadaEn).getTime()) / 60000))
-    candidatas.push({ minutos, deMantenimiento: false, tipoNombre: null, visible: minutos >= MARGEN_PARADA_MIN, lineaNoProgramada: false, nota: null })
+    const total = Math.max(0, Math.round((ahora.getTime() - new Date(pausadaEn).getTime()) / 60000))
+    const minutos = minutosDelTurno(pausadaEn)
+    candidatas.push({ minutos, deMantenimiento: false, tipoNombre: null, visible: total >= MARGEN_PARADA_MIN, lineaNoProgramada: false, nota: null })
   }
   if (candidatas.length === 0) return null
   // La LNPE explica por qué la línea no produce: va primero.

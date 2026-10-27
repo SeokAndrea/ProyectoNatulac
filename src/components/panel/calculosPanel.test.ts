@@ -10,6 +10,7 @@ import {
   produccionPorLineaDe,
   programacionDelDia,
   textoUltimaActualizacion,
+  totalesParadaPorLinea,
   tiempoRelativo,
 } from "./calculosPanel"
 
@@ -100,5 +101,29 @@ describe("paradaMasLargaDe", () => {
     const p = (id: string, inicio: string, fin: string | null) => ({ id, inicio, fin }) as Parada
     expect(paradaMasLargaDe([], ahora)).toBeNull()
     expect(paradaMasLargaDe([p("a", "2026-10-05T08:00:00", "2026-10-05T08:30:00"), p("b", "2026-10-05T09:15:00", null)], ahora)?.id).toBe("b")
+  })
+})
+
+describe("totalesParadaPorLinea", () => {
+  const par = (over: Partial<Parada>): Parada =>
+    ({ id: "p", lineaCodigo: "LINEA_1", clase: "NO_PROGRAMADA", inicio: "2026-10-26T14:00:00", fin: "2026-10-26T16:30:00", ...over }) as Parada
+  const AHORA = new Date("2026-10-26T17:00:00")
+
+  it("la parada que empezó en un turno anterior: el total aparece solo en esa línea", () => {
+    // El turno ve el tramo (14:00 a 16:30 = 150); la parada completa empezó a las 13:00 (210).
+    const delTurno = [par({ id: "a" }), par({ id: "b", lineaCodigo: "LINEA_2" })]
+    const completas = new Map([
+      ["a", par({ id: "a", inicio: "2026-10-26T13:00:00" })],
+      ["b", par({ id: "b", lineaCodigo: "LINEA_2" })],
+    ])
+    const r = totalesParadaPorLinea(delTurno, completas, AHORA)
+    expect(r.get("LINEA_1")).toBe(210)
+    expect(r.has("LINEA_2")).toBe(false)
+  })
+
+  it("sin paradas que vengan de antes, no hay totales", () => {
+    const delTurno = [par({ id: "a" })]
+    expect(totalesParadaPorLinea(delTurno, new Map([["a", par({ id: "a" })]]), AHORA).size).toBe(0)
+    expect(totalesParadaPorLinea(delTurno, new Map(), AHORA).size).toBe(0)
   })
 })
