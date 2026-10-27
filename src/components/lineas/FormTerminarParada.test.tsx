@@ -144,13 +144,23 @@ describe("FormTerminarParada", () => {
     expect(terminar()).toBeDisabled()
   })
 
-  it("si cruzó un turno cerrado: sin minutos, comienzo bloqueado y solo manda el fin", async () => {
+  it("si cruzó un turno cerrado: con minutos, el comienzo no se mueve y solo manda el fin", async () => {
     await montar(true)
-    expect(screen.queryByLabelText(/minutos/i)).toBeNull()
     expect(screen.queryByLabelText(/comenzó a las/i)).toBeNull()
     expect(screen.getByText(/empezó 13:00 \(turno cerrado\)/i)).toBeInTheDocument()
     await elegirCodigo()
     await userEvent.type(queSeRealizo(), "Se cambió el sello")
+    await userEvent.type(screen.getByLabelText(/minutos/i), "210")
+    await userEvent.click(terminar())
+    await waitFor(() => expect(terminarParada).toHaveBeenCalled())
+    expect(terminarParada.mock.calls[0][2]).toMatchObject({ inicio: null, fin: "2026-10-26T16:30:00" })
+  })
+
+  it("si cruzó un turno cerrado también se puede poner la hora de fin", async () => {
+    await montar(true)
+    await elegirCodigo()
+    await userEvent.type(queSeRealizo(), "Se cambió el sello")
+    await userEvent.click(screen.getByRole("button", { name: /hora de fin/i }))
     fireEvent.change(screen.getByLabelText(/terminó a las/i), { target: { value: "2026-10-26T16:30" } })
     await userEvent.click(terminar())
     await waitFor(() => expect(terminarParada).toHaveBeenCalled())

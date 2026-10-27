@@ -87,15 +87,18 @@ export function FormTerminarParada({
   const equipoProduccion = catalogoProduccion.find((t) => t.codigo === tipoCodigo)?.equipoCodigo ?? null
   const equipoMtto = equipoElegido ?? equipoMttoSugerido(equiposMtto, equipoProduccion) ?? ""
   const subsistemasDelEquipo = subsistemas.filter((s) => s.activo && s.equipoCodigo === equipoMtto)
-  const usaMinutos = !cruzo && !conHoras
+  // Los minutos mandan (dueña, 2026-10-27): van de entrada, también si la parada viene de un turno cerrado.
+  const usaMinutos = !conHoras
   const n = Number(minutos)
   const nValido = Number.isInteger(n) && n >= 1
   // Con minutos, el fin es comienzo + minutos; si eso pasa de ahora, la parada empezó antes de que
-  // la abrieran: termina ahora y empieza minutos antes (como completar_parada con un +1).
+  // la abrieran: termina ahora y empieza minutos antes (como completar_parada con un +1). Si viene
+  // de un turno cerrado, el comienzo no se mueve: termina ahora.
   const ahora = ahoraPlanta()
   const finSumado = usaMinutos && nValido ? sumarMinutos(inicioOriginal, n) : ""
-  const empezoAntes = finSumado !== "" && finSumado > ahora
-  const finCalculado = usaMinutos ? (empezoAntes ? ahora : finSumado) : fin
+  const pasaDeAhora = finSumado !== "" && finSumado > ahora
+  const empezoAntes = pasaDeAhora && !cruzo
+  const finCalculado = usaMinutos ? (pasaDeAhora ? ahora : finSumado) : fin
   const inicioFinal = empezoAntes ? sumarMinutos(ahora, -n) : usaMinutos || cruzo ? inicioOriginal : comienzo
   const duracion = finCalculado && inicioFinal ? minutosEntre(inicioFinal, finCalculado) : null
   const tiempoListo = finCalculado !== "" && duracion !== null && duracion > 0
@@ -171,10 +174,20 @@ export function FormTerminarParada({
       {cruzo ? (
         <>
           <p className="text-xs text-muted-foreground">Empezó {inicioVerdadero.slice(11, 16)} (turno cerrado).</p>
-          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-            Terminó a las
-            <Input type="datetime-local" value={fin} onChange={(e) => setFin(e.target.value)} className="h-9" />
-          </label>
+          {usaMinutos ? (
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Minutos
+              <Input type="number" min={1} value={minutos} onChange={(e) => setMinutos(e.target.value)} className="h-9" />
+            </label>
+          ) : (
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Terminó a las
+              <Input type="datetime-local" value={fin} onChange={(e) => setFin(e.target.value)} className="h-9" />
+            </label>
+          )}
+          <Button type="button" variant="ghost" size="sm" className="self-start text-xs text-muted-foreground" onClick={() => setConHoras((v) => !v)}>
+            {usaMinutos ? "Poner hora de fin (opcional)" : "Mejor poner solo los minutos"}
+          </Button>
         </>
       ) : (
         <>
