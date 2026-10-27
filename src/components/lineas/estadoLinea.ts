@@ -3,7 +3,7 @@ import type { EstadoCinta } from "@/components/CintaEstadoLinea"
 import type { CondicionLinea, Corrida } from "@/lib/produccion/tipos"
 
 export const nombreCondicionLinea: Record<CondicionLinea, string> = {
-  DETENIDA: "Parada",
+  DETENIDA: "Esperando PT",
   LISTA: "Lista para arrancar",
   CIP: "En CIP",
   CAMBIO_PRESENTACION: "Cambio de Presentación",

@@ -29,7 +29,7 @@ const CANT_CAJAS = 4
 const META: Record<EstadoLineaVista, { etiqueta: string; icono: typeof Pause; tono: string }> = {
   CORRIENDO: { etiqueta: "Corriendo", icono: Pause, tono: "text-success-foreground" }, // icono sin uso (hay cajas)
   PARADA: { etiqueta: "Parada", icono: Pause, tono: "text-warning-foreground" },
-  DETENIDA: { etiqueta: "Detenida", icono: Wrench, tono: "text-danger" },
+  DETENIDA: { etiqueta: "Esperando PT", icono: Wrench, tono: "text-danger" },
   CIP: { etiqueta: "CIP", icono: BroomSparkles, tono: "text-info" },
   CAMBIO: { etiqueta: "Cambio Present.", icono: RefreshCw, tono: "text-muted-foreground" },
   LIBRE: { etiqueta: "Libre", icono: PauseCircle, tono: "text-muted-foreground" },

@@ -19,7 +19,7 @@ export function PanelEsperandoPt({
   const { enviando, error, ejecutar } = useAccion()
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
-      <p className="text-xs font-medium text-foreground">Detenida{corrida.lote ? ` · Lote ${corrida.lote}` : ""}</p>
+      <p className="text-xs font-medium text-foreground">Esperando PT{corrida.lote ? ` · Lote ${corrida.lote}` : ""}</p>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => ejecutar(() => continuarCorridaDetenida(corrida.id))} disabled={enviando}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}

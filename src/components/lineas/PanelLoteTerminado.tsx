@@ -47,7 +47,7 @@ export function PanelLoteTerminado({
           disabled={enviando}
         >
           <Square className="size-3.5" />
-          Detener línea
+          Entregar PT
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">

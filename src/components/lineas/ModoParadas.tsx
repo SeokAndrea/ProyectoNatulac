@@ -40,7 +40,7 @@ import type { AccionesLinea } from "./tipos"
  *
  * Todo lo de paradas vive aquí (dueña, 2026-10-26): «Parada» para la línea ya
  * (con el tipo, o «No sé / es una falla» para que Mantenimiento la clasifique)
- * y una línea parada tiene Continuar y Detener línea. «Anotar» es para las que
+ * y una línea parada tiene Continuar y Entregar PT. «Anotar» es para las que
  * ya pasaron. Solo en el turno en curso.
  */
 

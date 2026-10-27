@@ -354,14 +354,14 @@ describe("LineaCard — revisión de Status", () => {
     expect(a.pausar).not.toHaveBeenCalled()
   })
 
-  it("No está corriendo: cada opción explica qué pasa con el lote; «Ya no sigue» abre Detener línea", async () => {
+  it("No está corriendo: cada opción explica qué pasa con el lote; «Ya no sigue» abre Entregar PT", async () => {
     const u = userEvent.setup()
     renderCard({ modo: "status", lineaTurno: corrida({ confirmadoInicioEn: null }) })
     await u.click(boton("No está corriendo"))
     expect(screen.getByText(/cuando arranque, retoma el lote 0001/)).toBeInTheDocument()
     expect(screen.getByText(/El lote 0001 terminó o no se retoma/)).toBeInTheDocument()
     await u.click(boton(/Ya no sigue con este lote/))
-    expect(screen.getByText(/esperando que cargues su Producto Terminado/)).toBeInTheDocument()
+    expect(screen.getByText(/queda esperando su Producto Terminado/)).toBeInTheDocument()
   })
 
   it("si Confirmar falla, muestra el error", async () => {
@@ -413,7 +413,7 @@ describe("LineaCard — con Modo Paradas", () => {
     })
     noHayBoton("Continuar")
     expect(screen.getByText(/La termina Mantenimiento/)).toBeInTheDocument()
-    boton("Detener línea")
+    boton("Entregar PT")
   })
 
   it("parada: lleva al Modo Paradas y deja Pasar a CIP; Continuar y Detener están allá", async () => {
@@ -421,7 +421,7 @@ describe("LineaCard — con Modo Paradas", () => {
     const aModo = vi.fn()
     renderCard({ lineaTurno: corrida({ pausadaEn: "2026-10-05T09:00:00" }), lineaEstado: estado("LISTA"), aModoParadas: aModo })
     noHayBoton("Continuar")
-    noHayBoton("Detener línea")
+    noHayBoton("Entregar PT")
     boton("Pasar a CIP")
     await u.click(boton("Ir a Modo Paradas"))
     expect(aModo).toHaveBeenCalled()
@@ -476,21 +476,21 @@ describe("LineaCard — en pausa", () => {
     expect(screen.getByRole("link", { name: /Completar parada/ })).toHaveAttribute("href", "/paradas?parada=p-9")
   })
 
-  it("Detener línea pide confirmar y manda el motivo", async () => {
+  it("Entregar PT pide confirmar y manda el motivo", async () => {
     const u = userEvent.setup()
     const a = renderCard({ lineaTurno: pausada() })
-    await u.click(boton("Detener línea"))
-    expect(screen.getByText(/Esto detiene la corrida del Lote 0001/)).toBeInTheDocument()
+    await u.click(boton("Entregar PT"))
+    expect(screen.getByText(/Entrega la corrida: queda esperando su Producto Terminado\. No se deshace\./)).toBeInTheDocument()
     await u.type(screen.getByPlaceholderText(/Motivo \(opcional\)/), "  Sin envases  ")
-    await u.click(boton("Sí, detener línea"))
+    await u.click(boton("Sí, entregar PT"))
     expect(a.detener).toHaveBeenCalledWith("c1", "Sin envases")
-    await waitFor(() => noHayBoton("Sí, detener línea"))
+    await waitFor(() => noHayBoton("Sí, entregar PT"))
   })
 
-  it("Detener línea: Cancelar vuelve atrás sin llamar a nada", async () => {
+  it("Entregar PT: Cancelar vuelve atrás sin llamar a nada", async () => {
     const u = userEvent.setup()
     const a = renderCard({ lineaTurno: pausada() })
-    await u.click(boton("Detener línea"))
+    await u.click(boton("Entregar PT"))
     await u.click(boton("Cancelar"))
     expect(a.detener).not.toHaveBeenCalled()
     boton("Continuar")
@@ -597,11 +597,11 @@ describe("LineaCard — terminó el lote", () => {
     await waitFor(() => expect(screen.queryByText(/No se detectó solo el tanque/)).not.toBeInTheDocument())
   })
 
-  it("Detener línea abre la confirmación", async () => {
+  it("Entregar PT abre la confirmación", async () => {
     const u = userEvent.setup()
     renderCard({ lineaTurno: terminada() })
-    await u.click(boton("Detener línea"))
-    boton("Sí, detener línea")
+    await u.click(boton("Entregar PT"))
+    boton("Sí, entregar PT")
   })
 })
 
@@ -634,7 +634,8 @@ describe("LineaCard — sin corrida", () => {
   it("detenida: arrancar o cambiar la condición", async () => {
     const u = userEvent.setup()
     const a = renderCard({ lineaEstado: estado("DETENIDA") })
-    expect(screen.getByText("Parada")).toBeInTheDocument()
+    expect(screen.getByText("Esperando PT")).toBeInTheDocument()
+    expect(screen.queryByText("Parada")).not.toBeInTheDocument()
     expect(screen.getByTestId("cinta")).toHaveTextContent("detenida")
     boton("Arrancar línea")
     await u.click(boton("Sin programación"))
@@ -654,7 +655,7 @@ describe("LineaCard — sin corrida", () => {
 
   it("sin estado cargado se toma como detenida", () => {
     renderCard()
-    expect(screen.getByText("Parada")).toBeInTheDocument()
+    expect(screen.getByText("Esperando PT")).toBeInTheDocument()
   })
 
   it("cambio de presentación y sin programación", () => {

@@ -112,7 +112,7 @@ export function PanelPausada({
             disabled={enviando}
           >
             <Square className="size-3.5" />
-            Detener línea
+            Entregar PT
           </Button>
         )}
       </div>

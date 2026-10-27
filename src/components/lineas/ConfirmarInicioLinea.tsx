@@ -9,7 +9,7 @@ import { useAccion } from "@/lib/useAccion"
 /** Qué pasa de verdad con una línea que el turno anterior dejó corriendo. */
 export type NoCorre = "parada" | "detener" | "cip"
 
-/** «No está corriendo»: cada opción dice qué pasa con el lote (dueña, 2026-10-26: «Parada» y «Detener línea» confundían). */
+/** «No está corriendo»: cada opción dice qué pasa con el lote (dueña, 2026-10-26: «Parada» y «Detener línea» confundían (ahora «Entregar PT»)). */
 const OPCIONES_NO_CORRE: [NoCorre, (lote: string) => string, (lote: string) => string][] = [
   [
     "parada",

@@ -7,7 +7,7 @@ import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
 import { useAccion } from "@/lib/useAccion"
 
-/** "Detener línea": 2ª confirmación. La corrida queda Esperando PT (se cierra al cargar el Producto Terminado) y la línea Detenida con el motivo. */
+/** "Entregar PT": 2ª confirmación. La corrida queda Esperando PT (se cierra al cargar el Producto Terminado) y la línea Esperando PT con el motivo. */
 export function FormDetenerLinea({
   corrida,
   detener,
@@ -26,10 +26,7 @@ export function FormDetenerLinea({
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-3">
-      <p className="text-xs text-foreground">
-        Esto detiene la corrida{corrida.lote ? ` del Lote ${corrida.lote}` : ""}. Queda{" "}
-        <span className="font-medium">esperando que cargues su Producto Terminado</span> para cerrarse. No se puede deshacer.
-      </p>
+      <p className="text-xs text-foreground">Entrega la corrida: queda esperando su Producto Terminado. No se deshace.</p>
       <Textarea
         value={motivo}
         onChange={(e) => setMotivo(e.target.value.slice(0, 140))}
@@ -49,7 +46,7 @@ export function FormDetenerLinea({
           disabled={enviando}
         >
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" />}
-          Sí, detener línea
+          Sí, entregar PT
         </Button>
       </div>
       <MensajeError error={error} />

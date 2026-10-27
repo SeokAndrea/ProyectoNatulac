@@ -15,7 +15,7 @@ const ESTADO_LINEA_INFO: Record<EstadoLinea, { label: string; dot: string; ring:
   cambio_presentacion: { label: "Cambio de Presentación", dot: "bg-warning", ring: "bg-warning" },
   cip: { label: "En CIP", dot: "bg-warning", ring: "bg-warning" },
   sin_programacion: { label: "Sin programación", dot: "bg-info", ring: "bg-info" },
-  detenida: { label: "Parada", dot: "bg-danger", ring: "bg-danger" },
+  detenida: { label: "Esperando PT", dot: "bg-danger", ring: "bg-danger" },
   libre: { label: "Libre", dot: "bg-muted-foreground", ring: "bg-muted-foreground" },
 }
 
