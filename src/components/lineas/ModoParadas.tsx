@@ -216,6 +216,7 @@ export function ModoParadas({
                     ? { faltaMin, ubicar: (min) => ubicarMinutos(tramosLibres(paradasLinea, desdeMs, hastaMs), min) }
                     : undefined
                 }
+                ubicar={abiertoAca === "paradas" ? (min) => ubicarMinutos(tramosLibres(paradasLinea, desdeMs, hastaMs), min) : undefined}
               />
             ) : (
               <FilaAcciones>
