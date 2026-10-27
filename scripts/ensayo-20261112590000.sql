@@ -718,6 +718,87 @@ begin
   end;
 end $caso$;
 
+-- 18. Una sola continuar_linea (la de 5 argumentos, con p_minutos). Con dos
+--     firmas PostgREST no sabe cuál llamar (PGRST203) y todo Continuar falla.
+do $caso$
+declare
+  n text := '18 continuar_linea: una sola firma (con p_minutos)';
+  v_n integer;
+  v_args text;
+begin
+  begin
+    select count(*), min(pg_get_function_identity_arguments(p.oid)) into v_n, v_args
+    from pg_proc p join pg_namespace s on s.oid = p.pronamespace
+    where s.nspname = 'public' and p.proname = 'continuar_linea';
+    if v_n <> 1 then raise exception 'hay % firmas de continuar_linea', v_n; end if;
+    if v_args not like '%p_minutos integer%' then raise exception 'la que quedó no tiene p_minutos: %', v_args; end if;
+    if not has_function_privilege('authenticated', 'continuar_linea(text, uuid, uuid, text, integer)', 'execute') then
+      raise exception 'authenticated no puede ejecutarla';
+    end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 19. Continuar con minutos en una Operacional: la parada dura esos minutos,
+--     guarda quién la terminó y la línea sigue.
+do $caso$
+declare
+  n text := '19 Continuar con p_minutos: la Operacional dura lo que dijo el supervisor';
+  c ctx;
+  p paradas;
+begin
+  begin
+    select * into c from ctx;
+    update areas set mantenimiento_finaliza = true where id = c.asep;
+    perform pausar_linea('ens_sup', c.turno, c.c1, 'Atasco de tapas', c.tipo, 'OPERACIONAL', pg_temp.hp(now() - interval '45 minutes'));
+    select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Atasco de tapas';
+    if p.id is null then raise exception 'no se abrió la parada'; end if;
+    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L, null, 0)$q$, c.turno, c.c1), 'cuántos minutos');
+    perform continuar_linea(p_usuario => 'ens_sup', p_turno_id => c.turno, p_turno_linea_id => c.c1, p_minutos => 20);
+    select * into p from paradas where id = p.id;
+    if p.fin is distinct from p.inicio + interval '20 minutes' then
+      raise exception 'fin % (esperaba inicio + 20 min = %)', p.fin, p.inicio + interval '20 minutes';
+    end if;
+    if p.terminada_por is distinct from (select id from usuarios where usuario = 'ens_sup') then raise exception 'terminada_por'; end if;
+    if p.terminada_en is null then raise exception 'terminada_en vacío'; end if;
+    if (select pausada_en from turno_lineas where id = c.c1) is not null then raise exception 'la línea no siguió'; end if;
+    if (select parada_id from lineas_estado where turno_id = c.turno and linea_id = c.l1) is not null then raise exception 'la línea sigue ligada a la parada'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 20. Interruptor encendido: el supervisor no le da Continuar (con o sin
+--     minutos) a una de Mantenimiento; queda abierta y la línea parada.
+--     Apagado: Continuar con minutos tampoco la cierra (se cierra con Terminar parada).
+do $caso$
+declare
+  n text := '20 Continuar con p_minutos no cierra una de Mantenimiento';
+  c ctx;
+  p paradas;
+begin
+  begin
+    select * into c from ctx;
+    update areas set mantenimiento_finaliza = true where id = c.asep;
+    perform pausar_linea('ens_sup', c.turno, c.c1, 'Fuga en la válvula', c.tipo, 'MANTENIMIENTO', pg_temp.hp(now() - interval '30 minutes'));
+    select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Fuga en la válvula';
+    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L, null, 10)$q$, c.turno, c.c1), 'la termina Mantenimiento');
+    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L)$q$, c.turno, c.c1), 'la termina Mantenimiento');
+    if (select fin from paradas where id = p.id) is not null then raise exception 'se cerró con el interruptor encendido'; end if;
+    if (select pausada_en from turno_lineas where id = c.c1) is null then raise exception 'la línea siguió'; end if;
+
+    update areas set mantenimiento_finaliza = false where id = c.asep;
+    perform continuar_linea('ens_sup', c.turno, c.c1, null, 10);
+    if (select fin from paradas where id = p.id) is not null then raise exception 'con el interruptor apagado, Continuar con minutos la cerró'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
 -- ------------------------------------------------------------
 -- Resultado
 -- ------------------------------------------------------------

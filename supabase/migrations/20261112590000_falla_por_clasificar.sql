@@ -574,14 +574,21 @@ $$;
 grant execute on function abrir_parada_mantenimiento(text, text, text, text, text) to anon, authenticated;
 
 -- ------------------------------------------------------------
--- 7. continuar_linea(): copia de 20261111590000 que no deja continuar una
---    parada que termina Mantenimiento.
+-- 7. continuar_linea(): copia de 20261112160000 (p_minutos: cuánto duró)
+--    que además no deja continuar una parada que termina Mantenimiento y
+--    deja quién la terminó. Se borran antes las dos firmas (4 y 5
+--    argumentos) para que quede UNA sola: con dos, PostgREST no sabe cuál
+--    llamar (PGRST203) y todo Continuar falla.
 -- ------------------------------------------------------------
-create or replace function continuar_linea(
+drop function if exists continuar_linea(text, uuid, uuid, text);
+drop function if exists continuar_linea(text, uuid, uuid, text, integer);
+
+create function continuar_linea(
   p_usuario text,
   p_turno_id uuid,
   p_turno_linea_id uuid,
-  p_justificacion text default null
+  p_justificacion text default null,
+  p_minutos integer default null
 )
 returns jsonb
 language plpgsql
@@ -592,9 +599,15 @@ declare
   v_usuario_id uuid;
   v_c turno_lineas;
   v_le lineas_estado;
+  v_p paradas;
+  v_just text := nullif(btrim(coalesce(p_justificacion, '')), '');
 begin
   perform exigir_turno_escribible(p_usuario, p_turno_id, false);
   select id into v_usuario_id from usuarios where usuario = lower(p_usuario);
+
+  if p_minutos is not null and (p_minutos <= 0 or p_minutos > 30 * 24 * 60) then
+    raise exception 'Pon cuántos minutos duró la parada.';
+  end if;
 
   select * into v_c from turno_lineas where id = p_turno_linea_id and turno_id = p_turno_id and activa for update;
   if found then
@@ -603,13 +616,49 @@ begin
       raise exception 'La línea está en CIP: usa «Terminó CIP» para continuar el lote.';
     end if;
     if v_le.parada_id is not null and exists (select 1 from paradas where id = v_le.parada_id and pendiente) then
-      raise exception 'Completa la parada (tipo y minutos) en Registrar Paradas antes de continuar.';
+      raise exception 'Completa la parada (tipo y minutos) en el Modo Paradas antes de continuar.';
     end if;
     if v_le.parada_id is not null and la_termina_mantenimiento(v_le.parada_id) then
       raise exception 'Esta parada la termina Mantenimiento: la línea sigue sola cuando la terminen.';
     end if;
 
-    perform soltar_parada_de_linea(p_usuario, p_turno_id, v_c.linea_id, 'Líneas (Continuar)', p_justificacion, true);
+    -- Con minutos, el tiempo guía se compara con lo que dijo el supervisor, no con el reloj.
+    if p_minutos is not null and v_le.parada_id is not null then
+      select * into v_p from paradas where id = v_le.parada_id;
+      if v_p.fin is null and not parada_de_mantenimiento(v_p.id)
+         and v_p.clase = 'PROGRAMADA' and v_p.tiempo_guia_min is not null
+         and p_minutos > v_p.tiempo_guia_min and v_just is null then
+        raise exception 'La parada pasó su tiempo guía. Escribe la justificación.';
+      end if;
+    end if;
+
+    -- Cierra la parada con la hora de ahora y pone terminada_por / terminada_en.
+    perform soltar_parada_de_linea(p_usuario, p_turno_id, v_c.linea_id, 'Líneas (Continuar)', p_justificacion, p_minutos is null);
+
+    -- La que se acaba de cerrar termina en inicio + minutos (nunca después de ahora).
+    -- Una de Mantenimiento no se cerró (sigue abierta): no se toca.
+    if p_minutos is not null and v_p.id is not null then
+      update paradas
+      set fin = least(inicio + make_interval(mins => p_minutos), now()),
+          justificacion_desvio = case
+            when clase = 'PROGRAMADA' and tiempo_guia_min is not null and p_minutos > tiempo_guia_min
+              then coalesce(v_just, justificacion_desvio)
+            else null
+          end,
+          terminada_por = coalesce(terminada_por, v_usuario_id),
+          terminada_en = coalesce(terminada_en, now())
+      where id = v_p.id and fin is not null and not pendiente and v_p.fin is null;
+      if found then
+        perform registrar_auditoria(
+          p_usuario, 'EDITAR', 'paradas', v_p.id::text, 'Líneas (Continuar)',
+          format('La parada «%s» de la %s duró %s min (lo puso el supervisor)', v_p.tipo_nombre,
+                 (select nombre from lineas where id = v_c.linea_id), p_minutos),
+          null,
+          jsonb_build_object('minutos', p_minutos)
+        );
+      end if;
+    end if;
+
     -- Las demás paradas abiertas de la línea (de Mantenimiento) ya no la vuelven a poner en Parada.
     update paradas
     set linea_siguio_en = now()
@@ -634,7 +683,7 @@ begin
   return turno_json(p_turno_id);
 end;
 $$;
-grant execute on function continuar_linea(text, uuid, uuid, text) to anon, authenticated;
+grant execute on function continuar_linea(text, uuid, uuid, text, integer) to anon, authenticated;
 
 -- ------------------------------------------------------------
 -- 8. paradas_que_detienen_lineas(): igual que 20261111590000 +
