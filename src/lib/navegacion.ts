@@ -27,14 +27,13 @@ export const FLUJO_SUPERVISOR = [
   "preparacion",
   "lineas",
   "producto-terminado",
-  "paradas",
   "finalizar-turno",
   "mis-actas",
   "panel-produccion",
 ]
 
 /** Supervisor (quien más usa la app): lo que tiene en el botón flotante, en este orden (dueño, 2026-10-09). */
-export const RAPIDAS_SUPERVISOR = ["lineas", "preparacion", "paradas", "panel-produccion"]
+export const RAPIDAS_SUPERVISOR = ["lineas", "preparacion", "panel-produccion"]
 
 export interface Seccion {
   titulo: string | null
@@ -44,7 +43,7 @@ export interface Seccion {
 /**
  * Agrupa las tarjetas por su `seccion`, en el orden en que aparece cada
  * grupo. Las que no tienen `seccion` van juntas, sin título. Para un área
- * de apoyo, las de "produccion" (ej. Registrar Paradas en Mantenimiento)
+ * de apoyo, las de "produccion" (ej. Reportes de paradas en Mantenimiento)
  * van en "apoyo".
  */
 export function agruparPorSeccion(lista: AppDef[], areaDeApoyo: boolean, rol?: RolCodigo | null): Seccion[] {

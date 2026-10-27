@@ -49,7 +49,6 @@ export function ModoCorreccionBanner({ turno, onSalir }: { turno: TurnoCorregido
       <nav className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
         {[
           ["Producto Terminado", "/producto-terminado"],
-          ["Paradas", "/paradas"],
           ["Preparación", "/preparacion"],
           ["Líneas", "/lineas"],
         ].map(([titulo, ruta]) => (

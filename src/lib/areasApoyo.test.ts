@@ -42,8 +42,8 @@ describe("áreas de apoyo", () => {
     expect(visibles(sesion("PRUEBAS", "ANALISTA", ["VALIDAR"]))).toContain("validar-jornada")
   })
 
-  it("Mantenimiento sigue viendo Registrar Paradas", () => {
-    expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO"]))).toContain("paradas")
+  it("Mantenimiento ve Reportes de paradas", () => {
+    expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO"]))).toContain("reportes-paradas")
   })
 })
 

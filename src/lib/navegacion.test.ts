@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { apps } from "@/lib/apps"
+import type { Session } from "@/lib/auth"
+import { apps, puedeVerApp } from "@/lib/apps"
+import type { RolCodigo } from "@/lib/catalogos"
 import { agruparPorSeccion, bloqueoDeApp } from "@/lib/navegacion"
 
 const principales = apps.filter((a) => !a.atajo)
@@ -56,5 +58,33 @@ describe("Mantenimiento y Líneas", () => {
   it("ya no hay una pantalla propia de Mantenimiento", () => {
     expect(apps.find((a) => a.slug === "mantenimiento")).toBeUndefined()
     expect(apps.some((a) => a.href === "/mantenimiento")).toBe(false)
+  })
+})
+
+describe("Reportes de paradas", () => {
+  const reportes = apps.find((a) => a.slug === "reportes-paradas")!
+  const sesion = (rol: RolCodigo, esDueno = false): Session => ({
+    username: "prueba",
+    nombre: "Prueba",
+    cedula: null,
+    area: rol === "MANTENIMIENTO" ? "MANTENIMIENTO" : "ASEPTICO",
+    rol,
+    esDueno,
+    permisos: [],
+    debeCompletarPerfil: false,
+  })
+
+  it("el supervisor no la ve", () => {
+    expect(puedeVerApp(sesion("SUPERVISOR"), reportes)).toBe(false)
+  })
+
+  it("la ven el Jefe, la Analista, Mantenimiento y la dueña", () => {
+    for (const rol of ["JEFE_PRODUCCION", "ANALISTA", "MANTENIMIENTO", "SUPERADMINISTRADOR"] as const) {
+      expect(puedeVerApp(sesion(rol), reportes)).toBe(true)
+    }
+  })
+
+  it("ya no está en el flujo ni en lo rápido del supervisor", () => {
+    expect(apps.find((a) => a.slug === "paradas")).toBeUndefined()
   })
 })

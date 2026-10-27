@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react"
-import { Navigate, Route, Routes } from "react-router-dom"
+import { Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import Login from "@/pages/Login"
@@ -20,7 +20,7 @@ const ValidarJornada = lazy(() => import("@/pages/apps/ValidarJornada"))
 const Indicadores = lazy(() => import("@/pages/apps/Indicadores"))
 const PanelProduccion = lazy(() => import("@/pages/apps/PanelProduccion"))
 const PanelParadas = lazy(() => import("@/pages/apps/PanelParadas"))
-const RegistrarParadas = lazy(() => import("@/pages/apps/RegistrarParadas"))
+const ReportesParadas = lazy(() => import("@/pages/apps/ReportesParadas"))
 const SolicitudesIntervencion = lazy(() => import("@/pages/apps/SolicitudesIntervencion"))
 const CatalogoParadas = lazy(() => import("@/pages/apps/CatalogoParadas"))
 const Programacion = lazy(() => import("@/pages/apps/Programacion"))
@@ -35,6 +35,12 @@ const ErroresCliente = lazy(() => import("@/pages/apps/ErroresCliente"))
 const PreparacionPLC = lazy(() => import("@/pages/apps/PreparacionPLC"))
 const Calidad = lazy(() => import("@/pages/apps/Calidad"))
 const InventarioDiario = lazy(() => import("@/pages/apps/InventarioDiario"))
+
+/** Ruta vieja que sigue funcionando: va a la nueva y conserva el "?parada=…" de los enlaces. */
+function RedirigirConBusqueda({ a }: { a: string }) {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: a, search }} replace />
+}
 
 function CargandoPantalla() {
   return (
@@ -142,10 +148,10 @@ export default function App() {
             }
           />
           <Route
-            path="/paradas"
+            path="/reportes-paradas"
             element={
-              <ProtectedRoute app="paradas">
-                <RegistrarParadas />
+              <ProtectedRoute app="reportes-paradas">
+                <ReportesParadas />
               </ProtectedRoute>
             }
           />
@@ -166,7 +172,8 @@ export default function App() {
             }
           />
           {/* La pantalla de Mantenimiento pasó a ser Registrar Paradas, para todos (migración 20261090). */}
-          <Route path="/paradas-mantenimiento" element={<Navigate to="/paradas" replace />} />
+          <Route path="/paradas" element={<RedirigirConBusqueda a="/reportes-paradas" />} />
+          <Route path="/paradas-mantenimiento" element={<Navigate to="/reportes-paradas" replace />} />
           {/* Mantenimiento ahora vive en Líneas, en Modo Paradas (dueña, 2026-10-26): el enlace viejo sigue sirviendo. */}
           <Route path="/mantenimiento" element={<Navigate to="/lineas?paradas=1" replace />} />
           <Route

@@ -76,7 +76,7 @@ export interface AppDef {
    * con un separador y título arriba (ver Hub.tsx). Sin esta propiedad,
    * la tarjeta va suelta, sin sección. "apoyo": tarjetas de las áreas de
    * apoyo (Calidad, Servicios Industriales); para quien es de un área de
-   * apoyo, las de "produccion" que ve (ej. Registrar Paradas en
+   * apoyo, las de "produccion" que ve (ej. Reportes de paradas en
    * Mantenimiento) también van ahí.
    */
   seccion?: "produccion" | "apoyo" | "auditoria" | "base-datos"
@@ -216,14 +216,14 @@ export const apps: AppDef[] = [
     atajo: true,
   },
   {
-    slug: "paradas",
-    title: "Registrar Paradas",
-    description: "Sumar paradas de las líneas y poner cuánto duraron.",
-    href: "/paradas",
+    slug: "reportes-paradas",
+    title: "Reportes de paradas",
+    description: "Revisar las paradas y abrir su reporte para imprimir.",
+    href: "/reportes-paradas",
     icon: Wrench,
     requiereTurno: false,
-    // Pantalla única (antes había una para supervisores y otra para Mantenimiento): entra quien tenga cualquiera de los dos permisos.
-    permiso: ["PARADAS_REGISTRAR", "PARADAS_MANTENIMIENTO"],
+    // Solo revisar (parar, anotar y cubrir viven en Líneas, Modo Paradas). Por rol, como todo el Inicio (dueña, 2026-10-26).
+    rolesPermitidos: ["JEFE_PRODUCCION", "ANALISTA", "MANTENIMIENTO", "SUPERADMINISTRADOR"],
     seccion: "produccion",
   },
   {

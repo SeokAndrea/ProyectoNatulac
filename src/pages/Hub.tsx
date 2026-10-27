@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 /** Emoji del saludo, distinto para algún usuario puntual — por username, en minúscula. */
 const EMOJI_SALUDO = "👋"
 
-/** «Solo paradas» (jefe y analista, dueña 2026-10-08): oculta el flujo del turno y deja Registrar Paradas. */
+/** «Solo paradas» (jefe y analista, dueña 2026-10-08): oculta el flujo del turno y deja Reportes de paradas. */
 const APPS_DEL_TURNO = new Set(["comenzar-turno", "preparacion", "lineas", "producto-terminado", "finalizar-turno"])
 const STORAGE_SOLO_PARADAS = "natulac.soloParadas"
 function leerSoloParadas(): boolean {
@@ -122,7 +122,7 @@ export default function Hub() {
                   {titulo}
                   {titulo === TITULOS_SECCION.produccion && puedeSoloParadas && (
                     <label className="flex cursor-pointer items-center gap-2 text-xs font-medium normal-case tracking-normal">
-                      <Switch checked={soloParadas} onCheckedChange={cambiarSoloParadas} aria-label="Ver solo Registrar Paradas" />
+                      <Switch checked={soloParadas} onCheckedChange={cambiarSoloParadas} aria-label="Ver solo Reportes de paradas" />
                       Solo paradas
                     </label>
                   )}
