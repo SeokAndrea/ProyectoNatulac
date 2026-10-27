@@ -104,6 +104,12 @@ from (
   ('20261112590000', 'Paradas: Responsable, Terminar parada y reporte congelado',
     exists (select 1 from fn where proname = 'terminar_parada') and exists (select 1 from fn where proname = 'la_termina_mantenimiento')),
   ('20261112690000', 'Paradas: ventanas reales de los turnos',
-    exists (select 1 from fn where proname = 'ventanas_turnos_paradas'))
+    exists (select 1 from fn where proname = 'ventanas_turnos_paradas')),
+  ('20261112790000', 'Terminar parada del supervisor: «Sin subsistema» (la reemplaza 20261112990000)',
+    exists (select 1 from fn where proname = 'terminar_parada' and prosrc like '%v_de_mtto%')),
+  ('20261112890000', 'Parada abierta en una línea sin corrida',
+    exists (select 1 from fn where proname = 'cerrar_paradas_sin_corrida_al_arrancar')),
+  ('20261112990000', 'Terminar parada: los minutos mandan (comienzo en turno cerrado)',
+    exists (select 1 from fn where proname = 'terminar_parada' and prosrc like '%Los minutos mandan%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;
