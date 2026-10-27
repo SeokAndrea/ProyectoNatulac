@@ -33,8 +33,8 @@ export const MARGEN_PARADA_MIN = 15
 const REFRESCO_MS = 60 * 1000
 /** Cada cuánto, como mucho, se trae el Sheet de Mantenimiento solo. */
 const SYNC_SHEET_MS = 5 * 60 * 1000
-/** Días hacia atrás donde buscar paradas abiertas (una de Mantenimiento puede durar más de un turno). */
-const DIAS_ATRAS = 7
+/** Días hacia atrás donde buscar paradas abiertas (una puede durar semanas: una línea programada que no puede arrancar; el tope al abrirla es 30 días). */
+const DIAS_ATRAS = 30
 
 export interface ParadaEnVivo {
   minutos: number

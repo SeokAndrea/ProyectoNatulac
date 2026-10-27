@@ -788,9 +788,11 @@ export interface DatosAbrirParadaMantenimiento {
   nota: string
   /** 'YYYY-MM-DDTHH:MM:SS' de planta, o null = ahora. */
   inicio: string | null
+  /** Sin esto, de Mantenimiento. El supervisor abre la suya (línea sin corrida) como OPERACIONAL. */
+  responsable?: ResponsableParada
 }
 
-/** Mantenimiento abre una parada en curso (migración 20261112590000). */
+/** Abre una parada en curso, con la línea sin corrida o corriendo (migraciones 20261112590000 y 20261112890000). */
 export async function abrirParadaMantenimiento(usuario: string, datos: DatosAbrirParadaMantenimiento, _pagina: string): Promise<Resultado> {
   const { error } = await supabase.rpc("abrir_parada_mantenimiento", {
     p_usuario: usuario,
@@ -798,6 +800,8 @@ export async function abrirParadaMantenimiento(usuario: string, datos: DatosAbri
     p_tipo_codigo: datos.tipoCodigo,
     p_nota: datos.nota,
     p_inicio: datos.inicio,
+    // Solo si viene: así sigue funcionando contra una base sin la migración.
+    ...(datos.responsable ? { p_responsable: datos.responsable } : {}),
   })
   return error ? { ok: false, error: error.message || "No se pudo abrir la parada. Intenta de nuevo." } : { ok: true }
 }

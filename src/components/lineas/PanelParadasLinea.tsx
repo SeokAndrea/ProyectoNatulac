@@ -51,6 +51,7 @@ export function PanelParadasLinea({
   onCambio,
   onCerrar,
   cubrir,
+  ubicar,
 }: {
   lineaCodigo: string
   nombreLinea: string
@@ -67,6 +68,11 @@ export function PanelParadasLinea({
    * tramos libres del turno, no a «terminó ahora», para que el tiempo sume.
    */
   cubrir?: { faltaMin: number; ubicar: (minutos: number) => TramoHora[] }
+  /**
+   * Anotar en el Modo Paradas: los minutos van a tramos libres del turno (la más reciente primero),
+   * no a «terminó ahora», que choca con una parada ya cargada en esa hora.
+   */
+  ubicar?: (minutos: number) => TramoHora[]
 }) {
   const tipos = useTiposActivos()
   const equipos = useEquiposParadas()
@@ -104,8 +110,9 @@ export function PanelParadasLinea({
 
   const min = Number(minutos)
   const minValido = Number.isInteger(min) && min > 0 && min <= 24 * 60
-  // Cubrir sin tocar las horas: donde iría (tramos libres del turno). Si no, terminó recién.
-  const ubicacion = cubrir && minValido && !horas ? cubrir.ubicar(min) : []
+  // Cubrir o anotar sin tocar las horas: donde iría (tramos libres del turno). Si no, terminó recién.
+  const colocar = cubrir?.ubicar ?? ubicar
+  const ubicacion = colocar && minValido && !horas ? colocar(min) : []
   const ini = horas?.ini ?? (ubicacion.length ? ubicacion[0].inicio.slice(11, 16) : minValido ? moverHora(ahoraHora, -min) : "")
   const fin = horas?.fin ?? (ubicacion.length ? ubicacion[ubicacion.length - 1].fin.slice(11, 16) : ahoraHora)
 
@@ -134,7 +141,7 @@ export function PanelParadasLinea({
 
   function guardar() {
     if (!minValido) return
-    if (cubrir && !horas) return void cubrirMinutos(min)
+    if (colocar && !horas) return void cubrirMinutos(min, colocar)
     void anotar(min)
   }
 
@@ -162,10 +169,10 @@ export function PanelParadasLinea({
     await onCambio()
   }
 
-  /** Cubrir: una parada por tramo libre (casi siempre uno solo). */
-  async function cubrirMinutos(minutos: number) {
-    if (!tipo || !cubrir) return
-    const tramos = cubrir.ubicar(minutos)
+  /** Cubrir o anotar en el Modo Paradas: una parada por tramo libre (casi siempre uno solo). */
+  async function cubrirMinutos(minutos: number, ubicarEn: (minutos: number) => TramoHora[]) {
+    if (!tipo) return
+    const tramos = ubicarEn(minutos)
     if (tramos.length === 0) {
       return setError(`No queda tiempo libre en el turno para ${fmtDuracion(minutos)}: revisa las paradas ya cargadas en esta línea.`)
     }
@@ -180,7 +187,7 @@ export function PanelParadasLinea({
       }
     }
     setEnviando(false)
-    setHecho(`Cubierto: ${tipo.nombre} · ${fmtDuracion(minutos)}.`)
+    setHecho(`${cubrir ? "Cubierto" : "Anotada"}: ${tipo.nombre} · ${fmtDuracion(minutos)}.`)
     setTipo(null)
     await onCambio()
   }
@@ -290,7 +297,7 @@ export function PanelParadasLinea({
                   Fin
                   <Input type="time" value={fin} onChange={(e) => cambiarFin(e.target.value)} className="num h-7 w-32 px-1.5 text-xs" aria-label="Hora de fin" />
                 </label>
-                {!horas && (cubrir ? (ubicacion.length > 1 ? <span>(en {ubicacion.length} tramos libres)</span> : <span>(tramo libre del turno)</span>) : <span>(terminó recién)</span>)}
+                {!horas && (colocar ? (ubicacion.length > 1 ? <span>(en {ubicacion.length} tramos libres)</span> : <span>(tramo libre del turno)</span>) : <span>(terminó recién)</span>)}
                 <Button
                   variant="ghost"
                   size="sm"

@@ -11,7 +11,7 @@ import type { LineaCodigo } from "@/lib/catalogos"
 import { obtenerEstadoPlantaActual, obtenerTurnoDeFechaTipo } from "@/lib/panelProduccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { TURNOS_COMPLETOS } from "@/lib/paradasTurnoCompleto"
-import { horaCortaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { diaMesPlanta, fechaPlanta, horaCortaPlanta, mismaFechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { abrirParadaMantenimiento, duracionMin, esDeMantenimiento, fmtDuracion, minutosPorClaseSinSolape, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { useProductoTerminado } from "@/lib/productoTerminado"
@@ -213,10 +213,20 @@ export function ModoParadas({
         const abiertoAca = abierto?.linea === l.codigo ? abierto.modo : null
         // Paradas de Mantenimiento abiertas: se terminan con Terminar parada, nunca con Continuar.
         const abiertasMtto = paradasLinea.filter((p) => p.fin === null && !p.pendiente && esDeMantenimiento(p))
-        const aTerminar = abiertasMtto.find((p) => p.id === abierto?.paradaId) ?? null
+        // Las que se terminan con Terminar parada: las de Mantenimiento y las que no detienen una corrida
+        // (la línea sin corrida, o una que arrancó después de abrirse). La de la corrida en pausa se cierra con Continuar.
+        const abiertas = paradasLinea.filter(
+          (p) =>
+            p.fin === null &&
+            !p.pendiente &&
+            (esDeMantenimiento(p) || lineaTurno === null || new Date(p.inicioReal ?? p.inicio).getTime() < new Date(lineaTurno.activadaEn).getTime()),
+        )
+        const aTerminar = abiertas.find((p) => p.id === abierto?.paradaId) ?? null
         const puedeTerminar = (p: Parada) => esMantenimiento || terminaSiempre || !p.laTerminaMantenimiento
-        // Mantenimiento abre su parada también con la línea libre o en CIP (queda anotada); el supervisor, solo con la corrida en marcha.
-        const puedeParar = esMantenimiento ? !verAnterior : corriendo
+        // Con la línea sin corrida (programada pero sin poder arrancar) la parada queda abierta desde su hora de inicio.
+        const sinCorrida = lineaTurno === null && !verAnterior
+        // Mantenimiento abre su parada también con la línea libre o en CIP (queda anotada); el supervisor, con la corrida en marcha o la línea sin corrida.
+        const puedeParar = esMantenimiento ? !verAnterior : corriendo || sinCorrida
 
         return (
           <section key={l.codigo} aria-label={l.nombre} className="flex flex-col gap-3 rounded-xl bg-card p-4 text-card-foreground ring-1 ring-foreground/10">
@@ -271,20 +281,26 @@ export function ModoParadas({
                 parada={aTerminar}
                 usuario={usuario}
                 areaCodigo={areaCodigo}
+                esMantenimiento={esMantenimiento}
                 onTerminada={async () => {
                   setAbierto(null)
                   await cambio()
                 }}
               />
-            ) : abiertoAca === "parada" && esMantenimiento ? (
+            ) : abiertoAca === "parada" && (esMantenimiento || sinCorrida) ? (
               <FormParadaLinea
                 corridaId={enVivo?.id ?? ""}
                 lineaCodigo={l.codigo}
                 areaCodigo={areaCodigo}
                 presentacionMl={Number(lineaTurno?.presentacion) || null}
-                responsableFijo="MANTENIMIENTO"
+                sinCorrida={lineaTurno === null}
+                responsableFijo={esMantenimiento ? "MANTENIMIENTO" : undefined}
                 pausar={async (_corridaId, datos): Promise<Resultado> => {
-                  const r = await abrirParadaMantenimiento(usuario, { lineaCodigo: l.codigo, tipoCodigo: datos.tipoCodigo, nota: datos.motivo, inicio: datos.inicio }, PAGINA)
+                  const r = await abrirParadaMantenimiento(
+                    usuario,
+                    { lineaCodigo: l.codigo, tipoCodigo: datos.tipoCodigo, nota: datos.motivo, inicio: datos.inicio, ...(esMantenimiento ? {} : { responsable: datos.responsable }) },
+                    PAGINA,
+                  )
                   if (r.ok) await cambio()
                   return r
                 }}
@@ -316,6 +332,7 @@ export function ModoParadas({
                     ? { faltaMin, ubicar: (min) => ubicarMinutos(tramosLibres(paradasLinea, desdeMs, hastaMs), min) }
                     : undefined
                 }
+                ubicar={abiertoAca === "paradas" ? (min) => ubicarMinutos(tramosLibres(paradasLinea, desdeMs, hastaMs), min) : undefined}
               />
             ) : (
               <>
@@ -328,13 +345,16 @@ export function ModoParadas({
                     onDetener={esMantenimiento ? undefined : () => setAbierto({ linea: l.codigo, modo: "detener" })}
                   />
                 )}
-                {abiertasMtto.map((p) => {
+                {abiertas.map((p) => {
                   const yaEnPanel = parada && detiene.some((d) => d.paradaId === p.id)
+                  // El comienzo verdadero y el tiempo entero: `inicio` viene recortado al turno que se mira.
+                  const comienzo = new Date(p.inicioReal ?? p.inicio)
+                  const desde = mismaFechaPlanta(comienzo, fechaPlanta(ahora)) ? "las" : `el ${diaMesPlanta(comienzo)} a las`
                   return (
                     <div key={p.id} className="flex flex-col gap-1.5 text-xs">
                       {!yaEnPanel && (
                         <p className="text-muted-foreground">
-                          Desde las {horaCortaPlanta(p.inicio, p.inicio)} ({fmtDuracion(duracionMin(p, ahora))}) · <span className="font-medium text-foreground">{p.tipoNombre}</span>
+                          Desde {desde} {horaCortaPlanta(p.inicioReal ?? p.inicio, p.inicio)} ({fmtDuracion(duracionMin({ inicio: p.inicioReal ?? p.inicio, fin: null }, ahora))}) · <span className="font-medium text-foreground">{p.tipoNombre}</span>
                           {p.nota ? ` · ${p.nota}` : ""}
                         </p>
                       )}

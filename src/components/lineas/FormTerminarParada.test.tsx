@@ -63,10 +63,10 @@ const parada: Parada = {
   terminadaPor: null,
 }
 
-async function montar(cruzo = false, p: Parada = parada) {
+async function montar(cruzo = false, p: Parada = parada, esMantenimiento = true) {
   paradaCruzoTurnoCerrado.mockResolvedValue(cruzo)
   const onTerminada = vi.fn()
-  render(<FormTerminarParada parada={p} usuario="mtto1" onTerminada={onTerminada} />)
+  render(<FormTerminarParada parada={p} usuario="mtto1" esMantenimiento={esMantenimiento} onTerminada={onTerminada} />)
   await screen.findByRole("button", { name: /terminar parada/i })
   return { onTerminada }
 }
@@ -184,6 +184,18 @@ describe("FormTerminarParada", () => {
     await userEvent.click(terminar())
     await waitFor(() => expect(terminarParada).toHaveBeenCalled())
     expect(terminarParada.mock.calls[0][2]).toMatchObject({ mttoEquipoCodigo: "FW32", subsistemaCodigo: "FW-CUC-01" })
+  })
+
+  it("el supervisor no ve equipo ni subsistema: termina con «Sin subsistema» y sin equipo de Mantenimiento", async () => {
+    await montar(false, parada, false)
+    expect(screen.queryByLabelText(/equipo de mantenimiento/i)).toBeNull()
+    expect(screen.queryByLabelText(/^subsistema/i)).toBeNull()
+    await userEvent.type(queSeRealizo(), "Se destrabó")
+    await userEvent.type(screen.getByLabelText(/minutos/i), "10")
+    expect(terminar()).toBeEnabled()
+    await userEvent.click(terminar())
+    await waitFor(() => expect(terminarParada).toHaveBeenCalled())
+    expect(terminarParada.mock.calls[0][2]).toMatchObject({ mttoEquipoCodigo: "", subsistemaCodigo: "SIN_SUBSISTEMA" })
   })
 
   it("«Sin subsistema» cuenta como una elección y manda la marca", async () => {

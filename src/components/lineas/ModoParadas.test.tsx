@@ -32,9 +32,11 @@ vi.mock("@/lib/paradasCatalogo", async (orig) => ({
 vi.mock("@/lib/produccion/useProduccion", () => ({ useProduccion: () => ({ corridas: [] }) }))
 vi.mock("@/lib/productoTerminado", () => ({ useProductoTerminado: () => ({ registros: [], recargar: async () => {} }) }))
 const abrirParadaMantenimiento = vi.fn()
+const anotarParada = vi.fn()
 vi.mock("@/lib/paradas", async (orig) => ({
   ...(await orig<object>()),
   abrirParadaMantenimiento: (...a: unknown[]) => abrirParadaMantenimiento(...a),
+  anotarParada: (...a: unknown[]) => anotarParada(...a),
   paradaCruzoTurnoCerrado: () => Promise.resolve(false),
 }))
 
@@ -92,6 +94,8 @@ const boton = (n: string | RegExp) => screen.queryByRole("button", { name: n })
 beforeEach(() => {
   abrirParadaMantenimiento.mockReset()
   abrirParadaMantenimiento.mockResolvedValue({ ok: true })
+  anotarParada.mockReset()
+  anotarParada.mockResolvedValue({ ok: true })
   const d = new Date()
   turno = {
     id: "t1", codigo: "T1", fecha: `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}`, horaInicio: "00:00:00", estado: "ABIERTO",
@@ -147,6 +151,46 @@ describe("ModoParadas — paradas de Mantenimiento", () => {
       expect.any(String),
     )
     expect(a.pausar).not.toHaveBeenCalled()
+  })
+
+  it("el supervisor con la línea sin corrida abre una parada Operacional desde ahora, sin pausar nada", async () => {
+    delTurno = []
+    const a = montar({ corridas: [], paradasDetienen: [] })
+    await userEvent.click(await screen.findByRole("button", { name: "Parar" }))
+    await userEvent.click(screen.getByRole("radio", { name: "Operacional" }))
+    await userEvent.click(screen.getByText("Elegir tipo"))
+    await userEvent.type(screen.getByRole("textbox"), "Sin poder arrancar")
+    await userEvent.click(screen.getByRole("button", { name: /confirmar parada/i }))
+    await waitFor(() => expect(abrirParadaMantenimiento).toHaveBeenCalled())
+    expect(abrirParadaMantenimiento).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ lineaCodigo: "LINEA_1", nota: "Sin poder arrancar", responsable: "OPERACIONAL", inicio: null }),
+      expect.any(String),
+    )
+    expect(a.pausar).not.toHaveBeenCalled()
+  })
+
+  it("la parada Operacional abierta de una línea sin corrida se termina con Terminar parada, con su comienzo verdadero", async () => {
+    delTurno = [paradaMtto({ responsable: "OPERACIONAL", inicio: ahoraLocal(30), inicioReal: ahoraLocal(60 * 24 * 6) })]
+    montar({ corridas: [], paradasDetienen: [] })
+    expect(await screen.findByRole("button", { name: "Terminar parada" })).toBeInTheDocument()
+    expect(screen.getByText(/Desde el \d{2}\/\d{2} a las/)).toBeInTheDocument()
+    expect(boton("Parar")).toBeInTheDocument()
+  })
+
+  it("Anotar minutos con otra parada ya cargada hasta ahora los pone antes de ella, sin chocar", async () => {
+    const existente = paradaMtto({ id: "p9", responsable: "OPERACIONAL", inicio: ahoraLocal(10), fin: ahoraLocal(0) })
+    delTurno = [existente]
+    montar({ corridas: [], paradasDetienen: [] })
+    await userEvent.click(await screen.findByRole("button", { name: /anotar/i }))
+    await userEvent.click(screen.getByRole("button", { name: "Otra…" }))
+    await userEvent.click(screen.getByText("Elegir tipo"))
+    await userEvent.type(screen.getByPlaceholderText("Ej. 10"), "5")
+    await userEvent.click(screen.getByRole("button", { name: "Guardar" }))
+    await waitFor(() => expect(anotarParada).toHaveBeenCalled())
+    const datos = anotarParada.mock.calls[0][1] as { inicio: string; fin: string }
+    expect(datos.fin <= existente.inicio.slice(0, 16) + ":59").toBe(true)
+    expect(datos.fin > datos.inicio).toBe(true)
   })
 
   it("Terminar parada abre el formulario de cierre", async () => {

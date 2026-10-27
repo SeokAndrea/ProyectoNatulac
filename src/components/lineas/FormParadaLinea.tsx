@@ -23,6 +23,7 @@ export function FormParadaLinea({
   areaCodigo,
   presentacionMl,
   desdeAntes = false,
+  sinCorrida = false,
   responsableFijo,
   pausar,
   onCerrar,
@@ -33,6 +34,8 @@ export function FormParadaLinea({
   presentacionMl: number | null
   /** Abre de entrada el campo de la hora de inicio (Status: la línea ya estaba parada). */
   desdeAntes?: boolean
+  /** La línea no tiene corrida: la parada queda abierta desde la hora que se ponga (puede ser de días atrás) hasta que se termine. */
+  sinCorrida?: boolean
   /** Si viene, no se muestra el selector y se usa este responsable. */
   responsableFijo?: ResponsableParada
   pausar: AccionesLinea["pausar"]
@@ -58,7 +61,11 @@ export function FormParadaLinea({
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-      <p className="text-xs text-foreground">La línea se para ya; el tiempo cuenta hasta Continuar.</p>
+      <p className="text-xs text-foreground">
+        {sinCorrida
+          ? "La línea no tiene corrida: la parada queda abierta desde ahora y cuenta hasta que la termines o arranques la línea."
+          : "La línea se para ya; el tiempo cuenta hasta Continuar."}
+      </p>
       {responsableFijo === undefined && (
         <div role="radiogroup" aria-label="Responsable de la parada" className="grid grid-cols-2 gap-2">
           {(["OPERACIONAL", "MANTENIMIENTO"] as const).map((r) => (

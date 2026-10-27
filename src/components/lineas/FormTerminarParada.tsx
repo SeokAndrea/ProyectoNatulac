@@ -28,7 +28,7 @@ const selectClase =
 /**
  * Terminar parada (Mantenimiento, o el supervisor con el interruptor apagado):
  * el equipo y el subsistema de Mantenimiento (de su catálogo, o «Sin
- * subsistema»), qué se realizó y el tiempo final. El equipo y la falla de
+ * subsistema»; el supervisor no los ve: queda «Sin subsistema»), qué se realizó y el tiempo final. El equipo y la falla de
  * Producción se quedan como los puso el supervisor. Los minutos o la hora de
  * comienzo solo valen si la parada no cruzó un turno cerrado: lo cerrado queda
  * fijo y solo se mueve el final.
@@ -37,11 +37,14 @@ export function FormTerminarParada({
   parada,
   usuario,
   areaCodigo = null,
+  esMantenimiento = false,
   onTerminada,
 }: {
   parada: Parada
   usuario: string
   areaCodigo?: string | null
+  /** Solo Mantenimiento elige equipo y subsistema de su catálogo. */
+  esMantenimiento?: boolean
   onTerminada: () => void
 }) {
   const equipos = useEquiposParadas()
@@ -90,14 +93,14 @@ export function FormTerminarParada({
   const inicioFinal = usaMinutos || cruzo ? inicioOriginal : comienzo
   const duracion = finCalculado && inicioFinal ? minutosEntre(inicioFinal, finCalculado) : null
   const tiempoListo = finCalculado !== "" && duracion !== null && duracion > 0
-  const listo = tipoCodigo !== null && equipoMtto !== "" && subsistema !== "" && solucion.trim() !== "" && tiempoListo
+  const listo = tipoCodigo !== null && (!esMantenimiento || (equipoMtto !== "" && subsistema !== "")) && solucion.trim() !== "" && tiempoListo
 
   async function confirmar() {
     if (!tipoCodigo || !listo) return
     const datos = {
       tipoCodigo,
-      mttoEquipoCodigo: equipoMtto,
-      subsistemaCodigo: subsistema,
+      mttoEquipoCodigo: esMantenimiento ? equipoMtto : "",
+      subsistemaCodigo: esMantenimiento ? subsistema : SIN_SUBSISTEMA,
       solucion: solucion.trim(),
       fin: conSegundos(finCalculado),
       inicio: !usaMinutos && !cruzo && comienzo !== inicioOriginal ? conSegundos(comienzo) : null,
@@ -118,6 +121,8 @@ export function FormTerminarParada({
       ) : (
         <p className="min-w-0 truncate text-sm font-medium text-foreground">{parada.tipoNombre}</p>
       )}
+      {esMantenimiento && (
+        <>
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Equipo de Mantenimiento
         <select
@@ -150,6 +155,8 @@ export function FormTerminarParada({
           ))}
         </select>
       </label>
+        </>
+      )}
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         ¿Qué se realizó?
         <Textarea value={solucion} onChange={(e) => setSolucion(e.target.value.slice(0, LARGO_SOLUCION))} maxLength={LARGO_SOLUCION} rows={2} className="text-sm" />

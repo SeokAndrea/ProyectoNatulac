@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { Factory, ListPlus } from "lucide-react"
+import { Factory, ListPlus, PauseCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -276,7 +276,16 @@ export function LineaCard({
         terminarCip={acciones.terminarCip}
         onArrancar={() => setPanel("arrancar")}
         onIniciarCip={() => setPanel("cipSinCorrida")}
-        extra={botonParadas}
+        extra={
+          botonParadas ||
+          (aModoParadas && (
+            // Una línea sin corrida (programada pero parada) se para solo en Modo Paradas.
+            <Button variant="outline" size="sm" onClick={aModoParadas}>
+              <PauseCircle className="size-3.5" />
+              Parar
+            </Button>
+          ))
+        }
       />
     )
   }

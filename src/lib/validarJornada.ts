@@ -68,7 +68,7 @@ export interface DatosJornada {
 // ------------------------------------------------------------
 
 /** Días hacia atrás donde buscar paradas que siguen abiertas. */
-const DIAS_ATRAS_ABIERTAS = 7
+const DIAS_ATRAS_ABIERTAS = 30
 
 const ETIQUETA_TIPO: Record<string, string> = { TURNO_1: "T1", TURNO_2: "T2", TURNO_3: "T3", "12X12": "12x12" }
 
