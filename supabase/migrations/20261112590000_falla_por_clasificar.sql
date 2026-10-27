@@ -236,6 +236,370 @@ $$;
 grant execute on function parada_cierre_turno_cerrado(uuid) to anon, authenticated;
 
 -- ------------------------------------------------------------
+-- 3b. Catálogo PROPIO de Mantenimiento: sus equipos y sus subsistemas con
+--     los códigos del Sheet. Es otro vocabulario que el de Producción
+--     (Equipo + Falla: paradas_equipos / paradas_tipos), que esto no toca ni
+--     depende de él. Nombre nuevo: paradas_subsistemas la borró 20261064090000.
+--     Sembrado con docs/codigos-mantenimiento-aseptico.csv (14 equipos,
+--     128 códigos).
+--     Trazabilidad: nada se borra (solo se desactiva), cada fila guarda
+--     quién y cuándo la creó y la editó, y cada cambio va a la auditoría.
+--     Cada parada guarda el equipo y el subsistema de Mantenimiento con su
+--     nombre de ese día: renombrar después no cambia los reportes viejos.
+-- ------------------------------------------------------------
+create table if not exists mtto_equipos (
+  codigo text primary key,
+  nombre text not null,
+  -- Solo para preseleccionar: el equipo de Producción (paradas_equipos.codigo)
+  -- al que suele corresponder. Sin llave foránea; lo edita Mantenimiento.
+  equipo_produccion_codigo text,
+  activo boolean not null default true,
+  creado_por uuid references usuarios(id),
+  creado_en timestamptz not null default now(),
+  editado_por uuid references usuarios(id),
+  editado_en timestamptz
+);
+
+create table if not exists mtto_subsistemas (
+  id uuid primary key default gen_random_uuid(),
+  equipo_codigo text not null references mtto_equipos(codigo),
+  codigo text not null,
+  nombre text not null,
+  activo boolean not null default true,
+  creado_por uuid references usuarios(id),
+  creado_en timestamptz not null default now(),
+  editado_por uuid references usuarios(id),
+  editado_en timestamptz,
+  unique (equipo_codigo, codigo)
+);
+alter table mtto_equipos enable row level security;
+alter table mtto_subsistemas enable row level security;
+comment on table mtto_equipos is 'Equipos de Mantenimiento (nombres del Sheet). Catálogo propio, aparte del de Producción (20261112590000).';
+comment on table mtto_subsistemas is 'Subsistemas de Mantenimiento por equipo, con el código del Sheet (20261112590000).';
+
+create or replace function mtto_no_borrar()
+returns trigger
+language plpgsql
+as $$
+begin
+  raise exception 'Los códigos de Mantenimiento no se borran: se desactivan.';
+end;
+$$;
+drop trigger if exists mtto_equipos_no_borrar on mtto_equipos;
+create trigger mtto_equipos_no_borrar before delete on mtto_equipos for each row execute function mtto_no_borrar();
+drop trigger if exists mtto_subsistemas_no_borrar on mtto_subsistemas;
+create trigger mtto_subsistemas_no_borrar before delete on mtto_subsistemas for each row execute function mtto_no_borrar();
+
+-- Lo que Mantenimiento eligió al terminar la parada (Producción conserva su equipo y su falla).
+alter table paradas add column if not exists mtto_equipo_codigo text;
+alter table paradas add column if not exists mtto_equipo_nombre text;
+alter table paradas add column if not exists subsistema_nombre text;
+comment on column paradas.mtto_equipo_codigo is 'Equipo de Mantenimiento elegido al terminar la parada.';
+comment on column paradas.mtto_equipo_nombre is 'Nombre del equipo de Mantenimiento ese día (no cambia si se renombra).';
+comment on column paradas.subsistema_nombre is 'Nombre del subsistema ese día (no cambia si se renombra).';
+
+-- Siembra (idempotente): equipos del Sheet con su equipo de Producción más probable (solo preselección).
+insert into mtto_equipos (codigo, nombre, equipo_produccion_codigo)
+select e.codigo, e.codigo, e.prod
+from (values
+  ('A3CFLEX', 'A3_COMPACT_FLEX'), ('A3FLEX', 'A3_FLEX'), ('ALCIP', null), ('ALMIX', null),
+  ('CAP', 'CAP_APPLICATOR'), ('CBP32', 'CARDBOARD_PACKER'), ('DOMINO', 'DOMINO'), ('DRINK', 'FLEX_DRINK'),
+  ('FLEX', 'FLEX_DRINK'), ('FW32', 'FILM_WRAPPER'), ('HELIX', 'HELIX'), ('SA', 'STRAW_APPLICATOR'),
+  ('SAP', null), ('TAVIL', 'ROBOT_TAVIL')
+) as e(codigo, prod)
+on conflict (codigo) do nothing;
+
+insert into mtto_subsistemas (equipo_codigo, codigo, nombre)
+select v.equipo_codigo, v.codigo, v.nombre
+from (values
+  ('A3CFLEX', 'A3CF-AIR-05', 'SISTEMA AIRE ESTERIL'),
+  ('A3CFLEX', 'A3CF-AIR-26', 'AIRE COMPRIMIDO'),
+  ('A3CFLEX', 'A3CF-APL-22', 'APLICADOR DE TIRA'),
+  ('A3CFLEX', 'A3CF-ASE-01', 'CAMARA ASEPTICA'),
+  ('A3CFLEX', 'A3CF-CAM-02', 'CAMARA DE SECADO'),
+  ('A3CFLEX', 'A3CF-CON-23', 'PANEL DE CONTROL'),
+  ('A3CFLEX', 'A3CF-COR-17', 'CORREA ALIM PLEGADORA'),
+  ('A3CFLEX', 'A3CF-CORT-15', 'BRAZO DE CORTE'),
+  ('A3CFLEX', 'A3CF-DIS-31', 'CORRECCION DE DISENO'),
+  ('A3CFLEX', 'A3CF-ELE-25', 'SUMINISTRO ELECTRICO'),
+  ('A3CFLEX', 'A3CF-ELM-04', 'ELEMENT PARADA CORTA'),
+  ('A3CFLEX', 'A3CF-HI-27', 'BAJO FLUJO HI'),
+  ('A3CFLEX', 'A3CF-HI-28', 'BAJA TEMPERATURA HI'),
+  ('A3CFLEX', 'A3CF-HID-12', 'SISTEMA HIDRAULICO'),
+  ('A3CFLEX', 'A3CF-LLE-06', 'SISTEMA DE LLENADO'),
+  ('A3CFLEX', 'A3CF-MES-21', 'MESA DE EMPALME'),
+  ('A3CFLEX', 'A3CF-MOR-14', 'MORDAZAS'),
+  ('A3CFLEX', 'A3CF-PAN-09', 'PANEL DE CONTROL'),
+  ('A3CFLEX', 'A3CF-PER-07', 'SITEMA PEROXIDO'),
+  ('A3CFLEX', 'A3CF-PRE-19', 'DISPOSITIVO PRENSOR'),
+  ('A3CFLEX', 'A3CF-PULL-18', 'PULL DOWN PLEGADORA'),
+  ('A3CFLEX', 'A3CF-REF-20', 'SISTEMA REFRIGERACION'),
+  ('A3CFLEX', 'A3CF-SEG-08', 'SISTEMA DE SEGURIDAD'),
+  ('A3CFLEX', 'A3CF-SEG-11', 'SISTEMA SEGURIDAD'),
+  ('A3CFLEX', 'A3CF-SELL-03', 'SELLADO LONGITUDINAL'),
+  ('A3CFLEX', 'A3CF-SELL-24', 'SELLADO TRANSVERSAL'),
+  ('A3CFLEX', 'A3CF-TPO-01', 'TPOP DISPLAY'),
+  ('A3CFLEX', 'A3CF-TRA-10', 'TRANSPORTADORES'),
+  ('A3CFLEX', 'A3CF-TRA-13', 'SISTEMA TRACCION'),
+  ('A3CFLEX', 'A3CF-TRA-24', 'TRANSPORTADORES'),
+  ('A3FLEX', 'A3F-AIR-05', 'SISTEMA AIRE ESTERIL'),
+  ('A3FLEX', 'A3F-ASE-01', 'CAMARA ASEPTICA'),
+  ('A3FLEX', 'A3F-COR-17', 'CORREA ALIM PLEGADORA'),
+  ('A3FLEX', 'A3F-CORT-15', 'BRAZO DE CORTE'),
+  ('A3FLEX', 'A3F-ELE-25', 'SUMINISTRO ELECTRICO'),
+  ('A3FLEX', 'A3F-GEN-24', 'CAMBIO GENERADOR'),
+  ('A3FLEX', 'A3F-MES-21', 'MESA DE EMPALME'),
+  ('A3FLEX', 'A3F-MOR-14', 'MORDAZAS'),
+  ('A3FLEX', 'A3F-PAN-09', 'PANEL DE CONTROL'),
+  ('A3FLEX', 'A3F-PER-07', 'SITEMA PEROXIDO'),
+  ('A3FLEX', 'A3F-PRE-19', 'DISPOSITIVO PRENSOR'),
+  ('A3FLEX', 'A3F-PULL-18', 'PULL DOWN PLEGADORA'),
+  ('A3FLEX', 'A3F-REF-20', 'SISTEMA REFRIGERACION'),
+  ('A3FLEX', 'A3F-SEG-08', 'SISTEMA DE SEGURIDAD'),
+  ('A3FLEX', 'A3F-SEG-11', 'SISTEMA SEGURIDAD'),
+  ('A3FLEX', 'A3F-SELL-03', 'SELLADO LONGITUDINAL'),
+  ('A3FLEX', 'A3F-SELL-24', 'SELLADO TRANSVERSAL'),
+  ('A3FLEX', 'A3F-TPO-01', 'TPOP DISPLAY'),
+  ('A3FLEX', 'A3F-TRA-10', 'TRANSPORTADORES'),
+  ('A3FLEX', 'A3F-TRA-13', 'SISTEMA TRACCION'),
+  ('ALCIP', 'ALC-PLC-02', 'PLC'),
+  ('ALMIX', 'ALM-BOM-05', 'BOMBA'),
+  ('ALMIX', 'ALM-COR-02', 'CORREA'),
+  ('ALMIX', 'ALM-ROD-01', 'RODAMIENTO'),
+  ('ALMIX', 'ALM-SEL-07', 'SELLO'),
+  ('CAP', 'CAP-APL-03', 'APLICADOR DE TAPAS'),
+  ('CAP', 'CAP-INY-07', 'UNIDAD INYECCIO PEGA'),
+  ('CAP', 'CAP-NOR-04', 'UNIDAD NORDSON'),
+  ('CAP', 'CAP-PAN-09', 'PANEL DE CONTROL'),
+  ('CAP', 'CAP-RUE-05', 'UNIDAD APLICADORA TAPAS'),
+  ('CAP', 'CAP-TPO-01', 'TPOPDISPLAY'),
+  ('CAP', 'CAP-TRA-06', 'TRANSPORTADOR DE TAPAS'),
+  ('CBP32', 'CBP-AGR-03', 'AGRUPADOR'),
+  ('CBP32', 'CBP-AIR-12', 'AIRE COMPRIMIDO'),
+  ('CBP32', 'CBP-CAD-07', 'CADENA ARRASTRADORA'),
+  ('CBP32', 'CBP-EMP-05', 'EMPUJADOR'),
+  ('CBP32', 'CBP-FOR-02', 'FORMACION DE PATRON'),
+  ('CBP32', 'CBP-FRE-01', 'UNIDAD FRENO DE ENTRADA'),
+  ('CBP32', 'CBP-GRA-15', 'UNIDAD WRAP'),
+  ('CBP32', 'CBP-MAG-13', 'MAGAZINE DE CARTONES'),
+  ('CBP32', 'CBP-NOR-11', 'UNIDAD NORDSON'),
+  ('CBP32', 'CBP-PAN-09', 'PANEL DE CONTROL'),
+  ('CBP32', 'CBP-PLA-04', 'PLACA DE TRANSFERENCIA'),
+  ('CBP32', 'CBP-SEN-06', 'SENSOR ULTRASONIDO'),
+  ('CBP32', 'CBP-SEN-16', 'SENSOR BANDEJA'),
+  ('CBP32', 'CBP-TPO-08', 'TPOP'),
+  ('CBP32', 'CBP-TRA-10', 'TRANSPORTADORES'),
+  ('CBP32', 'CBP-VEN-14', 'VENTOSAS'),
+  ('DOMINO', 'DOM-BOM-02', 'BOMBA'),
+  ('DOMINO', 'DOM-CAB-05', 'CABEZAL'),
+  ('DOMINO', 'DOM-CAB-09', 'CABEZAL'),
+  ('DOMINO', 'DOM-ITM-01', 'ITM'),
+  ('DOMINO', 'DOM-PAN-06', 'PANEL DE CONTROL'),
+  ('DOMINO', 'DOM-SEN-04', 'SENSOR'),
+  ('DRINK', 'DRI-AIR-11', 'AIRE COMPRIMIDO'),
+  ('DRINK', 'DRI-BOM-03', 'BOMB M9'),
+  ('DRINK', 'DRI-PAN-09', 'PANEL DE CONTROL'),
+  ('DRINK', 'DRI-VAL-08', 'VALVULAS'),
+  ('FLEX', 'FLEX-BTD-04', 'BTD'),
+  ('FLEX', 'FLEX-ELE-12', 'SUMINISTRO ELECTRICO'),
+  ('FLEX', 'FLEX-TER-02', 'TERMOCUPLAS'),
+  ('FLEX', 'FLEX-VAL-03', 'VALVULA DE VAPOR'),
+  ('FLEX', 'FLEX-VAL-07', 'VALVULAS DE DIAFRAGMA'),
+  ('FW32', 'FW-AGR-03', 'UNIDAD AGRUPADORA'),
+  ('FW32', 'FW-ELE-11', 'SUMINISTRO ELECTRICO'),
+  ('FW32', 'FW-FRE-02', 'UNIDAD FRENO DE ENTRADA'),
+  ('FW32', 'FW-MAG-04', 'MAGAZING DE BOBINAS'),
+  ('FW32', 'FW-PAN-09', 'PANEL DE CONTROL'),
+  ('FW32', 'FW-PLC-11', 'FALLA PLC'),
+  ('FW32', 'FW-SELL-05', 'UNIDAD DE SELLADO'),
+  ('FW32', 'FW-TPO-01', 'TPOP DISPLAY'),
+  ('FW32', 'FW-TRA-06', 'UNIDAD TRANSF TREEPACK'),
+  ('FW32', 'FW-TRAN-08', 'TRANSPORTADORES'),
+  ('HELIX', 'HEL-ARA-04', 'ARANA'),
+  ('HELIX', 'HEL-CAD-02', 'CADENA ESLABONES'),
+  ('HELIX', 'HEL-DIS-10', 'DISPLAY'),
+  ('HELIX', 'HEL-PAN-09', 'PANEL DE CONTROL'),
+  ('HELIX', 'HEL-TPO-01', 'TPOP DISPLAY'),
+  ('HELIX', 'HEL-TRA-10', 'TRANSPORTADOES'),
+  ('SA', 'SA-APL-05', 'UNIDAD APLICADORA'),
+  ('SA', 'SA-SEN-15', 'SENSOR'),
+  ('SA', 'SA-TPO-01', 'TPOP DISPLAY'),
+  ('SAP', 'SAP-APL-05', 'UNIDAD APLICADORA'),
+  ('SAP', 'SAP-TPO-01', 'TPOP DISPLAY'),
+  ('TAVIL', 'TAV-AIR-12', 'AIRE COMPRIMIDO'),
+  ('TAVIL', 'TAV-COM-13', 'PERDIDA DE COMUNICACION'),
+  ('TAVIL', 'TAV-CON-09', 'PANEL DE CONTROL'),
+  ('TAVIL', 'TAV-ELE-11', 'SUMINISTRO ELECTRICO'),
+  ('TAVIL', 'TAV-FLE-04', 'FLEJADOR DE PALETAS'),
+  ('TAVIL', 'TAV-GAR-06', 'GUIAS/RODAMIENTOS GARRA'),
+  ('TAVIL', 'TAV-LLE-03', 'PALET LLENO'),
+  ('TAVIL', 'TAV-MOS-14', 'AJUSTE COORDENADAS'),
+  ('TAVIL', 'TAV-MOT-05', 'MOTOREDUCTORES'),
+  ('TAVIL', 'TAV-PAL-10', 'TRANSPORTADOR DE PALETAS'),
+  ('TAVIL', 'TAV-SEG-01', 'BARRERAS DE SEGURIDAD'),
+  ('TAVIL', 'TAV-SEN-18', 'FALLA DE SENSORES'),
+  ('TAVIL', 'TAV-TRA-07', 'TRANSPORTADOR BATERIA/LINEA'),
+  ('TAVIL', 'TAV-VAC-02', 'PALET VACIO')
+) as v(equipo_codigo, codigo, nombre)
+on conflict (equipo_codigo, codigo) do nothing;
+
+-- Solo Mantenimiento y la dueña editan; ningún rol de Producción.
+create or replace function exigir_editor_mtto(p_usuario text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+stable
+as $$
+begin
+  if not (es_de_mantenimiento(p_usuario) or es_dueno(p_usuario)) then
+    raise exception 'Solo Mantenimiento puede editar los códigos.';
+  end if;
+end;
+$$;
+revoke execute on function exigir_editor_mtto(text) from public, anon, authenticated;
+
+create or replace function listar_mtto_equipos()
+returns table (codigo text, nombre text, equipo_produccion_codigo text, activo boolean)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select e.codigo, e.nombre, e.equipo_produccion_codigo, e.activo from mtto_equipos e order by e.nombre;
+$$;
+grant execute on function listar_mtto_equipos() to anon, authenticated;
+
+-- Todos (activos e inactivos); la app filtra. Sin equipo: todos.
+create or replace function listar_mtto_subsistemas(p_equipo text default null)
+returns table (id uuid, equipo_codigo text, codigo text, nombre text, activo boolean)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select s.id, s.equipo_codigo, s.codigo, s.nombre, s.activo
+  from mtto_subsistemas s
+  where p_equipo is null or s.equipo_codigo = p_equipo
+  order by s.equipo_codigo, s.codigo;
+$$;
+grant execute on function listar_mtto_subsistemas(text) to anon, authenticated;
+
+-- Alta o edición de un equipo de Mantenimiento (el código no cambia).
+create or replace function guardar_mtto_equipo(
+  p_usuario text,
+  p_codigo text,
+  p_nombre text,
+  p_equipo_produccion_codigo text default null,
+  p_activo boolean default true
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_codigo text := upper(nullif(btrim(coalesce(p_codigo, '')), ''));
+  v_nombre text := nullif(btrim(coalesce(p_nombre, '')), '');
+  v_prod text := nullif(btrim(coalesce(p_equipo_produccion_codigo, '')), '');
+  v_antes mtto_equipos;
+  v_uid uuid := (select id from usuarios where usuario = lower(p_usuario));
+begin
+  perform exigir_editor_mtto(p_usuario);
+  if v_codigo is null then
+    raise exception 'Escribe el código del equipo.';
+  end if;
+  if v_nombre is null then
+    raise exception 'Escribe el nombre del equipo.';
+  end if;
+  select * into v_antes from mtto_equipos where codigo = v_codigo for update;
+  if found then
+    update mtto_equipos
+    set nombre = left(v_nombre, 120), equipo_produccion_codigo = v_prod, activo = coalesce(p_activo, true),
+        editado_por = v_uid, editado_en = now()
+    where codigo = v_codigo;
+    perform registrar_auditoria(
+      p_usuario, 'EDITAR', 'mtto_equipos', v_codigo, 'Códigos de Mantenimiento',
+      format('Editó el equipo %s de Mantenimiento', v_codigo),
+      jsonb_build_object('nombre', v_antes.nombre, 'equipo_produccion', v_antes.equipo_produccion_codigo, 'activo', v_antes.activo),
+      jsonb_build_object('nombre', left(v_nombre, 120), 'equipo_produccion', v_prod, 'activo', coalesce(p_activo, true))
+    );
+  else
+    insert into mtto_equipos (codigo, nombre, equipo_produccion_codigo, activo, creado_por)
+    values (left(v_codigo, 40), left(v_nombre, 120), v_prod, coalesce(p_activo, true), v_uid);
+    perform registrar_auditoria(
+      p_usuario, 'CREAR', 'mtto_equipos', v_codigo, 'Códigos de Mantenimiento',
+      format('Agregó el equipo %s de Mantenimiento', v_codigo),
+      null,
+      jsonb_build_object('nombre', left(v_nombre, 120), 'equipo_produccion', v_prod)
+    );
+  end if;
+end;
+$$;
+grant execute on function guardar_mtto_equipo(text, text, text, text, boolean) to anon, authenticated;
+
+-- Alta o edición de un subsistema (equipo + código no cambian).
+create or replace function guardar_mtto_subsistema(
+  p_usuario text,
+  p_equipo_codigo text,
+  p_codigo text,
+  p_nombre text,
+  p_activo boolean default true
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_equipo text := upper(nullif(btrim(coalesce(p_equipo_codigo, '')), ''));
+  v_codigo text := upper(nullif(btrim(coalesce(p_codigo, '')), ''));
+  v_nombre text := nullif(btrim(coalesce(p_nombre, '')), '');
+  v_antes mtto_subsistemas;
+  v_id uuid;
+  v_uid uuid := (select id from usuarios where usuario = lower(p_usuario));
+begin
+  perform exigir_editor_mtto(p_usuario);
+  if v_equipo is null or not exists (select 1 from mtto_equipos where codigo = v_equipo) then
+    raise exception 'Elige el equipo.';
+  end if;
+  if v_codigo is null then
+    raise exception 'Escribe el código.';
+  end if;
+  if v_nombre is null then
+    raise exception 'Escribe el nombre.';
+  end if;
+  if v_codigo = 'SIN_SUBSISTEMA' then
+    raise exception 'Ese código está reservado.';
+  end if;
+
+  select * into v_antes from mtto_subsistemas where equipo_codigo = v_equipo and codigo = v_codigo for update;
+  if found then
+    update mtto_subsistemas
+    set nombre = left(v_nombre, 120), activo = coalesce(p_activo, true), editado_por = v_uid, editado_en = now()
+    where id = v_antes.id;
+    perform registrar_auditoria(
+      p_usuario, 'EDITAR', 'mtto_subsistemas', v_antes.id::text, 'Códigos de Mantenimiento',
+      format('Editó el código %s de %s', v_codigo, v_equipo),
+      jsonb_build_object('nombre', v_antes.nombre, 'activo', v_antes.activo),
+      jsonb_build_object('nombre', left(v_nombre, 120), 'activo', coalesce(p_activo, true))
+    );
+  else
+    insert into mtto_subsistemas (equipo_codigo, codigo, nombre, activo, creado_por)
+    values (v_equipo, left(v_codigo, 40), left(v_nombre, 120), coalesce(p_activo, true), v_uid)
+    returning id into v_id;
+    perform registrar_auditoria(
+      p_usuario, 'CREAR', 'mtto_subsistemas', v_id::text, 'Códigos de Mantenimiento',
+      format('Agregó el código %s de %s', v_codigo, v_equipo),
+      null,
+      jsonb_build_object('equipo', v_equipo, 'codigo', v_codigo, 'nombre', left(v_nombre, 120))
+    );
+  end if;
+end;
+$$;
+grant execute on function guardar_mtto_subsistema(text, text, text, text, boolean) to anon, authenticated;
+
+-- ------------------------------------------------------------
 -- 4. pausar_linea(): con Responsable; copia de 20261111590000.
 -- ------------------------------------------------------------
 drop function if exists pausar_linea(text, uuid, uuid, text, text, text);
@@ -346,6 +710,7 @@ drop function if exists clasificar_falla(text, uuid, text, text, text);
 -- Código (equipo y falla + subsistema), qué se hizo y la hora de fin (sin
 -- ella, ahora). Al cerrarse, la línea sigue sola (paradas_mueven_lineas →
 -- reanudar_lineas_de_parada).
+drop function if exists terminar_parada(text, uuid, text, text, text, text, text, text);
 create or replace function terminar_parada(
   p_usuario text,
   p_parada_id uuid,
@@ -354,7 +719,8 @@ create or replace function terminar_parada(
   p_solucion text,
   p_fin text default null,
   p_inicio text default null,
-  p_pagina text default 'Reportes de paradas'
+  p_pagina text default 'Reportes de paradas',
+  p_mtto_equipo_codigo text default null
 )
 returns void
 language plpgsql
@@ -369,6 +735,8 @@ declare
   v_nombre text;
   v_solucion text := nullif(btrim(coalesce(p_solucion, '')), '');
   v_sub text := nullif(btrim(coalesce(p_subsistema_codigo, '')), '');
+  v_mtto_eq mtto_equipos;
+  v_sub_nombre text;
   v_cierre timestamptz;
   v_ini timestamptz;
   v_fin timestamptz;
@@ -389,17 +757,41 @@ begin
     raise exception 'Esta parada la termina Mantenimiento.';
   end if;
 
-  select * into v_tipo from paradas_tipos where codigo = p_tipo_codigo and activo;
-  if v_tipo.id is null or v_tipo.codigo in ('POR_CLASIFICAR', 'FALLA_SIN_ESPECIFICAR') then
-    raise exception 'Elige el código de la parada del catálogo.';
+  -- El equipo y la falla de Producción son del supervisor: no se tocan. Solo se
+  -- completan si la parada quedó con el tipo provisional (por clasificar).
+  select * into v_tipo from paradas_tipos where id = v_p.tipo_id;
+  if v_tipo.codigo in ('POR_CLASIFICAR', 'FALLA_SIN_ESPECIFICAR') then
+    select * into v_tipo from paradas_tipos where codigo = p_tipo_codigo and activo;
+    if v_tipo.id is null or v_tipo.codigo in ('POR_CLASIFICAR', 'FALLA_SIN_ESPECIFICAR') then
+      raise exception 'Elige el código de la parada del catálogo.';
+    end if;
+  elsif nullif(btrim(coalesce(p_tipo_codigo, '')), '') is not null and p_tipo_codigo is distinct from v_tipo.codigo then
+    raise exception 'El equipo y la falla de Producción no se cambian.';
   end if;
+  -- Lo de Mantenimiento: su equipo y su subsistema, de su catálogo.
+  select * into v_mtto_eq from mtto_equipos where codigo = upper(nullif(btrim(coalesce(p_mtto_equipo_codigo, '')), '')) and activo;
   if v_sub is null then
-    raise exception 'Escribe el código del subsistema.';
+    raise exception 'Elige el subsistema (o «Sin subsistema»).';
+  end if;
+  if v_mtto_eq.codigo is null then
+    raise exception 'Elige el equipo de Mantenimiento.';
+  end if;
+  if v_sub = 'SIN_SUBSISTEMA' then
+    v_sub_nombre := 'Sin subsistema';
+  else
+    select nombre into v_sub_nombre from mtto_subsistemas where equipo_codigo = v_mtto_eq.codigo and codigo = v_sub and activo;
+    if v_sub_nombre is null then
+      raise exception 'Elige el subsistema de la lista.';
+    end if;
   end if;
   if v_solucion is null then
     raise exception 'Escribe qué se hizo para resolver la parada.';
   end if;
-  v_nombre := nombre_tipo_en_linea(v_tipo, v_p.linea_id, (select area_id from lineas where id = v_p.linea_id));
+  if v_p.tipo_id is not distinct from v_tipo.id then
+    v_nombre := v_p.tipo_nombre;
+  else
+    v_nombre := nombre_tipo_en_linea(v_tipo, v_p.linea_id, (select area_id from lineas where id = v_p.linea_id));
+  end if;
 
   -- Lo cerrado queda fijo: si un turno cerrado ya contó un tramo, el comienzo
   -- no se toca y el fin no puede caer antes de su cierre.
@@ -446,6 +838,9 @@ begin
       tipo_nombre = v_nombre,
       tiempo_guia_min = case when v_tipo.clase = 'PROGRAMADA' then v_tipo.tiempo_guia_min else null end,
       subsistema_codigo = left(v_sub, 40),
+      subsistema_nombre = v_sub_nombre,
+      mtto_equipo_codigo = v_mtto_eq.codigo,
+      mtto_equipo_nombre = v_mtto_eq.nombre,
       solucion = left(v_solucion, 300),
       inicio = v_ini,
       fin = v_fin,
@@ -464,7 +859,7 @@ begin
   );
 end;
 $$;
-grant execute on function terminar_parada(text, uuid, text, text, text, text, text, text) to anon, authenticated;
+grant execute on function terminar_parada(text, uuid, text, text, text, text, text, text, text) to anon, authenticated;
 
 -- ------------------------------------------------------------
 -- 6. abrir_parada_mantenimiento(): Mantenimiento abre la suya. Si la línea
@@ -618,8 +1013,17 @@ begin
     if v_le.parada_id is not null and exists (select 1 from paradas where id = v_le.parada_id and pendiente) then
       raise exception 'Completa la parada (tipo y minutos) en el Modo Paradas antes de continuar.';
     end if;
-    if v_le.parada_id is not null and la_termina_mantenimiento(v_le.parada_id) then
-      raise exception 'Esta parada la termina Mantenimiento: la línea sigue sola cuando la terminen.';
+    -- Con el interruptor encendido, mientras Mantenimiento tenga una parada abierta en la
+    -- línea (aunque la línea esté detenida por otra), el supervisor no la continúa.
+    if exists (
+      select 1
+      from paradas p
+      join lineas l on l.id = p.linea_id
+      join areas a on a.id = l.area_id
+      where p.linea_id = v_c.linea_id and p.fin is null and not p.pendiente
+        and p.responsable = 'MANTENIMIENTO' and a.mantenimiento_finaliza
+    ) then
+      raise exception 'Mantenimiento debe terminar su parada.';
     end if;
 
     -- Con minutos, el tiempo guía se compara con lo que dijo el supervisor, no con el reloj.
@@ -768,7 +1172,11 @@ returns table (
   lote text,
   sabor text,
   terminada_por_nombre text,
-  abierta boolean
+  abierta boolean,
+  inicio_real text,
+  mtto_equipo_codigo text,
+  mtto_equipo_nombre text,
+  subsistema_nombre text
 )
 language sql
 security definer
@@ -799,7 +1207,12 @@ as $$
     pp.sabor,
     ut.nombre,
     -- El tramo de un turno cerrado trae fin, pero la parada puede seguir abierta.
-    (pp.id is not null and pp.fin is null)
+    (pp.id is not null and pp.fin is null),
+    -- e.inicio viene recortado al turno; este es el comienzo verdadero.
+    to_char(coalesce(pp.inicio, e.inicio) at time zone 'America/Caracas', 'YYYY-MM-DD"T"HH24:MI:SS'),
+    pp.mtto_equipo_codigo,
+    pp.mtto_equipo_nombre,
+    pp.subsistema_nombre
   from paradas_efectivas_turno(p_turno_id) e
   join lineas l on l.id = e.linea_id
   join turnos tu on tu.id = p_turno_id
@@ -837,7 +1250,11 @@ as $$
     p.lote,
     p.sabor,
     ut.nombre,
-    (p.fin is null)
+    (p.fin is null),
+    to_char(p.inicio at time zone 'America/Caracas', 'YYYY-MM-DD"T"HH24:MI:SS'),
+    p.mtto_equipo_codigo,
+    p.mtto_equipo_nombre,
+    p.subsistema_nombre
   from paradas p
   join lineas l on l.id = p.linea_id
   join areas ar on ar.id = l.area_id
@@ -1001,7 +1418,7 @@ create or replace function completar_parada(
   p_fin text default null,
   p_tipo_codigo text default null,
   p_justificacion text default null,
-  p_pagina text default 'Registrar Paradas'
+  p_pagina text default 'Modo Paradas'
 )
 returns void
 language plpgsql

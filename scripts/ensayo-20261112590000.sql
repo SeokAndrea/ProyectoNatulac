@@ -227,14 +227,14 @@ begin
     perform pausar_linea('ens_sup', c.turno, c.c1, 'Se trabó', c.tipo, 'OPERACIONAL', pg_temp.hp(now() - interval '30 minutes'));
     select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Se trabó';
 
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SUB-01', '  ')$q$, p.id, c.tipo), 'qué se hizo');
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, 'FALLA_SIN_ESPECIFICAR', 'SUB-01', 'Se ajustó')$q$, p.id), 'catálogo');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', '  ', p_mtto_equipo_codigo => 'CBP32')$q$, p.id, c.tipo), 'qué se hizo');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, 'FALLA_SIN_ESPECIFICAR', 'SIN_SUBSISTEMA', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32')$q$, p.id), 'no se cambian');
     perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, '', 'Se ajustó')$q$, p.id, c.tipo), 'subsistema');
 
-    perform terminar_parada('ens_sup', p.id, c.tipo, 'SUB-01', 'Se ajustó la guía', pg_temp.hp(now() - interval '5 minutes'));
+    perform terminar_parada('ens_sup', p.id, c.tipo, 'A3CF-AIR-05', 'Se ajustó la guía', pg_temp.hp(now() - interval '5 minutes'), p_mtto_equipo_codigo => 'A3CFLEX');
     select * into p from paradas where id = p.id;
     if p.fin is null then raise exception 'no quedó terminada'; end if;
-    if p.subsistema_codigo is distinct from 'SUB-01' or p.solucion is distinct from 'Se ajustó la guía' then
+    if p.subsistema_codigo is distinct from 'A3CF-AIR-05' or p.solucion is distinct from 'Se ajustó la guía' then
       raise exception 'código o solución: % / %', p.subsistema_codigo, p.solucion;
     end if;
     if p.terminada_por is distinct from (select id from usuarios where usuario = 'ens_sup') or p.terminada_en is null then
@@ -268,10 +268,10 @@ begin
     if p.responsable is distinct from 'MANTENIMIENTO' then raise exception 'responsable %', p.responsable; end if;
     if not la_termina_mantenimiento(p.id) then raise exception 'la_termina_mantenimiento dio falso'; end if;
 
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SUB-02', 'Se cambió')$q$, p.id, c.tipo), 'la termina Mantenimiento');
-    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L)$q$, c.turno, c.c1), 'la termina Mantenimiento');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', 'Se cambió', p_mtto_equipo_codigo => 'CBP32')$q$, p.id, c.tipo), 'la termina Mantenimiento');
+    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L)$q$, c.turno, c.c1), 'Mantenimiento debe terminar');
 
-    perform terminar_parada('ens_mtto', p.id, c.tipo, 'SUB-02', 'Se cambió el resorte', pg_temp.hp(v_fin), pg_temp.hp(v_ini));
+    perform terminar_parada('ens_mtto', p.id, c.tipo, 'SIN_SUBSISTEMA', 'Se cambió el resorte', pg_temp.hp(v_fin), pg_temp.hp(v_ini), p_mtto_equipo_codigo => 'CBP32');
     select * into p from paradas where id = p.id;
     if p.fin is distinct from v_fin or p.inicio is distinct from v_ini then
       raise exception 'tiempos % - % (esperaba % - %)', p.inicio, p.fin, v_ini, v_fin;
@@ -297,7 +297,7 @@ begin
     perform pausar_linea('ens_sup', c.turno, c.c1, 'Ruido en la mordaza', c.tipo, 'MANTENIMIENTO');
     select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Ruido en la mordaza';
     if la_termina_mantenimiento(p.id) then raise exception 'la_termina_mantenimiento dio verdadero con el interruptor apagado'; end if;
-    perform terminar_parada('ens_sup', p.id, c.tipo, 'SUB-02', 'Se ajustó');
+    perform terminar_parada('ens_sup', p.id, c.tipo, 'SIN_SUBSISTEMA', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32');
     if (select fin from paradas where id = p.id) is null then raise exception 'no quedó terminada'; end if;
     if (select pausada_en from turno_lineas where id = c.c1) is not null then raise exception 'la línea no siguió sola'; end if;
     raise exception 'ENSAYO_OK';
@@ -317,12 +317,12 @@ begin
     select * into c from ctx;
     perform pausar_linea('ens_sup', c.turno, c.c1, 'Se trabó', c.tipo, 'OPERACIONAL', pg_temp.hp(now() - interval '20 minutes'));
     select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Se trabó';
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SUB-01', 'Se ajustó', %L)$q$,
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', 'Se ajustó', %L, p_mtto_equipo_codigo => 'CBP32')$q$,
       p.id, c.tipo, pg_temp.hp(now() - interval '40 minutes')), 'anterior al inicio');
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SUB-01', 'Se ajustó', %L)$q$,
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', 'Se ajustó', %L, p_mtto_equipo_codigo => 'CBP32')$q$,
       p.id, c.tipo, pg_temp.hp(now() + interval '1 hour')), 'futuro');
-    perform terminar_parada('ens_sup', p.id, c.tipo, 'SUB-01', 'Se ajustó');
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SUB-01', 'Otra vez')$q$, p.id, c.tipo), 'ya terminó');
+    perform terminar_parada('ens_sup', p.id, c.tipo, 'SIN_SUBSISTEMA', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', 'Otra vez', p_mtto_equipo_codigo => 'CBP32')$q$, p.id, c.tipo), 'ya terminó');
     raise exception 'ENSAYO_OK';
   exception when others then
     if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
@@ -361,13 +361,13 @@ begin
     select e.inicio, e.fin into a1, b1 from paradas_efectivas_turno(v_cerrado) e where e.id = v_par;
     if a1 is distinct from v_ini or b1 is null then raise exception 'tramo del turno cerrado antes: % - %', a1, b1; end if;
 
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_mtto', %L, %L, 'SUB-03', 'Se cambió')$q$, v_par, c.tipo), 'hora de fin');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_mtto', %L, %L, 'SIN_SUBSISTEMA', 'Se cambió', p_mtto_equipo_codigo => 'CBP32')$q$, v_par, c.tipo), 'hora de fin');
     -- Un fin dentro del turno cerrado le cambiaría su tramo.
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_mtto', %L, %L, 'SUB-03', 'Se cambió', %L)$q$,
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_mtto', %L, %L, 'SIN_SUBSISTEMA', 'Se cambió', %L, p_mtto_equipo_codigo => 'CBP32')$q$,
       v_par, c.tipo, pg_temp.hp(now() - interval '150 minutes')), 'turno ya cerrado');
 
-    perform terminar_parada('ens_mtto', v_par, c.tipo, 'SUB-03', 'Se cambió el sello',
-      pg_temp.hp(now() - interval '30 minutes'), pg_temp.hp(now() - interval '5 hours'));
+    perform terminar_parada('ens_mtto', v_par, c.tipo, 'SIN_SUBSISTEMA', 'Se cambió el sello',
+      pg_temp.hp(now() - interval '30 minutes'), pg_temp.hp(now() - interval '5 hours'), p_mtto_equipo_codigo => 'CBP32');
     if (select inicio from paradas where id = v_par) is distinct from v_ini then raise exception 'cambió el inicio'; end if;
     if (select fin from paradas where id = v_par) is null then raise exception 'no quedó terminada'; end if;
 
@@ -399,9 +399,9 @@ begin
             'CERRADO', v_cierre::date, v_cierre::time, now() - interval '10 hours');
     perform pausar_linea('ens_sup', c.turno, c.c1, 'Se trabó', c.tipo, 'OPERACIONAL', pg_temp.hp(now() - interval '20 minutes'));
     select id into v_par from paradas where linea_id = c.l1 and fin is null and nota = 'Se trabó';
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SUB-01', 'Se ajustó', null, %L)$q$,
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', 'Se ajustó', null, %L, p_mtto_equipo_codigo => 'CBP32')$q$,
       v_par, c.tipo, pg_temp.hp(now() - interval '3 hours')), 'turno ya cerrado');
-    perform terminar_parada('ens_sup', v_par, c.tipo, 'SUB-01', 'Se ajustó', null, pg_temp.hp(now() - interval '25 minutes'));
+    perform terminar_parada('ens_sup', v_par, c.tipo, 'SIN_SUBSISTEMA', 'Se ajustó', null, pg_temp.hp(now() - interval '25 minutes'), p_mtto_equipo_codigo => 'CBP32');
     raise exception 'ENSAYO_OK';
   exception when others then
     if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
@@ -464,11 +464,11 @@ begin
       raise exception 'paradas_que_detienen_lineas: % / %', r.responsable, r.de_mantenimiento;
     end if;
 
-    perform terminar_parada('ens_mtto', v_par, c.tipo, 'SUB-09', 'Se cambió');
+    perform terminar_parada('ens_mtto', v_par, c.tipo, 'SIN_SUBSISTEMA', 'Se cambió', p_mtto_equipo_codigo => 'CBP32');
 
     select * into r from listar_paradas(v_hoy - 1, v_hoy + 1, null, null, null, 'ASEPTICO') l where l.id = v_par;
     if r.id is null then raise exception 'no sale en el listado por fechas'; end if;
-    if r.responsable is distinct from 'MANTENIMIENTO' or r.subsistema_codigo is distinct from 'SUB-09'
+    if r.responsable is distinct from 'MANTENIMIENTO' or r.subsistema_codigo is distinct from 'SIN_SUBSISTEMA'
        or r.lote is distinct from 'L-ENS-LINEA_1' or r.sabor is distinct from c.sabor
        or r.terminada_por_nombre is distinct from 'Mario' then
       raise exception 'por fechas: % / % / % / % / %', r.responsable, r.subsistema_codigo, r.lote, r.sabor, r.terminada_por_nombre;
@@ -476,7 +476,7 @@ begin
 
     select * into r from listar_paradas(null, null, null, null, c.turno) l where l.id = v_par;
     if r.id is null then raise exception 'no sale en el listado del turno'; end if;
-    if r.responsable is distinct from 'MANTENIMIENTO' or r.subsistema_codigo is distinct from 'SUB-09'
+    if r.responsable is distinct from 'MANTENIMIENTO' or r.subsistema_codigo is distinct from 'SIN_SUBSISTEMA'
        or r.lote is distinct from 'L-ENS-LINEA_1' or r.sabor is distinct from c.sabor
        or r.terminada_por_nombre is distinct from 'Mario' then
       raise exception 'del turno: % / % / % / % / %', r.responsable, r.subsistema_codigo, r.lote, r.sabor, r.terminada_por_nombre;
@@ -535,8 +535,8 @@ begin
     if es_de_mantenimiento('ens_duena') then raise exception 'la dueña del ensayo no debería ser de Mantenimiento'; end if;
     perform pausar_linea('ens_sup', c.turno, c.c1, 'Ruido en la mordaza', c.tipo, 'MANTENIMIENTO', pg_temp.hp(now() - interval '30 minutes'));
     select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Ruido en la mordaza';
-    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SUB-02', 'Se cambió')$q$, p.id, c.tipo), 'la termina Mantenimiento');
-    perform terminar_parada('ens_duena', p.id, c.tipo, 'SUB-02', 'Se cambió el resorte');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', 'Se cambió', p_mtto_equipo_codigo => 'CBP32')$q$, p.id, c.tipo), 'la termina Mantenimiento');
+    perform terminar_parada('ens_duena', p.id, c.tipo, 'SIN_SUBSISTEMA', 'Se cambió el resorte', p_mtto_equipo_codigo => 'CBP32');
     select * into p from paradas where id = p.id;
     if p.fin is null then raise exception 'no quedó terminada'; end if;
     if p.terminada_por is distinct from (select id from usuarios where usuario = 'ens_duena') then raise exception 'terminada_por'; end if;
@@ -622,7 +622,7 @@ begin
             'Parada por clasificar', 'pendiente de prueba', now() - interval '30 minutes', now() - interval '30 minutes', true,
             (select id from usuarios where usuario = 'ens_sup'))
     returning id into v_id;
-    perform terminar_parada('ens_sup', v_id, c.tipo, 'SUB-01', 'Se ajustó');
+    perform terminar_parada('ens_sup', v_id, c.tipo, 'SIN_SUBSISTEMA', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32');
     select * into p from paradas where id = v_id;
     if p.pendiente then raise exception 'sigue pendiente'; end if;
     if p.fin is null or p.fin <= p.inicio then raise exception 'fin % / inicio %', p.fin, p.inicio; end if;
@@ -785,14 +785,261 @@ begin
     update areas set mantenimiento_finaliza = true where id = c.asep;
     perform pausar_linea('ens_sup', c.turno, c.c1, 'Fuga en la válvula', c.tipo, 'MANTENIMIENTO', pg_temp.hp(now() - interval '30 minutes'));
     select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Fuga en la válvula';
-    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L, null, 10)$q$, c.turno, c.c1), 'la termina Mantenimiento');
-    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L)$q$, c.turno, c.c1), 'la termina Mantenimiento');
+    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L, null, 10)$q$, c.turno, c.c1), 'Mantenimiento debe terminar');
+    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L)$q$, c.turno, c.c1), 'Mantenimiento debe terminar');
     if (select fin from paradas where id = p.id) is not null then raise exception 'se cerró con el interruptor encendido'; end if;
     if (select pausada_en from turno_lineas where id = c.c1) is null then raise exception 'la línea siguió'; end if;
 
     update areas set mantenimiento_finaliza = false where id = c.asep;
     perform continuar_linea('ens_sup', c.turno, c.c1, null, 10);
     if (select fin from paradas where id = p.id) is not null then raise exception 'con el interruptor apagado, Continuar con minutos la cerró'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 21. Catálogo propio de Mantenimiento: sembrado, listados, sin dependencia del de Producción.
+do $caso$
+declare
+  n text := '21 catálogo de Mantenimiento: sembrado, aparte del de Producción, sin borrar';
+begin
+  begin
+    if (select count(*) from mtto_equipos) <> 14 then raise exception 'equipos: %', (select count(*) from mtto_equipos); end if;
+    if (select count(*) from mtto_subsistemas) <> 128 then raise exception 'hay % subsistemas (128 esperados)', (select count(*) from mtto_subsistemas); end if;
+    if (select count(*) from listar_mtto_subsistemas()) <> 128 then raise exception 'listar sin equipo'; end if;
+    if (select count(*) from listar_mtto_subsistemas('A3CFLEX')) <> 30 then raise exception 'A3CFLEX'; end if;
+    if (select count(*) from listar_mtto_subsistemas('ALCIP')) <> 1 then raise exception 'ALCIP'; end if;
+    if (select equipo_produccion_codigo from listar_mtto_equipos() where codigo = 'TAVIL') is distinct from 'ROBOT_TAVIL' then raise exception 'preselección de TAVIL'; end if;
+    if (select equipo_produccion_codigo from listar_mtto_equipos() where codigo = 'ALCIP') is not null then raise exception 'ALCIP no tiene equipo de Producción'; end if;
+    if to_regclass('public.paradas_subsistemas') is not null then raise exception 'resucitó paradas_subsistemas'; end if;
+    if exists (
+      select 1 from pg_constraint c
+      where c.contype = 'f' and c.conrelid in ('mtto_equipos'::regclass, 'mtto_subsistemas'::regclass)
+        and c.confrelid in ('paradas_equipos'::regclass, 'paradas_tipos'::regclass)
+    ) then raise exception 'depende del catálogo de Producción'; end if;
+    perform pg_temp.espera_error($q$delete from mtto_subsistemas where codigo = 'A3CF-AIR-05'$q$, 'se desactivan');
+    perform pg_temp.espera_error($q$delete from mtto_equipos where codigo = 'CBP32'$q$, 'se desactivan');
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 22. Quién edita el catálogo de Mantenimiento: Mantenimiento y la dueña; ningún rol de Producción.
+do $caso$
+declare
+  n text := '22 editar el catálogo de Mantenimiento: permisos, trazabilidad y auditoría';
+  r mtto_subsistemas;
+  v_mt uuid := (select id from usuarios where usuario = 'ens_mtto');
+  v_jefe uuid;
+begin
+  begin
+    insert into usuarios (usuario, nombre, apellido, password_hash, debe_completar_perfil)
+    values ('ens_jefe', 'Jaime', 'Ensayo', 'x', false) returning id into v_jefe;
+    insert into usuario_roles (usuario_id, rol_id, area_id)
+    values (v_jefe, (select id from roles where codigo = 'JEFE_PRODUCCION'), (select id from areas where codigo = 'ASEPTICO'));
+
+    perform pg_temp.espera_error($q$select guardar_mtto_subsistema('ens_sup', 'A3CFLEX', 'A3CF-NUEVO-99', 'Pieza nueva')$q$, 'Solo Mantenimiento');
+    perform pg_temp.espera_error($q$select guardar_mtto_subsistema('ens_jefe', 'A3CFLEX', 'A3CF-NUEVO-99', 'Pieza nueva')$q$, 'Solo Mantenimiento');
+    perform pg_temp.espera_error($q$select guardar_mtto_equipo('ens_sup', 'NUEVOEQ', 'Equipo nuevo')$q$, 'Solo Mantenimiento');
+    perform pg_temp.espera_error($q$select guardar_mtto_equipo('ens_jefe', 'CBP32', 'Otro nombre')$q$, 'Solo Mantenimiento');
+    if exists (select 1 from mtto_equipos where codigo = 'NUEVOEQ') or exists (select 1 from mtto_subsistemas where codigo = 'A3CF-NUEVO-99') then
+      raise exception 'Producción pudo escribir';
+    end if;
+    perform pg_temp.espera_error($q$select guardar_mtto_subsistema('ens_mtto', 'A3CFLEX', ' ', 'Pieza nueva')$q$, 'código');
+    perform pg_temp.espera_error($q$select guardar_mtto_subsistema('ens_mtto', 'A3CFLEX', 'X-1', '')$q$, 'nombre');
+    perform pg_temp.espera_error($q$select guardar_mtto_subsistema('ens_mtto', 'NOEXISTE', 'X-1', 'Algo')$q$, 'equipo');
+    perform pg_temp.espera_error($q$select guardar_mtto_subsistema('ens_mtto', 'A3CFLEX', 'SIN_SUBSISTEMA', 'Nada')$q$, 'reservado');
+
+    perform guardar_mtto_subsistema('ens_mtto', 'a3cflex', 'a3cf-nuevo-99', 'Pieza nueva', true);
+    select * into r from mtto_subsistemas where equipo_codigo = 'A3CFLEX' and codigo = 'A3CF-NUEVO-99';
+    if r.id is null or r.nombre <> 'Pieza nueva' or not r.activo or r.creado_por is distinct from v_mt or r.creado_en is null or r.editado_por is not null then
+      raise exception 'alta: % / % / %', r.nombre, r.activo, r.creado_por;
+    end if;
+    perform guardar_mtto_subsistema('ens_duena', 'A3CFLEX', 'A3CF-NUEVO-99', 'Pieza renombrada', true);
+    select * into r from mtto_subsistemas where id = r.id;
+    if r.nombre <> 'Pieza renombrada' or r.editado_por is distinct from (select id from usuarios where usuario = 'ens_duena') or r.editado_en is null then
+      raise exception 'la dueña no editó o no quedó quién';
+    end if;
+    perform guardar_mtto_subsistema('ens_mtto', 'A3CFLEX', 'A3CF-NUEVO-99', 'Pieza renombrada', false);
+    if (select activo from mtto_subsistemas where id = r.id) then raise exception 'no desactivó'; end if;
+    if (select count(*) from mtto_subsistemas) <> 129 then raise exception 'debió quedar 1 fila nueva'; end if;
+    if (select count(*) from auditoria where entidad = 'mtto_subsistemas' and entidad_id = r.id::text) <> 3 then
+      raise exception 'auditoría de subsistema: %', (select count(*) from auditoria where entidad = 'mtto_subsistemas' and entidad_id = r.id::text);
+    end if;
+    if (select antes ->> 'nombre' from auditoria where entidad = 'mtto_subsistemas' and entidad_id = r.id::text and accion = 'EDITAR' order by ocurrido_en, id limit 1) is distinct from 'Pieza nueva' then
+      raise exception 'la auditoría no guardó el antes';
+    end if;
+
+    perform guardar_mtto_equipo('ens_mtto', 'nuevoeq', 'Equipo nuevo', 'FILM_WRAPPER');
+    perform guardar_mtto_equipo('ens_mtto', 'NUEVOEQ', 'Equipo renombrado', null, false);
+    if (select nombre || '/' || activo::text || '/' || coalesce(equipo_produccion_codigo, '-') from mtto_equipos where codigo = 'NUEVOEQ') <> 'Equipo renombrado/false/-' then
+      raise exception 'equipo editado';
+    end if;
+    if (select count(*) from auditoria where entidad = 'mtto_equipos' and entidad_id = 'NUEVOEQ') <> 2 then raise exception 'auditoría de equipo'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 23. terminar_parada: equipo y subsistema de Mantenimiento (o «Sin subsistema»), con copia del
+--     nombre; lo de Producción no se toca.
+do $caso$
+declare
+  n text := '23 terminar_parada: equipo y subsistema de Mantenimiento, nombre congelado, Producción intacta';
+  c ctx;
+  p paradas;
+  q paradas;
+  v_nom text;
+begin
+  begin
+    select * into c from ctx;
+    perform pausar_linea('ens_sup', c.turno, c.c1, 'Se trabó', c.tipo, 'OPERACIONAL', pg_temp.hp(now() - interval '30 minutes'));
+    select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Se trabó';
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, '', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32')$q$, p.id, c.tipo), 'subsistema');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', 'Se ajustó')$q$, p.id, c.tipo), 'equipo de Mantenimiento');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SIN_SUBSISTEMA', 'Se ajustó', p_mtto_equipo_codigo => 'NOEXISTE')$q$, p.id, c.tipo), 'equipo de Mantenimiento');
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'INVENTADO-1', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32')$q$, p.id, c.tipo), 'de la lista');
+    -- Un código de otro equipo no vale.
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'A3CF-AIR-05', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32')$q$, p.id, c.tipo), 'de la lista');
+    -- Mantenimiento no cambia el equipo y la falla de Producción.
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_mtto', %L, 'DESVASE_PRODUCTO', 'SIN_SUBSISTEMA', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32')$q$, p.id), 'no se cambian');
+    update mtto_subsistemas set activo = false where codigo = 'A3CF-AIR-05';
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'A3CF-AIR-05', 'Se ajustó', p_mtto_equipo_codigo => 'A3CFLEX')$q$, p.id, c.tipo), 'de la lista');
+    update mtto_subsistemas set activo = true where codigo = 'A3CF-AIR-05';
+
+    perform terminar_parada('ens_sup', p.id, c.tipo, 'A3CF-AIR-05', 'Se ajustó', p_mtto_equipo_codigo => 'A3CFLEX');
+    select * into q from paradas where id = p.id;
+    select nombre into v_nom from mtto_subsistemas where codigo = 'A3CF-AIR-05';
+    if q.fin is null or q.subsistema_codigo <> 'A3CF-AIR-05' or q.mtto_equipo_codigo <> 'A3CFLEX'
+       or q.subsistema_nombre is distinct from v_nom or q.mtto_equipo_nombre <> 'A3CFLEX' then
+      raise exception 'no guardó lo de Mantenimiento: % / % / % / %', q.subsistema_codigo, q.mtto_equipo_codigo, q.subsistema_nombre, q.mtto_equipo_nombre;
+    end if;
+    if q.tipo_id is distinct from p.tipo_id or q.tipo_nombre is distinct from p.tipo_nombre or q.clase is distinct from p.clase then
+      raise exception 'tocó lo de Producción';
+    end if;
+    -- Renombrar después no cambia el reporte viejo.
+    perform guardar_mtto_subsistema('ens_mtto', 'A3CFLEX', 'A3CF-AIR-05', 'Otro nombre', true);
+    perform guardar_mtto_equipo('ens_mtto', 'A3CFLEX', 'Otro equipo', null, true);
+    if (select subsistema_nombre from paradas where id = p.id) is distinct from v_nom
+       or (select mtto_equipo_nombre from paradas where id = p.id) is distinct from 'A3CFLEX' then
+      raise exception 'el reporte viejo cambió con el renombre';
+    end if;
+
+    -- Sin subsistema.
+    perform pausar_linea('ens_sup', c.turno, c.c1, 'Otra vez', c.tipo, 'OPERACIONAL', pg_temp.hp(now() - interval '20 minutes'));
+    select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Otra vez';
+    perform terminar_parada('ens_sup', p.id, c.tipo, 'SIN_SUBSISTEMA', 'Se ajustó', p_mtto_equipo_codigo => 'CBP32');
+    select * into q from paradas where id = p.id;
+    if q.subsistema_codigo <> 'SIN_SUBSISTEMA' or q.subsistema_nombre <> 'Sin subsistema' or q.mtto_equipo_codigo <> 'CBP32' then
+      raise exception 'Sin subsistema: % / %', q.subsistema_codigo, q.subsistema_nombre;
+    end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 24. Mantenimiento en Pruebas: con rol Mantenimiento y área Pruebas trabaja en las
+--     líneas de Pruebas; el de área Mantenimiento sigue en Aséptico.
+do $caso$
+declare
+  n text := '24 Mantenimiento en Pruebas: abre y termina en el área de la sesión';
+  c ctx;
+  v_pr uuid;
+  v_id uuid;
+  v_as uuid;
+  v_u uuid;
+begin
+  begin
+    select * into c from ctx;
+    insert into usuarios (usuario, nombre, apellido, password_hash, debe_completar_perfil)
+    values ('ens_mtto_pr', 'Pablo', 'Pruebas', 'x', false) returning id into v_u;
+    insert into usuario_roles (usuario_id, rol_id, area_id)
+    values (v_u, (select id from roles where codigo = 'MANTENIMIENTO'), (select id from areas where codigo = 'PRUEBAS'));
+    update areas set mantenimiento_finaliza = true where codigo = 'PRUEBAS';
+    select id into v_pr from lineas where codigo = 'LINEA_T1';
+
+    v_id := abrir_parada_mantenimiento('ens_mtto_pr', 'LINEA_1', c.tipo, 'Falla en Pruebas');
+    if (select linea_id from paradas where id = v_id) is distinct from v_pr then raise exception 'no abrió en la línea de Pruebas'; end if;
+    if not es_de_mantenimiento('ens_mtto_pr') then raise exception 'no es de Mantenimiento'; end if;
+    if not la_termina_mantenimiento(v_id) then raise exception 'con el interruptor encendido la termina Mantenimiento'; end if;
+    perform terminar_parada('ens_mtto_pr', v_id, c.tipo, 'SIN_SUBSISTEMA', 'Se ajustó', pg_temp.hp(now() + interval '0 minutes'), pg_temp.hp(now() - interval '10 minutes'), p_mtto_equipo_codigo => 'CBP32');
+    if (select fin from paradas where id = v_id) is null then raise exception 'no terminó en Pruebas'; end if;
+    if (select terminada_por from paradas where id = v_id) is distinct from v_u then raise exception 'terminada_por'; end if;
+
+    -- El de área Mantenimiento sigue en Aséptico.
+    v_as := abrir_parada_mantenimiento('ens_mtto', 'LINEA_3', c.tipo, 'Falla en Aséptico');
+    if (select l.area_id from paradas p join lineas l on l.id = p.linea_id where p.id = v_as) is distinct from c.asep then
+      raise exception 'el de área Mantenimiento no abrió en Aséptico';
+    end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 25. Línea ya parada por una Operacional y Mantenimiento abre la suya: con el
+--     interruptor encendido el supervisor no continúa hasta que Mantenimiento
+--     la termina; Continuar nunca la marca como «la línea siguió».
+do $caso$
+declare
+  n text := '25 Mantenimiento sobre línea ya pausada: Continuar rechazado';
+  c ctx;
+  v_op paradas;
+  v_mt uuid;
+begin
+  begin
+    select * into c from ctx;
+    update areas set mantenimiento_finaliza = true where id = c.asep;
+    perform pausar_linea('ens_sup', c.turno, c.c1, 'Se trabó', c.tipo, 'OPERACIONAL', pg_temp.hp(now() - interval '30 minutes'));
+    select * into v_op from paradas where linea_id = c.l1 and fin is null and nota = 'Se trabó';
+    v_mt := abrir_parada_mantenimiento('ens_mtto', 'LINEA_1', c.tipo, 'Fuga de aire', pg_temp.hp(now() - interval '5 minutes'));
+    if (select parada_id from lineas_estado where turno_id = c.turno and linea_id = c.l1) is distinct from v_op.id then
+      raise exception 'la línea dejó de estar ligada a la Operacional';
+    end if;
+
+    perform pg_temp.espera_error(format($q$select continuar_linea('ens_sup', %L, %L)$q$, c.turno, c.c1), 'Mantenimiento debe terminar su parada');
+    if (select fin from paradas where id = v_op.id) is not null then raise exception 'cerró la Operacional'; end if;
+    if (select linea_siguio_en from paradas where id = v_mt) is not null then raise exception 'marcó la de Mantenimiento como línea siguió'; end if;
+    if (select pausada_en from turno_lineas where id = c.c1) is null then raise exception 'la línea siguió'; end if;
+
+    -- Mantenimiento la termina: ahora sí el supervisor continúa y la de Mantenimiento no queda perdida.
+    perform terminar_parada('ens_mtto', v_mt, c.tipo, 'SIN_SUBSISTEMA', 'Se cambió el racor', p_mtto_equipo_codigo => 'CBP32');
+    if (select fin from paradas where id = v_mt) is null then raise exception 'Mantenimiento no la terminó'; end if;
+    perform continuar_linea('ens_sup', c.turno, c.c1);
+    if (select fin from paradas where id = v_op.id) is null then raise exception 'Continuar no cerró la Operacional'; end if;
+    if (select pausada_en from turno_lineas where id = c.c1) is not null then raise exception 'la línea no siguió'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 26. listar_paradas del turno: inicio recortado al turno e inicio_real verdadero.
+do $caso$
+declare
+  n text := '26 listar_paradas: inicio_real no se recorta al turno';
+  c ctx;
+  v_id uuid;
+  v_real timestamptz := now() - interval '20 hours';
+  r record;
+begin
+  begin
+    select * into c from ctx;
+    insert into paradas (turno_id, linea_id, tipo_id, clase, origen, tipo_nombre, nota, inicio, fin, pendiente, responsable)
+    values (null, c.l3, (select id from paradas_tipos where codigo = c.tipo), 'NO_PROGRAMADA', 'MANUAL', 'Larga', 'ENS-LARGA',
+            v_real, null, false, 'MANTENIMIENTO')
+    returning id into v_id;
+    select * into r from listar_paradas(current_date - 1, current_date + 1, null, null, c.turno) where id = v_id;
+    if r.id is null then raise exception 'la parada no aparece en el turno'; end if;
+    if r.inicio_real is distinct from pg_temp.hp(v_real) then raise exception 'inicio_real % (esperaba %)', r.inicio_real, pg_temp.hp(v_real); end if;
+    if r.mtto_equipo_codigo is not null or r.subsistema_nombre is not null then raise exception 'columnas de Mantenimiento deberian venir vacias'; end if;
+    if r.inicio = r.inicio_real then raise exception 'inicio no se recortó (el ensayo no prueba nada)'; end if;
+    select * into r from listar_paradas(current_date - 2, current_date + 1) where id = v_id;
+    if r.inicio_real is distinct from pg_temp.hp(v_real) or r.inicio_real is distinct from r.inicio then raise exception 'por fechas: % / %', r.inicio_real, r.inicio; end if;
     raise exception 'ENSAYO_OK';
   exception when others then
     if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
