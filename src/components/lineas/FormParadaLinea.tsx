@@ -6,18 +6,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { MensajeError } from "@/components/MensajeError"
-import { fmtDuracion, LARGO_NOTA_PARADA, TIPO_FALLA_SIN_ESPECIFICAR, type TipoParada } from "@/lib/paradas"
+import { fmtDuracion, LARGO_NOTA_PARADA, TIPO_FALLA_SIN_ESPECIFICAR, type ResponsableParada, type TipoParada } from "@/lib/paradas"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
 import type { AccionesLinea } from "./tipos"
 import { useAccion } from "@/lib/useAccion"
 
 /**
- * "Parada": pausa la corrida y deja abierta su parada (migración
- * 20261111590000). Empieza ahora, o a la hora que se ponga si empezó
- * antes; Continuar la termina. Dos caminos (20261112590000):
- *  - «Sé la causa»: el tipo del catálogo.
- *  - «No sé / es una falla»: solo la descripción; queda como «Falla sin
- *    especificar» y Mantenimiento le pone el código después.
+ * "Parar": pausa la corrida y deja abierta su parada. Empieza ahora, o a la
+ * hora que se ponga si empezó antes; Continuar la termina. Responsable
+ * (Operacional o Mantenimiento), Equipo y Falla, y Comentario son
+ * obligatorios. Con `responsableFijo` (Mantenimiento) no se pregunta.
  */
 export function FormParadaLinea({
   corridaId,
@@ -25,6 +23,7 @@ export function FormParadaLinea({
   areaCodigo,
   presentacionMl,
   desdeAntes = false,
+  responsableFijo,
   pausar,
   onCerrar,
 }: {
@@ -34,63 +33,58 @@ export function FormParadaLinea({
   presentacionMl: number | null
   /** Abre de entrada el campo de la hora de inicio (Status: la línea ya estaba parada). */
   desdeAntes?: boolean
+  /** Si viene, no se muestra el selector y se usa este responsable. */
+  responsableFijo?: ResponsableParada
   pausar: AccionesLinea["pausar"]
   onCerrar: () => void
 }) {
   const equipos = useEquiposParadas()
-  const [noSe, setNoSe] = useState(false)
+  const [elegido, setElegido] = useState<ResponsableParada | null>(null)
   const [tipo, setTipo] = useState<TipoParada | null>(null)
   const [motivo, setMotivo] = useState("")
   const [conInicio, setConInicio] = useState(desdeAntes)
   const [inicio, setInicio] = useState(ahoraPlanta)
   const { enviando, error, ejecutar } = useAccion()
   const area = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
-  const tipoCodigo = noSe ? TIPO_FALLA_SIN_ESPECIFICAR : tipo?.codigo
-  const listo = tipoCodigo !== undefined && motivo.trim() !== "" && (!conInicio || inicio !== "")
+  const responsable = responsableFijo ?? elegido
+  const tipoCodigo = tipo?.codigo
+  const listo = responsable !== null && tipoCodigo !== undefined && motivo.trim() !== "" && (!conInicio || inicio !== "")
 
   async function confirmar() {
-    if (!tipoCodigo || !listo) return
-    // El selector de Responsable llega con la pantalla nueva; mientras, Operacional.
-    const datos = { motivo: motivo.trim(), tipoCodigo, responsable: "OPERACIONAL" as const, inicio: conInicio ? conSegundos(inicio) : null }
+    if (!tipoCodigo || !responsable || !listo) return
+    const datos = { motivo: motivo.trim(), tipoCodigo, responsable, inicio: conInicio ? conSegundos(inicio) : null }
     if (await ejecutar(() => pausar(corridaId, datos))) onCerrar()
   }
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-      <p className="text-xs text-foreground">
-        Parada: la línea se para ya y el tiempo empieza a contar. Al darle Continuar, termina con esa hora.
-      </p>
-      <div role="radiogroup" aria-label="¿Sabes la causa?" className="grid grid-cols-2 gap-2">
-        <Button type="button" size="sm" role="radio" aria-checked={!noSe} variant={noSe ? "outline" : "default"} onClick={() => setNoSe(false)}>
-          Sé la causa
-        </Button>
-        <Button type="button" size="sm" role="radio" aria-checked={noSe} variant={noSe ? "default" : "outline"} onClick={() => setNoSe(true)}>
-          No sé / es una falla
-        </Button>
-      </div>
-      {noSe ? (
-        <p className="text-xs text-muted-foreground">Queda como «Falla sin especificar»: Mantenimiento le pone el código después.</p>
-      ) : (
-        <>
-          <BuscadorTipoParada
-            lineaCodigo={lineaCodigo}
-            area={area}
-            equipos={equipos}
-            presentacionMl={presentacionMl}
-            permitir={(t) => t.codigo !== TIPO_FALLA_SIN_ESPECIFICAR}
-            onElegir={setTipo}
-          />
-          {tipo?.clase === "PROGRAMADA" && tipo.tiempoGuiaMin != null && (
-            <p className="text-xs text-muted-foreground">Tiempo guía: {fmtDuracion(tipo.tiempoGuiaMin)}.</p>
-          )}
-        </>
+      <p className="text-xs text-foreground">La línea se para ya; el tiempo cuenta hasta Continuar.</p>
+      {responsableFijo === undefined && (
+        <div role="radiogroup" aria-label="Responsable de la parada" className="grid grid-cols-2 gap-2">
+          {(["OPERACIONAL", "MANTENIMIENTO"] as const).map((r) => (
+            <Button key={r} type="button" role="radio" aria-checked={elegido === r} variant={elegido === r ? "default" : "outline"} className="h-11" onClick={() => setElegido(r)}>
+              {r === "OPERACIONAL" ? "Operacional" : "Mantenimiento"}
+            </Button>
+          ))}
+        </div>
+      )}
+      <BuscadorTipoParada
+        lineaCodigo={lineaCodigo}
+        area={area}
+        equipos={equipos}
+        presentacionMl={presentacionMl}
+        permitir={(t) => t.codigo !== TIPO_FALLA_SIN_ESPECIFICAR}
+        onElegir={setTipo}
+      />
+      {tipo?.clase === "PROGRAMADA" && tipo.tiempoGuiaMin != null && (
+        <p className="text-xs text-muted-foreground">Tiempo guía: {fmtDuracion(tipo.tiempoGuiaMin)}.</p>
       )}
       <Textarea
         value={motivo}
         onChange={(e) => setMotivo(e.target.value.slice(0, LARGO_NOTA_PARADA))}
         maxLength={LARGO_NOTA_PARADA}
         rows={2}
-        placeholder={noSe ? "Qué está pasando — lo ve Mantenimiento" : "Qué pasó — se muestra en los paneles"}
+        placeholder="Qué pasó"
         className="text-sm"
       />
       {conInicio ? (

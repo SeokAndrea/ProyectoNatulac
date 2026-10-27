@@ -13,12 +13,12 @@ export type NoCorre = "parada" | "detener" | "cip"
 const OPCIONES_NO_CORRE: [NoCorre, (lote: string) => string, (lote: string) => string][] = [
   [
     "parada",
-    () => "Está parada, pero sigue con este lote",
-    (lote) => `No está produciendo ahora; cuando arranque, retoma ${lote}. Pones desde qué hora y por qué (o «No sé / es una falla»): el tiempo cuenta desde esa hora.`,
+    () => "Parar: está parada, pero sigue con este lote",
+    (lote) => `No está produciendo ahora; cuando arranque, retoma ${lote}. Pones desde qué hora, quién la paró y por qué: el tiempo cuenta desde esa hora.`,
   ],
   [
     "detener",
-    () => "Ya no sigue con este lote",
+    () => "Entregar PT: ya no sigue con este lote",
     (lote) => `${lote[0].toUpperCase()}${lote.slice(1)} terminó o no se retoma. Queda esperando que cargues su PT.`,
   ],
   ["cip", () => "Está en CIP", () => "La línea se está lavando."],
