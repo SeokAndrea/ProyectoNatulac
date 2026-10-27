@@ -19,6 +19,8 @@ import { restarDias } from "@/lib/tiempoPlanta"
 
 export type ClaseParada = "PROGRAMADA" | "NO_PROGRAMADA" | "OCIOSO"
 export type OrigenParada = "MANUAL" | "SHEET" | "MANTENIMIENTO"
+/** Quién responde por la parada (lo elige quien la reporta; el origen ya no cuenta). */
+export type ResponsableParada = "OPERACIONAL" | "MANTENIMIENTO"
 
 /** Orden fijo para todos los repartos por clase. */
 export const CLASES_PARADA: ClaseParada[] = ["PROGRAMADA", "NO_PROGRAMADA", "OCIOSO"]
@@ -258,6 +260,7 @@ export interface Parada {
   id: string
   clase: ClaseParada
   origen: OrigenParada
+  responsable: ResponsableParada
   lineaCodigo: string // 'LINEA_1' | 'LINEA_2' | 'LINEA_3'
   turnoTipo: string // 'TURNO_1' | 'TURNO_2' | 'TURNO_3'
   /** Tipo del catálogo. null solo para OCIOSO (texto libre). */
@@ -298,6 +301,13 @@ export interface Parada {
   solucion?: string | null
   /** Falla abierta en un área con «Mantenimiento termina las fallas»: Producción no la puede continuar. */
   laTerminaMantenimiento?: boolean
+  /** Subsistema de la falla (catálogo de Mantenimiento). */
+  subsistemaCodigo: string | null
+  /** Lote y sabor que corrían al parar (los guarda pausar_linea). */
+  lote: string | null
+  sabor: string | null
+  /** Quién la terminó con Terminar parada. */
+  terminadaPor: string | null
 }
 
 /**
@@ -308,8 +318,8 @@ export const porClasificar = (p: Pick<Parada, "tipoCodigo" | "pendiente">) => p.
 
 export const paradaAbierta = (p: Parada) => p.fin === null
 
-/** Quién la reportó: Mantenimiento (su Sheet o su app) o el supervisor (Producción). */
-export const esDeMantenimiento = (p: Pick<Parada, "origen">) => p.origen !== "MANUAL"
+/** De quién es la parada: el Responsable que se eligió al reportarla. */
+export const esDeMantenimiento = (p: Pick<Parada, "responsable">) => p.responsable === "MANTENIMIENTO"
 
 /**
  * La nota de una parada del Sheet de Mantenimiento ("Mantenimiento — falla —
@@ -596,6 +606,7 @@ export interface FilaParada {
   id: string
   clase: ClaseParada
   origen: OrigenParada
+  responsable?: ResponsableParada | null
   linea_codigo: string
   turno_tipo: string
   tipo_codigo: string | null
@@ -609,6 +620,10 @@ export interface FilaParada {
   pendiente?: boolean | null
   solucion?: string | null
   la_termina_mantenimiento?: boolean | null
+  subsistema_codigo?: string | null
+  lote?: string | null
+  sabor?: string | null
+  terminada_por_nombre?: string | null
 }
 
 /** Lee `listar_paradas` (migración 20261061). Devuelve [] si la lectura falla. */
@@ -631,6 +646,7 @@ export function mapearFilaParada(f: FilaParada): Parada {
     id: f.id,
     clase: f.clase,
     origen: f.origen,
+    responsable: f.responsable === "MANTENIMIENTO" ? "MANTENIMIENTO" : "OPERACIONAL",
     lineaCodigo: f.linea_codigo,
     turnoTipo: f.turno_tipo,
     tipoCodigo: f.tipo_codigo,
@@ -644,6 +660,10 @@ export function mapearFilaParada(f: FilaParada): Parada {
     pendiente: f.pendiente === true,
     solucion: f.solucion ?? null,
     laTerminaMantenimiento: f.la_termina_mantenimiento === true,
+    subsistemaCodigo: f.subsistema_codigo ?? null,
+    lote: f.lote ?? null,
+    sabor: f.sabor ?? null,
+    terminadaPor: f.terminada_por_nombre ?? null,
   }
 }
 
@@ -713,7 +733,7 @@ export async function cerrarParadaMantenimiento(usuario: string, paradaId: strin
   return error ? { ok: false, error: error.message || "No se pudo cerrar la parada. Intenta de nuevo." } : { ok: true }
 }
 
-/** Le pone el código y qué se hizo a una falla sin clasificar. Los minutos no cambian (migración 20261112590000). */
+/** @deprecated Reemplazada por terminarParada; la borra la Task 6 con Mantenimiento.tsx. Le pone el código y qué se hizo a una falla sin clasificar. Los minutos no cambian (migración 20261112590000). */
 export async function clasificarFalla(usuario: string, paradaId: string, tipoCodigo: string, solucion: string, pagina: string): Promise<Resultado> {
   const { error } = await supabase.rpc("clasificar_falla", {
     p_usuario: usuario,
@@ -725,7 +745,7 @@ export async function clasificarFalla(usuario: string, paradaId: string, tipoCod
   return error ? { ok: false, error: error.message || "No se pudo clasificar la falla. Intenta de nuevo." } : { ok: true }
 }
 
-/** Mantenimiento termina una falla: código, qué se hizo y fin = ahora; la línea sigue sola (migración 20261112590000). */
+/** @deprecated Reemplazada por terminarParada; la borra la Task 6 con Mantenimiento.tsx. Mantenimiento termina una falla: código, qué se hizo y fin = ahora; la línea sigue sola (migración 20261112590000). */
 export async function finalizarFalla(usuario: string, paradaId: string, tipoCodigo: string, solucion: string, pagina: string): Promise<Resultado> {
   const { error } = await supabase.rpc("finalizar_falla", {
     p_usuario: usuario,
@@ -735,6 +755,60 @@ export async function finalizarFalla(usuario: string, paradaId: string, tipoCodi
     p_pagina: pagina,
   })
   return error ? { ok: false, error: error.message || "No se pudo terminar la falla. Intenta de nuevo." } : { ok: true }
+}
+
+export interface DatosTerminarParada {
+  tipoCodigo: string
+  subsistemaCodigo: string
+  solucion: string
+  /** 'YYYY-MM-DDTHH:MM:SS' de planta, o null = ahora. */
+  fin: string | null
+  /** Corrige el comienzo; null = se deja el que tiene. */
+  inicio: string | null
+}
+
+/** Terminar parada: código, subsistema, qué se hizo y fin (migración 20261112590000). */
+export async function terminarParada(usuario: string, paradaId: string, datos: DatosTerminarParada, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("terminar_parada", {
+    p_usuario: usuario,
+    p_parada_id: paradaId,
+    p_tipo_codigo: datos.tipoCodigo,
+    p_subsistema_codigo: datos.subsistemaCodigo,
+    p_solucion: datos.solucion,
+    p_fin: datos.fin,
+    p_inicio: datos.inicio,
+    p_pagina: pagina,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo terminar la parada. Intenta de nuevo." } : { ok: true }
+}
+
+export interface DatosAbrirParadaMantenimiento {
+  lineaCodigo: string
+  tipoCodigo: string
+  nota: string
+  /** 'YYYY-MM-DDTHH:MM:SS' de planta, o null = ahora. */
+  inicio: string | null
+}
+
+/** Mantenimiento abre una parada en curso (migración 20261112590000). */
+export async function abrirParadaMantenimiento(usuario: string, datos: DatosAbrirParadaMantenimiento, _pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("abrir_parada_mantenimiento", {
+    p_usuario: usuario,
+    p_linea_codigo: datos.lineaCodigo,
+    p_tipo_codigo: datos.tipoCodigo,
+    p_nota: datos.nota,
+    p_inicio: datos.inicio,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo abrir la parada. Intenta de nuevo." } : { ok: true }
+}
+
+/**
+ * true si un turno ya cerrado cubre el comienzo de la parada: ese campo se
+ * bloquea al terminarla. Si la lectura falla, devuelve false.
+ */
+export async function paradaCruzoTurnoCerrado(paradaId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("parada_cierre_turno_cerrado", { p_parada_id: paradaId })
+  return !error && !!data
 }
 
 /**

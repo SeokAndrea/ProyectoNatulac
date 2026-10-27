@@ -134,6 +134,7 @@ describe("filasParadas", () => {
     ({
       id: "p",
       origen: "MANUAL",
+      responsable: "OPERACIONAL",
       lineaCodigo: "LINEA_1",
       turnoTipo: "TURNO_2",
       tipoNombre: "Por clasificar",
@@ -147,7 +148,7 @@ describe("filasParadas", () => {
     const filas = filasParadas(
       [
         parada({ id: "sup" }),
-        parada({ id: "mtto", origen: "SHEET", tipoNombre: "Llenadora", inicio: "2026-10-11T16:40:00", fin: "2026-10-11T18:15:00" }),
+        parada({ id: "mtto", origen: "MANUAL", responsable: "MANTENIMIENTO", tipoNombre: "Llenadora", inicio: "2026-10-11T16:40:00", fin: "2026-10-11T18:15:00" }),
         parada({ id: "otra", lineaCodigo: "LINEA_2" }),
       ],
       new Map(),
@@ -156,6 +157,15 @@ describe("filasParadas", () => {
     expect(por("sup")).toMatchObject({ seSolapa: true, minutos: 90, cuando: "T2 16:45" })
     expect(por("mtto").seSolapa).toBe(false)
     expect(por("otra").seSolapa).toBe(false)
+  })
+
+  it("la columna de Mantenimiento sale del responsable, no del origen", () => {
+    const filas = filasParadas(
+      [parada({ id: "a", origen: "SHEET", responsable: "OPERACIONAL" }), parada({ id: "b", lineaCodigo: "LINEA_3", responsable: "MANTENIMIENTO" })],
+      new Map(),
+    )
+    expect(filas.find((f) => f.id === "a")!.seSolapa).toBe(false)
+    expect(filas.find((f) => f.id === "b")!.deMantenimiento).toBe(true)
   })
 
   it("marca las de más de 4 horas", () => {

@@ -7,7 +7,10 @@ import {
   codigoPlanilla,
   desvioMin,
   duracionMin,
+  esDeMantenimiento,
   fmtDesvio,
+  mapearFilaParada,
+  type FilaParada,
   fmtDuracion,
   minutosPorClaseSinSolape,
   minutosPorLinea,
@@ -27,6 +30,11 @@ const P = (over: Partial<Parada> = {}): Parada => ({
   id: "r1",
   clase: "PROGRAMADA",
   origen: "MANUAL",
+  responsable: "OPERACIONAL",
+  subsistemaCodigo: null,
+  lote: null,
+  sabor: null,
+  terminadaPor: null,
   lineaCodigo: "LINEA_1",
   turnoTipo: "TURNO_1",
   tipoCodigo: "CAMBIO_SABOR",
@@ -126,7 +134,7 @@ describe("minutosPorClaseSinSolape", () => {
     P({ clase: "NO_PROGRAMADA", inicio: `2026-09-09T${inicio}:00`, fin: fin ? `2026-09-09T${fin}:00` : null, ...over })
 
   it("la misma falla cargada dos veces (supervisor y Mantenimiento) cuenta una vez", () => {
-    const r = minutosPorClaseSinSolape([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO" })])
+    const r = minutosPorClaseSinSolape([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO", responsable: "MANTENIMIENTO" })])
     expect(r.NO_PROGRAMADA).toBe(90)
   })
   it("una parada dentro de otra no suma nada", () => {
@@ -146,7 +154,7 @@ describe("minutosPorClaseSinSolape", () => {
     expect(minutosPorClaseSinSolape([np("11:00", null)], ahora, desde).NO_PROGRAMADA).toBe(30)
   })
   it("minutosPorLinea tampoco cuenta dos veces el solape", () => {
-    const r = minutosPorLinea([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO" })])
+    const r = minutosPorLinea([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO", responsable: "MANTENIMIENTO" })])
     expect(r[0]).toMatchObject({ linea: "LINEA_1", veces: 2, minutos: 90 })
   })
 })
@@ -333,6 +341,11 @@ describe("parada pendiente (+1 sin minutos, migración 20261090)", () => {
       id: "p1",
       clase: "PROGRAMADA" as const,
       origen: "MANUAL" as const,
+      responsable: "OPERACIONAL" as const,
+      subsistemaCodigo: null,
+      lote: null,
+      sabor: null,
+      terminadaPor: null,
       lineaCodigo: "LINEA_1",
       turnoTipo: "TURNO_1",
       tipoCodigo: "CAMBIO_LOTE",
@@ -350,5 +363,48 @@ describe("parada pendiente (+1 sin minutos, migración 20261090)", () => {
     const programada = resumenPorClase([pendiente], ahora).find((r) => r.clase === "PROGRAMADA")!
     expect(programada.veces).toBe(1)
     expect(programada.minutos).toBe(0)
+  })
+})
+
+describe("Responsable de la parada", () => {
+  it("esDeMantenimiento lee el responsable, no el origen", () => {
+    expect(esDeMantenimiento(P({ origen: "MANUAL", responsable: "MANTENIMIENTO" }))).toBe(true)
+    expect(esDeMantenimiento(P({ origen: "SHEET", responsable: "OPERACIONAL" }))).toBe(false)
+    expect(esDeMantenimiento(P({ origen: "MANTENIMIENTO", responsable: "OPERACIONAL" }))).toBe(false)
+  })
+
+  it("mapearFilaParada devuelve el responsable y los campos nuevos", () => {
+    const fila: FilaParada = {
+      id: "x",
+      clase: "NO_PROGRAMADA",
+      origen: "MANUAL",
+      linea_codigo: "LINEA_2",
+      turno_tipo: "TURNO_1",
+      tipo_codigo: "LLENADORA_FUGA",
+      tipo_nombre: "Llenadora",
+      tiempo_guia_min: null,
+      nota: null,
+      justificacion_desvio: null,
+      inicio: "2026-10-12T09:00:00",
+      fin: null,
+      supervisor_nombre: null,
+      responsable: "MANTENIMIENTO",
+      subsistema_codigo: "VALVULA",
+      lote: "L-45",
+      sabor: "Pera",
+      terminada_por_nombre: "LUIS",
+    }
+    expect(mapearFilaParada(fila)).toMatchObject({
+      responsable: "MANTENIMIENTO",
+      subsistemaCodigo: "VALVULA",
+      lote: "L-45",
+      sabor: "Pera",
+      terminadaPor: "LUIS",
+    })
+    expect(mapearFilaParada({ ...fila, responsable: undefined, subsistema_codigo: null, lote: null, sabor: null, terminada_por_nombre: null })).toMatchObject({
+      responsable: "OPERACIONAL",
+      subsistemaCodigo: null,
+      terminadaPor: null,
+    })
   })
 })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
-import { duracionMin, esParadaLNPE, fmtDuracion, listarParadas, type Parada } from "@/lib/paradas"
+import { duracionMin, esDeMantenimiento, esParadaLNPE, fmtDuracion, listarParadas, type Parada } from "@/lib/paradas"
 import { aplicarParadasALineas } from "@/lib/produccion/ajustes"
-import { actualizarDesdeSheet, ultimaActualizacionSheet } from "@/lib/sheetMantenimiento"
+import { actualizarDesdeSheet, SHEET_MANTENIMIENTO_ACTIVO, ultimaActualizacionSheet } from "@/lib/sheetMantenimiento"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 
 /*
@@ -71,7 +71,7 @@ export function paradaEnVivo(lineaCodigo: string, abiertas: Parada[], pausadaEn:
       // La LNPE se ve de entrada: no es una falla que haya que darle tiempo al supervisor para registrar.
       return {
         minutos,
-        deMantenimiento: p.origen !== "MANUAL" && !lnp,
+        deMantenimiento: esDeMantenimiento(p) && !lnp,
         tipoNombre: p.tipoNombre,
         visible: lnp || minutos >= MARGEN_PARADA_MIN,
         lineaNoProgramada: lnp,
@@ -105,7 +105,7 @@ let ultimoIntentoSync = 0
  * o sin permiso no hace nada.
  */
 export async function sincronizarSheetSiHaceFalta(usuario: string | null): Promise<boolean> {
-  if (!usuario || Date.now() - ultimoIntentoSync < SYNC_SHEET_MS) return false
+  if (!SHEET_MANTENIMIENTO_ACTIVO || !usuario || Date.now() - ultimoIntentoSync < SYNC_SHEET_MS) return false
   ultimoIntentoSync = Date.now()
   try {
     const ultima = await ultimaActualizacionSheet()

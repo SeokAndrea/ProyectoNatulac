@@ -13,7 +13,7 @@ import { paradaEnVivo, textoParadaEnVivo } from "./paradasEnVivo"
 const AHORA = new Date("2026-10-12T10:00:00")
 
 const abierta = (over: Partial<Parada>): Parada =>
-  ({ id: "p", origen: "MANUAL", lineaCodigo: "LINEA_1", tipoNombre: "Falta de envase", inicio: "2026-10-12T09:50:00", fin: null, ...over }) as Parada
+  ({ id: "p", origen: "MANUAL", responsable: "OPERACIONAL", lineaCodigo: "LINEA_1", tipoNombre: "Falta de envase", inicio: "2026-10-12T09:50:00", fin: null, ...over }) as Parada
 
 describe("paradaEnVivo", () => {
   it("sin paradas abiertas ni pausa, nada", () => {
@@ -37,12 +37,18 @@ describe("paradaEnVivo", () => {
   it("Mantenimiento manda, aunque la del supervisor lleve más", () => {
     const p = paradaEnVivo(
       "LINEA_1",
-      [abierta({ inicio: "2026-10-12T08:00:00" }), abierta({ origen: "SHEET", tipoNombre: "Llenadora", inicio: "2026-10-12T09:18:00" })],
+      [abierta({ inicio: "2026-10-12T08:00:00" }), abierta({ responsable: "MANTENIMIENTO", tipoNombre: "Llenadora", inicio: "2026-10-12T09:18:00" })],
       null,
       AHORA,
     )
     expect(p).toMatchObject({ deMantenimiento: true, tipoNombre: "Llenadora", minutos: 42 })
     expect(textoParadaEnVivo(p!)).toBe("Mantenimiento · 42 min")
+  })
+
+  it("deMantenimiento sale del responsable, no del origen", () => {
+    const doc = (o: Partial<Parada>) => paradaEnVivo("LINEA_1", [abierta({ inicio: "2026-10-12T09:00:00", ...o })], null, AHORA)
+    expect(doc({ origen: "SHEET", responsable: "OPERACIONAL" })?.deMantenimiento).toBe(false)
+    expect(doc({ origen: "MANUAL", responsable: "MANTENIMIENTO" })?.deMantenimiento).toBe(true)
   })
 
   it("Pruebas: LINEA_T1 es la misma línea que LINEA_1 de las paradas", () => {
@@ -69,7 +75,7 @@ describe("aplicarParadasEnVivo", () => {
   })
 
   it("corriendo con una falla de Mantenimiento de 30 min: parada; sin corrida: detenida", () => {
-    const falla = abierta({ origen: "SHEET", inicio: "2026-10-12T09:30:00" })
+    const falla = abierta({ responsable: "MANTENIMIENTO", inicio: "2026-10-12T09:30:00" })
     const conCorrida = aplicarParadasEnVivo(estadoDeLineas([corrida({})], [], LINEAS), [falla], AHORA)
     expect(conCorrida[0].estado).toBe("parada")
     const sinCorrida = aplicarParadasEnVivo(estadoDeLineas([], [], LINEAS), [falla], AHORA)
@@ -84,7 +90,7 @@ describe("aplicarParadasEnVivo", () => {
 })
 
 describe("Línea No Programada hasta el final del turno (dueña, 2026-10-14)", () => {
-  const lnpe = abierta({ tipoCodigo: "FERIADO", tipoNombre: "Feriado", origen: "MANTENIMIENTO", inicio: "2026-10-12T07:00:00", fin: "2026-10-12T15:00:00", nota: "Arreglo del piso" })
+  const lnpe = abierta({ tipoCodigo: "FERIADO", tipoNombre: "Feriado", origen: "MANTENIMIENTO", responsable: "MANTENIMIENTO", inicio: "2026-10-12T07:00:00", fin: "2026-10-12T15:00:00", nota: "Arreglo del piso" })
 
   it("mientras dura, la fila la muestra de entrada, con su descripción", () => {
     const p = paradaEnVivo("LINEA_1", [lnpe], null, AHORA)

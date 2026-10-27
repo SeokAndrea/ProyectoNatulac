@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import { mapearTurnoHistorial, type TurnoHistorial } from "@/lib/historialTurnos"
-import { duracionMin, porClasificar, type Parada } from "@/lib/paradas"
+import { duracionMin, esDeMantenimiento, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { tramosPorLote, type MotivoSinContraste } from "@/lib/reportes/realidadPreparacion"
 import { cargarValidacionesTurno, validarTurno, type ValidacionTurno } from "@/lib/resumenDia"
@@ -372,14 +372,14 @@ export function filasParadas(paradas: Parada[], validadas: Map<string, Validacio
   return [...paradas]
     .sort((a, b) => numeroLinea(a.lineaCodigo).localeCompare(numeroLinea(b.lineaCodigo)) || a.inicio.localeCompare(b.inicio))
     .map((p) => {
-      const deMantenimiento = p.origen !== "MANUAL"
+      const deMantenimiento = esDeMantenimiento(p)
       const fin = p.fin ? ms(p.fin) : ahora.getTime()
       const seSolapa =
         !deMantenimiento &&
         paradas.some(
           (o) =>
             o.id !== p.id &&
-            o.origen !== "MANUAL" &&
+            esDeMantenimiento(o) &&
             numeroLinea(o.lineaCodigo) === numeroLinea(p.lineaCodigo) &&
             ms(o.inicio) < fin &&
             (o.fin ? ms(o.fin) : ahora.getTime()) > ms(p.inicio),

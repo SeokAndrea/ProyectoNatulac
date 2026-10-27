@@ -12,6 +12,9 @@ import { fechaPlanta, horaPlanta, restarDias } from "@/lib/tiempoPlanta"
 
 type Resultado<T> = { ok: true; datos: T } | { ok: false; error: string }
 
+/** El Sheet está apagado: Mantenimiento reporta en la app. No se sincroniza solo en ningún lado. */
+export const SHEET_MANTENIMIENTO_ACTIVO = false
+
 export const PESTANA_REPORTES = "ÁREAS"
 
 /** Enlace del Sheet (cualquier forma: /edit, /view…) → CSV de la pestaña de reportes. null si no es un Sheet. */
@@ -312,7 +315,7 @@ export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<R
  * Aséptico; si el Sheet no se puede leer, el acta sale con lo que ya hay.
  */
 export async function actualizarSheetEnSilencio(usuario: string, area: string | null | undefined): Promise<void> {
-  if (area !== "ASEPTICO" || !usuario) return
+  if (!SHEET_MANTENIMIENTO_ACTIVO || area !== "ASEPTICO" || !usuario) return
   try {
     await actualizarDesdeSheet(usuario)
   } catch {

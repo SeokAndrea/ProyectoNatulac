@@ -217,7 +217,7 @@ describe("LineaCard — corriendo", () => {
     expect(boton("Confirmar parada")).toBeDisabled()
     await u.click(boton("Elegir tipo"))
     await u.click(boton("Confirmar parada"))
-    expect(a.pausar).toHaveBeenCalledWith("c1", { motivo: "Se trancó la tapadora", tipoCodigo: "DESVASE_PRODUCTO", inicio: null })
+    expect(a.pausar).toHaveBeenCalledWith("c1", { motivo: "Se trancó la tapadora", tipoCodigo: "DESVASE_PRODUCTO", responsable: "OPERACIONAL", inicio: null })
     await waitFor(() => noHayBoton("Confirmar parada"))
     boton("Cambiar de lote")
   })
@@ -231,7 +231,7 @@ describe("LineaCard — corriendo", () => {
     expect(boton("Confirmar parada")).toBeDisabled()
     await u.type(screen.getByPlaceholderText(/Qué está pasando/), "Ruido en la llenadora")
     await u.click(boton("Confirmar parada"))
-    expect(a.pausar).toHaveBeenCalledWith("c1", { motivo: "Ruido en la llenadora", tipoCodigo: "FALLA_SIN_ESPECIFICAR", inicio: null })
+    expect(a.pausar).toHaveBeenCalledWith("c1", { motivo: "Ruido en la llenadora", tipoCodigo: "FALLA_SIN_ESPECIFICAR", responsable: "OPERACIONAL", inicio: null })
   })
 
   it("Parada: si falla, muestra el error y deja el formulario", async () => {

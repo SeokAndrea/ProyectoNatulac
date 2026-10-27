@@ -29,7 +29,7 @@ const pt = (corridaId: string, paletas: number, cajas: number): ProductoTerminad
 const parada = (linea: string, inicio: string, minutos: number, tipoNombre: string, clase: Parada["clase"] = "NO_PROGRAMADA"): Parada => {
   const fin = new Date(new Date(inicio).getTime() + minutos * 60000)
   const local = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${d.toTimeString().slice(0, 8)}`
-  return { id: `${tipoNombre}-${inicio}`, clase, origen: "MANUAL", lineaCodigo: linea, turnoTipo: "TURNO_1", tipoCodigo: null, tipoNombre, tiempoGuiaMin: null, nota: null, justificacionDesvio: null, inicio, fin: local(fin), supervisorNombre: null }
+  return { id: `${tipoNombre}-${inicio}`, clase, origen: "MANUAL", responsable: "OPERACIONAL", subsistemaCodigo: null, lote: null, sabor: null, terminadaPor: null, lineaCodigo: linea, turnoTipo: "TURNO_1", tipoCodigo: null, tipoNombre, tiempoGuiaMin: null, nota: null, justificacionDesvio: null, inicio, fin: local(fin), supervisorNombre: null }
 }
 const turno = (over: Partial<TurnoHistorial>): TurnoHistorial =>
   ({ id: "t1", fecha: "2026-09-10", turnoTipo: "TURNO_1", horaInicio: "07:00:00", estado: "CERRADO", corridas: [], contadores: [], productoTerminado: [], preparaciones: [], transferencias: [], desvases: [], salidasVacio: [], ...over }) as TurnoHistorial

@@ -8,6 +8,7 @@
  * viejo (src/lib/turno.ts) decía que ya no es "una línea", es una corrida.
  */
 import type { LineaCodigo, PresentacionCodigo } from "@/lib/catalogos"
+import type { ResponsableParada } from "@/lib/paradas"
 
 export type CondicionLinea = "DETENIDA" | "LISTA" | "CIP" | "CAMBIO_PRESENTACION" | "SIN_PROGRAMACION"
 
@@ -190,6 +191,7 @@ export interface ParadaQueDetiene {
 export interface DatosPausarLinea {
   motivo: string
   tipoCodigo: string
+  responsable: ResponsableParada
   /** 'YYYY-MM-DDTHH:MM:SS' de planta, o null = ahora. */
   inicio: string | null
 }

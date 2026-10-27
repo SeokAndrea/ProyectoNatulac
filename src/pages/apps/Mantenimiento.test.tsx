@@ -44,6 +44,8 @@ function parada(over: Partial<Parada> = {}): Parada {
     id: "p1",
     clase: "NO_PROGRAMADA",
     origen: "MANUAL",
+    responsable: "OPERACIONAL",
+    subsistemaCodigo: null, lote: null, sabor: null, terminadaPor: null,
     lineaCodigo: "LINEA_1",
     turnoTipo: "TURNO_1",
     tipoCodigo: "FALLA_SIN_ESPECIFICAR",

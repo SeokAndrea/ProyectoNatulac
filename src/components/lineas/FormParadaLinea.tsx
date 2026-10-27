@@ -50,7 +50,8 @@ export function FormParadaLinea({
 
   async function confirmar() {
     if (!tipoCodigo || !listo) return
-    const datos = { motivo: motivo.trim(), tipoCodigo, inicio: conInicio ? conSegundos(inicio) : null }
+    // El selector de Responsable llega con la pantalla nueva; mientras, Operacional.
+    const datos = { motivo: motivo.trim(), tipoCodigo, responsable: "OPERACIONAL" as const, inicio: conInicio ? conSegundos(inicio) : null }
     if (await ejecutar(() => pausar(corridaId, datos))) onCerrar()
   }
 

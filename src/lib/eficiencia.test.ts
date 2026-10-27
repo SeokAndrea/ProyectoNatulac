@@ -174,6 +174,8 @@ const parada = (lineaCodigo: string, clase: Parada["clase"], minutos: number, in
   id: `${lineaCodigo}-${clase}-${minutos}`,
   clase,
   origen: "MANUAL",
+  responsable: "OPERACIONAL",
+  subsistemaCodigo: null, lote: null, sabor: null, terminadaPor: null,
   lineaCodigo,
   turnoTipo: "TURNO_1",
   tipoCodigo: null,
