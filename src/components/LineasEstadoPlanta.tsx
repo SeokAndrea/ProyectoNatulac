@@ -13,6 +13,7 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { aplicarParadasALineas, paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
 import { sincronizarSheetSiHaceFalta } from "@/lib/paradasEnVivo"
+import { esDeMantenimiento } from "@/lib/mantenimientoSesion"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { cn } from "@/lib/utils"
 import { fechaPlanta, restarDias } from "@/lib/tiempoPlanta"
@@ -110,7 +111,7 @@ export function LineasEstadoPlanta({
   // Modo Paradas (como el Modo Vacío de Preparación): solo en Líneas, con el turno en vivo y quien registra paradas.
   const [params, setParams] = useSearchParams()
   // Mantenimiento entra siempre al Modo Paradas (sin interruptor ni botones que manejan la línea); el turno en curso lo trae Líneas.
-  const esMantenimiento = session?.area === "MANTENIMIENTO"
+  const esMantenimiento = esDeMantenimiento(session)
   const conModoParadas = modo === "preparacion" && (anotaParadas || esMantenimiento) && (esMantenimiento || turnoId === undefined || turnoId === sesion.turnoId)
   const modoParadas = conModoParadas && (esMantenimiento || params.get("paradas") === "1")
   function cambiarModoParadas() {

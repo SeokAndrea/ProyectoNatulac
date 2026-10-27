@@ -20,6 +20,27 @@ vi.mock("@/components/BuscadorTipoParada", () => ({
   ),
 }))
 vi.mock("@/lib/paradasEquipos", () => ({ useEquiposParadas: () => [] }))
+vi.mock("@/lib/paradasCatalogo", () => ({
+  useCatalogoParadas: () => [{ codigo: "DESVASE_PRODUCTO", nombre: "Desvase de Producto", equipoCodigo: "CARDBOARD_PACKER" }],
+}))
+// Catálogo propio de Mantenimiento: sus equipos y subsistemas.
+vi.mock("@/lib/mttoCatalogo", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/mttoCatalogo")>()),
+  useCatalogoMtto: () => ({
+    equipos: [
+      { codigo: "CBP32", nombre: "CBP32", equipoProduccionCodigo: "CARDBOARD_PACKER", activo: true },
+      { codigo: "FW32", nombre: "FW32", equipoProduccionCodigo: null, activo: true },
+      { codigo: "VIEJO", nombre: "VIEJO", equipoProduccionCodigo: null, activo: false },
+    ],
+    subsistemas: [
+      { id: "1", equipoCodigo: "CBP32", codigo: "CBP-EMP-05", nombre: "EMPUJADOR", activo: true },
+      { id: "2", equipoCodigo: "CBP32", codigo: "CBP-OFF-01", nombre: "DESACTIVADO", activo: false },
+      { id: "3", equipoCodigo: "FW32", codigo: "FW-CUC-01", nombre: "CUCHILLA", activo: true },
+    ],
+    cargando: false,
+    recargar: async () => {},
+  }),
+}))
 
 const parada: Parada = {
   id: "p1",
@@ -42,15 +63,18 @@ const parada: Parada = {
   terminadaPor: null,
 }
 
-async function montar(cruzo = false) {
+async function montar(cruzo = false, p: Parada = parada) {
   paradaCruzoTurnoCerrado.mockResolvedValue(cruzo)
   const onTerminada = vi.fn()
-  render(<FormTerminarParada parada={parada} usuario="mtto1" onTerminada={onTerminada} />)
+  render(<FormTerminarParada parada={p} usuario="mtto1" onTerminada={onTerminada} />)
   await screen.findByRole("button", { name: /terminar parada/i })
   return { onTerminada }
 }
 const terminar = () => screen.getByRole("button", { name: /terminar parada/i })
-const subsistema = () => screen.getByLabelText(/subsistema/i)
+const subsistema = () => screen.getByLabelText(/^subsistema/i)
+const equipoMtto = () => screen.getByLabelText(/equipo de mantenimiento/i)
+/** El equipo viene preseleccionado (CBP32): se elige el subsistema de la lista. */
+const elegirCodigo = async (codigo = "CBP-EMP-05") => userEvent.selectOptions(subsistema(), codigo)
 const queSeRealizo = () => screen.getByLabelText(/qué se realizó/i)
 
 beforeEach(() => {
@@ -59,11 +83,11 @@ beforeEach(() => {
 })
 
 describe("FormTerminarParada", () => {
-  it("exige código (subsistema) y qué se realizó", async () => {
+  it("exige subsistema (o «Sin subsistema») y qué se realizó", async () => {
     await montar()
     await userEvent.type(screen.getByLabelText(/minutos/i), "30")
     expect(terminar()).toBeDisabled()
-    await userEvent.type(subsistema(), "BOMBA-1")
+    await elegirCodigo()
     expect(terminar()).toBeDisabled() // falta qué se realizó
     await userEvent.type(queSeRealizo(), "Se cambió el sello")
     expect(terminar()).toBeEnabled()
@@ -71,7 +95,7 @@ describe("FormTerminarParada", () => {
 
   it("en una parada de un solo turno acepta minutos: fin = inicio + minutos", async () => {
     const { onTerminada } = await montar()
-    await userEvent.type(subsistema(), "BOMBA-1")
+    await elegirCodigo()
     await userEvent.type(queSeRealizo(), "Se cambió el sello")
     await userEvent.type(screen.getByLabelText(/minutos/i), "45")
     await userEvent.click(terminar())
@@ -79,14 +103,14 @@ describe("FormTerminarParada", () => {
     expect(terminarParada).toHaveBeenCalledWith(
       "mtto1",
       "p1",
-      { tipoCodigo: "DESVASE_PRODUCTO", subsistemaCodigo: "BOMBA-1", solucion: "Se cambió el sello", fin: "2026-10-26T13:45:00", inicio: null },
+      { tipoCodigo: "DESVASE_PRODUCTO", mttoEquipoCodigo: "CBP32", subsistemaCodigo: "CBP-EMP-05", solucion: "Se cambió el sello", fin: "2026-10-26T13:45:00", inicio: null },
       expect.any(String),
     )
   })
 
   it("acepta hora de comienzo y de fin", async () => {
     await montar()
-    await userEvent.type(subsistema(), "BOMBA-1")
+    await elegirCodigo()
     await userEvent.type(queSeRealizo(), "Se cambió el sello")
     await userEvent.click(screen.getByRole("button", { name: /hora de comienzo y fin/i }))
     fireEvent.change(screen.getByLabelText(/comenzó a las/i), { target: { value: "2026-10-26T12:40" } })
@@ -98,7 +122,7 @@ describe("FormTerminarParada", () => {
 
   it("no deja terminar antes de empezar", async () => {
     await montar()
-    await userEvent.type(subsistema(), "BOMBA-1")
+    await elegirCodigo()
     await userEvent.type(queSeRealizo(), "x")
     await userEvent.click(screen.getByRole("button", { name: /hora de comienzo y fin/i }))
     fireEvent.change(screen.getByLabelText(/terminó a las/i), { target: { value: "2026-10-26T12:00" } })
@@ -110,7 +134,7 @@ describe("FormTerminarParada", () => {
     expect(screen.queryByLabelText(/minutos/i)).toBeNull()
     expect(screen.queryByLabelText(/comenzó a las/i)).toBeNull()
     expect(screen.getByText(/empezó 13:00 \(turno cerrado\)/i)).toBeInTheDocument()
-    await userEvent.type(subsistema(), "BOMBA-1")
+    await elegirCodigo()
     await userEvent.type(queSeRealizo(), "Se cambió el sello")
     fireEvent.change(screen.getByLabelText(/terminó a las/i), { target: { value: "2026-10-26T16:30" } })
     await userEvent.click(terminar())
@@ -118,11 +142,23 @@ describe("FormTerminarParada", () => {
     expect(terminarParada.mock.calls[0][2]).toMatchObject({ inicio: null, fin: "2026-10-26T16:30:00" })
   })
 
-  it("se puede corregir equipo y falla; el cambio se envía", async () => {
+  it("el equipo y la falla de Producción no se cambian: no hay buscador y se manda el de la parada", async () => {
     await montar()
-    await userEvent.click(screen.getByRole("button", { name: /cambiar/i }))
+    expect(screen.queryByText("Elegir tipo")).toBeNull()
+    expect(screen.queryByRole("button", { name: /cambiar/i })).toBeNull()
+    await elegirCodigo()
+    await userEvent.type(queSeRealizo(), "x")
+    await userEvent.type(screen.getByLabelText(/minutos/i), "10")
+    await userEvent.click(terminar())
+    await waitFor(() => expect(terminarParada).toHaveBeenCalled())
+    expect(terminarParada.mock.calls[0][2].tipoCodigo).toBe("DESVASE_PRODUCTO")
+  })
+
+  it("si la parada quedó sin falla, se elige del catálogo de Producción", async () => {
+    await montar(false, { ...parada, tipoCodigo: "FALLA_SIN_ESPECIFICAR", tipoNombre: "Falla sin especificar" })
     await userEvent.click(screen.getByText("Elegir tipo"))
-    await userEvent.type(subsistema(), "S1")
+    await userEvent.selectOptions(equipoMtto(), "CBP32")
+    await elegirCodigo()
     await userEvent.type(queSeRealizo(), "x")
     await userEvent.type(screen.getByLabelText(/minutos/i), "10")
     await userEvent.click(terminar())
@@ -130,10 +166,57 @@ describe("FormTerminarParada", () => {
     expect(terminarParada.mock.calls[0][2].tipoCodigo).toBe("FALLA_NIVEL_BTD")
   })
 
+  it("preselecciona el equipo de Mantenimiento según el de Producción y ofrece solo sus subsistemas activos", async () => {
+    await montar()
+    expect(equipoMtto()).toHaveValue("CBP32")
+    const opciones = Array.from((subsistema() as HTMLSelectElement).options).map((o) => o.textContent)
+    expect(opciones).toEqual(["Elige el subsistema…", "Sin subsistema", "CBP-EMP-05 · EMPUJADOR"])
+    expect(Array.from((equipoMtto() as HTMLSelectElement).options).map((o) => o.textContent)).not.toContain("VIEJO")
+  })
+
+  it("se puede cambiar el equipo de Mantenimiento; los subsistemas son los del nuevo equipo", async () => {
+    await montar()
+    await userEvent.selectOptions(equipoMtto(), "FW32")
+    expect(subsistema()).toHaveValue("")
+    await userEvent.selectOptions(subsistema(), "FW-CUC-01")
+    await userEvent.type(queSeRealizo(), "x")
+    await userEvent.type(screen.getByLabelText(/minutos/i), "10")
+    await userEvent.click(terminar())
+    await waitFor(() => expect(terminarParada).toHaveBeenCalled())
+    expect(terminarParada.mock.calls[0][2]).toMatchObject({ mttoEquipoCodigo: "FW32", subsistemaCodigo: "FW-CUC-01" })
+  })
+
+  it("«Sin subsistema» cuenta como una elección y manda la marca", async () => {
+    await montar()
+    await userEvent.selectOptions(subsistema(), "SIN_SUBSISTEMA")
+    await userEvent.type(queSeRealizo(), "x")
+    await userEvent.type(screen.getByLabelText(/minutos/i), "10")
+    expect(terminar()).toBeEnabled()
+    await userEvent.click(terminar())
+    await waitFor(() => expect(terminarParada).toHaveBeenCalled())
+    expect(terminarParada.mock.calls[0][2]).toMatchObject({ mttoEquipoCodigo: "CBP32", subsistemaCodigo: "SIN_SUBSISTEMA" })
+  })
+
+  it("usa el comienzo verdadero (no el recortado al turno) para los minutos", async () => {
+    const larga = { ...parada, inicio: "2026-10-26T13:00:00", inicioReal: "2026-10-26T10:00:00" }
+    const { onTerminada } = await montar(false, larga)
+    await elegirCodigo()
+    await userEvent.type(queSeRealizo(), "x")
+    await userEvent.type(screen.getByLabelText(/minutos/i), "30")
+    await userEvent.click(terminar())
+    await waitFor(() => expect(onTerminada).toHaveBeenCalled())
+    expect(terminarParada.mock.calls[0][2].fin).toBe("2026-10-26T10:30:00")
+  })
+
+  it("si cruzó un turno cerrado dice cuándo empezó de verdad", async () => {
+    await montar(true, { ...parada, inicio: "2026-10-26T13:00:00", inicioReal: "2026-10-26T10:00:00" })
+    expect(screen.getByText(/empezó 10:00 \(turno cerrado\)/i)).toBeInTheDocument()
+  })
+
   it("muestra el error del servidor y no termina", async () => {
     terminarParada.mockResolvedValue({ ok: false, error: "Solo Mantenimiento la termina." })
     const { onTerminada } = await montar()
-    await userEvent.type(subsistema(), "S1")
+    await elegirCodigo()
     await userEvent.type(queSeRealizo(), "x")
     await userEvent.type(screen.getByLabelText(/minutos/i), "10")
     await userEvent.click(terminar())

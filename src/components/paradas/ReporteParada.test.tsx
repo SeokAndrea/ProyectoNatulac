@@ -56,6 +56,20 @@ describe("ReporteParada", () => {
     expect(screen.getByText("210 min · T1 60 + T2 150")).toBeInTheDocument()
   })
 
+  it("muestra el equipo y el subsistema de Mantenimiento aparte de la falla de Producción", () => {
+    render(<ReporteParada parada={parada({ mttoEquipoNombre: "CBP32", subsistemaCodigo: "CBP-EMP-05", subsistemaNombre: "EMPUJADOR" })} ventanas={[T1, T2]} ahora={ahora} />)
+    expect(screen.getByText("CBP32")).toBeInTheDocument()
+    expect(screen.getByText("CBP-EMP-05 · EMPUJADOR")).toBeInTheDocument()
+    expect(screen.getByText("Llenadora")).toBeInTheDocument()
+    expect(screen.getByText("Banda trabada")).toBeInTheDocument()
+  })
+
+  it("«Sin subsistema» se lee así, no como la marca", () => {
+    render(<ReporteParada parada={parada({ subsistemaCodigo: "SIN_SUBSISTEMA", subsistemaNombre: "Sin subsistema" })} ventanas={[T1, T2]} ahora={ahora} />)
+    expect(screen.getByText("Sin subsistema")).toBeInTheDocument()
+    expect(screen.queryByText("SIN_SUBSISTEMA")).toBeNull()
+  })
+
   it("una parada de un solo turno muestra solo sus minutos", () => {
     render(<ReporteParada parada={parada({ inicio: d("09:00"), fin: d("10:30") })} ventanas={[T1, T2]} ahora={ahora} />)
     expect(screen.getByText("90 min")).toBeInTheDocument()

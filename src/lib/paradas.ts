@@ -310,6 +310,12 @@ export interface Parada {
   sabor: string | null
   /** Quién la terminó con Terminar parada. */
   terminadaPor: string | null
+  /** Equipo de Mantenimiento y nombre del subsistema, congelados al terminarla (catálogo propio de Mantenimiento). */
+  mttoEquipoCodigo?: string | null
+  mttoEquipoNombre?: string | null
+  subsistemaNombre?: string | null
+  /** Comienzo verdadero: `inicio` viene recortado al turno que se consulta (listar_paradas). */
+  inicioReal?: string
 }
 
 /**
@@ -628,6 +634,10 @@ export interface FilaParada {
   terminada_por_nombre?: string | null
   /** La parada sigue abierta en la base (el tramo de un turno cerrado igual trae fin). */
   abierta?: boolean | null
+  inicio_real?: string | null
+  mtto_equipo_codigo?: string | null
+  mtto_equipo_nombre?: string | null
+  subsistema_nombre?: string | null
 }
 
 /** Lee `listar_paradas` (migración 20261061). Devuelve [] si la lectura falla. */
@@ -669,6 +679,10 @@ export function mapearFilaParada(f: FilaParada): Parada {
     lote: f.lote ?? null,
     sabor: f.sabor ?? null,
     terminadaPor: f.terminada_por_nombre ?? null,
+    mttoEquipoCodigo: f.mtto_equipo_codigo ?? null,
+    mttoEquipoNombre: f.mtto_equipo_nombre ?? null,
+    subsistemaNombre: f.subsistema_nombre ?? null,
+    inicioReal: f.inicio_real ?? f.inicio,
   }
 }
 
@@ -739,7 +753,11 @@ export async function cerrarParadaMantenimiento(usuario: string, paradaId: strin
 }
 
 export interface DatosTerminarParada {
+  /** Equipo y falla de Producción: no se cambian (solo se completan si faltaban). */
   tipoCodigo: string
+  /** Equipo de Mantenimiento (su catálogo). */
+  mttoEquipoCodigo: string
+  /** Código del subsistema de Mantenimiento, o «SIN_SUBSISTEMA». */
   subsistemaCodigo: string
   solucion: string
   /** 'YYYY-MM-DDTHH:MM:SS' de planta, o null = ahora. */
@@ -759,6 +777,7 @@ export async function terminarParada(usuario: string, paradaId: string, datos: D
     p_fin: datos.fin,
     p_inicio: datos.inicio,
     p_pagina: pagina,
+    p_mtto_equipo_codigo: datos.mttoEquipoCodigo,
   })
   return error ? { ok: false, error: error.message || "No se pudo terminar la parada. Intenta de nuevo." } : { ok: true }
 }

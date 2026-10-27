@@ -88,3 +88,25 @@ describe("Reportes de paradas", () => {
     expect(apps.find((a) => a.slug === "paradas")).toBeUndefined()
   })
 })
+
+describe("Códigos de Mantenimiento", () => {
+  const app = apps.find((a) => a.slug === "codigos-mantenimiento")!
+  const sesion = (rol: RolCodigo): Session => ({
+    username: "u",
+    nombre: "U",
+    cedula: null,
+    area: rol === "MANTENIMIENTO" ? "MANTENIMIENTO" : "ASEPTICO",
+    rol,
+    esDueno: false,
+    permisos: [],
+    debeCompletarPerfil: false,
+  })
+
+  it("lo ven Mantenimiento y el Super Administrador; ningún rol de Producción", () => {
+    expect(puedeVerApp(sesion("MANTENIMIENTO"), app)).toBe(true)
+    expect(puedeVerApp(sesion("SUPERADMINISTRADOR"), app)).toBe(true)
+    for (const rol of ["SUPERVISOR", "JEFE_PRODUCCION", "ANALISTA", "VISTA"] as const) {
+      expect(puedeVerApp(sesion(rol), app)).toBe(false)
+    }
+  })
+})

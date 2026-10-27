@@ -23,6 +23,7 @@ const PanelParadas = lazy(() => import("@/pages/apps/PanelParadas"))
 const ReportesParadas = lazy(() => import("@/pages/apps/ReportesParadas"))
 const SolicitudesIntervencion = lazy(() => import("@/pages/apps/SolicitudesIntervencion"))
 const CatalogoParadas = lazy(() => import("@/pages/apps/CatalogoParadas"))
+const CodigosMantenimiento = lazy(() => import("@/pages/apps/CodigosMantenimiento"))
 const Programacion = lazy(() => import("@/pages/apps/Programacion"))
 const EdicionDatos = lazy(() => import("@/pages/apps/EdicionDatos"))
 const Ajustes = lazy(() => import("@/pages/Ajustes"))
@@ -168,6 +169,14 @@ export default function App() {
             element={
               <ProtectedRoute app="catalogo-paradas">
                 <CatalogoParadas />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/codigos-mantenimiento"
+            element={
+              <ProtectedRoute app="codigos-mantenimiento">
+                <CodigosMantenimiento />
               </ProtectedRoute>
             }
           />

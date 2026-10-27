@@ -248,6 +248,17 @@ export const apps: AppDef[] = [
     seccion: "base-datos",
   },
   {
+    slug: "codigos-mantenimiento",
+    title: "Códigos de Mantenimiento",
+    description: "Equipos y subsistemas de Mantenimiento.",
+    href: "/codigos-mantenimiento",
+    icon: ListChecks,
+    requiereTurno: false,
+    // Catálogo propio de Mantenimiento: lo editan Mantenimiento y la dueña (el servidor lo valida). Ningún rol de Producción lo ve.
+    rolesPermitidos: ["MANTENIMIENTO", "SUPERADMINISTRADOR"],
+    seccion: "base-datos",
+  },
+  {
     slug: "panel-paradas",
     title: "Panel de Paradas",
     href: "/panel-paradas",

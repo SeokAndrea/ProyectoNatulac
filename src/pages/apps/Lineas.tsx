@@ -7,6 +7,7 @@ import { LineasEstadoPlanta } from "@/components/LineasEstadoPlanta"
 import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
+import { areaPlantaDeSesion, esDeMantenimiento } from "@/lib/mantenimientoSesion"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
 import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 
@@ -23,16 +24,18 @@ export default function Lineas() {
   const { enModoCorreccion, turnoCorregido, errorCorreccion, salirDeCorreccion } = efectivo
   // Mantenimiento no abre turnos: ve el turno en curso de la planta y entra al Modo Paradas.
   const { session } = useAuth()
-  const esMantenimiento = session?.area === "MANTENIMIENTO"
+  const esMantenimiento = esDeMantenimiento(session)
+  // El turno de la planta del área de la sesión: Pruebas en Pruebas, Aséptico en el resto.
+  const areaPlanta = areaPlantaDeSesion(session)
   const [turnoPlanta, setTurnoPlanta] = useState<string | null | undefined>(undefined)
   useEffect(() => {
     if (!esMantenimiento) return
     let vivo = true
-    void obtenerEstadoPlantaActual("ASEPTICO").then((t) => vivo && setTurnoPlanta(t?.id ?? null))
+    void obtenerEstadoPlantaActual(areaPlanta).then((t) => vivo && setTurnoPlanta(t?.id ?? null))
     return () => {
       vivo = false
     }
-  }, [esMantenimiento])
+  }, [esMantenimiento, areaPlanta])
   const cargando = esMantenimiento ? turnoPlanta === undefined : efectivo.cargando
   const turnoIdEfectivo = esMantenimiento ? (turnoPlanta ?? null) : efectivo.turnoIdEfectivo
 

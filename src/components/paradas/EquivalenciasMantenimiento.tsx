@@ -95,7 +95,7 @@ export function EquivalenciasMantenimiento({ usuario }: { usuario: string }) {
         </p>
       )}
       {visibles.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{soloPendientes ? "No queda ninguna sin confirmar." : "Todavía no hay equivalencias: actualiza desde el Sheet en Registrar Paradas."}</p>
+        <p className="text-sm text-muted-foreground">{soloPendientes ? "No queda ninguna sin confirmar." : "Todavía no hay equivalencias."}</p>
       ) : (
         <Table>
           <TableHeader>

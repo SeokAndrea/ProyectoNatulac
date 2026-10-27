@@ -14,17 +14,24 @@ import {
   type Parada,
   type TipoParada,
 } from "@/lib/paradas"
+import { equipoMttoSugerido, SIN_SUBSISTEMA, useCatalogoMtto } from "@/lib/mttoCatalogo"
+import { useCatalogoParadas } from "@/lib/paradasCatalogo"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
 import { useAccion } from "@/lib/useAccion"
 
 const PAGINA = "Líneas"
 const LARGO_SOLUCION = 300
 
+const selectClase =
+  "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+
 /**
  * Terminar parada (Mantenimiento, o el supervisor con el interruptor apagado):
- * código (equipo y falla, subsistema), qué se realizó y el tiempo final. Los
- * minutos o la hora de comienzo solo valen si la parada no cruzó un turno
- * cerrado: lo cerrado queda fijo y solo se mueve el final.
+ * el equipo y el subsistema de Mantenimiento (de su catálogo, o «Sin
+ * subsistema»), qué se realizó y el tiempo final. El equipo y la falla de
+ * Producción se quedan como los puso el supervisor. Los minutos o la hora de
+ * comienzo solo valen si la parada no cruzó un turno cerrado: lo cerrado queda
+ * fijo y solo se mueve el final.
  */
 export function FormTerminarParada({
   parada,
@@ -38,15 +45,20 @@ export function FormTerminarParada({
   onTerminada: () => void
 }) {
   const equipos = useEquiposParadas()
+  const catalogoProduccion = useCatalogoParadas()
+  const { equipos: equiposMtto, subsistemas } = useCatalogoMtto()
   const [cruzo, setCruzo] = useState<boolean | null>(null)
   const tipoInicial = parada.tipoCodigo && parada.tipoCodigo !== TIPO_FALLA_SIN_ESPECIFICAR && parada.tipoCodigo !== TIPO_POR_CLASIFICAR ? parada.tipoCodigo : null
-  const [corrigiendo, setCorrigiendo] = useState(tipoInicial === null)
   const [tipo, setTipo] = useState<TipoParada | null>(null)
-  const [subsistema, setSubsistema] = useState(parada.subsistemaCodigo ?? "")
+  /** null = Mantenimiento todavía no tocó el equipo: manda la preselección. */
+  const [equipoElegido, setEquipoElegido] = useState<string | null>(null)
+  const [subsistema, setSubsistema] = useState("")
   const [solucion, setSolucion] = useState(parada.solucion ?? "")
   const [conHoras, setConHoras] = useState(false)
   const [minutos, setMinutos] = useState("")
-  const inicioOriginal = parada.inicio.slice(0, 16)
+  // `inicio` viene recortado al turno que se mira: el comienzo verdadero es inicioReal.
+  const inicioVerdadero = parada.inicioReal ?? parada.inicio
+  const inicioOriginal = inicioVerdadero.slice(0, 16)
   const [comienzo, setComienzo] = useState(inicioOriginal)
   const [fin, setFin] = useState("")
   const { enviando, error, ejecutar } = useAccion()
@@ -68,20 +80,24 @@ export function FormTerminarParada({
     )
   }
 
-  const tipoCodigo = tipo?.codigo ?? (corrigiendo ? null : tipoInicial)
+  const tipoCodigo = tipo?.codigo ?? tipoInicial
+  const equipoProduccion = catalogoProduccion.find((t) => t.codigo === tipoCodigo)?.equipoCodigo ?? null
+  const equipoMtto = equipoElegido ?? equipoMttoSugerido(equiposMtto, equipoProduccion) ?? ""
+  const subsistemasDelEquipo = subsistemas.filter((s) => s.activo && s.equipoCodigo === equipoMtto)
   const usaMinutos = !cruzo && !conHoras
   const n = Number(minutos)
   const finCalculado = usaMinutos ? (Number.isInteger(n) && n >= 1 ? sumarMinutos(inicioOriginal, n) : "") : fin
   const inicioFinal = usaMinutos || cruzo ? inicioOriginal : comienzo
   const duracion = finCalculado && inicioFinal ? minutosEntre(inicioFinal, finCalculado) : null
   const tiempoListo = finCalculado !== "" && duracion !== null && duracion > 0
-  const listo = tipoCodigo !== null && subsistema.trim() !== "" && solucion.trim() !== "" && tiempoListo
+  const listo = tipoCodigo !== null && equipoMtto !== "" && subsistema !== "" && solucion.trim() !== "" && tiempoListo
 
   async function confirmar() {
     if (!tipoCodigo || !listo) return
     const datos = {
       tipoCodigo,
-      subsistemaCodigo: subsistema.trim(),
+      mttoEquipoCodigo: equipoMtto,
+      subsistemaCodigo: subsistema,
       solucion: solucion.trim(),
       fin: conSegundos(finCalculado),
       inicio: !usaMinutos && !cruzo && comienzo !== inicioOriginal ? conSegundos(comienzo) : null,
@@ -91,7 +107,7 @@ export function FormTerminarParada({
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-      {corrigiendo ? (
+      {tipoInicial === null ? (
         <BuscadorTipoParada
           lineaCodigo={parada.lineaCodigo}
           area={area}
@@ -100,16 +116,39 @@ export function FormTerminarParada({
           onElegir={setTipo}
         />
       ) : (
-        <div className="flex items-center justify-between gap-2 text-sm">
-          <span className="min-w-0 truncate font-medium text-foreground">{parada.tipoNombre}</span>
-          <button type="button" onClick={() => setCorrigiendo(true)} className="shrink-0 text-xs text-muted-foreground underline decoration-dotted hover:text-foreground">
-            Cambiar
-          </button>
-        </div>
+        <p className="min-w-0 truncate text-sm font-medium text-foreground">{parada.tipoNombre}</p>
       )}
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+        Equipo de Mantenimiento
+        <select
+          className={selectClase}
+          value={equipoMtto}
+          onChange={(e) => {
+            setEquipoElegido(e.target.value)
+            setSubsistema("")
+          }}
+        >
+          <option value="">Elige el equipo…</option>
+          {equiposMtto
+            .filter((e) => e.activo)
+            .map((e) => (
+              <option key={e.codigo} value={e.codigo}>
+                {e.nombre}
+              </option>
+            ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Subsistema
-        <Input value={subsistema} onChange={(e) => setSubsistema(e.target.value.slice(0, 40))} className="h-9" />
+        <select className={selectClase} value={subsistema} onChange={(e) => setSubsistema(e.target.value)} disabled={equipoMtto === ""}>
+          <option value="">Elige el subsistema…</option>
+          <option value={SIN_SUBSISTEMA}>Sin subsistema</option>
+          {subsistemasDelEquipo.map((s) => (
+            <option key={s.id} value={s.codigo}>
+              {s.codigo} · {s.nombre}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         ¿Qué se realizó?
@@ -118,7 +157,7 @@ export function FormTerminarParada({
 
       {cruzo ? (
         <>
-          <p className="text-xs text-muted-foreground">Empezó {parada.inicio.slice(11, 16)} (turno cerrado).</p>
+          <p className="text-xs text-muted-foreground">Empezó {inicioVerdadero.slice(11, 16)} (turno cerrado).</p>
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
             Terminó a las
             <Input type="datetime-local" value={fin} onChange={(e) => setFin(e.target.value)} className="h-9" />

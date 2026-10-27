@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TURNO_TIPOS } from "@/lib/catalogos"
+import { SIN_SUBSISTEMA } from "@/lib/mttoCatalogo"
 import { duracionMin, nombreLineaParada, type Parada } from "@/lib/paradas"
 import { codigoDeParadaLive, useCatalogoParadas } from "@/lib/paradasCatalogo"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
@@ -24,6 +25,13 @@ const ESTILO_IMPRESION = `@media print {
   .reporte-imprimible, .reporte-imprimible * { visibility: visible !important; }
   .reporte-imprimible { position: absolute; left: 0; top: 0; width: 100%; border: 0 !important; box-shadow: none !important; }
 }`
+
+/** «CBP-EMP-05 · EMPUJADOR» (el nombre de ese día); «Sin subsistema»; o el texto de antes del catálogo. */
+function textoSubsistema(p: Pick<Parada, "subsistemaCodigo" | "subsistemaNombre">): string | null {
+  if (p.subsistemaCodigo === SIN_SUBSISTEMA) return "Sin subsistema"
+  if (!p.subsistemaCodigo) return null
+  return p.subsistemaNombre ? `${p.subsistemaCodigo} · ${p.subsistemaNombre}` : p.subsistemaCodigo
+}
 
 function Campo({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
@@ -67,7 +75,8 @@ export function ReporteParada({ parada, ventanas, ahora }: { parada: Parada; ven
         <Campo titulo="Sabor">{parada.sabor}</Campo>
         <Campo titulo="Equipo">{equipo}</Campo>
         <Campo titulo="Falla">{parada.tipoNombre}</Campo>
-        <Campo titulo="Subsistema">{parada.subsistemaCodigo}</Campo>
+        <Campo titulo="Equipo de Mantenimiento">{parada.mttoEquipoNombre}</Campo>
+        <Campo titulo="Subsistema">{textoSubsistema(parada)}</Campo>
         <Campo titulo="Código">{codigoDeParadaLive(parada)}</Campo>
         <Campo titulo="Comentario">{parada.nota}</Campo>
         <Campo titulo="¿Qué se realizó?">{parada.solucion}</Campo>
