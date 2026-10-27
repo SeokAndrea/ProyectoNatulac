@@ -150,7 +150,7 @@ export function ModoParadas({
     )
   }
   if (!turno) {
-    return <p className="mx-auto max-w-xl rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">No hay un turno abierto: el Modo Paradas cuenta el tiempo del turno en curso.</p>
+    return <p className="mx-auto max-w-xl rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">No hay un turno abierto.</p>
   }
 
   const horas = horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin)
@@ -248,7 +248,7 @@ export function ModoParadas({
                 <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
                 <span>
                   Falta el PT de {c.saborNombre ?? "la corrida"}
-                  {c.lote ? ` · lote ${c.lote}` : ""}: hasta cargarlo, su tiempo cuenta como sin cubrir.{" "}
+                  {c.lote ? ` · lote ${c.lote}` : ""}.{" "}
                   <Link to="/producto-terminado" className="font-semibold underline underline-offset-2">
                     Cargar PT
                   </Link>

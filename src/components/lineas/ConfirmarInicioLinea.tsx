@@ -14,12 +14,12 @@ const OPCIONES_NO_CORRE: [NoCorre, (lote: string) => string, (lote: string) => s
   [
     "parada",
     () => "Parar: está parada, pero sigue con este lote",
-    (lote) => `No está produciendo ahora; cuando arranque, retoma ${lote}. Pones desde qué hora, quién la paró y por qué: el tiempo cuenta desde esa hora.`,
+    (lote) => `Cuando arranque, retoma ${lote}.`,
   ],
   [
     "detener",
     () => "Entregar PT: ya no sigue con este lote",
-    (lote) => `${lote[0].toUpperCase()}${lote.slice(1)} terminó o no se retoma. Queda esperando que cargues su PT.`,
+    (lote) => `${lote[0].toUpperCase()}${lote.slice(1)} no se retoma. Queda esperando su PT.`,
   ],
   ["cip", () => "Está en CIP", () => "La línea se está lavando."],
 ]

@@ -350,10 +350,10 @@ describe("LineaCard — revisión de Status", () => {
     const u = userEvent.setup()
     renderCard({ modo: "status", lineaTurno: corrida({ confirmadoInicioEn: null }) })
     await u.click(boton("No está corriendo"))
-    expect(screen.getByText(/cuando arranque, retoma el lote 0001/)).toBeInTheDocument()
-    expect(screen.getByText(/El lote 0001 terminó o no se retoma/)).toBeInTheDocument()
+    expect(screen.getByText(/Cuando arranque, retoma el lote 0001/)).toBeInTheDocument()
+    expect(screen.getByText(/El lote 0001 no se retoma/)).toBeInTheDocument()
     await u.click(boton(/Entregar PT: ya no sigue con este lote/))
-    expect(screen.getByText(/queda esperando su Producto Terminado/)).toBeInTheDocument()
+    expect(screen.getByText(/Queda esperando su Producto Terminado/)).toBeInTheDocument()
   })
 
   it("si Confirmar falla, muestra el error", async () => {
@@ -470,7 +470,7 @@ describe("LineaCard — en pausa", () => {
     const u = userEvent.setup()
     const a = renderCard({ lineaTurno: pausada() })
     await u.click(boton("Entregar PT"))
-    expect(screen.getByText(/Entrega la corrida: queda esperando su Producto Terminado\. No se deshace\./)).toBeInTheDocument()
+    expect(screen.getByText(/Queda esperando su Producto Terminado\. No se deshace\./)).toBeInTheDocument()
     await u.type(screen.getByPlaceholderText(/Motivo \(opcional\)/), "  Sin envases  ")
     await u.click(boton("Sí, entregar PT"))
     expect(a.detener).toHaveBeenCalledWith("c1", "Sin envases")

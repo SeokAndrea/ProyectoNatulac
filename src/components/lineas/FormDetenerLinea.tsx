@@ -26,13 +26,13 @@ export function FormDetenerLinea({
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-3">
-      <p className="text-xs text-foreground">Entrega la corrida: queda esperando su Producto Terminado. No se deshace.</p>
+      <p className="text-xs text-foreground">Queda esperando su Producto Terminado. No se deshace.</p>
       <Textarea
         value={motivo}
         onChange={(e) => setMotivo(e.target.value.slice(0, 140))}
         maxLength={140}
         rows={2}
-        placeholder="Motivo (opcional) — se muestra en el dashboard"
+        placeholder="Motivo (opcional)"
         className="text-sm"
       />
       <div className="flex flex-wrap justify-end gap-2">
