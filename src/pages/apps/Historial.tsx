@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
-import { generarActaPdf } from "@/lib/actaPdf"
+import { finDelTurno, generarActaPdf } from "@/lib/actaPdf"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { AREAS, GRUPOS, nombrePorCodigo, type GrupoCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
@@ -170,6 +170,7 @@ export default function Historial() {
         transferencias: detalle.transferencias,
         salidasVacio: detalle.salidasVacio,
         paradas,
+        finTurno: finDelTurno(detalle),
         responsables: detalle.responsables,
         esquema: detalle.esquema,
         horaInicio: detalle.horaInicio,

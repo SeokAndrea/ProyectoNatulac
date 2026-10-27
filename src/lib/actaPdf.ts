@@ -80,6 +80,29 @@ export function notaParadaActa(p: Pick<Parada, "nota" | "tipoNombre" | "origen" 
   return partes.length > 0 ? partes.join(" — ") : null
 }
 
+const NOMBRE_RESPONSABLE: Record<Parada["responsable"], string> = { OPERACIONAL: "Operacional", MANTENIMIENTO: "Mantenimiento" }
+
+/**
+ * Un renglón del recuadro de paradas de una línea: hora, tipo, Responsable y
+ * el tramo del turno (el servidor ya recorta las que vienen de otro turno).
+ * Entran todas, Operacionales y de Mantenimiento. Una parada abierta sale
+ * «en curso» y cuenta hasta el fin del turno (o hasta ahora, si el turno sigue).
+ */
+export function renglonParadaActa(p: Parada, finTurno?: string | null, ahora: Date = new Date()): { texto: string; min: number } {
+  const abierta = p.fin === null
+  const min = duracionMin({ inicio: p.inicio, fin: p.fin ?? finTurno ?? null }, ahora)
+  const nota = notaParadaActa(p)
+  // Sin el tiempo guía (dueña, 2026-10-08).
+  const texto = `• ${horaNovedad(p.inicio)} ${p.tipoNombre} (${NOMBRE_RESPONSABLE[p.responsable]}): ${min} min${abierta ? " (en curso)" : ""}${nota ? ` — ${nota}` : ""}`
+  return { texto, min }
+}
+
+/** Fin del turno cerrado como lo espera `finTurno` ("YYYY-MM-DDTHH:MM:SS"); null si sigue abierto. */
+export function finDelTurno(t: { fechaFin: string | null; horaFin: string | null }): string | null {
+  if (!t.fechaFin || !t.horaFin) return null
+  return `${t.fechaFin}T${t.horaFin.length === 5 ? `${t.horaFin}:00` : t.horaFin.slice(0, 8)}`
+}
+
 const NOMBRE_CONDICION: Record<CondicionTanque, string> = {
   LISTO: "Listo",
   STANDBY: "Con restos",
@@ -108,6 +131,8 @@ export async function generarActaPdf(params: {
   salidasVacio?: SalidaVacioRegistro[]
   /** Paradas registradas en este turno (ver cargarParadasDelTurno). Van en los recuadros por línea de 2.1. */
   paradas?: Parada[]
+  /** Fin del turno ("YYYY-MM-DDTHH:MM:SS", hora de planta): una parada abierta cuenta hasta ahí. Sin él, hasta ahora. */
+  finTurno?: string | null
   /** Lecturas de Servicios Industriales con turno_id = este turno (ver migración 20261057). Van en 2.3. */
   serviciosIndustriales?: LecturaServiciosIndustriales[]
   supervisorNombre: string
@@ -139,6 +164,7 @@ export async function generarActaPdf(params: {
     transferencias = [],
     salidasVacio = [],
     paradas = [],
+    finTurno = null,
     serviciosIndustriales = [],
     supervisorNombre,
     responsables = [],
@@ -476,14 +502,10 @@ export async function generarActaPdf(params: {
       // Sin rendimiento por ahora (dueña, 2026-10-15).
       const sinReportar = sinReportarActa(eficiencia.porLinea.get(l.codigo))
       if (propias.length === 0) return ["Sin paradas registradas.", ...(sinReportar ? [sinReportar] : [])]
-      const total = propias.reduce((a, p) => a + duracionMin(p), 0)
+      const renglones = propias.map((p) => renglonParadaActa(p, finTurno))
+      const total = renglones.reduce((a, r) => a + r.min, 0)
       return [
-        ...propias.map((p) => {
-          const min = duracionMin(p)
-          const nota = notaParadaActa(p)
-          // Sin el tiempo guía (dueña, 2026-10-08).
-          return `• ${horaNovedad(p.inicio)} ${p.tipoNombre}: ${min} min${nota ? ` — ${nota}` : ""}`
-        }),
+        ...renglones.map((r) => r.texto),
         `Total: ${total} min`,
         ...(sinReportar ? [sinReportar] : []),
       ]

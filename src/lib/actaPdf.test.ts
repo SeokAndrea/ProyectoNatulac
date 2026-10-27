@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { generarActaPdf, notaParadaActa, sinReportarActa } from "@/lib/actaPdf"
+import { generarActaPdf, notaParadaActa, finDelTurno, renglonParadaActa, sinReportarActa } from "@/lib/actaPdf"
+import type { Parada } from "@/lib/paradas"
 import { LINEAS_DEMO, PRESENTACIONES_DEMO, contador, corrida, prep, pt, tanque } from "@/lib/auditoriaDemoFixture"
 
 const VELOCIDADES_DEMO = (["LINEA_1", "LINEA_2", "LINEA_3"] as const).map((linea, i) => ({
@@ -231,5 +232,78 @@ describe("paradas de la línea en el acta", () => {
     expect(sinReportarActa({ sinReportarMin: 0 })).toBeNull()
     expect(sinReportarActa({ sinReportarMin: null })).toBeNull()
     expect(sinReportarActa(undefined)).toBeNull()
+  })
+})
+
+describe("renglón de parada en el acta (todas, con Responsable y el tramo del turno)", () => {
+  const par = (over: Partial<Parada>): Parada =>
+    ({
+      id: "p",
+      origen: "MANUAL",
+      responsable: "OPERACIONAL",
+      lineaCodigo: "LINEA_1",
+      tipoNombre: "Llenadora · Atasco",
+      nota: null,
+      justificacionDesvio: null,
+      inicio: "2026-10-26T14:00:00",
+      fin: "2026-10-26T16:30:00",
+      ...over,
+    }) as Parada
+  const FIN_TURNO = "2026-10-26T22:00:00"
+  const DESPUES = new Date("2026-10-27T09:00:00")
+
+  it("Mantenimiento: lo dice y cuenta el tramo del turno (150), no el total", () => {
+    // El servidor ya recortó el comienzo al turno: 14:00 a 16:30.
+    const r = renglonParadaActa(par({ responsable: "MANTENIMIENTO" }), FIN_TURNO, DESPUES)
+    expect(r.min).toBe(150)
+    expect(r.texto).toContain("Mantenimiento")
+    expect(r.texto).toContain("150 min")
+    expect(r.texto).not.toContain("210")
+    expect(r.texto).not.toContain("en curso")
+  })
+
+  it("Operacional también sale, con su Responsable", () => {
+    const r = renglonParadaActa(par({}), FIN_TURNO, DESPUES)
+    expect(r.texto).toContain("Operacional")
+    expect(r.min).toBe(150)
+  })
+
+  it("una parada abierta sale «en curso» y cuenta hasta el fin del turno", () => {
+    const r = renglonParadaActa(par({ fin: null, responsable: "MANTENIMIENTO" }), FIN_TURNO, DESPUES)
+    expect(r.min).toBe(480)
+    expect(r.texto).toContain("en curso")
+  })
+
+  it("el acta con paradas abiertas y de Mantenimiento se genera", async () => {
+    const blob = await generarActaPdf({
+      codigo: "T2-2026-10-26-1",
+      fecha: "2026-10-26",
+      turnoTipo: "TURNO_2",
+      grupo: "GRUPO_1" as const,
+      tanquesEncontrados: null,
+      tanques: [],
+      preparaciones: [],
+      corridas: [],
+      contadores: [],
+      productoTerminado: [],
+      novedades: [],
+      ajustesVolumen: [],
+      supervisorNombre: "Javier Bello",
+      area: "ASEPTICO" as const,
+      lineas: LINEAS_DEMO,
+      presentaciones: PRESENTACIONES_DEMO,
+      velocidades: [...VELOCIDADES_DEMO],
+      paradas: [par({ responsable: "MANTENIMIENTO" }), par({ id: "q", fin: null })],
+      finTurno: FIN_TURNO,
+    })
+    expect(blob.size).toBeGreaterThan(0)
+  })
+})
+
+describe("finDelTurno", () => {
+  it("arma el ISO local del cierre; null si el turno sigue abierto", () => {
+    expect(finDelTurno({ fechaFin: "2026-10-26", horaFin: "14:00:00" })).toBe("2026-10-26T14:00:00")
+    expect(finDelTurno({ fechaFin: "2026-10-26", horaFin: "14:00" })).toBe("2026-10-26T14:00:00")
+    expect(finDelTurno({ fechaFin: null, horaFin: null })).toBeNull()
   })
 })

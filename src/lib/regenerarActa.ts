@@ -1,6 +1,6 @@
 import type { Session } from "@/lib/auth"
 import type { LineaLive, PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
-import { generarActaPdf } from "@/lib/actaPdf"
+import { finDelTurno, generarActaPdf } from "@/lib/actaPdf"
 import { miTurnoDetalle, subirYRegistrarActa } from "@/lib/historialTurnos"
 import { listarLecturasServiciosIndustrialesDeTurno } from "@/lib/panelProduccion"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
@@ -43,6 +43,7 @@ export async function regenerarActaDeMiTurno(
       transferencias: turno.transferencias,
       salidasVacio: turno.salidasVacio,
       paradas,
+      finTurno: finDelTurno(turno),
       serviciosIndustriales,
       responsables: turno.responsables,
       esquema: turno.esquema,
