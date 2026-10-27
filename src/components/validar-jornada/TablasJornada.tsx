@@ -188,7 +188,7 @@ export function TablaParadas({ filas, bloqueada, onAccion }: { filas: FilaParada
         { texto: "Cuándo" },
         { texto: "Tipo" },
         { texto: "Clase" },
-        { texto: "Cargó" },
+        { texto: "Responsable" },
         { texto: "Minutos", derecha: true },
         { texto: "", derecha: true },
       ]}
@@ -205,10 +205,10 @@ export function TablaParadas({ filas, bloqueada, onAccion }: { filas: FilaParada
               {f.larga && <p className="text-xs font-semibold text-warning-foreground">Más de 4 horas</p>}
               {f.pendiente && <p className="text-xs font-semibold text-danger">Sin minutos (+1 sin completar)</p>}
               {f.sinClasificar && <p className="text-xs font-semibold text-warning-foreground">Falla sin clasificar: falta el código de Mantenimiento</p>}
-              {f.abierta && <p className="text-xs font-semibold text-danger">Todavía abierta</p>}
+              {f.abierta && <p className="text-xs font-semibold text-danger">abierta</p>}
             </td>
             <td className={td}>{CLASE[f.clase]}</td>
-            <td className={td}>{f.deMantenimiento ? "Mantenimiento" : "Supervisor"}</td>
+            <td className={td}>{f.responsable}</td>
             <td className={tdR}>
               <ValorValidado original={f.minutos} validacion={f.validacion} />
             </td>

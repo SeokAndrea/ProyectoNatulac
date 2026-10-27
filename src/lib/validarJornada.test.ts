@@ -168,6 +168,28 @@ describe("filasParadas", () => {
     expect(filas.find((f) => f.id === "b")!.deMantenimiento).toBe(true)
   })
 
+  it("la columna Responsable sale del campo, con el nombre completo", () => {
+    const filas = filasParadas([parada({ id: "a" }), parada({ id: "b", lineaCodigo: "LINEA_3", responsable: "MANTENIMIENTO" })], new Map())
+    expect(filas.map((f) => [f.id, f.responsable])).toEqual([
+      ["a", "Operacional"],
+      ["b", "Mantenimiento"],
+    ])
+  })
+
+  it("marca «abierta» la que sigue sin terminar, sea de qué turno sea", () => {
+    const filas = filasParadas(
+      [parada({ id: "sinfin", fin: null }), parada({ id: "cerrada" }), parada({ id: "recortada", lineaCodigo: "LINEA_2" })],
+      new Map(),
+      new Date("2026-10-11T19:00:00"),
+      new Set(["recortada"]),
+    )
+    const por = (id: string) => filas.find((f) => f.id === id)!
+    expect(por("sinfin").abierta).toBe(true)
+    expect(por("cerrada").abierta).toBe(false)
+    // En un turno ya cerrado el servidor le pone fin al tramo, pero la parada sigue abierta en el siguiente.
+    expect(por("recortada").abierta).toBe(true)
+  })
+
   it("marca las de más de 4 horas", () => {
     const [f] = filasParadas([parada({ inicio: "2026-10-11T02:00:00", fin: "2026-10-11T07:40:00" })], new Map())
     expect(f.larga).toBe(true)

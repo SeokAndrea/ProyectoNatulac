@@ -209,9 +209,12 @@ export function usePanelTurno() {
     })
     // Las mismas paradas sin recortar al turno: de ahí sale el «Total» que se ve al pasar el cursor.
     const areaParadas = areaEfectiva === "ASEPTICO" || areaEfectiva === "PRUEBAS" ? areaEfectiva : null
-    listarParadas({ desde: restarDias(fecha, DIAS_ATRAS_TOTAL), hasta: fecha, area: areaParadas }).then((filas) => {
-      if (vivo) setParadasCompletas(new Map(filas.map((p) => [p.id, p])))
-    })
+    // (La fecha puede estar a medio escribir en el buscador del Panel.)
+    if (/^d{4}-d{2}-d{2}$/.test(fecha)) {
+      listarParadas({ desde: restarDias(fecha, DIAS_ATRAS_TOTAL), hasta: fecha, area: areaParadas }).then((filas) => {
+        if (vivo) setParadasCompletas(new Map(filas.map((p) => [p.id, p])))
+      })
+    }
     // Desde cuándo cuenta el turno mostrado (sus horas reales), para la cinta en vivo.
     if (areaEfectiva) {
       listarVentanasTurnos(areaEfectiva, fecha, fecha).then((ventanas) => {

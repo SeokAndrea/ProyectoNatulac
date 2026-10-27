@@ -1,8 +1,9 @@
 import { supabase } from "@/lib/supabase"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import { mapearTurnoHistorial, type TurnoHistorial } from "@/lib/historialTurnos"
-import { duracionMin, esDeMantenimiento, porClasificar, type Parada } from "@/lib/paradas"
+import { duracionMin, esDeMantenimiento, listarParadas, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
+import { restarDias } from "@/lib/tiempoPlanta"
 import { tramosPorLote, type MotivoSinContraste } from "@/lib/reportes/realidadPreparacion"
 import { cargarValidacionesTurno, validarTurno, type ValidacionTurno } from "@/lib/resumenDia"
 
@@ -50,6 +51,8 @@ export interface TurnoJornada {
 export interface DatosJornada {
   turnos: TurnoJornada[]
   paradas: Parada[]
+  /** Ids de las paradas que siguen abiertas (el tramo de un turno ya cerrado trae fin, pero la parada no terminó). */
+  paradasAbiertas?: Set<string>
   /** Las mismas paradas, por turno (id del turno): para los minutos sin reportar. */
   paradasPorTurno: Map<string, Parada[]>
   /** Cajas del supervisor por turno + sabor + presentación (suma de líneas). */
@@ -63,6 +66,9 @@ export interface DatosJornada {
 // ------------------------------------------------------------
 // Carga
 // ------------------------------------------------------------
+
+/** Días hacia atrás donde buscar paradas que siguen abiertas. */
+const DIAS_ATRAS_ABIERTAS = 7
 
 const ETIQUETA_TIPO: Record<string, string> = { TURNO_1: "T1", TURNO_2: "T2", TURNO_3: "T3", "12X12": "12x12" }
 
@@ -119,10 +125,14 @@ export async function cargarJornada(usuario: string, area: string, fecha: string
   const deCadaTurno = await Promise.all(turnos.map((t) => cargarParadasDelTurno(t.turno.id)))
   const paradas = deCadaTurno.flat()
   const paradasPorTurno = new Map(turnos.map((t, i) => [t.turno.id, deCadaTurno[i]]))
+  // Sin recortar al turno: de ahí se sabe cuáles siguen abiertas (una puede venir de días atrás).
+  const completas = await listarParadas({ desde: restarDias(fecha, DIAS_ATRAS_ABIERTAS), hasta: fecha, area })
+  const paradasAbiertas = new Set(completas.filter((p) => p.fin === null).map((p) => p.id))
 
   return {
     turnos,
     paradas,
+    paradasAbiertas,
     paradasPorTurno,
     cajas: [...cajas.values()],
     validacionesCajas,
@@ -349,6 +359,8 @@ export interface FilaParada {
   cuando: string
   tipoNombre: string
   clase: Parada["clase"]
+  /** Quién responde por la parada: el campo Responsable, no el origen. */
+  responsable: "Operacional" | "Mantenimiento"
   deMantenimiento: boolean
   minutos: number
   /** Sin minutos todavía (+1 sin completar). */
@@ -368,7 +380,12 @@ const MIN_PARADA_LARGA = 240
 const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
 const ms = (iso: string) => new Date(iso).getTime()
 
-export function filasParadas(paradas: Parada[], validadas: Map<string, Validacion>, ahora: Date = new Date()): FilaParada[] {
+export function filasParadas(
+  paradas: Parada[],
+  validadas: Map<string, Validacion>,
+  ahora: Date = new Date(),
+  abiertas: Set<string> = new Set(),
+): FilaParada[] {
   return [...paradas]
     .sort((a, b) => numeroLinea(a.lineaCodigo).localeCompare(numeroLinea(b.lineaCodigo)) || a.inicio.localeCompare(b.inicio))
     .map((p) => {
@@ -391,11 +408,12 @@ export function filasParadas(paradas: Parada[], validadas: Map<string, Validacio
         cuando: `${ETIQUETA_TIPO[p.turnoTipo] ?? p.turnoTipo} ${p.inicio.slice(11, 16)}`,
         tipoNombre: p.tipoNombre,
         clase: p.clase,
+        responsable: deMantenimiento ? "Mantenimiento" : "Operacional",
         deMantenimiento,
         minutos,
         pendiente: p.pendiente === true,
         sinClasificar: porClasificar(p),
-        abierta: p.fin === null,
+        abierta: p.fin === null || abiertas.has(p.id),
         seSolapa,
         larga: minutos > MIN_PARADA_LARGA,
         validacion: validadas.get(p.id) ?? null,

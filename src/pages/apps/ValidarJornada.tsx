@@ -99,7 +99,7 @@ export default function ValidarJornada() {
             cajas: filasCajas(datos),
             envases: filasEnvases(datos.turnos, presentaciones, datos.contadores),
             lotes: filasLotes(datos.turnos, presentaciones, datos.lotes),
-            paradas: filasParadas(datos.paradas, datos.paradasValidadas),
+            paradas: filasParadas(datos.paradas, datos.paradasValidadas, new Date(), datos.paradasAbiertas),
           }
         : null,
     [datos, presentaciones],
