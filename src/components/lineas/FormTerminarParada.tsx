@@ -178,14 +178,7 @@ export function FormTerminarParada({
         </>
       ) : (
         <>
-          <div role="group" aria-label="Tiempo final" className="grid grid-cols-2 gap-2">
-            <Button type="button" size="sm" variant={usaMinutos ? "default" : "outline"} aria-pressed={usaMinutos} onClick={() => setConHoras(false)}>
-              Minutos
-            </Button>
-            <Button type="button" size="sm" variant={usaMinutos ? "outline" : "default"} aria-pressed={!usaMinutos} onClick={() => setConHoras(true)}>
-              Hora de comienzo y fin
-            </Button>
-          </div>
+          {/* Lo principal son los minutos; la hora de inicio y fin, chica y opcional (como en Anotar). */}
           {usaMinutos ? (
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               Minutos
@@ -208,6 +201,9 @@ export function FormTerminarParada({
               </label>
             </>
           )}
+          <Button type="button" variant="ghost" size="sm" className="self-start text-xs text-muted-foreground" onClick={() => setConHoras((v) => !v)}>
+            {usaMinutos ? "Poner hora de inicio y fin (opcional)" : "Mejor poner solo los minutos"}
+          </Button>
         </>
       )}
       {finCalculado !== "" && duracion !== null && duracion <= 0 && <p className="text-xs text-danger-foreground">El fin tiene que ser después del comienzo.</p>}
