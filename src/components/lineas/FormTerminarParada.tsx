@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Check, Loader2 } from "lucide-react"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
 import { MensajeError } from "@/components/MensajeError"
-import { conSegundos, minutosEntre, sumarMinutos } from "@/components/paradas/FormCompletarParada"
+import { ahoraPlanta, conSegundos, minutosEntre, sumarMinutos } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -89,8 +89,14 @@ export function FormTerminarParada({
   const subsistemasDelEquipo = subsistemas.filter((s) => s.activo && s.equipoCodigo === equipoMtto)
   const usaMinutos = !cruzo && !conHoras
   const n = Number(minutos)
-  const finCalculado = usaMinutos ? (Number.isInteger(n) && n >= 1 ? sumarMinutos(inicioOriginal, n) : "") : fin
-  const inicioFinal = usaMinutos || cruzo ? inicioOriginal : comienzo
+  const nValido = Number.isInteger(n) && n >= 1
+  // Con minutos, el fin es comienzo + minutos; si eso pasa de ahora, la parada empezó antes de que
+  // la abrieran: termina ahora y empieza minutos antes (como completar_parada con un +1).
+  const ahora = ahoraPlanta()
+  const finSumado = usaMinutos && nValido ? sumarMinutos(inicioOriginal, n) : ""
+  const empezoAntes = finSumado !== "" && finSumado > ahora
+  const finCalculado = usaMinutos ? (empezoAntes ? ahora : finSumado) : fin
+  const inicioFinal = empezoAntes ? sumarMinutos(ahora, -n) : usaMinutos || cruzo ? inicioOriginal : comienzo
   const duracion = finCalculado && inicioFinal ? minutosEntre(inicioFinal, finCalculado) : null
   const tiempoListo = finCalculado !== "" && duracion !== null && duracion > 0
   const listo = tipoCodigo !== null && (!esMantenimiento || (equipoMtto !== "" && subsistema !== "")) && solucion.trim() !== "" && tiempoListo
@@ -103,7 +109,7 @@ export function FormTerminarParada({
       subsistemaCodigo: esMantenimiento ? subsistema : SIN_SUBSISTEMA,
       solucion: solucion.trim(),
       fin: conSegundos(finCalculado),
-      inicio: !usaMinutos && !cruzo && comienzo !== inicioOriginal ? conSegundos(comienzo) : null,
+      inicio: empezoAntes ? conSegundos(inicioFinal) : !usaMinutos && !cruzo && comienzo !== inicioOriginal ? conSegundos(comienzo) : null,
     }
     if (await ejecutar(() => terminarParada(usuario, parada.id, datos, PAGINA))) onTerminada()
   }
@@ -184,6 +190,11 @@ export function FormTerminarParada({
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               Minutos
               <Input type="number" min={1} value={minutos} onChange={(e) => setMinutos(e.target.value)} className="h-9" />
+              {empezoAntes && (
+                <span>
+                  Empezó antes de abrirla: queda de <span className="num">{inicioFinal.slice(11, 16)}</span> a <span className="num">{ahora.slice(11, 16)}</span>.
+                </span>
+              )}
             </label>
           ) : (
             <>

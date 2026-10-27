@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { FormTerminarParada } from "@/components/lineas/FormTerminarParada"
+import { ahoraPlanta, minutosEntre, sumarMinutos } from "@/components/paradas/FormCompletarParada"
 import type { Parada } from "@/lib/paradas"
 
 const terminarParada = vi.fn()
@@ -106,6 +107,20 @@ describe("FormTerminarParada", () => {
       { tipoCodigo: "DESVASE_PRODUCTO", mttoEquipoCodigo: "CBP32", subsistemaCodigo: "CBP-EMP-05", solucion: "Se cambió el sello", fin: "2026-10-26T13:45:00", inicio: null },
       expect.any(String),
     )
+  })
+
+  it("si los minutos pasan de ahora, la parada empezó antes de abrirla: termina ahora y empieza minutos antes", async () => {
+    const ahora = ahoraPlanta()
+    const { onTerminada } = await montar(false, { ...parada, inicio: `${sumarMinutos(ahora, -10)}:00` })
+    await elegirCodigo()
+    await userEvent.type(queSeRealizo(), "Se cambió el sello")
+    await userEvent.type(screen.getByLabelText(/minutos/i), "62")
+    expect(screen.getByText(/empezó antes de abrirla/i)).toBeInTheDocument()
+    await userEvent.click(terminar())
+    await waitFor(() => expect(onTerminada).toHaveBeenCalled())
+    const datos = terminarParada.mock.calls[0][2] as { fin: string; inicio: string }
+    expect(minutosEntre(datos.inicio.slice(0, 16), datos.fin.slice(0, 16))).toBe(62)
+    expect(datos.fin.slice(0, 16) <= ahoraPlanta()).toBe(true)
   })
 
   it("acepta hora de comienzo y de fin", async () => {
