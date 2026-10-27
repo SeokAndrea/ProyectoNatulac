@@ -69,8 +69,8 @@ export interface FallaSif {
   id: string
   inicio: string
   fin: string | null
-  /** Quién la cargó: Producción (en la app) o Mantenimiento (su Sheet). */
-  origen: "Producción" | "Mantenimiento"
+  /** Responsable que se eligió al reportarla: Producción (Operacional) o Mantenimiento. */
+  responsable: "Producción" | "Mantenimiento"
   equipo: string | null
   subsistema: string | null
   registro: string | null
@@ -135,6 +135,7 @@ interface FilaFalla {
   inicio: string
   fin: string | null
   origen: string
+  responsable: string | null
   equipo: string | null
   subsistema: string | null
   registro: string | null
@@ -177,7 +178,7 @@ export async function listarFallasSif(usuario: string, sifId: string): Promise<L
     id: f.parada_id,
     inicio: f.inicio,
     fin: f.fin,
-    origen: f.origen === "SHEET" ? "Mantenimiento" : "Producción",
+    responsable: f.responsable === "MANTENIMIENTO" ? "Mantenimiento" : "Producción",
     equipo: f.equipo,
     subsistema: f.subsistema,
     registro: f.registro,

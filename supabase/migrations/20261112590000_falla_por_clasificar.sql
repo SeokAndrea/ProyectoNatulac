@@ -1098,3 +1098,48 @@ begin
   return new;
 end;
 $$;
+
+-- ------------------------------------------------------------
+-- 12. listar_paradas_sif(): + responsable. Copia de 20261109390000.
+--     El SIF rotula cada falla «Mantenimiento» o «Producción» por el
+--     Responsable que se eligió al reportarla, no por el origen.
+-- ------------------------------------------------------------
+drop function if exists listar_paradas_sif(text, uuid);
+
+create function listar_paradas_sif(p_usuario text, p_sif_id uuid)
+returns table (
+  parada_id uuid,
+  inicio timestamptz,
+  fin timestamptz,
+  origen text,
+  equipo text,
+  subsistema text,
+  registro text,
+  responsable text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not usuario_activo_sif(p_usuario) then
+    raise exception 'Usuario no válido.';
+  end if;
+
+  return query
+  select p.id, p.inicio, p.fin, p.origen,
+         -- Del Sheet: lo que escribió Mantenimiento. De la app: el equipo del tipo y
+         -- el tipo mismo (desde 20261064 la parada no guarda equipo propio: el tipo es la falla del equipo).
+         case when p.origen = 'SHEET' then nullif(p.mtto_equipo, '') else te.nombre end,
+         case when p.origen = 'SHEET' then nullif(p.mtto_subsistema, '') else t.nombre end,
+         case when p.origen = 'SHEET' then 'Sheet de Mantenimiento' else coalesce(u.nombre, u.usuario) end,
+         p.responsable
+  from paradas p
+  left join paradas_tipos t on t.id = p.tipo_id
+  left join paradas_equipos te on te.id = t.equipo_id
+  left join usuarios u on u.id = p.creado_por
+  where p.sif_id = p_sif_id
+  order by p.inicio;
+end;
+$$;
+grant execute on function listar_paradas_sif(text, uuid) to anon, authenticated;

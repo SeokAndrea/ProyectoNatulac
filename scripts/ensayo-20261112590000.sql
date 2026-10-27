@@ -633,6 +633,44 @@ begin
   end;
 end $caso$;
 
+-- 16. listar_paradas_sif devuelve el Responsable (el SIF rotula la falla por él, no por el origen).
+do $caso$
+declare
+  n text := '16 listar_paradas_sif devuelve responsable';
+  c ctx;
+  v_sif uuid;
+  v_a uuid;
+  v_b uuid;
+  v_sup uuid := (select id from usuarios where usuario = 'ens_sup');
+  r record;
+  v_ok int := 0;
+begin
+  begin
+    select * into c from ctx;
+    insert into solicitudes_intervencion (codigo, fecha_jornada, numero, linea_id, tipo_id)
+    values ('SIF-ENS-16', current_date, 9916, c.l3, (select id from paradas_tipos where codigo = c.tipo))
+    returning id into v_sif;
+    -- Del Sheet pero de Operacional, y de la app pero de Mantenimiento: el origen no decide.
+    insert into paradas (turno_id, linea_id, tipo_id, clase, origen, responsable, tipo_nombre, nota, inicio, fin, creado_por)
+    values (null, c.l3, (select id from paradas_tipos where codigo = c.tipo), 'NO_PROGRAMADA', 'SHEET', 'OPERACIONAL',
+            'x', 'a', now() - interval '3 hours', now() - interval '2 hours', v_sup)
+    returning id into v_a;
+    insert into paradas (turno_id, linea_id, tipo_id, clase, origen, responsable, tipo_nombre, nota, inicio, fin, creado_por)
+    values (null, c.l3, (select id from paradas_tipos where codigo = c.tipo), 'NO_PROGRAMADA', 'MANUAL', 'MANTENIMIENTO',
+            'x', 'b', now() - interval '2 hours', now() - interval '1 hour', v_sup)
+    returning id into v_b;
+    update paradas set sif_id = v_sif where id in (v_a, v_b);
+    for r in select * from listar_paradas_sif('ens_sup', v_sif) loop
+      if r.parada_id = v_a and r.responsable = 'OPERACIONAL' then v_ok := v_ok + 1; end if;
+      if r.parada_id = v_b and r.responsable = 'MANTENIMIENTO' then v_ok := v_ok + 1; end if;
+    end loop;
+    if v_ok <> 2 then raise exception 'responsable mal devuelto (% de 2)', v_ok; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
 -- ------------------------------------------------------------
 -- Resultado
 -- ------------------------------------------------------------

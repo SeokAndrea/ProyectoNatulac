@@ -183,7 +183,7 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
                 <li key={f.id} className="flex flex-col gap-0.5 py-2 text-sm">
                   <span>
                     <span className="num">{fechaHoraSif(f.inicio)}</span> · <span className="num">{textoDuracion(minutosEntre(f.inicio, f.fin))}</span> ·{" "}
-                    <span className="text-muted-foreground">{f.origen}</span>
+                    <span className="text-muted-foreground">{f.responsable}</span>
                   </span>
                   {(conSistema || conRegistro) && (
                     <span className="text-xs text-muted-foreground">
@@ -199,7 +199,7 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="py-1.5 pr-3 font-medium">Fecha y hora</th>
                     <th className="py-1.5 pr-3 font-medium">Duración</th>
-                    <th className="py-1.5 pr-3 font-medium">Cargada por</th>
+                    <th className="py-1.5 pr-3 font-medium">Responsable</th>
                     {conSistema && <th className="py-1.5 pr-3 font-medium">Sistema · subsistema</th>}
                     {conRegistro && <th className="py-1.5 font-medium">Registró</th>}
                   </tr>
@@ -210,7 +210,7 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
                       <td className="num whitespace-nowrap py-2 pr-3">{fechaHoraSif(f.inicio)}</td>
                       <td className="num whitespace-nowrap py-2 pr-3">{textoDuracion(minutosEntre(f.inicio, f.fin))}</td>
                       <td className="py-2 pr-3">
-                        <span className="rounded-sm bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{f.origen}</span>
+                        <span className="rounded-sm bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{f.responsable}</span>
                       </td>
                       {conSistema && <td className="py-2 pr-3">{sistemaDe(f) || "—"}</td>}
                       {conRegistro && <td className="py-2">{f.registro ?? "—"}</td>}

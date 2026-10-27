@@ -78,7 +78,7 @@ export function generarSifPdf(sif: Sif, codigoParada: string, fallas: FallaSif[]
   const columnas: [string, number][] = [
     ["Fecha y hora", 32],
     ["Duración", 20],
-    ["Cargada por", 28],
+    ["Responsable", 28],
     ["Sistema · subsistema", 62],
     ["Registró", W - 142],
   ]
@@ -105,7 +105,7 @@ export function generarSifPdf(sif: Sif, codigoParada: string, fallas: FallaSif[]
       doc.setFont("helvetica", "normal")
     }
     const sistema = [f.equipo, f.subsistema].filter(Boolean).join(" · ") || "—"
-    const celdas = [fechaHoraSif(f.inicio), textoDuracion(minutosEntre(f.inicio, f.fin)), f.origen, sistema, f.registro ?? "—"]
+    const celdas = [fechaHoraSif(f.inicio), textoDuracion(minutosEntre(f.inicio, f.fin)), f.responsable, sistema, f.registro ?? "—"]
     let x = M + 1
     doc.setFontSize(8)
     celdas.forEach((c, i) => {
