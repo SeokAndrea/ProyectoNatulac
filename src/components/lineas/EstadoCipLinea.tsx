@@ -24,7 +24,7 @@ export function AvisoParadaPendiente({ parada }: { parada: ParadaQueDetiene | nu
   if (!parada) return null
   return (
     <Button asChild size="sm" className="self-start">
-      <Link to={`/paradas?parada=${parada.paradaId}`}>
+      <Link to="/lineas?paradas=1">
         <ClipboardPen className="size-3.5" />
         Completar parada · {parada.tipoNombre}
       </Link>

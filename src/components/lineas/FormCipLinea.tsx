@@ -115,7 +115,7 @@ export function FormCipLinea({
                   ? `La línea para y queda en CIP. El Lote ${lote} continúa al terminar el CIP.`
                   : `La corrida del Lote ${lote} se detiene y queda esperando su Producto Terminado.`
                 : "La línea queda en CIP."}{" "}
-              Se suma un +1 en Registrar Paradas. ¿Confirmas?
+              Se suma un +1 en el Modo Paradas. ¿Confirmas?
             </p>
           )}
         </>

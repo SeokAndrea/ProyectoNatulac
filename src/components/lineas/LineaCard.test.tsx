@@ -460,10 +460,10 @@ describe("LineaCard — en pausa", () => {
     expect(screen.queryByRole("button", { name: "Continuar" })).toBeNull()
   })
 
-  it("con la parada sin completar, Continuar queda bloqueado y lleva a Registrar Paradas", () => {
+  it("con la parada sin completar, Continuar queda bloqueado y lleva al Modo Paradas de Líneas", () => {
     renderCard({ lineaTurno: pausada(), paradaQueDetiene: PARADA_PENDIENTE })
     expect(boton("Continuar")).toBeDisabled()
-    expect(screen.getByRole("link", { name: /Completar parada/ })).toHaveAttribute("href", "/paradas?parada=p-9")
+    expect(screen.getByRole("link", { name: /Completar parada/ })).toHaveAttribute("href", "/lineas?paradas=1")
   })
 
   it("Entregar PT pide confirmar y manda el motivo", async () => {
