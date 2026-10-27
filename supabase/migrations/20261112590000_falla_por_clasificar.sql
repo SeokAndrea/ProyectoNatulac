@@ -380,10 +380,12 @@ begin
   if not found then
     raise exception 'No se encontró la parada.';
   end if;
-  if v_p.fin is not null then
+  -- Una pendiente (el +1 sin completar) se guarda con fin = inicio: se puede terminar.
+  if v_p.fin is not null and not v_p.pendiente then
     raise exception 'Esa parada ya terminó.';
   end if;
-  if la_termina_mantenimiento(p_parada_id) and not es_de_mantenimiento(p_usuario) then
+  -- La dueña también (prueba en Pruebas, donde el interruptor está encendido).
+  if la_termina_mantenimiento(p_parada_id) and not es_de_mantenimiento(p_usuario) and not es_dueno(p_usuario) then
     raise exception 'Esta parada la termina Mantenimiento.';
   end if;
 
@@ -447,6 +449,7 @@ begin
       solucion = left(v_solucion, 300),
       inicio = v_ini,
       fin = v_fin,
+      pendiente = false,
       terminada_por = v_usuario_id,
       terminada_en = now()
   where id = p_parada_id;
@@ -799,3 +802,299 @@ as $$
   order by 12 desc;
 $$;
 grant execute on function listar_paradas(date, date, text, text, uuid, text) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- 11. Quién y cuándo terminó la parada, sea cual sea la salida que la cierre
+--     (Continuar, Detener línea, CIP, Cerrar de Mantenimiento, Completar).
+--     El reporte congelado no puede mostrar «terminada por» en blanco.
+-- ------------------------------------------------------------
+
+-- soltar_parada_de_linea(): copia de 20261111590000 + terminada_por / terminada_en.
+create or replace function soltar_parada_de_linea(
+  p_usuario text,
+  p_turno_id uuid,
+  p_linea_id uuid,
+  p_pagina text,
+  p_justificacion text default null,
+  p_exigir_justificacion boolean default false
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_le lineas_estado;
+  v_p paradas;
+  v_min integer;
+  v_just text := nullif(btrim(coalesce(p_justificacion, '')), '');
+  v_pasada boolean;
+  v_usuario_id uuid := (select id from usuarios where usuario = lower(p_usuario));
+begin
+  select * into v_le from lineas_estado where turno_id = p_turno_id and linea_id = p_linea_id for update;
+  if v_le.parada_id is null then
+    return;
+  end if;
+  select * into v_p from paradas where id = v_le.parada_id for update;
+  if v_p.pendiente then
+    return;
+  end if;
+
+  -- Primero se suelta: así cerrar la parada no hace seguir la línea sola (trigger).
+  update lineas_estado set parada_id = null where id = v_le.id;
+  if v_p.fin is not null then
+    return;
+  end if;
+
+  if parada_de_mantenimiento(v_p.id) then
+    update paradas set linea_siguio_en = now() where id = v_p.id;
+    perform registrar_auditoria(
+      p_usuario, 'EDITAR', 'paradas', v_p.id::text, p_pagina,
+      format('La %s siguió; la parada «%s» de Mantenimiento sigue abierta',
+             (select nombre from lineas where id = p_linea_id), v_p.tipo_nombre),
+      jsonb_build_object('linea_siguio_en', null),
+      jsonb_build_object('linea_siguio_en', now())
+    );
+    return;
+  end if;
+
+  v_min := round(extract(epoch from (now() - v_p.inicio)) / 60);
+  v_pasada := v_p.clase = 'PROGRAMADA' and v_p.tiempo_guia_min is not null and v_min > v_p.tiempo_guia_min;
+  if p_exigir_justificacion and v_pasada and v_just is null then
+    raise exception 'La parada duró % min y su tiempo guía es % min. Escribe la justificación.', v_min, round(v_p.tiempo_guia_min);
+  end if;
+
+  update paradas
+  set fin = now(),
+      justificacion_desvio = case when v_pasada then coalesce(v_just, justificacion_desvio) else null end,
+      terminada_por = v_usuario_id,
+      terminada_en = now()
+  where id = v_p.id;
+
+  perform registrar_auditoria(
+    p_usuario, 'EDITAR', 'paradas', v_p.id::text, p_pagina,
+    format('Terminó la parada «%s» de la %s (%s min)', v_p.tipo_nombre, (select nombre from lineas where id = p_linea_id), v_min),
+    jsonb_build_object('fin', null),
+    jsonb_build_object('fin', now(), 'minutos', v_min, 'justificacion', v_just)
+  );
+end;
+$$;
+revoke execute on function soltar_parada_de_linea(text, uuid, uuid, text, text, boolean) from public, anon, authenticated;
+
+-- cerrar_parada_mantenimiento(): copia de 20261111590000 + terminada_por / terminada_en.
+create or replace function cerrar_parada_mantenimiento(
+  p_usuario text,
+  p_parada_id uuid,
+  p_fin text default null,
+  p_pagina text default 'Paradas de Mantenimiento'
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_area_id uuid := area_de_paradas_mantenimiento(p_usuario);
+  v_p paradas;
+  v_fin timestamptz;
+  v_usuario_id uuid := (select id from usuarios where usuario = lower(p_usuario));
+begin
+  select * into v_p from paradas
+  where id = p_parada_id and origen in ('MANTENIMIENTO', 'MANUAL') and not pendiente;
+  if not found then
+    raise exception 'No se encontró la parada.';
+  end if;
+  if v_p.fin is not null then
+    raise exception 'La parada ya estaba cerrada.';
+  end if;
+
+  if coalesce(trim(p_fin), '') = '' then
+    v_fin := now();
+  else
+    begin
+      v_fin := (p_fin::timestamp) at time zone 'America/Caracas';
+    exception when others then
+      raise exception 'La hora de fin no es válida.';
+    end;
+  end if;
+  if v_fin < v_p.inicio then
+    raise exception 'El fin no puede ser anterior al inicio.';
+  end if;
+  if v_fin > now() + interval '1 minute' then
+    raise exception 'La hora de fin no puede estar en el futuro.';
+  end if;
+
+  -- Si tiene detenida una línea, la línea sigue sola (trigger paradas_mueven_lineas).
+  update paradas
+  set fin = v_fin, terminada_por = v_usuario_id, terminada_en = now()
+  where id = p_parada_id;
+
+  perform registrar_auditoria(
+    p_usuario, 'EDITAR', 'paradas', p_parada_id::text, p_pagina,
+    format('Cerró la parada «%s» (%s min)', v_p.tipo_nombre,
+           round(extract(epoch from (v_fin - v_p.inicio)) / 60)),
+    jsonb_build_object('fin', null),
+    jsonb_build_object('fin', v_fin)
+  );
+end;
+$$;
+
+-- completar_parada(): copia de 20261093090000 + terminada_por / terminada_en.
+create or replace function completar_parada(
+  p_usuario text,
+  p_parada_id uuid,
+  p_minutos integer default null,
+  p_inicio text default null,
+  p_fin text default null,
+  p_tipo_codigo text default null,
+  p_justificacion text default null,
+  p_pagina text default 'Registrar Paradas'
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_area_id uuid := area_de_paradas_mantenimiento(p_usuario);
+  v_usuario_id uuid := (select id from usuarios where usuario = lower(p_usuario));
+  v_p paradas;
+  v_tipo_actual text;
+  v_tipo paradas_tipos;
+  v_nombre text;
+  v_guia numeric;
+  v_ini timestamptz;
+  v_fin timestamptz;
+  v_min integer;
+  v_just text := nullif(trim(coalesce(p_justificacion, '')), '');
+begin
+  select * into v_p from paradas where id = p_parada_id for update;
+  if not found then
+    raise exception 'No se encontró la parada.';
+  end if;
+  if not v_p.pendiente then
+    raise exception 'Esa parada ya está completa.';
+  end if;
+
+  select codigo into v_tipo_actual from paradas_tipos where id = v_p.tipo_id;
+
+  if v_tipo_actual = 'FALLA_SIN_ESPECIFICAR' then
+    if coalesce(p_tipo_codigo, '') = '' then
+      raise exception 'Elige el código y el equipo de la falla.';
+    end if;
+    select * into v_tipo from paradas_tipos where codigo = p_tipo_codigo;
+    if v_tipo.id is not null and (v_tipo.equipo_id is null or v_tipo.codigo = 'FALLA_SIN_ESPECIFICAR') then
+      raise exception 'Elige una falla de equipo del catálogo.';
+    end if;
+    v_nombre := nombre_tipo_en_linea(v_tipo, v_p.linea_id, (select area_id from lineas where id = v_p.linea_id));
+  elsif v_tipo_actual = 'POR_CLASIFICAR' then
+    if coalesce(p_tipo_codigo, '') = '' then
+      raise exception 'Elige el tipo de la parada.';
+    end if;
+    select * into v_tipo from paradas_tipos where codigo = p_tipo_codigo;
+    if v_tipo.codigo in ('POR_CLASIFICAR', 'FALLA_SIN_ESPECIFICAR') then
+      raise exception 'Elige un tipo de parada del catálogo.';
+    end if;
+    v_nombre := nombre_tipo_en_linea(v_tipo, v_p.linea_id, (select area_id from lineas where id = v_p.linea_id));
+  else
+    select * into v_tipo from paradas_tipos where id = v_p.tipo_id;
+    v_nombre := v_p.tipo_nombre;
+  end if;
+  v_guia := case when v_tipo.clase = 'PROGRAMADA' then v_tipo.tiempo_guia_min else null end;
+
+  v_ini := hora_planta_a_timestamptz(p_inicio, 'inicio');
+  v_fin := hora_planta_a_timestamptz(p_fin, 'fin');
+  if v_ini is not null or v_fin is not null then
+    if v_ini is null or v_fin is null then
+      raise exception 'Pon la hora de inicio y la de fin, o solo los minutos.';
+    end if;
+    if v_fin < v_ini then
+      raise exception 'El fin no puede ser anterior al inicio.';
+    end if;
+    if v_fin > now() + interval '1 minute' then
+      raise exception 'La hora de fin no puede estar en el futuro.';
+    end if;
+  else
+    if p_minutos is null or p_minutos <= 0 then
+      raise exception 'Pon cuántos minutos duró la parada.';
+    end if;
+    if p_minutos > 30 * 24 * 60 then
+      raise exception 'La parada no puede durar más de 30 días.';
+    end if;
+    v_ini := v_p.inicio;
+    v_fin := v_ini + make_interval(mins => p_minutos);
+    if v_fin > now() then
+      v_fin := now();
+      v_ini := v_fin - make_interval(mins => p_minutos);
+    end if;
+  end if;
+
+  v_min := round(extract(epoch from (v_fin - v_ini)) / 60);
+  if v_guia is not null and v_min > v_guia and v_just is null then
+    raise exception 'La parada duró % min y su tiempo guía es % min. Escribe la justificación.', v_min, round(v_guia);
+  end if;
+
+  update paradas
+  set tipo_id = v_tipo.id,
+      clase = coalesce(v_tipo.clase, v_p.clase),  -- tiempo ocioso de texto libre: sin tipo, conserva su clase
+      tipo_nombre = v_nombre,
+      tiempo_guia_min = v_guia,
+      inicio = v_ini,
+      fin = v_fin,
+      justificacion_desvio = case when v_guia is not null and v_min > v_guia then v_just else null end,
+      pendiente = false,
+      terminada_por = v_usuario_id,
+      terminada_en = now()
+  where id = p_parada_id;
+
+  perform registrar_auditoria(
+    p_usuario, 'EDITAR', 'paradas', p_parada_id::text, p_pagina,
+    format('Completó la parada «%s» (%s min)', v_nombre, v_min),
+    jsonb_build_object('pendiente', true, 'tipo', v_p.tipo_nombre),
+    jsonb_build_object('pendiente', false, 'tipo', v_nombre, 'minutos', v_min, 'justificacion', v_just)
+  );
+end;
+$$;
+
+-- Red de seguridad para lo que cierra una parada sin pasar por una función de
+-- arriba (p. ej. la LNPE que se corta sola al arrancar la línea): al menos
+-- queda cuándo. Quién queda vacío porque no lo cerró una persona.
+create or replace function paradas_terminada_en()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.terminada_en is null and not new.pendiente
+     and ((old.fin is null and new.fin is not null) or old.pendiente) then
+    new.terminada_en := now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists paradas_terminada_en on paradas;
+create trigger paradas_terminada_en
+before update on paradas
+for each row execute function paradas_terminada_en();
+
+-- Las que se anotan ya cerradas (Registrar Paradas con minutos, CIP): las cerró
+-- quien las anotó.
+create or replace function paradas_responsable_por_defecto()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.responsable is null then
+    new.responsable := responsable_por_defecto(new.origen, new.creado_por);
+  end if;
+  if new.fin is not null and not new.pendiente and new.fin <= now() + interval '1 minute'
+     and new.terminada_en is null then
+    new.terminada_en := now();
+    new.terminada_por := coalesce(new.terminada_por, new.creado_por);
+  end if;
+  return new;
+end;
+$$;

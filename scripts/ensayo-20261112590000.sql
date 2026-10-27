@@ -63,11 +63,17 @@ begin
   insert into usuarios (usuario, nombre, apellido, password_hash, debe_completar_perfil)
   values ('ens_sup', 'Sonia', 'Ensayo', 'x', false), ('ens_mtto', 'Mario', 'Ensayo', 'x', false)
   on conflict (usuario) do nothing;
+  insert into usuarios (usuario, nombre, apellido, password_hash, debe_completar_perfil, ve_errores)
+  values ('ens_duena', 'Dora', 'Ensayo', 'x', false, true)
+  on conflict (usuario) do nothing;
   select id into v_sup from usuarios where usuario = 'ens_sup';
   select id into v_mtto from usuarios where usuario = 'ens_mtto';
   insert into usuario_roles (usuario_id, rol_id, area_id)
   select v_sup, (select id from roles where codigo = 'SUPERVISOR'), v_asep
   where not exists (select 1 from usuario_roles where usuario_id = v_sup);
+  insert into usuario_roles (usuario_id, rol_id, area_id)
+  select (select id from usuarios where usuario = 'ens_duena'), (select id from roles where codigo = 'SUPERVISOR'), v_asep
+  where not exists (select 1 from usuario_roles where usuario_id = (select id from usuarios where usuario = 'ens_duena'));
   insert into usuario_roles (usuario_id, rol_id, area_id)
   select v_mtto, (select id from roles where codigo = 'MANTENIMIENTO'), (select id from areas where codigo = 'MANTENIMIENTO')
   where not exists (select 1 from usuario_roles where usuario_id = v_mtto);
@@ -509,6 +515,118 @@ begin
     returning id into v_b;
     if (select responsable from paradas where id = v_a) is distinct from 'OPERACIONAL' then raise exception 'la del supervisor no es Operacional'; end if;
     if (select responsable from paradas where id = v_b) is distinct from 'MANTENIMIENTO' then raise exception 'la de Mantenimiento no es de Mantenimiento'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 12. Interruptor encendido: la dueña (no es de Mantenimiento) sí termina una de
+--     Mantenimiento; ella prueba en Pruebas, donde está encendido.
+do $caso$
+declare
+  n text := '12 interruptor encendido: la dueña termina una de Mantenimiento';
+  c ctx;
+  p paradas;
+begin
+  begin
+    select * into c from ctx;
+    update areas set mantenimiento_finaliza = true where id = c.asep;
+    if es_de_mantenimiento('ens_duena') then raise exception 'la dueña del ensayo no debería ser de Mantenimiento'; end if;
+    perform pausar_linea('ens_sup', c.turno, c.c1, 'Ruido en la mordaza', c.tipo, 'MANTENIMIENTO', pg_temp.hp(now() - interval '30 minutes'));
+    select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Ruido en la mordaza';
+    perform pg_temp.espera_error(format($q$select terminar_parada('ens_sup', %L, %L, 'SUB-02', 'Se cambió')$q$, p.id, c.tipo), 'la termina Mantenimiento');
+    perform terminar_parada('ens_duena', p.id, c.tipo, 'SUB-02', 'Se cambió el resorte');
+    select * into p from paradas where id = p.id;
+    if p.fin is null then raise exception 'no quedó terminada'; end if;
+    if p.terminada_por is distinct from (select id from usuarios where usuario = 'ens_duena') then raise exception 'terminada_por'; end if;
+    if (select pausada_en from turno_lineas where id = c.c1) is not null then raise exception 'la línea no siguió sola'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 13. Continuar cierra la parada y deja terminada_por / terminada_en (reporte congelado).
+do $caso$
+declare
+  n text := '13 Continuar: la parada cerrada guarda terminada_por y terminada_en';
+  c ctx;
+  p paradas;
+begin
+  begin
+    select * into c from ctx;
+    update areas set mantenimiento_finaliza = false where id = c.asep;
+    perform pausar_linea('ens_sup', c.turno, c.c1, 'Se trabó', c.tipo, 'OPERACIONAL', pg_temp.hp(now() - interval '15 minutes'));
+    select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Se trabó';
+    perform continuar_linea('ens_sup', c.turno, c.c1);
+    select * into p from paradas where id = p.id;
+    if p.fin is null then raise exception 'Continuar no la cerró'; end if;
+    if p.terminada_por is distinct from (select id from usuarios where usuario = 'ens_sup') then
+      raise exception 'terminada_por vacío o distinto: %', coalesce(p.terminada_por::text, 'null');
+    end if;
+    if p.terminada_en is null then raise exception 'terminada_en vacío'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 14. Las otras salidas que cierran una parada también dejan quién y cuándo:
+--     cerrar_parada_mantenimiento y completar_parada.
+do $caso$
+declare
+  n text := '14 cerrar_parada_mantenimiento y completar_parada guardan terminada_por';
+  c ctx;
+  p paradas;
+  v_id uuid;
+  v_sup uuid := (select id from usuarios where usuario = 'ens_sup');
+begin
+  begin
+    select * into c from ctx;
+    update areas set mantenimiento_finaliza = false where id = c.asep;
+    perform pausar_linea('ens_sup', c.turno, c.c1, 'Se trabó', c.tipo, 'MANTENIMIENTO', pg_temp.hp(now() - interval '15 minutes'));
+    select * into p from paradas where linea_id = c.l1 and fin is null and nota = 'Se trabó';
+    perform cerrar_parada_mantenimiento('ens_sup', p.id);
+    select * into p from paradas where id = p.id;
+    if p.fin is null then raise exception 'cerrar_parada_mantenimiento no la cerró'; end if;
+    if p.terminada_por is distinct from v_sup or p.terminada_en is null then raise exception 'cerrar_parada_mantenimiento sin terminada_por/en'; end if;
+
+    insert into paradas (turno_id, linea_id, tipo_id, clase, origen, tipo_nombre, nota, inicio, fin, pendiente, creado_por)
+    values (null, c.l3, (select id from paradas_tipos where codigo = 'POR_CLASIFICAR'), 'NO_PROGRAMADA', 'MANUAL',
+            'Parada por clasificar', 'pendiente de prueba', now() - interval '30 minutes', now() - interval '30 minutes', true, v_sup)
+    returning id into v_id;
+    perform completar_parada('ens_sup', v_id, 5, null, null, c.tipo);
+    select * into p from paradas where id = v_id;
+    if p.pendiente then raise exception 'sigue pendiente'; end if;
+    if p.terminada_por is distinct from v_sup or p.terminada_en is null then raise exception 'completar_parada sin terminada_por/en'; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
+-- 15. terminar_parada sobre una pendiente la deja de mostrar como pendiente.
+do $caso$
+declare
+  n text := '15 terminar_parada sobre una pendiente: pendiente = false';
+  c ctx;
+  p paradas;
+  v_id uuid;
+begin
+  begin
+    select * into c from ctx;
+    update areas set mantenimiento_finaliza = false where id = c.asep;
+    insert into paradas (turno_id, linea_id, tipo_id, clase, origen, tipo_nombre, nota, inicio, fin, pendiente, creado_por)
+    values (null, c.l3, (select id from paradas_tipos where codigo = 'POR_CLASIFICAR'), 'NO_PROGRAMADA', 'MANUAL',
+            'Parada por clasificar', 'pendiente de prueba', now() - interval '30 minutes', now() - interval '30 minutes', true,
+            (select id from usuarios where usuario = 'ens_sup'))
+    returning id into v_id;
+    perform terminar_parada('ens_sup', v_id, c.tipo, 'SUB-01', 'Se ajustó');
+    select * into p from paradas where id = v_id;
+    if p.pendiente then raise exception 'sigue pendiente'; end if;
+    if p.fin is null or p.fin <= p.inicio then raise exception 'fin % / inicio %', p.fin, p.inicio; end if;
+    if p.solucion is distinct from 'Se ajustó' then raise exception 'solución %', p.solucion; end if;
     raise exception 'ENSAYO_OK';
   exception when others then
     if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
