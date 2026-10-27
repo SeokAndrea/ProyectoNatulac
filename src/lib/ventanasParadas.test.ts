@@ -25,4 +25,12 @@ describe("ventanas de turnos para el reporte", () => {
     const vs = ventanasDeParada({ inicio: "2026-10-25T22:00:00", fin: null }, turnos, ahora)
     expect(vs.map((v) => v.etiqueta)).toEqual(["T2", "T3"])
   })
+
+  it("un 12x12 tiene dos turnos del mismo tipo: se distinguen por la hora de inicio", () => {
+    const doce = mapearVentanas([
+      { turno_id: "d", turno_tipo_codigo: "12X12", desde: "2026-10-25T07:00:00", hasta: "2026-10-25T19:00:00" },
+      { turno_id: "e", turno_tipo_codigo: "12X12", desde: "2026-10-25T19:00:00", hasta: null },
+    ])
+    expect(doce.map((t) => t.etiqueta)).toEqual(["12x12 07:00", "12x12 19:00"])
+  })
 })

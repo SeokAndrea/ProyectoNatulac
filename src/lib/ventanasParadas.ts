@@ -21,7 +21,10 @@ export function etiquetaTurno(codigo: string): string {
 export function mapearVentanas(filas: FilaVentana[]): VentanaTurno[] {
   return filas.map((f) => ({
     id: f.turno_id,
-    etiqueta: etiquetaTurno(f.turno_tipo_codigo),
+    // Dos turnos del mismo tipo (el 12x12) se distinguen por la hora en que empiezan.
+    etiqueta: filas.filter((x) => x.turno_tipo_codigo === f.turno_tipo_codigo).length > 1
+      ? `${etiquetaTurno(f.turno_tipo_codigo)} ${f.desde.slice(11, 16)}`
+      : etiquetaTurno(f.turno_tipo_codigo),
     desde: f.desde,
     hasta: f.hasta ?? SIN_FIN,
   }))
