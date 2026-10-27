@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { guardarCalidadLibera, useCalidadLibera } from "@/lib/calidad"
 import { guardarMantenimientoFinaliza, useMantenimientoFinaliza } from "@/lib/paradas"
 import { CorreoMantenimiento } from "./CorreoMantenimiento"
+import { SHEET_MANTENIMIENTO_ACTIVO } from "@/lib/sheetMantenimiento"
 import { EnlaceSheetMantenimiento } from "./EnlaceSheetMantenimiento"
 
 /** Sección "Ajustes de planta" de Edición de Datos: solo la dueña. */
@@ -16,7 +17,7 @@ export function AjustesDuena({ usuario }: { usuario: string }) {
       </div>
       <InterruptorCalidad usuario={usuario} />
       <InterruptorMantenimiento usuario={usuario} />
-      <EnlaceSheetMantenimiento usuario={usuario} />
+      {SHEET_MANTENIMIENTO_ACTIVO && <EnlaceSheetMantenimiento usuario={usuario} />}
       <CorreoMantenimiento usuario={usuario} />
     </div>
   )

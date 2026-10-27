@@ -429,7 +429,7 @@ describe("LineaCard — en pausa", () => {
     expect(screen.getAllByText("Parada")[0]).toBeInTheDocument()
     expect(screen.getByTestId("cinta")).toHaveTextContent("parada")
     await u.click(boton("Continuar"))
-    expect(a.continuar).toHaveBeenCalledWith("c1", null)
+    expect(a.continuar).toHaveBeenCalledWith("c1", null, null)
     boton("Pasar a CIP")
   })
 
@@ -450,7 +450,7 @@ describe("LineaCard — en pausa", () => {
     expect(boton("Continuar")).toBeDisabled()
     await u.type(screen.getByRole("textbox"), "Se buscó en el almacén")
     await u.click(boton("Continuar"))
-    expect(a.continuar).toHaveBeenCalledWith("c1", "Se buscó en el almacén")
+    expect(a.continuar).toHaveBeenCalledWith("c1", "Se buscó en el almacén", null)
   })
 
   it("con una parada de Mantenimiento abierta: no hay Continuar y avisa que se cierra con Terminar parada", () => {
@@ -458,6 +458,30 @@ describe("LineaCard — en pausa", () => {
     renderCard({ lineaTurno: pausada(), lineaEstado: estado("LISTA"), paradaDeLinea: deMtto })
     expect(screen.getByText(/Es de Mantenimiento/)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Continuar" })).toBeNull()
+    expect(screen.queryByRole("spinbutton", { name: /Minutos que duró/ })).not.toBeInTheDocument()
+  })
+
+  it("Continuar deja poner cuánto duró: con los minutos corregidos, ya no pide justificar la guía", async () => {
+    const u = userEvent.setup()
+    const abierta: ParadaQueDetiene = {
+      ...PARADA_PENDIENTE,
+      pendiente: false,
+      tipoNombre: "Cambio de Lote",
+      clase: "PROGRAMADA",
+      tiempoGuiaMin: 10,
+      nota: null,
+      inicio: "2026-10-05T09:00:00",
+      fin: null,
+    }
+    const a = renderCard({ lineaTurno: pausada(), lineaEstado: estado("LISTA"), paradaDeLinea: abierta })
+    const campo = screen.getByRole("spinbutton", { name: /Minutos que duró/ })
+    expect(boton("Continuar")).toBeDisabled()
+    await u.clear(campo)
+    expect(boton("Continuar")).toBeDisabled()
+    await u.type(campo, "8")
+    expect(screen.queryByText(/Pasó su tiempo guía/)).not.toBeInTheDocument()
+    await u.click(boton("Continuar"))
+    expect(a.continuar).toHaveBeenCalledWith("c1", null, 8)
   })
 
   it("con la parada sin completar, Continuar queda bloqueado y lleva al Modo Paradas de Líneas", () => {

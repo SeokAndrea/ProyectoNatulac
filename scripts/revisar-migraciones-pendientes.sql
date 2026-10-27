@@ -89,6 +89,10 @@ from (
     exists (select 1 from fn where proname = 'estado_planta_actual' and prosrc like '%order by (t.estado = ''ABIERTO'') desc, t.created_at desc%')),
   ('20261112090000', 'Día extraordinario',
     to_regclass('public.dias_extraordinarios') is not null and exists (select 1 from fn where proname = 'guardar_dia_extraordinario')),
+  ('20261112150000', 'Paradas: de quién es lo decide quién la registra',
+    exists (select 1 from fn where proname = 'es_de_mantenimiento')),
+  ('20261112160000', 'Paradas: Continuar pregunta cuánto duró',
+    exists (select 1 from fn where proname = 'continuar_linea' and prosrc like '%p_minutos%')),
   ('20261112190000', 'Indicadores: el día cuenta con las cajas confirmadas',
     exists (select 1 from fn where proname = 'indicadores_turnos' and prosrc like '%cajas confirmadas en el Resumen Diario%')),
   ('20261112290000', 'Inventario diario',
@@ -97,7 +101,9 @@ from (
     exists (select 1 from fn where proname = 'tabla_de_catalogo' and prosrc like '%inventario_empaque%')),
   ('20261112490000', 'Correo de Mantenimiento en Ajustes de planta',
     exists (select 1 from fn where proname = 'estado_correos')),
-  ('20261112590000', 'Paradas: falla sin clasificar, Mantenimiento termina y puente con el Sheet',
-    exists (select 1 from fn where proname = 'finalizar_falla') and exists (select 1 from fn where proname = 'paradas_puente_sheet'))
+  ('20261112590000', 'Paradas: Responsable, Terminar parada y reporte congelado',
+    exists (select 1 from fn where proname = 'terminar_parada') and exists (select 1 from fn where proname = 'la_termina_mantenimiento')),
+  ('20261112690000', 'Paradas: ventanas reales de los turnos',
+    exists (select 1 from fn where proname = 'ventanas_turnos_paradas'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

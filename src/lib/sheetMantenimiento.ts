@@ -295,6 +295,7 @@ export function filasParaMandar(filas: FilaSheet[], desde: string, hoy: string, 
 }
 
 export async function actualizarDesdeSheet(usuario: string): Promise<Resultado<ResumenSync>> {
+  if (!SHEET_MANTENIMIENTO_ACTIVO) return { ok: false, error: "El Sheet de Mantenimiento ya no se usa." }
   const lectura = await leerCsvSheet()
   if (!lectura.ok) return lectura
   const csv = lectura.datos

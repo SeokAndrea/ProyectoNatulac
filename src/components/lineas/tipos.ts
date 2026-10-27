@@ -4,7 +4,7 @@ import type { DatosActivarLinea, DatosCambiarLinea, DatosCipLinea, DatosPausarLi
 export interface AccionesLinea {
   activar: (datos: DatosActivarLinea) => Promise<Resultado>
   pausar: (corridaId: string, datos: DatosPausarLinea) => Promise<Resultado>
-  continuar: (corridaId: string, justificacion?: string | null) => Promise<Resultado>
+  continuar: (corridaId: string, justificacion?: string | null, minutos?: number | null) => Promise<Resultado>
   detener: (corridaId: string, motivo: string) => Promise<Resultado>
   continuarSiguienteLote: (corridaId: string, numeroTanque?: number) => Promise<Resultado>
   seguirMismoLote: (corridaId: string) => Promise<Resultado>
