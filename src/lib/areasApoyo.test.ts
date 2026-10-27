@@ -18,7 +18,7 @@ describe("áreas de apoyo", () => {
 
   it("las tarjetas de producción las decide el rol, no el área", () => {
     expect(visibles(sesion("ASEPTICO", "SUPERVISOR", PERMISOS_SUPERVISOR))).toEqual(expect.arrayContaining(PRODUCCION))
-    expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO", "SIF_GESTIONAR"])).filter((s) => PRODUCCION.includes(s))).toEqual([])
+    expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO", "SIF_GESTIONAR"])).filter((s) => PRODUCCION.includes(s))).toEqual(["lineas"]) // Líneas en Modo Paradas, sin abrir turno
     expect(visibles(sesion("CALIDAD", "CALIDAD", ["LOTE_LIBERAR"])).filter((s) => PRODUCCION.includes(s))).toEqual([])
   })
 

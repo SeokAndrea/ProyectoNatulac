@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { Lock } from "lucide-react"
 import type { AppDef } from "@/lib/apps"
 import type { ContinuidadTurno } from "@/lib/continuidadTurno"
+import { useAuth } from "@/lib/auth"
 import { bloqueoDeApp } from "@/lib/navegacion"
 import { cn } from "@/lib/utils"
 
@@ -35,7 +36,8 @@ export function AppCard({
   continuidad?: ContinuidadTurno | null
 }) {
   const Icon = app.icon
-  const { bloqueada, porTurnoEnCurso: bloqueadaPorTurno, habilitaA } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad)
+  const { session } = useAuth()
+  const { bloqueada, sinTurno, porTurnoEnCurso: bloqueadaPorTurno, habilitaA } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad, session?.area ?? null)
   const resaltada = app.resaltarConTurno && turnoActivo && !bloqueada
 
   const iconoWrap = (
@@ -75,7 +77,7 @@ export function AppCard({
             ? "Ya tienes un turno en curso."
             : app.bloqueaConTurno && turnoPorAsumir
               ? "Hay un turno abierto: asúmelo o toma el relevo."
-              : app.requiereTurno && !turnoActivo
+              : sinTurno
               ? "Se habilita al iniciar un turno."
               : app.description}
       </p>

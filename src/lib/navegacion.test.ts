@@ -43,3 +43,18 @@ describe("bloqueoDeApp en la continuidad de las 22:30", () => {
     expect(bloqueoDeApp(app("producto-terminado"), true, false, continuidad).bloqueada).toBe(false)
   })
 })
+
+describe("Mantenimiento y Líneas", () => {
+  const lineas = apps.find((a) => a.slug === "lineas")!
+
+  it("Líneas no se bloquea para Mantenimiento sin turno, pero sí para las demás áreas", () => {
+    expect(bloqueoDeApp(lineas, false, false, null, "MANTENIMIENTO").bloqueada).toBe(false)
+    expect(bloqueoDeApp(lineas, false, false, null, "ASEPTICO").bloqueada).toBe(true)
+    expect(bloqueoDeApp(lineas, false, false).bloqueada).toBe(true)
+  })
+
+  it("ya no hay una pantalla propia de Mantenimiento", () => {
+    expect(apps.find((a) => a.slug === "mantenimiento")).toBeUndefined()
+    expect(apps.some((a) => a.href === "/mantenimiento")).toBe(false)
+  })
+})

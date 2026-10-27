@@ -85,9 +85,9 @@ function agruparEnOrden(lista: AppDef[], areaDeApoyo: boolean): Seccion[] {
 }
 
 /** Por qué una app está bloqueada (o no), con el turno de la sesión. Mismo criterio en el Hub y en la navegación. */
-export function bloqueoDeApp(app: AppDef, turnoActivo: boolean, turnoPorAsumir: boolean, continuidad: ContinuidadTurno | null = null) {
+export function bloqueoDeApp(app: AppDef, turnoActivo: boolean, turnoPorAsumir: boolean, continuidad: ContinuidadTurno | null = null, area: string | null = null) {
   const porTurnoEnCurso = !!app.bloqueaConTurno && turnoActivo && !turnoPorAsumir
-  const sinTurno = app.requiereTurno && !turnoActivo
+  const sinTurno = app.requiereTurno && !turnoActivo && !(area !== null && app.sinTurnoAreas?.includes(area))
   /** Turno recién abierto por continuidad: "HH:MM" en que se habilita (ver src/lib/continuidadTurno.ts). */
   const habilitaA = app.bloqueaEnContinuidad && continuidad ? continuidad.finalizableDesde : null
   return { bloqueada: !app.href || sinTurno || porTurnoEnCurso || habilitaA !== null, sinTurno, porTurnoEnCurso, habilitaA }
@@ -121,7 +121,7 @@ export function useAppsNavegables() {
   // Los paneles y accesos van primero que todo, para todos (dueña, 2026-10-20).
   if (atajos.length > 0) secciones.unshift({ titulo: "Paneles y accesos", apps: atajos })
 
-  const libre = (app: AppDef) => !bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad).bloqueada
+  const libre = (app: AppDef) => !bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad, session?.area ?? null).bloqueada
   const orden =
     session?.rol === "SUPERVISOR"
       ? RAPIDAS_SUPERVISOR.map((slug) => visibles.find((app) => app.slug === slug)).filter((app): app is AppDef => !!app)

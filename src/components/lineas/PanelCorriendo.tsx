@@ -33,7 +33,7 @@ export function PanelCorriendo({
       {onParada && (
         <Button variant="outline" size="sm" onClick={onParada}>
           <PauseCircle className="size-3.5" />
-          Parada
+          Parar
         </Button>
       )}
       {extra}

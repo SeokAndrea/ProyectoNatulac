@@ -192,7 +192,7 @@ describe("LineaCard — corriendo", () => {
     expect(screen.getByText("1000 ml")).toBeInTheDocument()
     expect(screen.getByText("6000 env/h")).toBeInTheDocument()
     expect(screen.getByText("Fresa · 0001")).toBeInTheDocument()
-    boton("Parada")
+    boton("Parar")
     boton("CIP")
     boton("Cambiar de lote")
     noHayBoton("Corregir")
@@ -208,10 +208,10 @@ describe("LineaCard — corriendo", () => {
     expect(screen.getByRole("link", { name: /Cargar PT · Lote 0000/ })).toHaveAttribute("href", "/producto-terminado")
   })
 
-  it("Parada: exige el tipo y la descripción, pausa con ellos y cierra el formulario", async () => {
+  it("Parar: exige el tipo y la descripción, pausa con ellos y cierra el formulario", async () => {
     const u = userEvent.setup()
     const a = renderCard({ lineaTurno: corrida() })
-    await u.click(boton("Parada"))
+    await u.click(boton("Parar"))
     await u.click(screen.getByRole("radio", { name: "Operacional" }))
     expect(boton("Confirmar parada")).toBeDisabled()
     await u.type(screen.getByPlaceholderText(/Qué pasó/), "Se trancó la tapadora")
@@ -223,12 +223,12 @@ describe("LineaCard — corriendo", () => {
     boton("Cambiar de lote")
   })
 
-  it("Parada: si falla, muestra el error y deja el formulario", async () => {
+  it("Parar: si falla, muestra el error y deja el formulario", async () => {
     const u = userEvent.setup()
     const a = crearAcciones()
     a.pausar.mockResolvedValue(falla("No se pudo pausar"))
     renderCard({ lineaTurno: corrida() }, a)
-    await u.click(boton("Parada"))
+    await u.click(boton("Parar"))
     await u.click(screen.getByRole("radio", { name: "Operacional" }))
     await u.click(boton("Elegir tipo"))
     await u.type(screen.getByPlaceholderText(/Qué pasó/), "x")
@@ -237,10 +237,10 @@ describe("LineaCard — corriendo", () => {
     boton("Confirmar parada")
   })
 
-  it("Parada: Cancelar vuelve a los botones", async () => {
+  it("Parar: Cancelar vuelve a los botones", async () => {
     const u = userEvent.setup()
     renderCard({ lineaTurno: corrida() })
-    await u.click(boton("Parada"))
+    await u.click(boton("Parar"))
     await u.click(boton("Cancelar"))
     boton("Cambiar de lote")
   })
@@ -311,7 +311,7 @@ describe("LineaCard — revisión de Status", () => {
     const u = userEvent.setup()
     const a = renderCard({ modo: "status", lineaTurno: corrida({ confirmadoInicioEn: null }) })
     expect(screen.getByText(/así quedó del turno anterior/)).toBeInTheDocument()
-    noHayBoton("Parada")
+    noHayBoton("Parar")
     await u.click(boton("Confirmar"))
     expect(a.confirmarEstado).toHaveBeenCalledWith("c1")
   })
@@ -382,9 +382,9 @@ describe("LineaCard — revisión de Status", () => {
 })
 
 describe("LineaCard — con Modo Paradas", () => {
-  it("corriendo: no ofrece Parada (vive en el Modo Paradas)", () => {
+  it("corriendo: no ofrece Parar (vive en el Modo Paradas)", () => {
     renderCard({ lineaTurno: corrida(), aModoParadas: vi.fn() })
-    noHayBoton("Parada")
+    noHayBoton("Parar")
     boton("CIP")
     boton("Cambiar de lote")
   })
@@ -453,13 +453,11 @@ describe("LineaCard — en pausa", () => {
     expect(a.continuar).toHaveBeenCalledWith("c1", "Se buscó en el almacén")
   })
 
-  it("con una parada de Mantenimiento abierta: Continuar no pide nada y avisa que queda abierta", async () => {
-    const u = userEvent.setup()
+  it("con una parada de Mantenimiento abierta: no hay Continuar y avisa que se cierra con Terminar parada", () => {
     const deMtto: ParadaQueDetiene = { ...PARADA_PENDIENTE, pendiente: false, tipoNombre: "Bomba", fin: null, inicio: "2026-10-05T09:00:00", deMantenimiento: true }
-    const a = renderCard({ lineaTurno: pausada(), lineaEstado: estado("LISTA"), paradaDeLinea: deMtto })
+    renderCard({ lineaTurno: pausada(), lineaEstado: estado("LISTA"), paradaDeLinea: deMtto })
     expect(screen.getByText(/Es de Mantenimiento/)).toBeInTheDocument()
-    await u.click(boton("Continuar"))
-    expect(a.continuar).toHaveBeenCalledWith("c1", null)
+    expect(screen.queryByRole("button", { name: "Continuar" })).toBeNull()
   })
 
   it("con la parada sin completar, Continuar queda bloqueado y lleva a Registrar Paradas", () => {

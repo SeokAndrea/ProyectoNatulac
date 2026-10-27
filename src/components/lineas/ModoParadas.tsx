@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { CircleCheck, ListPlus, Loader2, PauseCircle, TriangleAlert } from "lucide-react"
+import { CircleCheck, ListPlus, Loader2, PauseCircle, TriangleAlert, Wrench } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -11,8 +11,8 @@ import type { LineaCodigo } from "@/lib/catalogos"
 import { obtenerEstadoPlantaActual, obtenerTurnoDeFechaTipo } from "@/lib/panelProduccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { TURNOS_COMPLETOS } from "@/lib/paradasTurnoCompleto"
-import { restarDias } from "@/lib/tiempoPlanta"
-import { fmtDuracion, minutosPorClaseSinSolape, porClasificar, type Parada } from "@/lib/paradas"
+import { horaCortaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { abrirParadaMantenimiento, duracionMin, esDeMantenimiento, fmtDuracion, minutosPorClaseSinSolape, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
@@ -23,6 +23,7 @@ import { aspectoLinea } from "./estadoLinea"
 import { FilaAcciones } from "./FilaAcciones"
 import { FormDetenerLinea } from "./FormDetenerLinea"
 import { FormParadaLinea } from "./FormParadaLinea"
+import { FormTerminarParada } from "./FormTerminarParada"
 import { PanelParadasLinea } from "./PanelParadasLinea"
 import { PanelPausada } from "./PanelPausada"
 import type { AccionesLinea } from "./tipos"
@@ -38,11 +39,18 @@ import type { AccionesLinea } from "./tipos"
  * Si a una corrida terminada le falta el PT, se avisa primero: sin el PT todo
  * su tiempo sale sin cubrir y no hay que taparlo con paradas.
  *
- * Todo lo de paradas vive aquí (dueña, 2026-10-26): «Parada» para la línea ya
- * (con el tipo, o «No sé / es una falla» para que Mantenimiento la clasifique)
- * y una línea parada tiene Continuar y Entregar PT. «Anotar» es para las que
- * ya pasaron. Solo en el turno en curso.
+ * Todo lo de paradas vive aquí (dueña, 2026-10-26): «Parar» la línea ya
+ * (Operacional o Mantenimiento, con equipo y falla); una línea parada tiene
+ * Continuar y Entregar PT. «Anotar» es para las que ya pasaron. Solo en el
+ * turno en curso.
+ *
+ * Mantenimiento (area MANTENIMIENTO) entra directo aquí, sin los botones que
+ * manejan la línea (Continuar, Entregar PT): abre sus paradas desde la
+ * tarjeta y las termina con Terminar parada. Toda parada abierta de
+ * Mantenimiento se cierra así, nunca con Continuar; con el interruptor del
+ * área apagado también la termina el supervisor.
  */
+const PAGINA = "Líneas"
 
 const REFRESCO_MS = 60_000
 /** El turno de antes de cada uno (3x8): T1 ← T3 del día anterior, T2 ← T1, T3 ← T2. */
@@ -64,6 +72,8 @@ export function ModoParadas({
   onCambio,
   acciones,
   paradasDetienen,
+  esMantenimiento = false,
+  terminaSiempre = false,
 }: {
   lineas: LineaModo[]
   /** Corridas del turno (las de useProduccion). */
@@ -80,6 +90,10 @@ export function ModoParadas({
   acciones: Pick<AccionesLinea, "pausar" | "continuar" | "detener">
   /** Qué parada tiene detenida a cada línea (paradas_que_detienen_lineas). */
   paradasDetienen: ParadaQueDetiene[]
+  /** Usuario del área Mantenimiento: sin botones que manejan la línea; abre y termina sus paradas. */
+  esMantenimiento?: boolean
+  /** Puede terminar cualquier parada de Mantenimiento aunque el interruptor del área esté encendido (la dueña). */
+  terminaSiempre?: boolean
 }) {
   const areaParadas = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
   const [actual, setActual] = useState<TurnoActivo | null | undefined>(undefined)
@@ -90,7 +104,7 @@ export function ModoParadas({
   const [paradas, setParadas] = useState<Parada[] | null>(null)
   /** La hora con la que se hace la cuenta: se renueva en cada recarga (cada minuto y al guardar). */
   const [ahora, setAhora] = useState(() => new Date())
-  const [abierto, setAbierto] = useState<{ linea: string; modo: "cubrir" | "paradas" | "parada" | "detener" } | null>(null)
+  const [abierto, setAbierto] = useState<{ linea: string; modo: "cubrir" | "paradas" | "parada" | "detener" | "terminar"; paradaId?: string } | null>(null)
   const pt = useProductoTerminado(turno?.id ?? null)
   const { recargar: recargarPt } = pt
   // Las corridas del turno anterior (las del en curso llegan por props).
@@ -197,6 +211,12 @@ export function ModoParadas({
         const enMarchaSinPt = corridasLinea.some((c) => c.activa && !pt.registros.some((r) => r.corridaId === c.id))
         const pendientesLinea = pendientes.filter((p) => p.lineaCodigo === l.codigo)
         const abiertoAca = abierto?.linea === l.codigo ? abierto.modo : null
+        // Paradas de Mantenimiento abiertas: se terminan con Terminar parada, nunca con Continuar.
+        const abiertasMtto = paradasLinea.filter((p) => p.fin === null && !p.pendiente && esDeMantenimiento(p))
+        const aTerminar = abiertasMtto.find((p) => p.id === abierto?.paradaId) ?? null
+        const puedeTerminar = (p: Parada) => esMantenimiento || terminaSiempre || !p.laTerminaMantenimiento
+        // Mantenimiento abre su parada también con la línea libre o en CIP (queda anotada); el supervisor, solo con la corrida en marcha.
+        const puedeParar = esMantenimiento ? !verAnterior : corriendo
 
         return (
           <section key={l.codigo} aria-label={l.nombre} className="flex flex-col gap-3 rounded-xl bg-card p-4 text-card-foreground ring-1 ring-foreground/10">
@@ -205,7 +225,15 @@ export function ModoParadas({
               <Badge variant={aspecto.variante}>{aspecto.badge}</Badge>
             </div>
 
-            <AnimacionLinea lineaCodigo={l.codigo} lineaTurno={lineaTurno} aspecto={aspecto} />
+            <div className="relative">
+              <AnimacionLinea lineaCodigo={l.codigo} lineaTurno={lineaTurno} aspecto={aspecto} />
+              {abiertasMtto.length > 0 && (
+                <span className="num absolute left-2 top-2 flex items-center gap-1 rounded-sm bg-info-soft px-1.5 py-0.5 text-xs font-semibold text-info-foreground">
+                  <Wrench aria-hidden className="size-3" />
+                  Mantenimiento · {fmtDuracion(Math.max(...abiertasMtto.map((p) => duracionMin(p, ahora))))}
+                </span>
+              )}
+            </div>
 
             <CuentaTurno
               ventanaMin={ventanaMin}
@@ -215,7 +243,7 @@ export function ModoParadas({
               sinReportarMin={faltaMin}
             />
 
-            {sinPt.map((c) => (
+            {!esMantenimiento && sinPt.map((c) => (
               <p key={c.id} className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning-soft px-3 py-2 text-sm text-warning-foreground">
                 <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
                 <span>
@@ -227,7 +255,7 @@ export function ModoParadas({
                 </span>
               </p>
             ))}
-            {enMarchaSinPt && <p className="text-xs text-muted-foreground">Lo que produce la corrida en marcha se suma al cargar su PT.</p>}
+            {!esMantenimiento && enMarchaSinPt && <p className="text-xs text-muted-foreground">Lo que produce la corrida en marcha se suma al cargar su PT.</p>}
             {corridasLinea.length === 0 && faltaMin > 0 && (
               <p className="text-xs text-muted-foreground">La línea no corrió en este turno: cúbrelo con su motivo (LNP).</p>
             )}
@@ -238,7 +266,31 @@ export function ModoParadas({
               </p>
             )}
 
-            {abiertoAca === "parada" && enVivo ? (
+            {abiertoAca === "terminar" && aTerminar ? (
+              <FormTerminarParada
+                parada={aTerminar}
+                usuario={usuario}
+                areaCodigo={areaCodigo}
+                onTerminada={async () => {
+                  setAbierto(null)
+                  await cambio()
+                }}
+              />
+            ) : abiertoAca === "parada" && esMantenimiento ? (
+              <FormParadaLinea
+                corridaId={enVivo?.id ?? ""}
+                lineaCodigo={l.codigo}
+                areaCodigo={areaCodigo}
+                presentacionMl={Number(lineaTurno?.presentacion) || null}
+                responsableFijo="MANTENIMIENTO"
+                pausar={async (_corridaId, datos): Promise<Resultado> => {
+                  const r = await abrirParadaMantenimiento(usuario, { lineaCodigo: l.codigo, tipoCodigo: datos.tipoCodigo, nota: datos.motivo, inicio: datos.inicio }, PAGINA)
+                  if (r.ok) await cambio()
+                  return r
+                }}
+                onCerrar={() => setAbierto(null)}
+              />
+            ) : abiertoAca === "parada" && enVivo ? (
               <FormParadaLinea
                 corridaId={enVivo.id}
                 lineaCodigo={l.codigo}
@@ -247,7 +299,7 @@ export function ModoParadas({
                 pausar={yRecargar(acciones.pausar)}
                 onCerrar={() => setAbierto(null)}
               />
-            ) : abiertoAca === "detener" && enVivo ? (
+            ) : abiertoAca === "detener" && enVivo && !esMantenimiento ? (
               <FormDetenerLinea corrida={enVivo} detener={yRecargar(acciones.detener)} onCerrar={() => setAbierto(null)} />
             ) : abiertoAca === "cubrir" || abiertoAca === "paradas" ? (
               <PanelParadasLinea
@@ -272,29 +324,51 @@ export function ModoParadas({
                     corrida={enVivo}
                     paradaQueDetiene={detiene.find((p) => p.pendiente) ?? null}
                     paradaDeLinea={detiene[0] ?? null}
-                    continuar={yRecargar(acciones.continuar)}
-                    onDetener={() => setAbierto({ linea: l.codigo, modo: "detener" })}
+                    continuar={esMantenimiento ? undefined : yRecargar(acciones.continuar)}
+                    onDetener={esMantenimiento ? undefined : () => setAbierto({ linea: l.codigo, modo: "detener" })}
                   />
                 )}
+                {abiertasMtto.map((p) => {
+                  const yaEnPanel = parada && detiene.some((d) => d.paradaId === p.id)
+                  return (
+                    <div key={p.id} className="flex flex-col gap-1.5 text-xs">
+                      {!yaEnPanel && (
+                        <p className="text-muted-foreground">
+                          Desde las {horaCortaPlanta(p.inicio, p.inicio)} ({fmtDuracion(duracionMin(p, ahora))}) · <span className="font-medium text-foreground">{p.tipoNombre}</span>
+                          {p.nota ? ` · ${p.nota}` : ""}
+                        </p>
+                      )}
+                      {puedeTerminar(p) ? (
+                        <Button size="sm" className="self-start" onClick={() => setAbierto({ linea: l.codigo, modo: "terminar", paradaId: p.id })}>
+                          Terminar parada
+                        </Button>
+                      ) : (
+                        !yaEnPanel && <p className="text-muted-foreground">La termina Mantenimiento.</p>
+                      )}
+                    </div>
+                  )
+                })}
                 <FilaAcciones>
-                  {corriendo && (
+                  {puedeParar && (
                     <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "parada" })}>
                       <PauseCircle className="size-3.5" />
-                      Parada
+                      Parar
                     </Button>
                   )}
-                  {faltaMin > 0 && (
+                  {!esMantenimiento && faltaMin > 0 && (
                     <Button size="sm" onClick={() => setAbierto({ linea: l.codigo, modo: "cubrir" })}>
                       Cubrir {fmtDuracion(faltaMin)}
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "paradas" })}>
-                    <ListPlus className="size-3.5" />
-                    Anotar
-                    {pendientesLinea.length > 0 && (
-                      <span className="num rounded-sm bg-warning-soft px-1.5 text-xs font-semibold text-warning-foreground">{pendientesLinea.length}</span>
-                    )}
-                  </Button>
+                  {!esMantenimiento && (
+                    <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "paradas" })}>
+                      <ListPlus className="size-3.5" />
+                      Anotar
+                      {pendientesLinea.length > 0 && (
+                        <span className="num rounded-sm bg-warning-soft px-1.5 text-xs font-semibold text-warning-foreground">{pendientesLinea.length}</span>
+                      )}
+                    </Button>
+                  )}
                 </FilaAcciones>
               </>
             )}

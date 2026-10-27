@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { Beaker, Factory, Loader2, PackageCheck } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
@@ -5,6 +6,8 @@ import { EmptyState } from "@/components/EmptyState"
 import { LineasEstadoPlanta } from "@/components/LineasEstadoPlanta"
 import { ModoCorreccionBanner } from "@/components/ModoCorreccionBanner"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/auth"
+import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
 import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 
 /*
@@ -16,8 +19,22 @@ import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
  * debe ser su propia página como tal".
  */
 export default function Lineas() {
-  const { turnoIdEfectivo, cargando, enModoCorreccion, turnoCorregido, errorCorreccion, salirDeCorreccion } =
-    useTurnoEfectivo()
+  const efectivo = useTurnoEfectivo()
+  const { enModoCorreccion, turnoCorregido, errorCorreccion, salirDeCorreccion } = efectivo
+  // Mantenimiento no abre turnos: ve el turno en curso de la planta y entra al Modo Paradas.
+  const { session } = useAuth()
+  const esMantenimiento = session?.area === "MANTENIMIENTO"
+  const [turnoPlanta, setTurnoPlanta] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (!esMantenimiento) return
+    let vivo = true
+    void obtenerEstadoPlantaActual("ASEPTICO").then((t) => vivo && setTurnoPlanta(t?.id ?? null))
+    return () => {
+      vivo = false
+    }
+  }, [esMantenimiento])
+  const cargando = esMantenimiento ? turnoPlanta === undefined : efectivo.cargando
+  const turnoIdEfectivo = esMantenimiento ? (turnoPlanta ?? null) : efectivo.turnoIdEfectivo
 
   if (cargando) {
     return (
@@ -51,14 +68,16 @@ export default function Lineas() {
       <AppShell title="Líneas" description="Corridas de la planta" fullWidth>
         <EmptyState
           icon={Factory}
-          title="Primero debes iniciar un turno"
-          description="Líneas se administra dentro de un turno en curso. Inicia uno desde Comenzar Turno."
+          title={esMantenimiento ? "No hay un turno abierto" : "Primero debes iniciar un turno"}
+          description={esMantenimiento ? "Las paradas se ven y se terminan con un turno en curso." : "Líneas se administra dentro de un turno en curso. Inicia uno desde Comenzar Turno."}
         />
-        <div className="mt-4 flex justify-center">
-          <Button asChild>
-            <Link to="/turno">Ir a Comenzar Turno</Link>
-          </Button>
-        </div>
+        {!esMantenimiento && (
+          <div className="mt-4 flex justify-center">
+            <Button asChild>
+              <Link to="/turno">Ir a Comenzar Turno</Link>
+            </Button>
+          </div>
+        )}
       </AppShell>
     )
   }
@@ -77,6 +96,7 @@ export default function Lineas() {
         <fieldset disabled={enModoCorreccion} className="m-0 min-w-0 border-0 p-0">
           <LineasEstadoPlanta modo="preparacion" turnoId={turnoIdEfectivo} />
         </fieldset>
+        {!esMantenimiento && (
         <div className="flex flex-wrap justify-center gap-2">
           <Button asChild variant="outline">
             <Link to={enModoCorreccion ? `/preparacion?turnoId=${turnoIdEfectivo}` : "/preparacion"}>
@@ -91,6 +111,7 @@ export default function Lineas() {
             </Link>
           </Button>
         </div>
+        )}
       </div>
     </AppShell>
   )

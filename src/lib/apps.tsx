@@ -57,6 +57,8 @@ export interface AppDef {
   enPrueba?: boolean
   /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
   atajo?: boolean
+  /** Áreas que entran aunque no haya un turno en curso (Mantenimiento a Líneas, que no abre turnos). */
+  sinTurnoAreas?: string[]
   /** Se bloquea (gris) cuando SÍ hay un turno en curso — lo opuesto de requiereTurno (ver Comenzar Turno). */
   bloqueaConTurno?: boolean
   /** Se resalta en rojo cuando hay un turno en curso, para que sea obvio el siguiente paso (ver Finalizar Turno). */
@@ -146,7 +148,9 @@ export const apps: AppDef[] = [
     href: "/lineas",
     icon: Factory,
     requiereTurno: true,
-    permiso: "TURNO_CARGAR",
+    // Mantenimiento entra a Líneas en Modo Paradas, sin abrir turno (dueña, 2026-10-26).
+    sinTurnoAreas: ["MANTENIMIENTO"],
+    permiso: ["TURNO_CARGAR", "PARADAS_MANTENIMIENTO"],
     color: "blue",
     seccion: "produccion",
   },
@@ -220,17 +224,6 @@ export const apps: AppDef[] = [
     requiereTurno: false,
     // Pantalla única (antes había una para supervisores y otra para Mantenimiento): entra quien tenga cualquiera de los dos permisos.
     permiso: ["PARADAS_REGISTRAR", "PARADAS_MANTENIMIENTO"],
-    seccion: "produccion",
-  },
-  {
-    slug: "mantenimiento",
-    title: "Mantenimiento",
-    description: "Líneas en vivo y fallas por clasificar.",
-    href: "/mantenimiento",
-    icon: Wrench,
-    requiereTurno: false,
-    // En lugar del Sheet (dueña, 2026-10-26): clasifica las fallas que el supervisor paró sin saber la causa.
-    permiso: "PARADAS_MANTENIMIENTO",
     seccion: "produccion",
   },
   {

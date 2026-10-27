@@ -109,8 +109,10 @@ export function LineasEstadoPlanta({
 
   // Modo Paradas (como el Modo Vacío de Preparación): solo en Líneas, con el turno en vivo y quien registra paradas.
   const [params, setParams] = useSearchParams()
-  const conModoParadas = modo === "preparacion" && anotaParadas && (turnoId === undefined || turnoId === sesion.turnoId)
-  const modoParadas = conModoParadas && params.get("paradas") === "1"
+  // Mantenimiento entra siempre al Modo Paradas (sin interruptor ni botones que manejan la línea); el turno en curso lo trae Líneas.
+  const esMantenimiento = session?.area === "MANTENIMIENTO"
+  const conModoParadas = modo === "preparacion" && (anotaParadas || esMantenimiento) && (esMantenimiento || turnoId === undefined || turnoId === sesion.turnoId)
+  const modoParadas = conModoParadas && (esMantenimiento || params.get("paradas") === "1")
   function cambiarModoParadas() {
     const p = new URLSearchParams(params)
     if (modoParadas) p.delete("paradas")
@@ -146,7 +148,7 @@ export function LineasEstadoPlanta({
   // Un tanque de Vacío no lo toma ninguna línea (el servidor también lo frena).
   const tanquesListos = tanques.filter((t) => t.condicion === "LISTO" && !t.paraVacio)
 
-  const interruptor = conModoParadas && (
+  const interruptor = conModoParadas && !esMantenimiento && (
     <div className="mx-auto mb-3 flex max-w-6xl flex-wrap items-center justify-end gap-2">
       {modoParadas && <p className="mr-auto text-xs font-medium text-info-foreground">Modo Paradas: la cuenta del turno de cada línea y lo que falta cubrir.</p>}
       <button
@@ -187,6 +189,8 @@ export function LineasEstadoPlanta({
           onCambio={paradasCambiaron}
           acciones={acciones}
           paradasDetienen={paradasDetienen}
+          esMantenimiento={esMantenimiento}
+          terminaSiempre={session.esDueno || session.rol === "SUPERADMINISTRADOR"}
         />
       </div>
     )

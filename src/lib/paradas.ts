@@ -733,30 +733,6 @@ export async function cerrarParadaMantenimiento(usuario: string, paradaId: strin
   return error ? { ok: false, error: error.message || "No se pudo cerrar la parada. Intenta de nuevo." } : { ok: true }
 }
 
-/** @deprecated Reemplazada por terminarParada; la borra la Task 6 con Mantenimiento.tsx. Le pone el código y qué se hizo a una falla sin clasificar. Los minutos no cambian (migración 20261112590000). */
-export async function clasificarFalla(usuario: string, paradaId: string, tipoCodigo: string, solucion: string, pagina: string): Promise<Resultado> {
-  const { error } = await supabase.rpc("clasificar_falla", {
-    p_usuario: usuario,
-    p_parada_id: paradaId,
-    p_tipo_codigo: tipoCodigo,
-    p_solucion: solucion,
-    p_pagina: pagina,
-  })
-  return error ? { ok: false, error: error.message || "No se pudo clasificar la falla. Intenta de nuevo." } : { ok: true }
-}
-
-/** @deprecated Reemplazada por terminarParada; la borra la Task 6 con Mantenimiento.tsx. Mantenimiento termina una falla: código, qué se hizo y fin = ahora; la línea sigue sola (migración 20261112590000). */
-export async function finalizarFalla(usuario: string, paradaId: string, tipoCodigo: string, solucion: string, pagina: string): Promise<Resultado> {
-  const { error } = await supabase.rpc("finalizar_falla", {
-    p_usuario: usuario,
-    p_parada_id: paradaId,
-    p_tipo_codigo: tipoCodigo,
-    p_solucion: solucion,
-    p_pagina: pagina,
-  })
-  return error ? { ok: false, error: error.message || "No se pudo terminar la falla. Intenta de nuevo." } : { ok: true }
-}
-
 export interface DatosTerminarParada {
   tipoCodigo: string
   subsistemaCodigo: string

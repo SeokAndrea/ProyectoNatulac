@@ -1,6 +1,5 @@
 import { Badge } from "@/components/ui/badge"
 import { Desplegable } from "@/components/Desplegable"
-import { ActualizarDesdeSheet } from "@/components/paradas/ActualizarDesdeSheet"
 import { duracionMin, fmtDuracion, nombreLineaParada, paradaAbierta, partesNotaSheet, type Parada } from "@/lib/paradas"
 
 /*
@@ -8,20 +7,15 @@ import { duracionMin, fmtDuracion, nombreLineaParada, paradaAbierta, partesNotaS
  * filtro del Panel de Paradas. Antes leía el Sheet con su propio filtro
  * (Hoy / Ayer / 7 días) y no cuadraba con el resto (dueña, 2026-10-15).
  * Ahora salen de la base: son las mismas que suman arriba. El Sheet se
- * trae solo cada 5 min (useParadasAbiertas) y con el botón de acá.
+ * trae solo cada 5 min (useParadasAbiertas); el botón manual se quitó.
  */
 export function ReportesMantenimiento({
   paradas,
   ahora,
-  usuarioSheet,
-  onActualizado,
 }: {
   /** Ya filtradas por el panel (fechas, turno, línea, clase) y solo de Mantenimiento. */
   paradas: Parada[]
   ahora: Date
-  /** Quien puede traer el Sheet; null = sin botón. */
-  usuarioSheet: string | null
-  onActualizado: () => void
 }) {
   const variosDias = new Set(paradas.map((p) => p.inicio.slice(0, 10))).size > 1
   const enCurso = paradas.filter(paradaAbierta).length
@@ -33,7 +27,6 @@ export function ReportesMantenimiento({
         <p className="text-xs text-muted-foreground">
           Las que reportó Mantenimiento (en su Sheet o en la app) con el filtro de arriba. Ya están sumadas en los números del panel.
         </p>
-        {usuarioSheet && <ActualizarDesdeSheet usuario={usuarioSheet} onListo={onActualizado} />}
         {paradas.length === 0 ? (
           <p className="text-sm text-muted-foreground">Mantenimiento no reportó paradas con este filtro.</p>
         ) : (

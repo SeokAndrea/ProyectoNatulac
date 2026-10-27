@@ -86,7 +86,7 @@ export default function PanelParadas() {
   const areaParadas = area === "ASEPTICO" || area === "PRUEBAS" ? area : null
   // Solo las paradas del período elegido en la vista (antes se traía todo el historial).
   // Sube al actualizar desde el Sheet de Mantenimiento: la vista vuelve a pedir las paradas.
-  const [versionParadas, setVersionParadas] = useState(0)
+  const [versionParadas] = useState(0)
   const cargarParadas = useCallback<CargarParadas>(
     ({ desde, hasta }) => listarParadas({ desde, hasta, area: areaParadas }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,8 +167,6 @@ export default function PanelParadas() {
                     <ReportesMantenimiento
                       paradas={paradas}
                       ahora={ahora}
-                      usuarioSheet={puedeActualizarSheet ? (session?.username ?? null) : null}
-                      onActualizado={() => setVersionParadas((v) => v + 1)}
                     />
                   </div>
                 )

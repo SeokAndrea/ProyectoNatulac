@@ -4,6 +4,7 @@ import { Lock, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { LogoMark } from "@/components/Logo"
 import type { AppDef } from "@/lib/apps"
 import type { ContinuidadTurno } from "@/lib/continuidadTurno"
+import { useAuth } from "@/lib/auth"
 import { bloqueoDeApp, useAppsNavegables } from "@/lib/navegacion"
 import { cn } from "@/lib/utils"
 
@@ -100,7 +101,8 @@ function ItemMenu({
   continuidad: ContinuidadTurno | null
 }) {
   const Icon = app.icon
-  const { bloqueada, sinTurno, habilitaA } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad)
+  const { session } = useAuth()
+  const { bloqueada, sinTurno, habilitaA } = bloqueoDeApp(app, turnoActivo, turnoPorAsumir, continuidad, session?.area ?? null)
   // Plegado: el ícono centrado en su recuadro.
   const base = cn("flex h-9 items-center gap-2.5 rounded-md text-sm", plegado ? "justify-center" : "px-2.5")
 
