@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Parada } from "@/lib/paradas"
 import { totalesParadaPorLinea } from "./calculosPanel"
 
-const TURNO = { id: "t2", fecha: "2026-10-26", turnoTipo: "TURNO_2", supervisorUsuario: null }
 
 const listarParadas = vi.fn()
 

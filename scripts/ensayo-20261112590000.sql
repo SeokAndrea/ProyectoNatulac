@@ -671,6 +671,53 @@ begin
   end;
 end $caso$;
 
+-- 17. listar_paradas: la parada abierta cuyo tramo de un turno cerrado trae fin sale abierta (el acta dice «en curso»).
+do $caso$
+declare
+  n text := '17 listar_paradas marca abierta la parada que sigue abierta en un turno cerrado';
+  c ctx;
+  v_cierre timestamp := (now() - interval '2 hours') at time zone 'America/Caracas';
+  v_cerrado uuid;
+  v_ab uuid;
+  v_ce uuid;
+  r record;
+  v_ok int := 0;
+begin
+  begin
+    select * into c from ctx;
+    insert into turnos (codigo, area_id, supervisor_id, turno_tipo_id, grupo_id, fecha, hora_inicio, estado, fecha_fin, hora_fin, created_at)
+    values ('A_ENSAYO_590_ABIERTA', c.asep, (select id from usuarios where usuario = 'ens_sup'),
+            (select id from turno_tipos where codigo = 'TURNO_3'), (select id from grupos where codigo = 'GRUPO_2'),
+            ((now() - interval '10 hours') at time zone 'America/Caracas')::date,
+            ((now() - interval '10 hours') at time zone 'America/Caracas')::time,
+            'CERRADO', v_cierre::date, v_cierre::time, now() - interval '10 hours')
+    returning id into v_cerrado;
+    -- Una sigue abierta desde hace 4 h; la otra ya terminó dentro del turno.
+    insert into paradas (turno_id, linea_id, tipo_id, clase, origen, tipo_nombre, nota, inicio, responsable, creado_por)
+    values (null, c.l3, (select id from paradas_tipos where codigo = c.tipo), 'NO_PROGRAMADA', 'MANTENIMIENTO', 'Falla', 'abierta',
+            now() - interval '4 hours', 'MANTENIMIENTO', (select id from usuarios where usuario = 'ens_mtto'))
+    returning id into v_ab;
+    insert into paradas (turno_id, linea_id, tipo_id, clase, origen, tipo_nombre, nota, inicio, fin, responsable, creado_por)
+    values (null, c.l3, (select id from paradas_tipos where codigo = c.tipo), 'NO_PROGRAMADA', 'MANTENIMIENTO', 'Falla', 'cerrada',
+            now() - interval '6 hours', now() - interval '5 hours', 'MANTENIMIENTO', (select id from usuarios where usuario = 'ens_mtto'))
+    returning id into v_ce;
+    for r in select * from listar_paradas(current_date - 1, current_date + 1, null, null, v_cerrado, null) loop
+      if r.id = v_ab and r.fin is not null and r.abierta then v_ok := v_ok + 1; end if;
+      if r.id = v_ce and r.fin is not null and not r.abierta then v_ok := v_ok + 1; end if;
+    end loop;
+    if v_ok <> 2 then raise exception 'abierta mal devuelta (% de 2)', v_ok; end if;
+    -- Sin turno (el listado general) también.
+    for r in select * from listar_paradas(current_date - 1, current_date + 1, null, null, null, 'ASEPTICO') loop
+      if r.id = v_ab and r.abierta and r.fin is null then v_ok := v_ok + 1; end if;
+      if r.id = v_ce and not r.abierta then v_ok := v_ok + 1; end if;
+    end loop;
+    if v_ok <> 4 then raise exception 'abierta mal devuelta en el listado general (% de 4)', v_ok; end if;
+    raise exception 'ENSAYO_OK';
+  exception when others then
+    if sqlerrm = 'ENSAYO_OK' then raise notice 'OK   %', n; else perform pg_temp.fallo(n, sqlerrm); end if;
+  end;
+end $caso$;
+
 -- ------------------------------------------------------------
 -- Resultado
 -- ------------------------------------------------------------

@@ -274,6 +274,13 @@ describe("renglón de parada en el acta (todas, con Responsable y el tramo del t
     expect(r.texto).toContain("en curso")
   })
 
+  it("una parada abierta al cerrar el turno sale «en curso» con los minutos de su tramo", () => {
+    // El servidor recorta el fin al cierre del turno, pero la parada sigue abierta.
+    const r = renglonParadaActa(par({ abierta: true, responsable: "MANTENIMIENTO" }), FIN_TURNO, DESPUES)
+    expect(r.min).toBe(150)
+    expect(r.texto).toContain("150 min (en curso)")
+  })
+
   it("el acta con paradas abiertas y de Mantenimiento se genera", async () => {
     const blob = await generarActaPdf({
       codigo: "T2-2026-10-26-1",

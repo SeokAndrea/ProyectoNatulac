@@ -89,7 +89,8 @@ const NOMBRE_RESPONSABLE: Record<Parada["responsable"], string> = { OPERACIONAL:
  * «en curso» y cuenta hasta el fin del turno (o hasta ahora, si el turno sigue).
  */
 export function renglonParadaActa(p: Parada, finTurno?: string | null, ahora: Date = new Date()): { texto: string; min: number } {
-  const abierta = p.fin === null
+  // En un turno cerrado el tramo trae el fin del turno aunque la parada siga abierta: `abierta` lo dice.
+  const abierta = p.fin === null || p.abierta === true
   const min = duracionMin({ inicio: p.inicio, fin: p.fin ?? finTurno ?? null }, ahora)
   const nota = notaParadaActa(p)
   // Sin el tiempo guía (dueña, 2026-10-08).

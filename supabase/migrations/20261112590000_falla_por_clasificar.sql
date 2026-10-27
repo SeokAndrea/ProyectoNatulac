@@ -718,7 +718,8 @@ returns table (
   subsistema_codigo text,
   lote text,
   sabor text,
-  terminada_por_nombre text
+  terminada_por_nombre text,
+  abierta boolean
 )
 language sql
 security definer
@@ -747,7 +748,9 @@ as $$
     pp.subsistema_codigo,
     pp.lote,
     pp.sabor,
-    ut.nombre
+    ut.nombre,
+    -- El tramo de un turno cerrado trae fin, pero la parada puede seguir abierta.
+    (pp.id is not null and pp.fin is null)
   from paradas_efectivas_turno(p_turno_id) e
   join lineas l on l.id = e.linea_id
   join turnos tu on tu.id = p_turno_id
@@ -784,7 +787,8 @@ as $$
     p.subsistema_codigo,
     p.lote,
     p.sabor,
-    ut.nombre
+    ut.nombre,
+    (p.fin is null)
   from paradas p
   join lineas l on l.id = p.linea_id
   join areas ar on ar.id = l.area_id

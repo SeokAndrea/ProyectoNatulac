@@ -373,6 +373,13 @@ describe("Responsable de la parada", () => {
     expect(esDeMantenimiento(P({ origen: "MANTENIMIENTO", responsable: "OPERACIONAL" }))).toBe(false)
   })
 
+  it("mapearFilaParada: abierta viene del servidor aunque el tramo traiga fin", () => {
+    const fila = { id: "x", clase: "NO_PROGRAMADA", origen: "MANTENIMIENTO", linea_codigo: "LINEA_2", turno_tipo: "TURNO_1", tipo_codigo: null, tipo_nombre: "Falla", tiempo_guia_min: null, nota: null, justificacion_desvio: null, inicio: "2026-10-12T09:00:00", fin: "2026-10-12T15:00:00", supervisor_nombre: null } as FilaParada
+    expect(mapearFilaParada({ ...fila, abierta: true }).abierta).toBe(true)
+    expect(mapearFilaParada({ ...fila, abierta: false }).abierta).toBe(false)
+    expect(mapearFilaParada({ ...fila, fin: null }).abierta).toBe(true)
+  })
+
   it("mapearFilaParada devuelve el responsable y los campos nuevos", () => {
     const fila: FilaParada = {
       id: "x",

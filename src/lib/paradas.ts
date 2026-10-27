@@ -290,6 +290,8 @@ export interface Parada {
    * es null para `origen: "MANUAL"`.
    */
   fin: string | null
+  /** Sigue abierta en la base aunque el tramo del turno cerrado traiga fin (listar_paradas). `fin === null` también la hace abierta. */
+  abierta?: boolean
   supervisorNombre: string | null
   /**
    * +1 todavía sin minutos (migración 20261090). Se guarda con inicio = fin,
@@ -624,6 +626,8 @@ export interface FilaParada {
   lote?: string | null
   sabor?: string | null
   terminada_por_nombre?: string | null
+  /** La parada sigue abierta en la base (el tramo de un turno cerrado igual trae fin). */
+  abierta?: boolean | null
 }
 
 /** Lee `listar_paradas` (migración 20261061). Devuelve [] si la lectura falla. */
@@ -656,6 +660,7 @@ export function mapearFilaParada(f: FilaParada): Parada {
     justificacionDesvio: f.justificacion_desvio,
     inicio: f.inicio,
     fin: f.fin,
+    abierta: f.abierta === true || f.fin === null,
     supervisorNombre: f.supervisor_nombre,
     pendiente: f.pendiente === true,
     solucion: f.solucion ?? null,
