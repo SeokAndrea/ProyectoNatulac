@@ -116,6 +116,8 @@ from (
   ('20261113190000', 'Paradas: cada turno cuenta desde su hora oficial',
     exists (select 1 from fn where proname = 'ventana_paradas_turno')),
   ('20261113290000', 'Paradas: Anotar con Responsable y Mantenimiento pone el código',
-    exists (select 1 from fn where proname = 'clasificar_falla_mantenimiento'))
+    exists (select 1 from fn where proname = 'clasificar_falla_mantenimiento')),
+  ('20261113390000', 'Líneas: el CIP termina solo al arrancar una corrida',
+    exists (select 1 from fn where proname = 'cip_termina_al_arrancar'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;
