@@ -68,14 +68,14 @@ const detiene = (): ParadaQueDetiene => ({
   nota: "Se rompió", inicio: ahoraLocal(20), fin: null, deMantenimiento: true,
 })
 
-function montar(over: { esMantenimiento?: boolean; corridas?: Corrida[]; paradasDetienen?: ParadaQueDetiene[]; pendientes?: Parada[] } = {}) {
+function montar(over: { esMantenimiento?: boolean; corridas?: Corrida[]; paradasDetienen?: ParadaQueDetiene[]; pendientes?: Parada[]; condicion?: LineaEstado["condicion"] } = {}) {
   const acciones = { pausar: vi.fn().mockResolvedValue({ ok: true }), continuar: vi.fn().mockResolvedValue({ ok: true }), detener: vi.fn().mockResolvedValue({ ok: true }) }
   render(
     <MemoryRouter>
       <ModoParadas
         lineas={[{ codigo: "LINEA_1", nombre: "Línea 1" }]}
         corridas={over.corridas ?? [corrida({ pausadaEn: ahoraLocal(20) })]}
-        lineasEstado={[estado]}
+        lineasEstado={[{ ...estado, condicion: over.condicion ?? estado.condicion }]}
         usuario="u1"
         areaCodigo={over.esMantenimiento ? "MANTENIMIENTO" : "ASEPTICO"}
         pendientes={over.pendientes ?? []}
@@ -205,6 +205,12 @@ describe("ModoParadas — paradas de Mantenimiento", () => {
     await userEvent.click(screen.getByRole("button", { name: "Guardar" }))
     await waitFor(() => expect(anotarParada).toHaveBeenCalled())
     expect(anotarParada.mock.calls[0][1]).toMatchObject({ responsable: "MANTENIMIENTO" })
+  })
+
+  it("con la corrida corriendo se puede Parar aunque la condición de la línea haya quedado en CIP", async () => {
+    delTurno = []
+    montar({ corridas: [corrida({ pausadaEn: null })], paradasDetienen: [], condicion: "CIP" })
+    expect(await screen.findByRole("button", { name: "Parar" })).toBeInTheDocument()
   })
 
   it("el +1 que espera minutos sale abierto en la tarjeta, sin entrar a Anotar", async () => {

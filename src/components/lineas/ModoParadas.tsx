@@ -203,7 +203,10 @@ export function ModoParadas({
         const condicion = lineasEstado.find((le) => le.linea === l.codigo)?.condicion ?? "DETENIDA"
         const aspecto = aspectoLinea(lineaTurno, condicion, esperandoPt)
         // Parar y continuar: solo en el turno en curso, con la corrida en marcha (no en CIP ni con el lote terminado).
-        const enVivo = !verAnterior && lineaTurno !== null && condicion !== "CIP" && lineaTurno.loteTerminado == null ? lineaTurno : null
+        // El CIP solo frena si tiene la corrida en pausa: con la corrida corriendo (como dice la tarjeta), se puede Parar
+        // aunque la condición haya quedado en CIP (dueña, 2026-10-28: «la línea está corriendo» y no salía Parar).
+        const enCip = condicion === "CIP" && lineaTurno?.pausadaEn != null
+        const enVivo = !verAnterior && lineaTurno !== null && !enCip && lineaTurno.loteTerminado == null ? lineaTurno : null
         const corriendo = enVivo !== null && enVivo.pausadaEn == null
         const parada = enVivo !== null && enVivo.pausadaEn != null
         const detiene = paradasDetienen.filter((p) => p.linea === l.codigo)
