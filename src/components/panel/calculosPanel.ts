@@ -63,11 +63,11 @@ export interface FilaLineaCompacta extends LineaConEstado {
   /** Total de la parada completa (todos los turnos), solo si alguna empezó en un turno anterior: va en el title de «Tiempo de parada». */
   minutosParadaTotal: number | null
   /**
-   * TP = Tiempo de Producción: minutos desde que se activó la corrida
-   * (activadaEn) — null si no hay corrida activa ahora mismo. Por
-   * ahora es solo el tiempo corrido desde que arrancó; una mejora
-   * pendiente es restarle el tiempo de las paradas de `minutosParada`
-   * en vez de contar todo seguido.
+   * TP = Tiempo de Producción del turno (dueña, 2026-10-28): desde que
+   * arrancó la corrida o desde que empezó el turno (lo último), menos lo
+   * que la línea estuvo parada en ese lapso. null si no hay corrida activa
+   * ahora mismo. Antes era el reloj desde que arrancó la corrida, sin
+   * restar paradas y cruzando turnos (salía «11 h» en una línea parada).
    */
   minutosProduccion: number | null
 }
@@ -272,6 +272,27 @@ export function programacionDelDia(
   return [...delPlan, ...extra]
 }
 
+/**
+ * Minutos parados dentro de [desde, hasta] (ms): las paradas se juntan antes
+ * de sumar, así dos que se solapan (supervisor y Mantenimiento) cuentan una
+ * vez. Una abierta cuenta hasta `hasta`; un +1 sin minutos no cuenta.
+ */
+export function minutosParadosEntre(paradas: Pick<Parada, "inicio" | "fin" | "pendiente">[], desde: number, hasta: number): number {
+  const tramos = paradas
+    .filter((p) => !p.pendiente)
+    .map((p) => [Math.max(new Date(p.inicio).getTime(), desde), Math.min(p.fin ? new Date(p.fin).getTime() : hasta, hasta)] as const)
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0])
+  let total = 0
+  let finAnterior = -Infinity
+  for (const [a, b] of tramos) {
+    const ini = Math.max(a, finAnterior)
+    if (b > ini) total += b - ini
+    finAnterior = Math.max(finAnterior, b)
+  }
+  return total / 60000
+}
+
 /** Una fila por línea: estado + producción + merma + paradas juntos. */
 export function filasDeLineas(d: {
   lineasEstado: LineaConEstado[]
@@ -285,6 +306,10 @@ export function filasDeLineas(d: {
   minutosParadaPorLinea: Map<string, number>
   /** Total con el tramo de otros turnos, por línea normalizada (ver totalesParadaPorLinea). */
   minutosParadaTotalPorLinea?: Map<string, number>
+  /** Paradas del turno (línea normalizada LINEA_1/2/3): se restan del TP. */
+  paradasTurno?: Parada[]
+  /** Desde cuándo cuenta el turno (inicioCuentaTurno): el TP no cuenta antes. */
+  desdeTurno?: Date | null
   ahora: Date
 }): FilaLineaCompacta[] {
   return d.lineasEstado.map((le) => {
@@ -297,10 +322,12 @@ export function filasDeLineas(d: {
     // Las paradas vienen con la línea normalizada LINEA_1/2/3 (Pruebas usa LINEA_T#), por eso se busca por número.
     const lineaParadas = "LINEA_" + le.codigo.replace(/^LINEA_T?/, "")
     const minutosParadaAcumulado = d.minutosParadaPorLinea.get(lineaParadas) ?? 0
-    const minutosProduccion =
-      le.estado === "activa" && le.corrida
-        ? Math.max(0, Math.round((d.ahora.getTime() - new Date(le.corrida.activadaEn).getTime()) / 60000))
-        : null
+    let minutosProduccion: number | null = null
+    if (le.estado === "activa" && le.corrida) {
+      const desde = Math.max(new Date(le.corrida.activadaEn).getTime(), d.desdeTurno?.getTime() ?? -Infinity)
+      const parados = minutosParadosEntre((d.paradasTurno ?? []).filter((p) => p.lineaCodigo === lineaParadas), desde, d.ahora.getTime())
+      minutosProduccion = Math.max(0, Math.round((d.ahora.getTime() - desde) / 60000 - parados))
+    }
     return {
       ...le,
       cajas: prodLinea?.cajas ?? 0,

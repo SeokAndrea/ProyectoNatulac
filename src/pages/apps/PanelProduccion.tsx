@@ -163,6 +163,8 @@ export default function PanelProduccion() {
     eficiencia,
     minutosParadaPorLinea: new Map(minutosPorLinea(paradasTurno, ahora).map((r) => [r.linea, r.minutos])),
     minutosParadaTotalPorLinea: totalesParadaPorLinea(paradasTurno, paradasCompletas, ahora),
+    paradasTurno,
+    desdeTurno,
     ahora,
   })
   const ultimaAccion = turno ? ultimaAccionDeTurno(prod.corridas, prep.tanques, prod.contadores, pt.registros, prep.preparaciones) : null

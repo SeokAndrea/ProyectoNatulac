@@ -5,7 +5,9 @@ import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import {
   estadoDeLineas,
+  filasDeLineas,
   formatDuracion,
+  minutosParadosEntre,
   paradaMasLargaDe,
   produccionPorLineaDe,
   programacionDelDia,
@@ -125,5 +127,30 @@ describe("totalesParadaPorLinea", () => {
     const delTurno = [par({ id: "a" })]
     expect(totalesParadaPorLinea(delTurno, new Map([["a", par({ id: "a" })]]), AHORA).size).toBe(0)
     expect(totalesParadaPorLinea(delTurno, new Map(), AHORA).size).toBe(0)
+  })
+})
+
+describe("TP: tiempo de producción del turno", () => {
+  const par = (inicio: string, fin: string | null, over: Partial<Parada> = {}) =>
+    ({ id: inicio, lineaCodigo: "LINEA_1", clase: "NO_PROGRAMADA", inicio, fin, pendiente: false, ...over }) as Parada
+  const ms = (s: string) => new Date(s).getTime()
+
+  it("minutosParadosEntre junta las que se solapan y recorta al lapso", () => {
+    const p = [par("2026-10-28T08:00:00", "2026-10-28T09:00:00"), par("2026-10-28T08:30:00", "2026-10-28T09:30:00"), par("2026-10-28T06:00:00", "2026-10-28T07:30:00")]
+    // 07:00–07:30 (recortada) + 08:00–09:30 (dos que se solapan) = 30 + 90
+    expect(minutosParadosEntre(p, ms("2026-10-28T07:00:00"), ms("2026-10-28T12:00:00"))).toBe(120)
+    expect(minutosParadosEntre([par("2026-10-28T10:00:00", "2026-10-28T10:00:00", { pendiente: true })], ms("2026-10-28T07:00:00"), ms("2026-10-28T12:00:00"))).toBe(0)
+  })
+
+  it("cuenta desde el inicio del turno (no desde un arranque de otro turno) y resta las paradas", () => {
+    // Corrida heredada que arrancó a las 03:00; el turno cuenta desde las 07:00; ahora 12:00; paró 08:00–10:00.
+    const lineas = estadoDeLineas([corrida({ activadaEn: "2026-10-28T03:00:00" })], [estado("LINEA_1", "LISTA")], LINEAS)
+    const filas = filasDeLineas({
+      lineasEstado: lineas, produccionPorLinea: [], corridas: [], contadores: [], productoTerminado: [], presentaciones: PRES, eficiencia: null,
+      minutosParadaPorLinea: new Map(), paradasTurno: [par("2026-10-28T08:00:00", "2026-10-28T10:00:00")],
+      desdeTurno: new Date("2026-10-28T07:00:00"), ahora: new Date("2026-10-28T12:00:00"),
+    })
+    // 5 h del turno − 2 h paradas = 3 h
+    expect(filas.find((f) => f.codigo === "LINEA_1")?.minutosProduccion).toBe(180)
   })
 })
