@@ -1,17 +1,17 @@
 @echo off
 setlocal
 
-rem === Simulacion (sin PLC) - util para probar la parte de "verlo desde otra
-rem PC" sin depender de que el PLC este conectado todavia ===
+rem === Bridge en simulacion (sin PLC) ===
+rem Util para probar la pantalla o "verlo desde otra PC" sin el PLC conectado.
+rem El resto de la configuracion (puerto, tags extra) sale de bridge.conf.
 
 set PLC_MODO=simulacion
-set PLC_BRIDGE_PUERTO=4036
 
 cd /d "%~dp0"
 
 echo ===========================================
-echo  Simulacion de llenado (sin PLC)
-echo  WebSocket en el puerto %PLC_BRIDGE_PUERTO%
+echo  plc-bridge - modo SIMULACION (sin PLC)
+echo  Configuracion: bridge.conf
 echo ===========================================
 echo.
 

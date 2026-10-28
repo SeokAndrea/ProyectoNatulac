@@ -212,6 +212,9 @@
 
   <div id="totales" class="totales">Litros totales acumulados: -</div>
 
+  <div id="errores" class="totales" style="color: var(--alerta)" hidden></div>
+  <div id="otros" class="totales" style="margin-bottom: 16px" hidden></div>
+
   <p class="crudo-titulo">Ultimo mensaje recibido (crudo):</p>
   <div id="crudo" class="crudo">-</div>
 
@@ -275,7 +278,26 @@
     [1, 2, 3].forEach((numero) => renderTanque(numero, estado));
     totalesEl.textContent = "Litros totales acumulados: " +
       (estado.litros_totales != null ? estado.litros_totales.toFixed(1) + " L" : "-");
+    renderOtros(estado);
     crudo.textContent = JSON.stringify(estado, null, 2);
+  }
+
+  // Tags PLC_EXTRA_* de bridge.conf y tags que el PLC no entrega.
+  const otrosEl = document.getElementById("otros");
+  const erroresEl = document.getElementById("errores");
+  function renderOtros(estado) {
+    const errores = estado.tags_con_error || [];
+    erroresEl.hidden = errores.length === 0;
+    erroresEl.textContent = "El PLC no entrega: " + errores.join(", ") + " (revisar bridge.conf)";
+
+    const extra = estado.extra || {};
+    const nombres = Object.keys(extra);
+    otrosEl.hidden = nombres.length === 0;
+    otrosEl.textContent = "Otros datos del PLC:  " + nombres.map((n) => {
+      const v = extra[n];
+      const texto = v === null ? "sin dato" : typeof v === "boolean" ? (v ? "encendido" : "apagado") : v;
+      return n + " = " + texto;
+    }).join("   |   ");
   }
 
   function conectar() {

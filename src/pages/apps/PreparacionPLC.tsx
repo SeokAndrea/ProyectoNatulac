@@ -27,6 +27,10 @@ interface EstadoLlenado {
   /** Válvula de recirculación/CIP de cada tanque (no es la de entrada de agua) — ver plc-bridge/src/fuentes/s7.js. */
   auxiliares: Record<string, boolean>
   llenando: boolean
+  /** Tags PLC_EXTRA_* de plc-bridge/bridge.conf: nombre → valor (null si el PLC no lo entregó). */
+  extra?: Record<string, number | boolean | null>
+  /** Tags que el PLC no pudo entregar (dirección mal configurada en bridge.conf). */
+  tags_con_error?: string[]
 }
 
 /** Litros por debajo de la última lectura que cuentan como "empezó una dosis nueva" (tolerancia a ruido). */
@@ -154,6 +158,15 @@ export default function PreparacionPLC() {
         ))}
       </div>
 
+      {estado?.tags_con_error && estado.tags_con_error.length > 0 && (
+        <p className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          El PLC no está entregando: {estado.tags_con_error.join(", ")}. Revisa la dirección de esos tags en
+          plc-bridge/bridge.conf.
+        </p>
+      )}
+
+      {estado?.extra && Object.keys(estado.extra).length > 0 && <OtrosDatos extra={estado.extra} />}
+
       {estado && (
         <details className="mt-6 text-xs text-muted-foreground">
           <summary className="cursor-pointer select-none">Ver último mensaje crudo</summary>
@@ -235,6 +248,36 @@ function TarjetaTanque({
             </dl>
           </>
         )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** "temperatura_agua" → "Temperatura agua" */
+function nombreLegible(nombre: string): string {
+  const texto = nombre.replace(/_/g, " ")
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+function valorLegible(valor: number | boolean | null): string {
+  if (valor === null) return "sin dato"
+  if (typeof valor === "boolean") return valor ? "Encendido" : "Apagado"
+  return valor.toLocaleString("es-VE", { maximumFractionDigits: 3 })
+}
+
+/** Tags agregados en bridge.conf (PLC_EXTRA_*): aparecen solos, sin tocar esta pantalla. */
+function OtrosDatos({ extra }: { extra: Record<string, number | boolean | null> }) {
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle>Otros datos del PLC</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-1.5 text-sm sm:grid-cols-2">
+          {Object.entries(extra).map(([nombre, valor]) => (
+            <Fila key={nombre} etiqueta={nombreLegible(nombre)} valor={valorLegible(valor)} />
+          ))}
+        </dl>
       </CardContent>
     </Card>
   )

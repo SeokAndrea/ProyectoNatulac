@@ -9,6 +9,8 @@
 // con un objeto con la misma forma que emitir() produce aqui, para que
 // servidor.js no tenga que cambiar.
 
+import { tagsExtra } from "../config.js";
+
 const NUMEROS_TANQUE = [1, 2, 3];
 
 export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreLlenadosMs = 3000 }) {
@@ -20,6 +22,10 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
   let caudalLMin = 0;
   let pausaHastaMs = 0;
   let temporizador = null;
+  const extras = tagsExtra();
+  for (const { nombre, direccion } of extras) {
+    console.log(`[plc-bridge]   extra.${nombre.padEnd(22)} ${direccion} (valor simulado)`);
+  }
 
   function estadoValvulas() {
     return {
@@ -51,7 +57,22 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
       // se dejan siempre apagados.
       auxiliares: { 1: false, 2: false, 3: false },
       llenando: tanqueActivo !== null,
+      extra: valoresExtraSimulados(),
+      tags_con_error: [],
     });
+  }
+
+  // Los PLC_EXTRA_* de bridge.conf tambien salen en simulacion, con valores
+  // inventados (bits que cambian cada 5 s, numeros al azar), para probar la
+  // pantalla sin PLC.
+  function valoresExtraSimulados() {
+    const bitEncendido = Math.floor(Date.now() / 5000) % 2 === 0;
+    return Object.fromEntries(
+      extras.map(({ nombre, direccion }) => [
+        nombre,
+        direccion.includes(",X") ? bitEncendido : Math.round(Math.random() * 1000) / 10,
+      ]),
+    );
   }
 
   function tick() {

@@ -6,10 +6,10 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 
 COPY src ./src
-
-ENV PLC_MODO=simulacion
-ENV PLC_BRIDGE_PUERTO=4036
-ENV PLC_BRIDGE_INTERVALO_MS=200
+# Copia por defecto; en el servidor docker-compose.yml monta encima el
+# bridge.conf del proyecto, asi un cambio solo pide reiniciar, no reconstruir.
+# Sin ENV aqui: una variable de entorno le ganaria a bridge.conf.
+COPY bridge.conf ./bridge.conf
 
 EXPOSE 4036
 
