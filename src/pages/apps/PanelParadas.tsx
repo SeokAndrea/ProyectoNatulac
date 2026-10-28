@@ -4,17 +4,17 @@ import { PanelParadasVista, type CargarOee, type CargarParadas, type EstadoLinea
 import type { EstadoLineaVista } from "@/components/CintaLinea"
 import { listarParadas, LINEAS_PARADAS } from "@/lib/paradas"
 import { useProduccion } from "@/lib/produccion/useProduccion"
-import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
+import { aplicarParadasEnVivo, estadoDeLineas, type LineaConEstado } from "@/components/panel/calculosPanel"
 import { useAuth } from "@/lib/auth"
-import { AREA_QUE_MIRA_EL_APOYO, esAreaDeApoyo } from "@/lib/catalogos"
+import { esAreaDeApoyo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { ReportesMantenimiento } from "@/components/paradas/ReportesMantenimiento"
 import { puede } from "@/lib/permisos"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
-import { paradaEnVivo, textoParadaEnVivo, useParadasAbiertas, type ParadaEnVivo } from "@/lib/paradasEnVivo"
+import { textoParadaEnVivo, useParadasAbiertas } from "@/lib/paradasEnVivo"
 import { cargarOeePeriodo } from "@/lib/eficienciaPeriodo"
 import type { TurnoActivo } from "@/lib/turno"
-import { listarVentanasTurnos } from "@/lib/ventanasParadas"
+import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 
 /*
  * Panel de Paradas — dashboard solo lectura del downtime de las líneas,
@@ -42,26 +42,29 @@ import { listarVentanasTurnos } from "@/lib/ventanasParadas"
  *    solo para que <PanelParadasVista> lo ubique en su slot visual.
  */
 
-/** Traduce corrida/lineasEstado (Producción, real) al estado visual de la cinta. Mismo criterio que LineaVisual.tsx / FinalizarTurno.tsx. */
-function estadoLineaVista(
-  lineaCodigo: string,
-  corridas: Corrida[],
-  lineasEstado: LineaEstado[],
-  parada: ParadaEnVivo | null,
-): EstadoLineaVista {
-  const estado = lineasEstado.find((le) => le.linea === lineaCodigo)
-  // En CIP con el lote que sigue, la corrida queda activa: igual se ve el CIP, no "corriendo".
-  if (estado?.condicion === "CIP") return "CIP"
-  const corrida = corridas.find((c) => c.linea === lineaCodigo && c.activa)
-  // Parada abierta de más de 15 min (ver src/lib/paradasEnVivo.ts). Antes del margen la cinta sigue corriendo.
-  if (parada?.visible) return corrida ? "PARADA" : "DETENIDA"
-  if (corrida) {
-    if (corrida.loteTerminado != null) return "TERMINO"
-    return "CORRIENDO"
+/**
+ * El estado de cada línea sale del MISMO cálculo que el Panel de Producción
+ * (estadoDeLineas + aplicarParadasEnVivo, calculosPanel.ts): antes este panel
+ * tenía su propia versión y las dos cintas no coincidían (dueña, 2026-10-28).
+ * Acá solo se traduce a la escena de la cinta.
+ */
+function vistaDeEstado(l: LineaConEstado): EstadoLineaVista {
+  switch (l.estado) {
+    case "activa":
+      return l.corrida?.loteTerminado != null ? "TERMINO" : "CORRIENDO"
+    case "parada":
+      return "PARADA"
+    case "detenida":
+      return "DETENIDA"
+    case "cip":
+      return "CIP"
+    case "cambio_presentacion":
+      return "CAMBIO"
+    case "esperando_cierre":
+      return "TERMINO"
+    default:
+      return "LIBRE"
   }
-  if (estado?.condicion === "CAMBIO_PRESENTACION") return "CAMBIO"
-  if (estado?.condicion === "DETENIDA") return "DETENIDA"
-  return "LIBRE"
 }
 
 /** Mientras cargan los catálogos (líneas, velocidades): el OEE se muestra "calculando", no "sin datos". */
@@ -130,39 +133,26 @@ export default function PanelParadas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turno?.id])
 
-  // Hora real en que empezó el turno en vivo: la cinta cuenta los minutos desde ahí, igual que el
-  // Panel de Producción (dueña, 2026-10-28: los dos tienen que mostrar el mismo tiempo).
-  const [desdeTurno, setDesdeTurno] = useState<Date | null>(null)
-  useEffect(() => {
-    let vivo = true
-    if (!turno) {
-      setDesdeTurno(null)
-      return
-    }
-    listarVentanasTurnos(areaParadas ?? AREA_QUE_MIRA_EL_APOYO, turno.fecha, turno.fecha).then((ventanas) => {
-      const v = ventanas.find((x) => x.id === turno.id)
-      if (vivo) setDesdeTurno(v ? new Date(v.desde) : null)
-    })
-    return () => {
-      vivo = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turno?.id, areaParadas])
+  // Desde cuándo cuenta el turno en vivo: la cinta suma los minutos desde ahí, igual que el Panel de
+  // Producción (dueña, 2026-10-28: el mismo tiempo en los dos, y desde las 7 aunque abran tarde).
+  const desdeTurno = turno ? inicioCuentaTurno(turno.turnoTipo, turno.fecha, `${turno.fecha}T${turno.horaInicio}`) : null
 
   // Las líneas reales del área (LINEA_T1/T2/T3 en Pruebas, LINEA_1/2/3 en
   // Producción — ver LineaCodigo) no comparten código con LINEAS_PARADAS
   // (genérico, mismo en todas las áreas). Se matchea por POSICIÓN: ambas
   // listas están ordenadas igual (por código), así que el n-ésimo elemento
   // de cada una es "la misma línea física".
+  const enVivo = turno ? aplicarParadasEnVivo(estadoDeLineas(prod.corridas, prod.lineasEstado, lineasReales), paradasAbiertas, new Date(), desdeTurno) : []
   const estadoLineas: EstadoLineaEnVivo[] | undefined = prod.cargando
     ? undefined
     : LINEAS_PARADAS.map((l, i) => {
         const lineaReal = lineasReales[i]
-        const corrida = lineaReal ? prod.corridas.find((c) => c.linea === lineaReal.codigo && c.activa) : undefined
-        const parada = lineaReal ? paradaEnVivo(lineaReal.codigo, paradasAbiertas, corrida?.pausadaEn ?? null, new Date(), desdeTurno) : null
+        const real = lineaReal ? enVivo.find((e) => e.codigo === lineaReal.codigo) : undefined
+        const corrida = real?.corrida ?? null
+        const parada = real?.paradaEnVivo ?? null
         return {
           lineaCodigo: l.codigo,
-          estado: lineaReal ? estadoLineaVista(lineaReal.codigo, prod.corridas, prod.lineasEstado, parada) : "LIBRE",
+          estado: real ? vistaDeEstado(real) : "LIBRE",
           aviso: parada ? textoParadaEnVivo(parada) : null,
           avisoUrgente: parada?.visible ?? false,
           nota: parada?.nota ?? null,

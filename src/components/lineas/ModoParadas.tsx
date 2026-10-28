@@ -10,7 +10,7 @@ import { minutosSinReportar } from "@/lib/minutosSinReportar"
 import type { LineaCodigo } from "@/lib/catalogos"
 import { obtenerEstadoPlantaActual, obtenerTurnoDeFechaTipo } from "@/lib/panelProduccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
-import { TURNOS_COMPLETOS } from "@/lib/paradasTurnoCompleto"
+import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 import { diaMesPlanta, fechaPlanta, horaCortaPlanta, mismaFechaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { abrirParadaMantenimiento, duracionMin, esDeMantenimiento, fmtDuracion, minutosPorClaseSinSolape, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
@@ -169,10 +169,7 @@ export function ModoParadas({
   const ventanaMin = ventanaTurnoMin(turnoMin, turno.estado, horas)
   // Dónde caben las paradas que cubren: desde el horario oficial del turno (T1 07:00…) si abrió tarde,
   // porque la cuenta le suma el turno entero igual; hasta el fin de ese horario o ahora.
-  const abrio = new Date(`${turno.fecha}T${turno.horaInicio.slice(0, 5)}:00`).getTime()
-  const oficial = TURNOS_COMPLETOS.find((t) => t.tipo === turno.turnoTipo)
-  const desdeOficial = oficial ? new Date(`${turno.fecha}T${oficial.desde}:00`).getTime() : abrio
-  const desdeMs = Math.min(abrio, desdeOficial)
+  const desdeMs = inicioCuentaTurno(turno.turnoTipo, turno.fecha, `${turno.fecha}T${turno.horaInicio}`).getTime()
   const hastaMs = Math.min(desdeMs + turnoMin * 60_000, ahora.getTime())
 
   return (

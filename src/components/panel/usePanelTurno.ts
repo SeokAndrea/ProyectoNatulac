@@ -18,6 +18,7 @@ import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import { fechaJornada, obtenerPlanDelDia, type ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { listarVentanasTurnos } from "@/lib/ventanasParadas"
+import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 import { franjaDeHora, restarDias } from "@/lib/tiempoPlanta"
 import type { TurnoActivo } from "@/lib/turno"
 
@@ -215,17 +216,18 @@ export function usePanelTurno() {
         if (vivo) setParadasCompletas(new Map(filas.map((p) => [p.id, p])))
       })
     }
-    // Desde cuándo cuenta el turno mostrado (sus horas reales), para la cinta en vivo.
+    // Desde cuándo cuenta el turno mostrado, para la cinta en vivo: su hora oficial (T1 07:00) aunque
+    // lo hayan abierto tarde (inicioCuentaTurno).
     if (areaEfectiva) {
       listarVentanasTurnos(areaEfectiva, fecha, fecha).then((ventanas) => {
         const v = ventanas.find((x) => x.id === turno.id)
-        if (vivo) setDesdeTurno(v ? new Date(v.desde) : null)
+        if (vivo) setDesdeTurno(v ? inicioCuentaTurno(turno.turnoTipo, turno.fecha, v.desde) : null)
       })
     }
     return () => {
       vivo = false
     }
-  }, [fecha, turno?.id, areaEfectiva, tickRefresco])
+  }, [fecha, turno?.id, turno?.turnoTipo, turno?.fecha, areaEfectiva, tickRefresco])
 
   async function cargarTurnoAnterior(turnoActualId: string | null) {
     if (!areaEfectiva) {

@@ -18,6 +18,21 @@ export const TURNOS_COMPLETOS: { tipo: TipoTurno; corto: string; desde: string; 
   { tipo: "TURNO_3", corto: "T3", desde: "22:30", hasta: "07:00" },
 ]
 
+/**
+ * Desde cuándo cuenta un turno: su horario oficial (T1 07:00…) si lo abrieron
+ * tarde, o la hora en que lo abrieron si fue antes. `abrioEn` es
+ * 'YYYY-MM-DDTHH:MM[:SS]' de planta. Sin horario oficial (12x12): la apertura.
+ * Lo usan el Modo Paradas y la cinta en vivo de los dos paneles (dueña,
+ * 2026-10-28: el turno empieza a las 7 aunque lo abran a las 8:54).
+ */
+export function inicioCuentaTurno(turnoTipo: string, fecha: string, abrioEn: string): Date {
+  const abrio = new Date(`${abrioEn.slice(0, 16)}:00`)
+  const oficial = TURNOS_COMPLETOS.find((t) => t.tipo === turnoTipo)
+  if (!oficial) return abrio
+  const desdeOficial = new Date(`${fecha}T${oficial.desde}:00`)
+  return desdeOficial < abrio ? desdeOficial : abrio
+}
+
 /** Más días que esto de una vez, no: evita cargar un mes por error. */
 export const MAX_DIAS_TURNO_COMPLETO = 31
 
