@@ -4,7 +4,7 @@ import { VisorActa } from "@/components/acta/VisorActa"
 import { Button } from "@/components/ui/button"
 import {
   codigoParadaSif,
-  esInspeccion,
+  esperaResponsable,
   fechaHoraSif,
   listarFallasSif,
   minutosEntre,
@@ -86,14 +86,14 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
           <h2 className="text-lg font-semibold text-balance">
             {sif.lineaNombre} · {sif.tipoNombre}
           </h2>
-          <EstadoSifBadge estado={sif.estado} />
+          <EstadoSifBadge sif={sif} />
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-[repeat(auto-fit,minmax(170px,1fr))] sm:gap-x-5">
           <Dato etiqueta="Solicitud" valor={sif.codigo} num />
           <Dato etiqueta="Código de parada" valor={codigoParadaSif(sif)} num />
           <Dato etiqueta="Equipo" valor={sif.equipoNombre ?? "—"} />
           <Dato etiqueta="Área solicitante" valor={sif.areaNombre} />
-          {!esInspeccion(sif.estado) && <Dato etiqueta="Responsable" valor={sif.responsable ?? "Sin asignar"} />}
+          {(sif.estado !== "REVISADA" || sif.responsable) && <Dato etiqueta="Responsable" valor={sif.responsable ?? "Sin asignar"} />}
           {sif.entregadaA && <Dato etiqueta="Entregada a" valor={sif.entregadaA} />}
           {sif.cierre && <Dato etiqueta="Tiempo de reparación" valor={textoDuracion(minutosEntre(sif.inicioReparacion, sif.cierre))} num />}
         </dl>
@@ -136,8 +136,9 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
           Solo lectura: Mantenimiento asigna el responsable y cierra la solicitud.
         </p>
       )}
+      {/* Inspección: primero quién la revisa (queda en azul, «En revisión»); marcarla revisada no lo exige. */}
+      {puedeGestionar && esperaResponsable(sif) && <AsignarResponsable sif={sif} usuario={usuario} onHecho={onCambio} />}
       {puedeGestionar && sif.estado === "INSPECCION" && <MarcarRevisada sif={sif} usuario={usuario} onHecho={onCambio} />}
-      {puedeGestionar && sif.estado === "PENDIENTE" && <AsignarResponsable sif={sif} usuario={usuario} onHecho={onCambio} />}
       {puedeGestionar && sif.estado === "EN_REPARACION" && <CerrarSif sif={sif} usuario={usuario} onHecho={onCambio} />}
 
       {sif.revisadaEn && (

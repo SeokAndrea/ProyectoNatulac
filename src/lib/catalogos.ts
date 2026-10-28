@@ -44,13 +44,16 @@ export function esAreaDeApoyo(area: string | null | undefined): boolean {
 }
 
 /**
- * Áreas que solo admiten ciertos roles (migraciones 20261089 y 20261111290000).
- * Los roles de Calidad y Servicios Industriales tampoco van en otra área
- * (salvo Pruebas, para probar); Solo Vista sí va en cualquiera.
+ * Áreas que solo admiten ciertos roles (migraciones 20261089, 20261111290000
+ * y 20261113090000). Los roles de Calidad, Servicios Industriales y
+ * Mantenimiento tampoco van en otra área (salvo Pruebas, para probar); Solo
+ * Vista sí va en cualquiera. Así los roles de Producción (Supervisor,
+ * Analista, Jefe) quedan en Aséptico y Pruebas.
  */
 const ROLES_DE_AREA: Partial<Record<AreaCodigo, readonly string[]>> = {
   CALIDAD: ["CALIDAD", "SUPERVISOR_CALIDAD"],
   SERVICIOS_INDUSTRIALES: ["SERVICIOS_INDUSTRIALES"],
+  MANTENIMIENTO: ["MANTENIMIENTO", "VISTA"],
   OTROS: ["VISTA"],
 }
 
@@ -93,6 +96,7 @@ export type RolCodigo = (typeof ROLES)[number]["codigo"]
  */
 const AREAS_CARGO_PRODUCCION = ["ASEPTICO", "PRUEBAS"] as const
 const AREAS_CARGO_CALIDAD = ["CALIDAD", "PRUEBAS"] as const
+const AREAS_CARGO_MANTENIMIENTO = ["MANTENIMIENTO", "PRUEBAS"] as const
 
 export const CARGOS = [
   { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción", areas: AREAS_CARGO_PRODUCCION },
@@ -103,14 +107,26 @@ export const CARGOS = [
   { codigo: "JEFE_CALIDAD", nombre: "Jefe de Calidad", areas: AREAS_CARGO_CALIDAD },
   { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad", areas: AREAS_CARGO_CALIDAD },
   { codigo: "ANALISTA_CALIDAD", nombre: "Analista de Calidad", areas: AREAS_CARGO_CALIDAD },
+  { codigo: "JEFE_MANTENIMIENTO", nombre: "Jefe de Mantenimiento", areas: AREAS_CARGO_MANTENIMIENTO },
+  { codigo: "SUPERVISOR_MANTENIMIENTO", nombre: "Supervisor de Mantenimiento", areas: AREAS_CARGO_MANTENIMIENTO },
+  { codigo: "TECNICO_MANTENIMIENTO", nombre: "Técnico de Mantenimiento", areas: AREAS_CARGO_MANTENIMIENTO },
 ] as const
 
 export type CargoCodigo = (typeof CARGOS)[number]["codigo"]
 
-/** Cargos que se ofrecen en un área. Sin área elegida: todos. Mantenimiento y Servicios Industriales todavía no tienen cargos propios. */
+/** Cargos que se sugieren en un área (el cargo igual se escribe libre). Sin área elegida: todos. Servicios Industriales todavía no tiene cargos propios. */
 export function cargosDeArea(area: string | null | undefined): readonly (typeof CARGOS)[number][] {
   if (!area) return CARGOS
   return CARGOS.filter((c) => (c.areas as readonly string[]).includes(area))
+}
+
+export const LARGO_CARGO = 60
+
+/** Lo que escribieron en Cargo → lo que se guarda: el código si es uno de la lista (sin importar mayúsculas), o el texto tal cual. */
+export function cargoDeTexto(texto: string): string {
+  const limpio = texto.trim().replace(/\s+/g, " ")
+  const conocido = CARGOS.find((c) => c.nombre.toLowerCase() === limpio.toLowerCase())
+  return conocido ? conocido.codigo : limpio
 }
 
 /** ¿El cargo se ofrece en esa área? Al cambiar de área, un cargo que no va ahí se limpia. */

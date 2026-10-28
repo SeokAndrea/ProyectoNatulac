@@ -9,8 +9,10 @@ import {
   asignarResponsableSif,
   cerrarSif,
   errorDesactualizado,
+  listarPersonalMantenimiento,
   listarSupervisoresEntrega,
   marcarRevisadaSif,
+  type PersonaMantenimiento,
   type Sif,
   type SupervisorEntrega,
 } from "@/lib/sif"
@@ -58,17 +60,41 @@ export function MarcarRevisada({ sif, usuario, onHecho }: { sif: Sif; usuario: s
   )
 }
 
-/** Pendiente → en reparación: el responsable se escribe a mano. Al guardar queda la hora de inicio. */
+/**
+ * Quién se encarga: se elige del personal de Mantenimiento (cada uno tiene
+ * usuario; dueña, 2026-10-28), con quien está usando la app elegido de
+ * entrada si es de Mantenimiento. Inspección → «En revisión»; Intervención
+ * pendiente → en reparación. Al guardar queda la hora.
+ */
 export function AsignarResponsable({ sif, usuario, onHecho }: { sif: Sif; usuario: string; onHecho: () => void }) {
-  const [responsable, setResponsable] = useState("")
+  const inspeccion = sif.estado === "INSPECCION"
+  const [personal, setPersonal] = useState<PersonaMantenimiento[] | null>(null)
+  const [eleccion, setEleccion] = useState("")
+  const [otro, setOtro] = useState("")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    let vivo = true
+    listarPersonalMantenimiento(usuario).then((r) => {
+      if (!vivo) return
+      // Si no carga la lista, se escribe el nombre: que falle la red no frena la asignación.
+      const lista = r.ok ? r.data : []
+      setPersonal(lista)
+      setEleccion(lista.find((p) => p.usuario === usuario.toLowerCase())?.nombre ?? (lista.length > 0 ? "" : OTRO))
+    })
+    return () => {
+      vivo = false
+    }
+  }, [usuario])
+
+  const responsable = (eleccion === OTRO ? otro : eleccion).trim()
+
   async function guardar() {
-    if (!responsable.trim()) return
+    if (!responsable) return
     setEnviando(true)
     setError(null)
-    const r = await asignarResponsableSif(usuario, sif.id, responsable.trim(), PAGINA)
+    const r = await asignarResponsableSif(usuario, sif.id, responsable, PAGINA)
     setEnviando(false)
     if (!r.ok) return setError(r.error)
     onHecho()
@@ -78,15 +104,41 @@ export function AsignarResponsable({ sif, usuario, onHecho }: { sif: Sif; usuari
     <div className={claseCaja}>
       <div>
         <h3 className="text-sm font-semibold">Asignar responsable</h3>
-        <p className="text-xs text-muted-foreground">Al guardar empieza la reparación y queda la hora de inicio.</p>
+        <p className="text-xs text-muted-foreground">
+          {inspeccion
+            ? "Al guardar queda «En revisión» con la hora. Después se marca revisada."
+            : "Al guardar empieza la reparación y queda la hora de inicio."}
+        </p>
       </div>
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground" htmlFor="sif-responsable">
-        Responsable de la reparación
-        <Input id="sif-responsable" value={responsable} onChange={(e) => setResponsable(e.target.value)} placeholder="Nombre y apellido" />
-      </label>
-      <Button className={CLASE_BOTON_ACCION} onClick={guardar} disabled={enviando || !responsable.trim()}>
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+        {inspeccion ? "Quién la revisa" : "Responsable de la reparación"}
+        {personal === null ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          personal.length > 0 && (
+            <Select value={eleccion} onValueChange={setEleccion}>
+              <SelectTrigger className="w-full" aria-label="Responsable">
+                <SelectValue placeholder="Elige a la persona de Mantenimiento…" />
+              </SelectTrigger>
+              <SelectContent>
+                {personal.map((p) => (
+                  <SelectItem key={p.usuario} value={p.nombre}>
+                    {p.nombre}
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTRO}>Otra persona (escribir)</SelectItem>
+              </SelectContent>
+            </Select>
+          )
+        )}
+        {personal?.length === 0 && <span>No se pudo cargar el personal de Mantenimiento: escriba el nombre.</span>}
+        {eleccion === OTRO && (
+          <Input id="sif-responsable" aria-label="Nombre del responsable" value={otro} onChange={(e) => setOtro(e.target.value)} placeholder="Nombre y apellido" />
+        )}
+      </div>
+      <Button className={CLASE_BOTON_ACCION} onClick={guardar} disabled={enviando || !responsable}>
         {enviando ? <Loader2 className="size-4 animate-spin" /> : <UserCheck className="size-4" />}
-        Guardar e iniciar reparación
+        {inspeccion ? "Guardar responsable" : "Guardar e iniciar reparación"}
       </Button>
       {error && <ErrorSif mensaje={error} {...(errorDesactualizado(error) ? { accion: "Actualizar", onAccion: onHecho } : {})} />}
     </div>

@@ -3,7 +3,7 @@ import { Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TURNO_TIPOS } from "@/lib/catalogos"
 import { SIN_SUBSISTEMA } from "@/lib/mttoCatalogo"
-import { duracionMin, nombreLineaParada, type Parada } from "@/lib/paradas"
+import { duracionMin, fmtDuracion, nombreLineaParada, type Parada } from "@/lib/paradas"
 import { codigoDeParadaLive, useCatalogoParadas } from "@/lib/paradasCatalogo"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
 import { desgloseEnTurnos, type VentanaTurno } from "@/lib/paradasTramo"
@@ -47,7 +47,9 @@ export function ReporteParada({ parada, ventanas, ahora }: { parada: Parada; ven
   const catalogo = useCatalogoParadas()
   const equipos = useEquiposParadas()
   const tipo = catalogo.find((t) => t.codigo === parada.tipoCodigo)
-  const equipo = tipo?.equipoCodigo ? (equipos.find((e) => e.codigo === tipo.equipoCodigo)?.nombre ?? tipo.equipoCodigo) : null
+  // El servidor ya trae el equipo; el catálogo cargado queda de respaldo (base sin la migración 20261113090000).
+  const equipo =
+    parada.equipoNombre ?? (tipo?.equipoCodigo ? (equipos.find((e) => e.codigo === tipo.equipoCodigo)?.nombre ?? tipo.equipoCodigo) : null)
   const turno = TURNO_TIPOS.find((t) => t.codigo === parada.turnoTipo)?.nombre ?? parada.turnoTipo
 
   return (
@@ -85,6 +87,9 @@ export function ReporteParada({ parada, ventanas, ahora }: { parada: Parada; ven
         <Campo titulo="Tiempo">
           <span className="num font-semibold">{textoTiempos(parada, ventanas, ahora)}</span>
         </Campo>
+        {parada.responsable === "MANTENIMIENTO" && (
+          <Campo titulo="Tiempo de reparación">{parada.reparacionMin != null ? <span className="num">{fmtDuracion(parada.reparacionMin)}</span> : null}</Campo>
+        )}
       </dl>
     </article>
   )

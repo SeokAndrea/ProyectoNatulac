@@ -64,6 +64,8 @@ export function FormTerminarParada({
   const inicioOriginal = inicioVerdadero.slice(0, 16)
   const [comienzo, setComienzo] = useState(inicioOriginal)
   const [fin, setFin] = useState("")
+  /** Cuánto tardaron en repararla (opcional, solo Mantenimiento): queda de registro, no cambia el tiempo de la parada. */
+  const [reparacion, setReparacion] = useState("")
   const { enviando, error, ejecutar } = useAccion()
   const area = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
 
@@ -102,7 +104,10 @@ export function FormTerminarParada({
   const inicioFinal = empezoAntes ? sumarMinutos(ahora, -n) : usaMinutos || cruzo ? inicioOriginal : comienzo
   const duracion = finCalculado && inicioFinal ? minutosEntre(inicioFinal, finCalculado) : null
   const tiempoListo = finCalculado !== "" && duracion !== null && duracion > 0
-  const listo = tipoCodigo !== null && (!esMantenimiento || (equipoMtto !== "" && subsistema !== "")) && solucion.trim() !== "" && tiempoListo
+  const nReparacion = Number(reparacion)
+  const reparacionValida = reparacion === "" || (Number.isInteger(nReparacion) && nReparacion >= 1)
+  const listo =
+    tipoCodigo !== null && (!esMantenimiento || (equipoMtto !== "" && subsistema !== "")) && solucion.trim() !== "" && tiempoListo && reparacionValida
 
   async function confirmar() {
     if (!tipoCodigo || !listo) return
@@ -113,6 +118,7 @@ export function FormTerminarParada({
       solucion: solucion.trim(),
       fin: conSegundos(finCalculado),
       inicio: empezoAntes ? conSegundos(inicioFinal) : !usaMinutos && !cruzo && comienzo !== inicioOriginal ? conSegundos(comienzo) : null,
+      ...(esMantenimiento && reparacion !== "" ? { reparacionMin: nReparacion } : {}),
     }
     if (await ejecutar(() => terminarParada(usuario, parada.id, datos, PAGINA))) onTerminada()
   }
@@ -220,6 +226,23 @@ export function FormTerminarParada({
         </>
       )}
       {finCalculado !== "" && duracion !== null && duracion <= 0 && <p className="text-xs text-danger-foreground">El fin tiene que ser después del comienzo.</p>}
+      {esMantenimiento && (
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+          <label className="flex flex-wrap items-center gap-2">
+            Tiempo de reparación (opcional)
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={reparacion}
+              onChange={(e) => setReparacion(e.target.value)}
+              className="num h-8 w-20 text-sm"
+            />
+            min
+          </label>
+          <span>Cuánto tardaron en repararla. Queda en el reporte; no cambia el tiempo de la parada.</span>
+        </div>
+      )}
 
       <div className="flex justify-end">
         <Button size="sm" onClick={confirmar} disabled={enviando || !listo}>

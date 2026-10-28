@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { SIN_SUBSISTEMA } from "@/lib/mttoCatalogo"
 import { supabase } from "@/lib/supabase"
 import { restarDias } from "@/lib/tiempoPlanta"
 
@@ -316,6 +317,10 @@ export interface Parada {
   subsistemaNombre?: string | null
   /** Comienzo verdadero: `inicio` viene recortado al turno que se consulta (listar_paradas). */
   inicioReal?: string
+  /** Cuánto tardó Mantenimiento en repararla (opcional, solo registro; migración 20261113090000). */
+  reparacionMin?: number | null
+  /** Equipo de Producción del tipo, resuelto en el servidor (migración 20261113090000). */
+  equipoNombre?: string | null
 }
 
 /**
@@ -558,6 +563,31 @@ export function porTipoYLineaPorFrecuencia(paradas: Parada[], ahora?: Date): Gru
  * primeras de la planta, que podían ser todas de la misma línea. Mantiene
  * el orden del ranking que recibe.
  */
+/**
+ * Por SUBSISTEMA de Mantenimiento (el que eligieron al terminar la parada),
+ * para el top 3 del Panel de Paradas (dueña, 2026-10-28). Sin subsistema
+ * no cuenta: no dice qué parte del equipo falló. Ordenado por minutos.
+ */
+export function porSubsistema(paradas: Parada[], ahora?: Date): GrupoTipo[] {
+  const m = new Map<string, GrupoTipo>()
+  for (const p of paradas) {
+    if (!p.subsistemaCodigo || p.subsistemaCodigo === SIN_SUBSISTEMA || p.pendiente) continue
+    const g = m.get(p.subsistemaCodigo) ?? {
+      codigo: p.subsistemaCodigo,
+      nombre: p.subsistemaNombre ? `${p.subsistemaCodigo} · ${p.subsistemaNombre}` : p.subsistemaCodigo,
+      clase: p.clase,
+      veces: 0,
+      minutos: 0,
+      guiaMin: 0,
+      desvioMin: null,
+    }
+    g.veces += 1
+    g.minutos += duracionMin(p, ahora)
+    m.set(p.subsistemaCodigo, g)
+  }
+  return [...m.values()].sort((a, b) => b.minutos - a.minutos || b.veces - a.veces)
+}
+
 export function primeraDeCadaLinea(ranking: GrupoTipo[]): GrupoTipo[] {
   const vistas = new Set<string>()
   return ranking.filter((g) => {
@@ -638,6 +668,8 @@ export interface FilaParada {
   mtto_equipo_codigo?: string | null
   mtto_equipo_nombre?: string | null
   subsistema_nombre?: string | null
+  reparacion_min?: number | null
+  equipo_nombre?: string | null
 }
 
 /** Lee `listar_paradas` (migración 20261061). Devuelve [] si la lectura falla. */
@@ -683,6 +715,8 @@ export function mapearFilaParada(f: FilaParada): Parada {
     mttoEquipoNombre: f.mtto_equipo_nombre ?? null,
     subsistemaNombre: f.subsistema_nombre ?? null,
     inicioReal: f.inicio_real ?? f.inicio,
+    reparacionMin: f.reparacion_min != null ? Number(f.reparacion_min) : null,
+    equipoNombre: f.equipo_nombre ?? null,
   }
 }
 
@@ -764,6 +798,8 @@ export interface DatosTerminarParada {
   fin: string | null
   /** Corrige el comienzo; null = se deja el que tiene. */
   inicio: string | null
+  /** Cuánto tardó Mantenimiento en repararla, en minutos; null = no lo pusieron. */
+  reparacionMin?: number | null
 }
 
 /** Terminar parada: código, subsistema, qué se hizo y fin (migración 20261112590000). */
@@ -778,6 +814,8 @@ export async function terminarParada(usuario: string, paradaId: string, datos: D
     p_inicio: datos.inicio,
     p_pagina: pagina,
     p_mtto_equipo_codigo: datos.mttoEquipoCodigo,
+    // Solo si viene: así sigue sirviendo contra una base sin la migración 20261113090000.
+    ...(datos.reparacionMin != null ? { p_reparacion_min: datos.reparacionMin } : {}),
   })
   return error ? { ok: false, error: error.message || "No se pudo terminar la parada. Intenta de nuevo." } : { ok: true }
 }

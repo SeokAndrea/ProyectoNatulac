@@ -19,6 +19,7 @@ import {
   NOMBRE_CLASE,
   nombreLineaParada,
   paradaAbierta,
+  porSubsistema,
   porTipoPorFrecuencia,
   porTipoYLinea,
   porTipoYLineaPorFrecuencia,
@@ -192,6 +193,9 @@ export function PanelParadasVista({
   // filas): cada fila dice de qué línea es — ver RankList.
   const topFrecuencia = useMemo(() => primeraDeCadaLinea(porTipoYLineaPorFrecuencia(filtradas, ahora)), [filtradas, ahora])
   const topTiempo = useMemo(() => primeraDeCadaLinea(porTipoYLinea(filtradas, ahora)), [filtradas, ahora])
+  const subsistemas = useMemo(() => porSubsistema(filtradas, ahora), [filtradas, ahora])
+  const topSubsistemaTiempo = subsistemas.slice(0, 3)
+  const topSubsistemaFrecuencia = [...subsistemas].sort((a, b) => b.veces - a.veces || b.minutos - a.minutos).slice(0, 3)
 
   // OEE por línea del período — sale de Producción (contadores y velocidades),
   // no de las paradas, así que se pide aparte. Se guarda con la clave del
@@ -403,6 +407,13 @@ export function PanelParadasVista({
             )
           })}
         </div>
+        {/* Mantenimiento: qué subsistema falla más y cuál quita más tiempo (dueña, 2026-10-28). */}
+        {reporto !== "PRODUCCION" && (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <RankCard titulo="Mantenimiento · Top 3 subsistemas por frecuencia" tono="info" items={topSubsistemaFrecuencia} metrica="veces" />
+            <RankCard titulo="Mantenimiento · Top 3 subsistemas por tiempo" tono="danger" items={topSubsistemaTiempo} metrica="minutos" />
+          </div>
+        )}
         {/* Abajo, cerrado y con su resumen (dueña, 2026-10-15: limpio para la presidencia). Un solo día va por
             turno, Producción y Mantenimiento juntas; varios días, en tabla. */}
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">

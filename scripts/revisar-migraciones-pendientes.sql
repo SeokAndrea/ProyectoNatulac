@@ -110,6 +110,8 @@ from (
   ('20261112890000', 'Parada abierta en una línea sin corrida',
     exists (select 1 from fn where proname = 'cerrar_paradas_sin_corrida_al_arrancar')),
   ('20261112990000', 'Terminar parada: los minutos mandan (comienzo en turno cerrado)',
-    exists (select 1 from fn where proname = 'terminar_parada' and prosrc like '%Los minutos mandan%'))
+    exists (select 1 from fn where proname = 'terminar_parada' and prosrc like '%Los minutos mandan%')),
+  ('20261113090000', 'Paradas y Mantenimiento: reparación, lote/sabor, responsable SIF, roles',
+    exists (select 1 from fn where proname = 'listar_personal_mantenimiento'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

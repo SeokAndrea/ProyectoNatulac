@@ -49,7 +49,13 @@ export function ReportesMantenimiento({
                   <p className="font-medium text-foreground">{p.tipoNombre}</p>
                   {falla && <p className="text-muted-foreground">{falla}</p>}
                   <p className="text-xs text-muted-foreground">
-                    {[equipo, p.origen === "SHEET" ? "Sheet de Mantenimiento" : "App de Mantenimiento"].filter(Boolean).join(" · ")}
+                    {[
+                      equipo,
+                      p.origen === "SHEET" ? "Sheet de Mantenimiento" : "App de Mantenimiento",
+                      p.reparacionMin != null && `Reparación ${fmtDuracion(p.reparacionMin)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
                 </li>
               )

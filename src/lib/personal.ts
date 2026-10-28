@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import type { AreaCodigo, CargoCodigo, RolCodigo } from "@/lib/catalogos"
+import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 import type { Permiso } from "@/lib/permisos"
 
 export interface PersonalRegistrado {
@@ -12,7 +12,7 @@ export interface PersonalRegistrado {
   areaOrigen: AreaCodigo | null
   rol: RolCodigo
   /** Título del puesto, solo visual — no afecta permisos (ver migración 20260982). null = sin cargo cargado. */
-  cargo: CargoCodigo | null
+  cargo: string | null
   activo: boolean
 }
 
@@ -58,7 +58,7 @@ export async function listarPersonal(usuarioSesion: string): Promise<PersonalReg
     area: fila.area_codigo as AreaCodigo | null,
     areaOrigen: fila.area_origen_codigo as AreaCodigo | null,
     rol: fila.rol_codigo as RolCodigo,
-    cargo: fila.cargo as CargoCodigo | null,
+    cargo: fila.cargo,
     activo: fila.activo,
   }))
 }
@@ -68,11 +68,11 @@ export async function editarPersonal(
   datos: {
     id: string
     nombre: string
-    cedula: string
+    cedula: string | null
     area: AreaCodigo
     areaOrigen: AreaCodigo | null
     rol: RolCodigo
-    cargo: CargoCodigo | null
+    cargo: string | null
   },
   pagina: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -162,12 +162,12 @@ export async function agregarPersonal(
   datos: {
     usuario: string
     nombre: string
-    cedula: string
+    cedula: string | null
     password: string
     area: AreaCodigo
     areaOrigen: AreaCodigo | null
     rol: RolCodigo
-    cargo: CargoCodigo | null
+    cargo: string | null
   },
   pagina: string,
 ): Promise<{ ok: true; personal: PersonalRegistrado } | { ok: false; error: string }> {

@@ -2,9 +2,9 @@ import { useState } from "react"
 import { Check, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { cargoValeEnArea, rolPermitidoEnArea, type AreaCodigo, type CargoCodigo, type RolCodigo } from "@/lib/catalogos"
+import { rolPermitidoEnArea, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
 import { editarPersonal, type PersonalRegistrado } from "@/lib/personal"
-import { SelectArea, SelectAreaOrigen, SelectCargo, SelectRol, type AreaOpcion, type RolOpcion } from "./SelectoresPuesto"
+import { InputCargo, SelectArea, SelectAreaOrigen, SelectRol, type AreaOpcion, type RolOpcion } from "./SelectoresPuesto"
 
 /** Fila de la tabla en modo edición. Cancelar la desmonta: los campos vuelven solos a lo guardado. */
 export function FilaEdicionPersonal({
@@ -29,7 +29,7 @@ export function FilaEdicionPersonal({
   const [area, setArea] = useState<AreaCodigo | "">(persona.area ?? "")
   const [areaOrigen, setAreaOrigen] = useState<AreaCodigo | "">(persona.areaOrigen ?? "")
   const [rol, setRol] = useState<RolCodigo>(persona.rol)
-  const [cargo, setCargo] = useState<CargoCodigo | "">(persona.cargo ?? "")
+  const [cargo, setCargo] = useState(persona.cargo ?? "")
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   // Solo los roles que van en el área elegida (el área Calidad solo lleva roles de Calidad).
@@ -41,7 +41,6 @@ export function FilaEdicionPersonal({
       const primero = rolesDisponibles.find((r) => rolPermitidoEnArea(r.codigo, nueva))
       if (primero) setRol(primero.codigo as RolCodigo)
     }
-    if (!cargoValeEnArea(cargo, nueva)) setCargo("")
   }
 
   async function guardar() {
@@ -53,7 +52,7 @@ export function FilaEdicionPersonal({
       {
         id: persona.id,
         nombre: nombre.trim(),
-        cedula: cedula.trim(),
+        cedula: cedula.trim() || null,
         area,
         areaOrigen: areaOrigen === "" ? null : areaOrigen,
         rol,
@@ -88,7 +87,7 @@ export function FilaEdicionPersonal({
         <SelectRol value={rol} onChange={setRol} roles={rolesDelArea} className="h-7 w-full" />
       </td>
       <td className="py-1.5 pr-3">
-        <SelectCargo value={cargo} onChange={setCargo} area={area} className="h-7 w-full" />
+        <InputCargo value={cargo} onChange={setCargo} area={area} className="h-7 w-full" />
       </td>
       <td className="py-1.5">
         <div className="flex items-center justify-end gap-1">

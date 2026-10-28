@@ -29,7 +29,8 @@ export default function PrimerIngreso() {
       setError("Ingresa tu nombre y apellido.")
       return
     }
-    if (!cedulaValida(cedula)) {
+    // Opcional (dueña, 2026-10-28); si la ponen, con su formato.
+    if (cedula.trim() !== "" && !cedulaValida(cedula)) {
       setError("La cédula debe quedar como X.XXX.XXX o XX.XXX.XXX.")
       return
     }
@@ -103,7 +104,7 @@ export default function PrimerIngreso() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="cedula">Cédula</Label>
+                <Label htmlFor="cedula">Cédula (opcional)</Label>
                 <Input
                   id="cedula"
                   inputMode="numeric"

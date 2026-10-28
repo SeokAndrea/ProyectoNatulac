@@ -285,7 +285,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!datos.nombre.trim()) {
       return { ok: false as const, error: "Ingresa tu nombre y apellido." }
     }
-    if (!cedulaValida(datos.cedula)) {
+    const cedula = datos.cedula.trim() || null
+    if (cedula !== null && !cedulaValida(cedula)) {
       return { ok: false as const, error: "La cédula debe ser X.XXX.XXX o XX.XXX.XXX." }
     }
     if (!claveCumplePolitica(datos.passwordNueva)) {
@@ -297,14 +298,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       p_password_actual: passwordLogin,
       p_password_nueva: datos.passwordNueva,
       p_nombre: datos.nombre.trim(),
-      p_cedula: datos.cedula,
+      p_cedula: cedula,
     })
     if (error) {
       return { ok: false as const, error: error.message || "No se pudo guardar. Intenta de nuevo." }
     }
 
     setPasswordLogin(datos.passwordNueva)
-    setSession({ ...session, nombre: datos.nombre.trim(), cedula: datos.cedula, debeCompletarPerfil: false })
+    setSession({ ...session, nombre: datos.nombre.trim(), cedula, debeCompletarPerfil: false })
     return { ok: true as const }
   }
 

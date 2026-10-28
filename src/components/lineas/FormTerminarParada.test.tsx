@@ -109,6 +109,22 @@ describe("FormTerminarParada", () => {
     )
   })
 
+  it("Mantenimiento puede anotar cuánto tardó la reparación (opcional, aparte del tiempo de la parada)", async () => {
+    const { onTerminada } = await montar()
+    await elegirCodigo()
+    await userEvent.type(queSeRealizo(), "Se cambió el sello")
+    await userEvent.type(screen.getByLabelText(/minutos/i), "45")
+    await userEvent.type(screen.getByLabelText(/tiempo de reparación/i), "20")
+    await userEvent.click(terminar())
+    await waitFor(() => expect(onTerminada).toHaveBeenCalled())
+    expect(terminarParada.mock.calls[0][2]).toMatchObject({ fin: "2026-10-26T13:45:00", reparacionMin: 20 })
+  })
+
+  it("el supervisor no ve el tiempo de reparación", async () => {
+    await montar(false, parada, false)
+    expect(screen.queryByLabelText(/tiempo de reparación/i)).not.toBeInTheDocument()
+  })
+
   it("si los minutos pasan de ahora, la parada empezó antes de abrirla: termina ahora y empieza minutos antes", async () => {
     const ahora = ahoraPlanta()
     const { onTerminada } = await montar(false, { ...parada, inicio: `${sumarMinutos(ahora, -10)}:00` })

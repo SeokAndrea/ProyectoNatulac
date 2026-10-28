@@ -16,6 +16,7 @@ import {
   minutosPorLinea,
   tipoACompletar,
   paradaAbierta,
+  porSubsistema,
   porTipo,
   porTipoPorFrecuencia,
   porTipoYLinea,
@@ -413,5 +414,23 @@ describe("Responsable de la parada", () => {
       subsistemaCodigo: null,
       terminadaPor: null,
     })
+  })
+})
+
+describe("porSubsistema", () => {
+  it("agrupa por subsistema de Mantenimiento, sin contar «Sin subsistema» ni las que no lo tienen", () => {
+    const sub = (codigo: string | null, inicio: string, fin: string) =>
+      P({ id: inicio, responsable: "MANTENIMIENTO", clase: "NO_PROGRAMADA", subsistemaCodigo: codigo, subsistemaNombre: codigo ? `N-${codigo}` : null, inicio, fin })
+    const grupos = porSubsistema([
+      sub("CBP-EMP-05", "2026-10-28T08:00:00", "2026-10-28T08:10:00"),
+      sub("CBP-EMP-05", "2026-10-28T09:00:00", "2026-10-28T09:10:00"),
+      sub("FW-CUC-01", "2026-10-28T10:00:00", "2026-10-28T10:45:00"),
+      sub("SIN_SUBSISTEMA", "2026-10-28T11:00:00", "2026-10-28T13:00:00"),
+      sub(null, "2026-10-28T14:00:00", "2026-10-28T16:00:00"),
+    ])
+    expect(grupos.map((g) => [g.codigo, g.nombre, g.veces, g.minutos])).toEqual([
+      ["FW-CUC-01", "FW-CUC-01 · N-FW-CUC-01", 1, 45],
+      ["CBP-EMP-05", "CBP-EMP-05 · N-CBP-EMP-05", 2, 20],
+    ])
   })
 })

@@ -1,5 +1,7 @@
+import { useId, useState } from "react"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AREAS, CARGOS, TIPOS_AREA, cargosDeArea, nombrePorCodigo, type AreaCodigo, type CargoCodigo, type RolCodigo } from "@/lib/catalogos"
+import { AREAS, CARGOS, LARGO_CARGO, TIPOS_AREA, cargoDeTexto, cargosDeArea, nombrePorCodigo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
 
 /*
  * Selectores de Área, Área de origen, Rol y Cargo: los mismos en el alta,
@@ -109,33 +111,44 @@ export function SelectRol({
   )
 }
 
-/** Solo los cargos del área elegida. Si la persona ya tiene otro cargo, se sigue mostrando para no perderlo. */
-export function SelectCargo({
+/**
+ * El cargo se escribe (dueña, 2026-10-28): es solo el título, no decide nada,
+ * y Mantenimiento o Servicios Industriales no tenían cargos en la lista. Los
+ * del área salen de sugerencia; si escriben uno de ellos se guarda su código.
+ */
+export function InputCargo({
   value,
   onChange,
   area,
   className,
 }: {
-  value: CargoCodigo | ""
-  onChange: (cargo: CargoCodigo | "") => void
+  /** Código de la lista o texto libre; "" = sin cargo. */
+  value: string
+  onChange: (cargo: string) => void
   area: AreaCodigo | ""
   className?: string
 }) {
-  const opciones: { codigo: string; nombre: string }[] = [...cargosDeArea(area)]
-  if (value && !opciones.some((c) => c.codigo === value)) opciones.push({ codigo: value, nombre: nombrePorCodigo(CARGOS, value) })
+  const id = useId()
+  const [texto, setTexto] = useState(() => (value ? nombrePorCodigo(CARGOS, value) : ""))
   return (
-    <Select value={value || NINGUNO} onValueChange={(v) => onChange(v === NINGUNO ? "" : (v as CargoCodigo))}>
-      <SelectTrigger className={className}>
-        <SelectValue placeholder="Cargo (título, opcional)" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NINGUNO}>Sin cargo</SelectItem>
-        {opciones.map((c) => (
-          <SelectItem key={c.codigo} value={c.codigo}>
-            {c.nombre}
-          </SelectItem>
+    <>
+      <Input
+        list={id}
+        value={texto}
+        onChange={(e) => {
+          setTexto(e.target.value)
+          onChange(cargoDeTexto(e.target.value))
+        }}
+        maxLength={LARGO_CARGO}
+        placeholder="Cargo (opcional)"
+        aria-label="Cargo"
+        className={className}
+      />
+      <datalist id={id}>
+        {cargosDeArea(area).map((c) => (
+          <option key={c.codigo} value={c.nombre} />
         ))}
-      </SelectContent>
-    </Select>
+      </datalist>
+    </>
   )
 }

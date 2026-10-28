@@ -58,6 +58,16 @@ describe("roles por área", () => {
     expect(rolPermitidoEnArea("VISTA", "ASEPTICO")).toBe(true)
     expect(rolPermitidoEnArea("SERVICIOS_INDUSTRIALES", "PRUEBAS")).toBe(true)
   })
+
+  it("en Mantenimiento solo va su rol (o Solo Vista), y su rol no va en Producción", () => {
+    expect(rolPermitidoEnArea("MANTENIMIENTO", "MANTENIMIENTO")).toBe(true)
+    expect(rolPermitidoEnArea("VISTA", "MANTENIMIENTO")).toBe(true)
+    expect(rolPermitidoEnArea("JEFE_PRODUCCION", "MANTENIMIENTO")).toBe(false)
+    expect(rolPermitidoEnArea("ANALISTA", "MANTENIMIENTO")).toBe(false)
+    expect(rolPermitidoEnArea("SUPERVISOR", "MANTENIMIENTO")).toBe(false)
+    expect(rolPermitidoEnArea("MANTENIMIENTO", "ASEPTICO")).toBe(false)
+    expect(rolPermitidoEnArea("MANTENIMIENTO", "PRUEBAS")).toBe(true)
+  })
 })
 
 describe("cargos por área", () => {
@@ -66,7 +76,8 @@ describe("cargos por área", () => {
     expect(cargosDeArea("ASEPTICO").map((c) => c.codigo)).not.toContain("ANALISTA_CALIDAD")
     expect(cargosDeArea("CALIDAD").map((c) => c.codigo)).toEqual(["JEFE_CALIDAD", "SUPERVISOR_CALIDAD", "ANALISTA_CALIDAD"])
     expect(cargosDeArea("PRUEBAS").length).toBe(cargosDeArea(null).length)
-    expect(cargosDeArea("MANTENIMIENTO")).toEqual([])
+    expect(cargosDeArea("MANTENIMIENTO").map((c) => c.codigo)).toEqual(["JEFE_MANTENIMIENTO", "SUPERVISOR_MANTENIMIENTO", "TECNICO_MANTENIMIENTO"])
+    expect(cargosDeArea("SERVICIOS_INDUSTRIALES")).toEqual([])
   })
 
   it("al cambiar de área, un cargo que no va ahí deja de valer", () => {

@@ -192,6 +192,33 @@ export async function listarSupervisoresEntrega(usuario: string, sifId: string):
   return { ok: true, data: (data as { nombre: string; turno_codigo: string }[]).map((f) => ({ nombre: f.nombre, turnoCodigo: f.turno_codigo })) }
 }
 
+export interface PersonaMantenimiento {
+  usuario: string
+  nombre: string
+}
+
+/** El personal activo de Mantenimiento, para elegir el responsable (migración 20261113090000). */
+export async function listarPersonalMantenimiento(usuario: string): Promise<Lectura<PersonaMantenimiento[]>> {
+  const { data, error } = await supabase.rpc("listar_personal_mantenimiento", { p_usuario: usuario })
+  if (error || !data) return { ok: false, error: mensajeErrorSif(error?.message) }
+  return { ok: true, data: data as PersonaMantenimiento[] }
+}
+
+/** Inspección con responsable: alguien de Mantenimiento ya la está revisando. */
+export function enRevision(sif: Pick<Sif, "estado" | "responsable">): boolean {
+  return sif.estado === "INSPECCION" && !!sif.responsable
+}
+
+/** Ya tiene a alguien encargado y sigue abierta: la tarjeta se ve en azul (dueña, 2026-10-28). */
+export function sifConResponsable(sif: Pick<Sif, "estado" | "responsable">): boolean {
+  return enRevision(sif) || sif.estado === "EN_REPARACION"
+}
+
+/** Inspección sin revisar o Intervención pendiente, todavía sin responsable. */
+export function esperaResponsable(sif: Pick<Sif, "estado" | "responsable">): boolean {
+  return (sif.estado === "INSPECCION" || sif.estado === "PENDIENTE") && !sif.responsable
+}
+
 export async function asignarResponsableSif(usuario: string, sifId: string, responsable: string, pagina: string): Promise<Resultado> {
   const { error } = await supabase.rpc("asignar_responsable_sif", {
     p_usuario: usuario,
@@ -247,7 +274,12 @@ export function pasosSif(sif: Sif): PasoSif[] {
     hecho: !!sif.revisadaEn,
     actual: sif.estado === "INSPECCION",
   }
-  if (esInspeccion(sif.estado)) return [inspeccion, revisada]
+  if (esInspeccion(sif.estado)) {
+    const revision: PasoSif[] = sif.inicioReparacion
+      ? [{ titulo: "En revisión", valor: `${fechaHoraSif(sif.inicioReparacion)}${sif.responsable ? ` · ${sif.responsable}` : ""}`, hecho: true, actual: false }]
+      : []
+    return [inspeccion, ...revision, revisada]
+  }
 
   const antes: PasoSif[] = sif.escaladaEn
     ? [

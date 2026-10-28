@@ -4,10 +4,11 @@ import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
 import { ahoraPlanta, conSegundos, FormCompletarParada } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { useTiposActivos } from "@/lib/paradasCatalogo"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
 import type { TramoHora } from "@/lib/cubrirTurno"
-import { anotarParada, fmtDuracion, type Parada, type TipoParada } from "@/lib/paradas"
+import { anotarParada, fmtDuracion, LARGO_NOTA_PARADA, type Parada, type TipoParada } from "@/lib/paradas"
 import { esLineaNoProgramada } from "@/lib/paradasTurnoCompleto"
 import { restarDias } from "@/lib/tiempoPlanta"
 
@@ -88,6 +89,9 @@ export function PanelParadasLinea({
   const [horas, setHoras] = useState<{ ini: string; fin: string } | null>(null)
   /** Inicio y fin ocultos: casi siempre basta con los minutos (dueña, 2026-10-26). */
   const [verHoras, setVerHoras] = useState(false)
+  /** Comentario opcional (dueña, 2026-10-28): también en las que se anotan con solo la falla y los minutos. */
+  const [nota, setNota] = useState("")
+  const notaFinal = nota.trim() || null
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hecho, setHecho] = useState<string | null>(null)
@@ -106,6 +110,7 @@ export function PanelParadasLinea({
     setAhoraHora(ahoraPlanta().slice(11, 16))
     setHoras(null)
     setVerHoras(false)
+    setNota("")
   }
 
   const min = Number(minutos)
@@ -158,7 +163,7 @@ export function PanelParadasLinea({
         // Ya pasó: de la hora de inicio a la de fin (por defecto, terminó recién).
         inicio: minutos === null ? null : conFecha(ini, true),
         fin: minutos === null ? null : conFecha(fin, false),
-        nota: null,
+        nota: notaFinal,
       },
       PAGINA,
     )
@@ -179,7 +184,7 @@ export function PanelParadasLinea({
     setEnviando(true)
     setError(null)
     for (const t of tramos) {
-      const r = await anotarParada(usuario, { lineaCodigo, tipoCodigo: tipo.codigo, inicio: t.inicio, fin: t.fin, nota: null }, PAGINA)
+      const r = await anotarParada(usuario, { lineaCodigo, tipoCodigo: tipo.codigo, inicio: t.inicio, fin: t.fin, nota: notaFinal }, PAGINA)
       if (!r.ok) {
         setEnviando(false)
         await onCambio()
@@ -286,6 +291,15 @@ export function PanelParadasLinea({
                 Guardar
               </Button>
             </div>
+            <Textarea
+              value={nota}
+              onChange={(e) => setNota(e.target.value.slice(0, LARGO_NOTA_PARADA))}
+              maxLength={LARGO_NOTA_PARADA}
+              rows={2}
+              placeholder="Comentario (opcional)"
+              aria-label="Comentario"
+              className="text-sm"
+            />
             {/* Opcional: de qué hora a qué hora. Se calculan solas; si las corrigen, mandan esas. */}
             {verHoras ? (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
