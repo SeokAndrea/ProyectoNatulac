@@ -21,6 +21,8 @@ import type { TurnoActivo } from "@/lib/turno"
 import { AnimacionLinea } from "./AnimacionLinea"
 import { aspectoLinea } from "./estadoLinea"
 import { FilaAcciones } from "./FilaAcciones"
+import { FormCompletarParada } from "@/components/paradas/FormCompletarParada"
+import { useEquiposParadas } from "@/lib/paradasEquipos"
 import { FormDetenerLinea } from "./FormDetenerLinea"
 import { FormParadaLinea } from "./FormParadaLinea"
 import { FormTerminarParada } from "./FormTerminarParada"
@@ -104,6 +106,7 @@ export function ModoParadas({
   const [paradas, setParadas] = useState<Parada[] | null>(null)
   /** La hora con la que se hace la cuenta: se renueva en cada recarga (cada minuto y al guardar). */
   const [ahora, setAhora] = useState(() => new Date())
+  const equipos = useEquiposParadas()
   const [abierto, setAbierto] = useState<{ linea: string; modo: "cubrir" | "paradas" | "parada" | "detener" | "terminar" | "codigo"; paradaId?: string } | null>(
     null,
   )
@@ -294,6 +297,27 @@ export function ModoParadas({
                   {sinClasificar.length === 1 ? "1 falla espera" : `${sinClasificar.length} fallas esperan`} el código de Mantenimiento (lo pone
                   Mantenimiento desde su Modo Paradas).
                 </p>
+              ))}
+
+            {/* El +1 que espera minutos, ya abierto en la tarjeta (dueña, 2026-10-28): sin entrar a Anotar ni a «Poner minutos». */}
+            {abiertoAca === null &&
+              pendientesLinea.map((p) => (
+                <div key={p.id} className="flex flex-col gap-2 rounded-md border border-warning/50 bg-warning-soft/40 p-3">
+                  <p className="text-xs text-warning-foreground">
+                    <span className="font-semibold">Falta cuánto duró:</span> {p.tipoNombre} · anotada a las{" "}
+                    <span className="num">{horaCortaPlanta(p.inicio, p.inicio)}</span>
+                  </p>
+                  <FormCompletarParada
+                    parada={p}
+                    usuario={usuario}
+                    area={areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"}
+                    equipos={equipos}
+                    presentacionMl={Number(lineaTurno?.presentacion) || null}
+                    textoBoton="Guardar"
+                    pagina={PAGINA}
+                    onListo={cambio}
+                  />
+                </div>
               ))}
 
             {abiertoAca === "codigo" && aClasificar ? (

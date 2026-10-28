@@ -68,7 +68,7 @@ const detiene = (): ParadaQueDetiene => ({
   nota: "Se rompió", inicio: ahoraLocal(20), fin: null, deMantenimiento: true,
 })
 
-function montar(over: { esMantenimiento?: boolean; corridas?: Corrida[]; paradasDetienen?: ParadaQueDetiene[] } = {}) {
+function montar(over: { esMantenimiento?: boolean; corridas?: Corrida[]; paradasDetienen?: ParadaQueDetiene[]; pendientes?: Parada[] } = {}) {
   const acciones = { pausar: vi.fn().mockResolvedValue({ ok: true }), continuar: vi.fn().mockResolvedValue({ ok: true }), detener: vi.fn().mockResolvedValue({ ok: true }) }
   render(
     <MemoryRouter>
@@ -78,7 +78,7 @@ function montar(over: { esMantenimiento?: boolean; corridas?: Corrida[]; paradas
         lineasEstado={[estado]}
         usuario="u1"
         areaCodigo={over.esMantenimiento ? "MANTENIMIENTO" : "ASEPTICO"}
-        pendientes={[]}
+        pendientes={over.pendientes ?? []}
         onCambio={async () => {}}
         acciones={acciones}
         paradasDetienen={over.paradasDetienen ?? [detiene()]}
@@ -205,6 +205,14 @@ describe("ModoParadas — paradas de Mantenimiento", () => {
     await userEvent.click(screen.getByRole("button", { name: "Guardar" }))
     await waitFor(() => expect(anotarParada).toHaveBeenCalled())
     expect(anotarParada.mock.calls[0][1]).toMatchObject({ responsable: "MANTENIMIENTO" })
+  })
+
+  it("el +1 que espera minutos sale abierto en la tarjeta, sin entrar a Anotar", async () => {
+    const mas1 = paradaMtto({ id: "p+1", responsable: "OPERACIONAL", tipoCodigo: "CAMBIO_LOTE", tipoNombre: "Cambio de Lote", pendiente: true, inicio: ahoraLocal(5), fin: ahoraLocal(5) })
+    delTurno = []
+    montar({ corridas: [], paradasDetienen: [], pendientes: [mas1] })
+    expect(await screen.findByText("Falta cuánto duró:")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Guardar" })).toBeInTheDocument()
   })
 
   it("Mantenimiento anota con el Responsable en Mantenimiento de entrada", async () => {
