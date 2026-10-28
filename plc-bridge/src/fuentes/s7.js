@@ -40,8 +40,11 @@ const TAGS_BASE = [
   ["PLC_TAG_AUX_1", "aux_1", "DB5,X14.3"],
   ["PLC_TAG_AUX_2", "aux_2", "DB5,X14.4"],
   ["PLC_TAG_AUX_3", "aux_3", "DB5,X14.5"],
-  ["PLC_TAG_TOTALES", "litros_totales", "DB5,DINT8"],
-  ["PLC_TAG_CAUDAL", "caudal_l_min", ""],
+  // PLC_Totales_Litros: litros que entraron al tanque seleccionado; el PLC lo
+  // suma y lo pone en cero al cambiar de tanque.
+  ["PLC_TAG_TOTAL_TANQUE", "litros_tanque", "DB5,DINT8"],
+  // PLC_Caudal_LPM: caudal del flujometro en L/min, calculado por el PLC.
+  ["PLC_TAG_CAUDAL", "caudal_l_min", "DB5,INT16"],
 ];
 
 const PREFIJO_EXTRA_INTERNO = "extra.";
@@ -50,7 +53,7 @@ function construirMapaTags() {
   const mapa = {};
   for (const [clave, nombre, porDefecto] of TAGS_BASE) {
     const direccion = leer(clave, porDefecto);
-    // Vacio = no se lee (ej. PLC_TAG_CAUDAL: sin tag, el caudal se deriva de los litros).
+    // Vacio = no se lee: ese dato llega como null.
     if (direccion) mapa[nombre] = validarDireccion(clave, direccion);
   }
   for (const { nombre, direccion } of tagsExtra()) {
@@ -99,8 +102,6 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
 
   let temporizadorLectura = null;
   let temporizadorReconexion = null;
-  let litrosAnteriores = null;
-  let tiempoAnteriorMs = null;
   let conectado = false;
   let detenido = false;
 
@@ -113,7 +114,7 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
       tanque_activo: null,
       setpoint_l: null,
       litros_actuales: null,
-      litros_totales: null,
+      litros_tanque: null,
       caudal_l_min: null,
       valvulas: { 1: false, 2: false, 3: false },
       auxiliares: { 1: false, 2: false, 3: false },
@@ -153,17 +154,6 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
     return null;
   }
 
-  function calcularCaudal(valores, ahoraMs) {
-    if (valores.caudal_l_min !== undefined) return Number(valores.caudal_l_min) || 0;
-
-    // Sin tag directo de caudal: lo derivamos del delta de litros entre lecturas.
-    if (litrosAnteriores === null || tiempoAnteriorMs === null) return 0;
-    const deltaLitros = Number(valores.litros_actuales) - litrosAnteriores;
-    const deltaMin = (ahoraMs - tiempoAnteriorMs) / 60000;
-    if (deltaMin <= 0) return 0;
-    return Math.max(0, deltaLitros / deltaMin);
-  }
-
   function leerCiclo() {
     conn.readAllItems((hayMalos, valoresCrudos) => {
       if (detenido) return;
@@ -184,18 +174,17 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
       avisarTagsMalos(malos);
       const valores = Object.fromEntries(nombres.map((n) => [n, malos.includes(n) ? null : valoresCrudos[n]]));
 
-      const ahoraMs = Date.now();
-      const litrosActuales = Number(valores.litros_actuales) || 0;
-      const caudalLMin = calcularCaudal(valores, ahoraMs);
+      // Todo tal cual lo entrega el PLC, sin calculos.
+      const numero = (v) => (v != null ? Number(v) : null);
 
       onEstado({
         timestamp: new Date().toISOString(),
         fuente: "plc",
         tanque_activo: calcularTanqueActivo(valores),
-        setpoint_l: valores.setpoint_l != null ? Number(valores.setpoint_l) : null,
-        litros_actuales: litrosActuales,
-        litros_totales: valores.litros_totales != null ? Number(valores.litros_totales) : null,
-        caudal_l_min: Math.round(caudalLMin * 10) / 10,
+        setpoint_l: numero(valores.setpoint_l),
+        litros_actuales: numero(valores.litros_actuales),
+        litros_tanque: numero(valores.litros_tanque),
+        caudal_l_min: numero(valores.caudal_l_min),
         valvulas: {
           1: !!valores.valvula_1,
           2: !!valores.valvula_2,
@@ -211,9 +200,6 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
         tags_con_error: malos,
         conectado: true,
       });
-
-      litrosAnteriores = litrosActuales;
-      tiempoAnteriorMs = ahoraMs;
     });
   }
 

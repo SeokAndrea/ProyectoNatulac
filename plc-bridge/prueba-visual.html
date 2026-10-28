@@ -152,6 +152,20 @@
   }
   .crudo-titulo { color: var(--texto-suave); font-size: 12px; margin: 0 0 6px; }
 
+  .registro {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--tarjeta);
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+  .registro th, .registro td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--borde); }
+  .registro th { color: var(--texto-suave); font-weight: 600; }
+  .registro .num { text-align: right; }
+  .registro .vacio { color: var(--texto-suave); text-align: center; padding: 14px; }
+
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
@@ -210,7 +224,11 @@
     </div>
   </div>
 
-  <div id="totales" class="totales">Litros totales acumulados: -</div>
+  <p class="crudo-titulo" style="margin-top: 20px">Registro de llenados (ultimos 20):</p>
+  <table id="registro" class="registro">
+    <thead><tr><th>Tanque</th><th>Inicio</th><th>Fin</th><th class="num">Total ingresado</th><th>Cierre</th></tr></thead>
+    <tbody><tr><td colspan="5" class="vacio">Todavia no hay llenados registrados.</td></tr></tbody>
+  </table>
 
   <div id="errores" class="totales" style="color: var(--alerta)" hidden></div>
   <div id="otros" class="totales" style="margin-bottom: 16px" hidden></div>
@@ -224,7 +242,7 @@
   const campoUrl = document.getElementById("url");
   const botonConectar = document.getElementById("conectar");
   const crudo = document.getElementById("crudo");
-  const totalesEl = document.getElementById("totales");
+  const registroEl = document.querySelector("#registro tbody");
   const tarjetasTanque = {
     1: document.querySelector('.tanque[data-tanque="1"]'),
     2: document.querySelector('.tanque[data-tanque="2"]'),
@@ -257,27 +275,64 @@
 
     const cuerpo = tarjeta.querySelector(".cuerpo");
 
+    // Ultimo llenado de este tanque en el registro del bridge.
+    const ultimo = (estado.llenados || []).find((l) => l.tanque === numero);
+
     if (!activo) {
-      cuerpo.innerHTML = '<div class="en-espera">En espera</div>';
+      cuerpo.innerHTML = '<div class="en-espera">En espera' +
+        (ultimo && ultimo.fin
+          ? '<div class="caudal">Ultimo llenado: <b>' + litrosTexto(ultimo.litros_tanque) + '</b><br>' +
+            momento(ultimo.inicio) + ' - ' + momento(ultimo.fin) + '</div>'
+          : '') + '</div>';
       return;
     }
 
+    // Todo tal cual lo manda el PLC, sin calculos (solo la barra: actuales / setpoint).
     const litros = estado.litros_actuales ?? 0;
     const setpoint = estado.setpoint_l ?? 0;
     const porcentaje = setpoint > 0 ? Math.min(100, (litros / setpoint) * 100) : 0;
 
     cuerpo.innerHTML = `
       <div class="barra-progreso"><div style="width:${porcentaje.toFixed(1)}%"></div></div>
-      <div class="litros"><span>Litros actuales</span><b>${litros.toFixed(1)} L</b></div>
-      <div class="litros"><span>Setpoint</span><b>${setpoint} L</b></div>
-      <div class="caudal">Caudal: ${(estado.caudal_l_min ?? 0).toFixed(1)} L/min</div>
+      <div class="litros"><span>Setpoint</span><b>${litrosTexto(estado.setpoint_l)}</b></div>
+      <div class="litros"><span>Litros actuales</span><b>${litrosTexto(estado.litros_actuales)}</b></div>
+      <div class="litros"><span>Total ingresado al tanque</span><b>${litrosTexto(estado.litros_tanque)}</b></div>
+      <div class="caudal">Caudal: ${estado.caudal_l_min ?? "sin dato"} L/min</div>
+      ${ultimo && !ultimo.fin ? `<div class="caudal">Seleccionado desde: ${momento(ultimo.inicio)}</div>` : ""}
     `;
+  }
+
+  function litrosTexto(litros) {
+    return litros == null ? "sin dato" : litros.toLocaleString("es-VE") + " L";
+  }
+
+  // "28/10 14:05:32" en hora de planta (Caracas), aunque la PC tenga otra zona.
+  function momento(iso) {
+    return new Date(iso).toLocaleString("es-VE", {
+      timeZone: "America/Caracas", day: "2-digit", month: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+    }).replace(",", "");
+  }
+
+  function renderRegistro(estado) {
+    const llenados = estado.llenados || [];
+    if (llenados.length === 0) {
+      registroEl.innerHTML = '<tr><td colspan="5" class="vacio">Todavia no hay llenados registrados.</td></tr>';
+      return;
+    }
+    registroEl.innerHTML = llenados.map((l) => `
+      <tr>
+        <td>Tanque ${l.tanque}</td>
+        <td>${momento(l.inicio)}</td>
+        <td>${l.fin ? momento(l.fin) : "<b>en curso</b>"}</td>
+        <td class="num"><b>${litrosTexto(l.litros_tanque)}</b></td>
+        <td>${l.motivo_fin || "-"}</td>
+      </tr>`).join("");
   }
 
   function procesarMensaje(estado) {
     [1, 2, 3].forEach((numero) => renderTanque(numero, estado));
-    totalesEl.textContent = "Litros totales acumulados: " +
-      (estado.litros_totales != null ? estado.litros_totales.toFixed(1) + " L" : "-");
+    renderRegistro(estado);
     renderOtros(estado);
     crudo.textContent = JSON.stringify(estado, null, 2);
   }

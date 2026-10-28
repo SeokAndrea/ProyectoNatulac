@@ -43,4 +43,7 @@ supabase/.branches
 .env.*
 !.env.example
 
+# Registro de llenados que guarda el plc-bridge al correr en una PC
+plc-bridge/datos/
+
 # Información interna de la empresa: se queda solo en el PC, no va a GitHub

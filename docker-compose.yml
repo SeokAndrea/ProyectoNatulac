@@ -102,8 +102,12 @@ services:
     # Toda la configuracion (PLC, tags, puerto) esta en plc-bridge/bridge.conf;
     # montado asi, un cambio ahi solo pide reiniciar (no reconstruir):
     #   docker compose --env-file .env.local --profile preview restart plc-bridge
+    # El registro de llenados queda FUERA del proyecto (como las actas), para
+    # que sincronizar con WinSCP o reconstruir no lo borre:
+    # /home/inf05/natulac-plc-datos.
     volumes:
       - ./plc-bridge/bridge.conf:/app/bridge.conf:ro
+      - ../natulac-plc-datos:/app/datos
     environment:
       # Le gana a bridge.conf. Dejar en "simulacion" hasta confirmar que el
       # servidor tiene ruta de red hacia 192.168.0.0/24 (subred del PLC,
