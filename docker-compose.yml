@@ -95,30 +95,24 @@ services:
   plc-bridge:
     build:
       context: ./plc-bridge
+    # El primer numero es el puerto del servidor; el segundo tiene que ser
+    # igual a PLC_BRIDGE_PUERTO de bridge.conf.
     ports:
       - "4036:4036"
+    # Toda la configuracion (PLC, tags, puerto) esta en plc-bridge/bridge.conf;
+    # montado asi, un cambio ahi solo pide reiniciar (no reconstruir):
+    #   docker compose --env-file .env.local --profile preview restart plc-bridge
+    # El registro de llenados queda FUERA del proyecto (como las actas), para
+    # que sincronizar con WinSCP o reconstruir no lo borre:
+    # /home/inf05/natulac-plc-datos.
+    volumes:
+      - ./plc-bridge/bridge.conf:/app/bridge.conf:ro
+      - ../natulac-plc-datos:/app/datos
     environment:
-      # Dejar en "simulacion" hasta confirmar que el servidor tiene ruta de
-      # red hacia 192.168.0.0/24 (subred del PLC, distinta de la 192.168.10.0/24
-      # de este servidor) y el significado de Actuador_Aux_Tank_X. Ver
-      # plc-bridge/.env.example para el detalle de cada variable.
+      # Le gana a bridge.conf. Dejar en "simulacion" hasta confirmar que el
+      # servidor tiene ruta de red hacia 192.168.0.0/24 (subred del PLC,
+      # distinta de la 192.168.10.0/24 de este servidor).
       - PLC_MODO=simulacion
-      - PLC_BRIDGE_PUERTO=4036
-      - PLC_BRIDGE_INTERVALO_MS=200
-      - PLC_HOST=192.168.0.10
-      - PLC_PUERTO=102
-      - PLC_RACK=0
-      - PLC_SLOT=1
-      - PLC_TAG_SETPOINT=DB5,DINT0
-      - PLC_TAG_LITROS_ACTUALES=DB5,DINT4
-      - PLC_TAG_TANQUE_ACTIVO=DB5,INT12
-      - PLC_TAG_VALVULA_1=DB5,X14.0
-      - PLC_TAG_VALVULA_2=DB5,X14.1
-      - PLC_TAG_VALVULA_3=DB5,X14.2
-      - PLC_TAG_AUX_1=DB5,X14.3
-      - PLC_TAG_AUX_2=DB5,X14.4
-      - PLC_TAG_AUX_3=DB5,X14.5
-      - PLC_TAG_TOTALES=DB5,DINT8
     restart: unless-stopped
     profiles:
       - preview
