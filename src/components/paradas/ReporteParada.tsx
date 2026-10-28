@@ -1,4 +1,5 @@
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
+import { createPortal, flushSync } from "react-dom"
 import { Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TURNO_TIPOS } from "@/lib/catalogos"
@@ -19,12 +20,157 @@ export function textoTiempos(p: Pick<Parada, "inicio" | "fin">, ventanas: Ventan
   return `${total} min · ${tramos.map((t) => `${t.etiqueta} ${t.min}`).join(" + ")}`
 }
 
-// Al imprimir solo sale el reporte: lo demás de la pantalla se oculta.
-const ESTILO_IMPRESION = `@media print {
-  body * { visibility: hidden !important; }
-  .reporte-imprimible, .reporte-imprimible * { visibility: visible !important; }
-  .reporte-imprimible { position: absolute; left: 0; top: 0; width: 100%; border: 0 !important; box-shadow: none !important; }
+/*
+ * Hoja impresa (dueña, 2026-10-28: «se ve feo»). Antes se escondía la pantalla
+ * con visibility, que deja el espacio: salían hojas en blanco y la tarjeta con
+ * su letra gris. Ahora, solo mientras se imprime, se monta aparte una hoja
+ * tipo planilla de planta (blanco y negro, recuadros, firmas) y la app entera
+ * (#root) no se imprime.
+ */
+const ESTILO_HOJA = `
+.hoja-parada { display: none; }
+@media print {
+  @page { size: letter; margin: 14mm; }
+  body > #root { display: none !important; }
+  html, body { background: #fff !important; }
+  .hoja-parada { display: block; color: #000; font: 10.5pt/1.35 system-ui, "Segoe UI", Arial, sans-serif; }
+  .hoja-parada * { color: #000 !important; }
+  .hoja-parada header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 6pt; margin-bottom: 10pt; }
+  .hoja-parada .empresa { font-size: 9pt; letter-spacing: .08em; text-transform: uppercase; }
+  .hoja-parada h1 { font-size: 16pt; font-weight: 700; margin: 2pt 0 0; }
+  .hoja-parada .meta { text-align: right; font-size: 9pt; }
+  .hoja-parada h2 { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 10pt 0 3pt; }
+  .hoja-parada table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .hoja-parada th, .hoja-parada td { border: 1px solid #000; padding: 4pt 6pt; vertical-align: top; text-align: left; }
+  .hoja-parada th { width: 18%; font-weight: 600; font-size: 8.5pt; background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .hoja-parada td.texto { height: 34pt; white-space: pre-wrap; }
+  .hoja-parada .firmas { display: flex; gap: 24pt; margin-top: 34pt; }
+  .hoja-parada .firmas div { flex: 1; border-top: 1px solid #000; padding-top: 3pt; font-size: 9pt; text-align: center; }
+  .hoja-parada footer { margin-top: 14pt; font-size: 8pt; }
+  .hoja-parada table, .hoja-parada .firmas { break-inside: avoid; }
 }`
+
+/** Lo que va en una celda: el valor o una raya. */
+const v = (x: ReactNode) => (x === null || x === undefined || x === "" ? "—" : x)
+
+/** Fila de dos pares título/valor. */
+function Fila({ a, va, b, vb }: { a: string; va: ReactNode; b: string; vb: ReactNode }) {
+  return (
+    <tr>
+      <th>{a}</th>
+      <td>{v(va)}</td>
+      <th>{b}</th>
+      <td>{v(vb)}</td>
+    </tr>
+  )
+}
+
+/** Texto largo a todo lo ancho. */
+function FilaTexto({ titulo, texto }: { titulo: string; texto: string | null | undefined }) {
+  return (
+    <tr>
+      <th>{titulo}</th>
+      <td className="texto" colSpan={3}>
+        {v(texto)}
+      </td>
+    </tr>
+  )
+}
+
+/** La hoja que sale en papel: fuera de la app (portal en body), montada solo mientras se imprime. */
+function HojaParada({
+  parada,
+  equipo,
+  turno,
+  tiempos,
+  ahora,
+}: {
+  parada: Parada
+  equipo: string | null
+  turno: string
+  tiempos: string
+  ahora: Date
+}) {
+  const deMtto = parada.responsable === "MANTENIMIENTO"
+  const impreso = ahora.toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Caracas" })
+  return createPortal(
+    <div className="hoja-parada">
+      <header>
+        <div>
+          <div className="empresa">Natulac · Producción Aséptico</div>
+          <h1>Reporte de parada</h1>
+        </div>
+        <div className="meta">
+          <div>
+            <strong>{nombreLineaParada(parada.lineaCodigo)}</strong> · {codigoDeParadaLive(parada) ?? parada.tipoNombre}
+          </div>
+          <div>
+            {fechaHora(parada.inicioReal ?? parada.inicio)} → {parada.fin ? fechaHora(parada.fin) : "en curso"}
+          </div>
+        </div>
+      </header>
+
+      <h2>Datos de la parada</h2>
+      <table>
+        <tbody>
+          <Fila a="Línea" va={nombreLineaParada(parada.lineaCodigo)} b="Turno de inicio" vb={turno} />
+          <Fila a="Inicio" va={fechaHora(parada.inicioReal ?? parada.inicio)} b="Fin" vb={parada.fin ? fechaHora(parada.fin) : "En curso"} />
+          <Fila a="Tiempo" va={tiempos} b="Responsable" vb={deMtto ? "Mantenimiento" : "Operacional"} />
+        </tbody>
+      </table>
+
+      <h2>Producción</h2>
+      <table>
+        <tbody>
+          <Fila a="Lote" va={parada.lote} b="Sabor" vb={parada.sabor} />
+          <Fila a="Equipo" va={equipo} b="Falla" vb={parada.tipoNombre} />
+          <FilaTexto titulo="Comentario" texto={parada.nota} />
+        </tbody>
+      </table>
+
+      <h2>Mantenimiento</h2>
+      <table>
+        <tbody>
+          <Fila a="Equipo" va={parada.mttoEquipoNombre} b="Subsistema" vb={textoSubsistema(parada)} />
+          <Fila a="Tiempo de reparación" va={parada.reparacionMin != null ? fmtDuracion(parada.reparacionMin) : null} b="Código" vb={codigoDeParadaLive(parada)} />
+          <FilaTexto titulo="¿Qué se realizó?" texto={parada.solucion} />
+        </tbody>
+      </table>
+
+      <h2>Registro</h2>
+      <table>
+        <tbody>
+          <Fila a="La abrió" va={parada.supervisorNombre} b="La terminó" vb={parada.terminadaPor ?? (parada.fin ? null : "Sigue en curso")} />
+        </tbody>
+      </table>
+
+      <div className="firmas">
+        <div>Supervisor de turno</div>
+        <div>Mantenimiento</div>
+        <div>Jefe de Producción</div>
+      </div>
+      <footer>Impreso el {impreso} desde la app de Producción.</footer>
+    </div>,
+    document.body,
+  )
+}
+
+/** true mientras el navegador imprime (botón Imprimir o Ctrl+P): ahí se monta la hoja. */
+function useImprimiendo(): boolean {
+  const [imprimiendo, setImprimiendo] = useState(false)
+  useEffect(() => {
+    // flushSync: la hoja tiene que estar en la página antes de que el navegador arme la impresión.
+    const antes = () => flushSync(() => setImprimiendo(true))
+    const despues = () => setImprimiendo(false)
+    window.addEventListener("beforeprint", antes)
+    window.addEventListener("afterprint", despues)
+    return () => {
+      window.removeEventListener("beforeprint", antes)
+      window.removeEventListener("afterprint", despues)
+    }
+  }, [])
+  return imprimiendo
+}
 
 /** «CBP-EMP-05 · EMPUJADOR» (el nombre de ese día); «Sin subsistema»; o el texto de antes del catálogo. */
 function textoSubsistema(p: Pick<Parada, "subsistemaCodigo" | "subsistemaNombre">): string | null {
@@ -51,10 +197,12 @@ export function ReporteParada({ parada, ventanas, ahora }: { parada: Parada; ven
   const equipo =
     parada.equipoNombre ?? (tipo?.equipoCodigo ? (equipos.find((e) => e.codigo === tipo.equipoCodigo)?.nombre ?? tipo.equipoCodigo) : null)
   const turno = TURNO_TIPOS.find((t) => t.codigo === parada.turnoTipo)?.nombre ?? parada.turnoTipo
+  const imprimiendo = useImprimiendo()
 
   return (
-    <article className="reporte-imprimible flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:p-5">
-      <style>{ESTILO_IMPRESION}</style>
+    <article className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:p-5">
+      <style>{ESTILO_HOJA}</style>
+      {imprimiendo && <HojaParada parada={parada} equipo={equipo} turno={turno} tiempos={textoTiempos(parada, ventanas, ahora)} ahora={ahora} />}
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-base font-semibold text-foreground">
