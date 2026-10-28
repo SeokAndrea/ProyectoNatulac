@@ -898,6 +898,8 @@ export interface DatosAnotarParada {
   /** null con inicio = en curso. */
   fin: string | null
   nota: string | null
+  /** De quién es (elegido en Anotar). Sin esto, lo decide el servidor según quién la registra. */
+  responsable?: ResponsableParada
 }
 
 /** +1 pendiente (sin inicio) o parada con horas reales (en curso si no trae fin). */
@@ -910,8 +912,33 @@ export async function anotarParada(usuario: string, datos: DatosAnotarParada, pa
     p_fin: datos.fin,
     p_nota: datos.nota,
     p_pagina: pagina,
+    // Solo si viene: así sigue sirviendo contra una base sin la migración 20261113290000.
+    ...(datos.responsable ? { p_responsable: datos.responsable } : {}),
   })
   return error ? { ok: false, error: error.message || "No se pudo guardar la parada. Intenta de nuevo." } : { ok: true }
+}
+
+export interface DatosClasificarFalla {
+  tipoCodigo: string
+  mttoEquipoCodigo: string
+  subsistemaCodigo: string
+  solucion: string
+  reparacionMin: number | null
+}
+
+/** Mantenimiento pone el código a una falla ya cerrada sin código; las horas no cambian (migración 20261113290000). */
+export async function clasificarFallaMantenimiento(usuario: string, paradaId: string, datos: DatosClasificarFalla, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("clasificar_falla_mantenimiento", {
+    p_usuario: usuario,
+    p_parada_id: paradaId,
+    p_tipo_codigo: datos.tipoCodigo,
+    p_mtto_equipo_codigo: datos.mttoEquipoCodigo,
+    p_subsistema_codigo: datos.subsistemaCodigo,
+    p_solucion: datos.solucion,
+    p_reparacion_min: datos.reparacionMin,
+    p_pagina: pagina,
+  })
+  return error ? { ok: false, error: error.message || "No se pudo guardar el código. Intenta de nuevo." } : { ok: true }
 }
 
 export interface DatosCompletarParada {

@@ -6,10 +6,12 @@ import { ahoraPlanta, minutosEntre, sumarMinutos } from "@/components/paradas/Fo
 import type { Parada } from "@/lib/paradas"
 
 const terminarParada = vi.fn()
+const clasificarFallaMantenimiento = vi.fn()
 const paradaCruzoTurnoCerrado = vi.fn()
 vi.mock("@/lib/paradas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/paradas")>()),
   terminarParada: (...a: unknown[]) => terminarParada(...a),
+  clasificarFallaMantenimiento: (...a: unknown[]) => clasificarFallaMantenimiento(...a),
   paradaCruzoTurnoCerrado: (...a: unknown[]) => paradaCruzoTurnoCerrado(...a),
 }))
 // El buscador del catálogo se prueba aparte: acá basta con corregir el tipo.
@@ -118,6 +120,28 @@ describe("FormTerminarParada", () => {
     await userEvent.click(terminar())
     await waitFor(() => expect(onTerminada).toHaveBeenCalled())
     expect(terminarParada.mock.calls[0][2]).toMatchObject({ fin: "2026-10-26T13:45:00", reparacionMin: 20 })
+  })
+
+  it("Ponerle código a una falla ya cerrada: sin minutos, pide la falla y guarda con clasificar (las horas no cambian)", async () => {
+    clasificarFallaMantenimiento.mockResolvedValue({ ok: true })
+    const cerrada: Parada = { ...parada, tipoCodigo: "FALLA_SIN_ESPECIFICAR", tipoNombre: "Falla sin especificar", fin: "2026-10-26T14:00:00" }
+    const onTerminada = vi.fn()
+    render(<FormTerminarParada parada={cerrada} usuario="mtto1" esMantenimiento soloCodigo onTerminada={onTerminada} />)
+    expect(screen.queryByLabelText(/^minutos/i)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByText("Elegir tipo"))
+    await userEvent.selectOptions(screen.getByLabelText(/equipo de mantenimiento/i), "FW32")
+    await userEvent.selectOptions(subsistema(), "FW-CUC-01")
+    await userEvent.type(queSeRealizo(), "Se cambió la cuchilla")
+    await userEvent.type(screen.getByLabelText(/tiempo de reparación/i), "25")
+    await userEvent.click(screen.getByRole("button", { name: /guardar código/i }))
+    await waitFor(() => expect(onTerminada).toHaveBeenCalled())
+    expect(terminarParada).not.toHaveBeenCalled()
+    expect(clasificarFallaMantenimiento).toHaveBeenCalledWith(
+      "mtto1",
+      "p1",
+      { tipoCodigo: "FALLA_NIVEL_BTD", mttoEquipoCodigo: "FW32", subsistemaCodigo: "FW-CUC-01", solucion: "Se cambió la cuchilla", reparacionMin: 25 },
+      expect.any(String),
+    )
   })
 
   it("el supervisor no ve el tiempo de reparación", async () => {

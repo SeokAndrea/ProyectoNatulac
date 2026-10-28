@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  clasificarFallaMantenimiento,
   paradaCruzoTurnoCerrado,
   terminarParada,
   TIPO_FALLA_SIN_ESPECIFICAR,
@@ -32,12 +33,17 @@ const selectClase =
  * Producción se quedan como los puso el supervisor. Los minutos o la hora de
  * comienzo solo valen si la parada no cruzó un turno cerrado: lo cerrado queda
  * fijo y solo se mueve el final.
+ *
+ * Con `soloCodigo` (Mantenimiento, 2026-10-28): la falla ya terminó sin código
+ * («Falla sin especificar»); se le pone el código y lo de Mantenimiento, sin
+ * tocar las horas (clasificar_falla_mantenimiento).
  */
 export function FormTerminarParada({
   parada,
   usuario,
   areaCodigo = null,
   esMantenimiento = false,
+  soloCodigo = false,
   onTerminada,
 }: {
   parada: Parada
@@ -45,12 +51,14 @@ export function FormTerminarParada({
   areaCodigo?: string | null
   /** Solo Mantenimiento elige equipo y subsistema de su catálogo. */
   esMantenimiento?: boolean
+  /** Solo ponerle el código a una falla ya cerrada: sin minutos ni horas. */
+  soloCodigo?: boolean
   onTerminada: () => void
 }) {
   const equipos = useEquiposParadas()
   const catalogoProduccion = useCatalogoParadas()
   const { equipos: equiposMtto, subsistemas } = useCatalogoMtto()
-  const [cruzo, setCruzo] = useState<boolean | null>(null)
+  const [cruzo, setCruzo] = useState<boolean | null>(soloCodigo ? false : null)
   const tipoInicial = parada.tipoCodigo && parada.tipoCodigo !== TIPO_FALLA_SIN_ESPECIFICAR && parada.tipoCodigo !== TIPO_POR_CLASIFICAR ? parada.tipoCodigo : null
   const [tipo, setTipo] = useState<TipoParada | null>(null)
   /** null = Mantenimiento todavía no tocó el equipo: manda la preselección. */
@@ -70,12 +78,14 @@ export function FormTerminarParada({
   const area = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
 
   useEffect(() => {
+    // Solo el código: las horas no se tocan, no hace falta saber si cruzó un turno cerrado.
+    if (soloCodigo) return
     let vivo = true
     void paradaCruzoTurnoCerrado(parada.id).then((c) => vivo && setCruzo(c))
     return () => {
       vivo = false
     }
-  }, [parada.id])
+  }, [parada.id, soloCodigo])
 
   if (cruzo === null) {
     return (
@@ -103,7 +113,7 @@ export function FormTerminarParada({
   const finCalculado = usaMinutos ? (pasaDeAhora ? ahora : finSumado) : fin
   const inicioFinal = empezoAntes ? sumarMinutos(ahora, -n) : usaMinutos || cruzo ? inicioOriginal : comienzo
   const duracion = finCalculado && inicioFinal ? minutosEntre(inicioFinal, finCalculado) : null
-  const tiempoListo = finCalculado !== "" && duracion !== null && duracion > 0
+  const tiempoListo = soloCodigo || (finCalculado !== "" && duracion !== null && duracion > 0)
   const nReparacion = Number(reparacion)
   const reparacionValida = reparacion === "" || (Number.isInteger(nReparacion) && nReparacion >= 1)
   const listo =
@@ -111,6 +121,17 @@ export function FormTerminarParada({
 
   async function confirmar() {
     if (!tipoCodigo || !listo) return
+    if (soloCodigo) {
+      const codigo = {
+        tipoCodigo,
+        mttoEquipoCodigo: equipoMtto,
+        subsistemaCodigo: subsistema,
+        solucion: solucion.trim(),
+        reparacionMin: reparacion !== "" ? nReparacion : null,
+      }
+      if (await ejecutar(() => clasificarFallaMantenimiento(usuario, parada.id, codigo, PAGINA))) onTerminada()
+      return
+    }
     const datos = {
       tipoCodigo,
       mttoEquipoCodigo: esMantenimiento ? equipoMtto : "",
@@ -177,7 +198,7 @@ export function FormTerminarParada({
         <Textarea value={solucion} onChange={(e) => setSolucion(e.target.value.slice(0, LARGO_SOLUCION))} maxLength={LARGO_SOLUCION} rows={2} className="text-sm" />
       </label>
 
-      {cruzo ? (
+      {soloCodigo ? null : cruzo ? (
         <>
           <p className="text-xs text-muted-foreground">Empezó {inicioVerdadero.slice(11, 16)} (turno cerrado).</p>
           {usaMinutos ? (
@@ -247,7 +268,7 @@ export function FormTerminarParada({
       <div className="flex justify-end">
         <Button size="sm" onClick={confirmar} disabled={enviando || !listo}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-          Terminar parada
+          {soloCodigo ? "Guardar código" : "Terminar parada"}
         </Button>
       </div>
       <MensajeError error={error} />

@@ -8,15 +8,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { useTiposActivos } from "@/lib/paradasCatalogo"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
 import type { TramoHora } from "@/lib/cubrirTurno"
-import { anotarParada, fmtDuracion, LARGO_NOTA_PARADA, type Parada, type TipoParada } from "@/lib/paradas"
+import { anotarParada, fmtDuracion, LARGO_NOTA_PARADA, type Parada, type ResponsableParada, type TipoParada } from "@/lib/paradas"
 import { esLineaNoProgramada } from "@/lib/paradasTurnoCompleto"
 import { restarDias } from "@/lib/tiempoPlanta"
 
 const PAGINA = "Líneas"
-/** Los tipos que más se anotan a mano, como botones directos (dueña, 2026-10-25). LNP abre el buscador con su familia. */
+/** Los tipos que más se anotan a mano, como botones directos (dueña, 2026-10-25 y 2026-10-28). LNP abre el buscador con su familia. */
 const COMUNES: { codigo: string; texto: string }[] = [
   { codigo: "CAMBIO_LOTE", texto: "Cambio de lote" },
+  { codigo: "CAMBIO_SABOR", texto: "Cambio de sabor" },
   { codigo: "MANTENIMIENTO_PROGRAMADO", texto: "Cambio de presentación" },
+  { codigo: "ORDEN_LIMPIEZA_FIN_TURNO", texto: "Limpieza fin de turno" },
 ]
 const MAX_PENDIENTES_VISIBLES = 3
 
@@ -53,7 +55,10 @@ export function PanelParadasLinea({
   onCerrar,
   cubrir,
   ubicar,
+  esMantenimiento = false,
 }: {
+  /** Quien anota es de Mantenimiento: el Responsable viene marcado en Mantenimiento. */
+  esMantenimiento?: boolean
   lineaCodigo: string
   nombreLinea: string
   areaCodigo: string | null
@@ -81,6 +86,8 @@ export function PanelParadasLinea({
   const [verTodos, setVerTodos] = useState(false)
   const [tipo, setTipo] = useState<TipoParada | null>(null)
   const [buscando, setBuscando] = useState<"LNP" | "OTRA" | null>(null)
+  /** De quién es lo que se anota (dueña, 2026-10-28): Operacional (Producción) o Mantenimiento, como en Parar. */
+  const [responsable, setResponsable] = useState<ResponsableParada>(esMantenimiento ? "MANTENIMIENTO" : "OPERACIONAL")
   /** Lo principal: cuántos minutos. Inicio y fin, abajo y chico, se calculan solos y se pueden corregir. */
   const [minutos, setMinutos] = useState("")
   /** Hora de cuando se eligió el tipo ("terminó recién"). */
@@ -164,6 +171,7 @@ export function PanelParadasLinea({
         inicio: minutos === null ? null : conFecha(ini, true),
         fin: minutos === null ? null : conFecha(fin, false),
         nota: notaFinal,
+        responsable,
       },
       PAGINA,
     )
@@ -184,7 +192,7 @@ export function PanelParadasLinea({
     setEnviando(true)
     setError(null)
     for (const t of tramos) {
-      const r = await anotarParada(usuario, { lineaCodigo, tipoCodigo: tipo.codigo, inicio: t.inicio, fin: t.fin, nota: notaFinal }, PAGINA)
+      const r = await anotarParada(usuario, { lineaCodigo, tipoCodigo: tipo.codigo, inicio: t.inicio, fin: t.fin, nota: notaFinal, responsable }, PAGINA)
       if (!r.ok) {
         setEnviando(false)
         await onCambio()
@@ -273,6 +281,22 @@ export function PanelParadasLinea({
                 Cambiar
               </Button>
             </p>
+            <div role="radiogroup" aria-label="Responsable de la parada" className="grid grid-cols-2 gap-2">
+              {(["OPERACIONAL", "MANTENIMIENTO"] as const).map((r) => (
+                <Button
+                  key={r}
+                  type="button"
+                  role="radio"
+                  aria-checked={responsable === r}
+                  size="sm"
+                  variant={responsable === r ? "default" : "outline"}
+                  onClick={() => setResponsable(r)}
+                  disabled={enviando}
+                >
+                  {r === "OPERACIONAL" ? "Operacional" : "Mantenimiento"}
+                </Button>
+              ))}
+            </div>
             <div className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                 Minutos

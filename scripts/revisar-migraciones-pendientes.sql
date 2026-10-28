@@ -114,6 +114,8 @@ from (
   ('20261113090000', 'Paradas y Mantenimiento: reparación, lote/sabor, responsable SIF, roles',
     exists (select 1 from fn where proname = 'listar_personal_mantenimiento')),
   ('20261113190000', 'Paradas: cada turno cuenta desde su hora oficial',
-    exists (select 1 from fn where proname = 'ventana_paradas_turno'))
+    exists (select 1 from fn where proname = 'ventana_paradas_turno')),
+  ('20261113290000', 'Paradas: Anotar con Responsable y Mantenimiento pone el código',
+    exists (select 1 from fn where proname = 'clasificar_falla_mantenimiento'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

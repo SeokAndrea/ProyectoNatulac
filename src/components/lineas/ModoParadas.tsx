@@ -104,7 +104,9 @@ export function ModoParadas({
   const [paradas, setParadas] = useState<Parada[] | null>(null)
   /** La hora con la que se hace la cuenta: se renueva en cada recarga (cada minuto y al guardar). */
   const [ahora, setAhora] = useState(() => new Date())
-  const [abierto, setAbierto] = useState<{ linea: string; modo: "cubrir" | "paradas" | "parada" | "detener" | "terminar"; paradaId?: string } | null>(null)
+  const [abierto, setAbierto] = useState<{ linea: string; modo: "cubrir" | "paradas" | "parada" | "detener" | "terminar" | "codigo"; paradaId?: string } | null>(
+    null,
+  )
   const pt = useProductoTerminado(turno?.id ?? null)
   const { recargar: recargarPt } = pt
   // Las corridas del turno anterior (las del en curso llegan por props).
@@ -202,7 +204,8 @@ export function ModoParadas({
         const corriendo = enVivo !== null && enVivo.pausadaEn == null
         const parada = enVivo !== null && enVivo.pausadaEn != null
         const detiene = paradasDetienen.filter((p) => p.linea === l.codigo)
-        const sinClasificar = paradasLinea.filter(porClasificar).length
+        const sinClasificar = paradasLinea.filter(porClasificar)
+        const aClasificar = sinClasificar.find((p) => p.id === abierto?.paradaId) ?? null
         const faltaMin = Math.max(0, fila ? fila.sinReportarMin : ventanaMin - paradasMin)
         const sinPt = corridasLinea.filter((c) => !c.activa && !pt.registros.some((r) => r.corridaId === c.id))
         const enMarchaSinPt = corridasLinea.some((c) => c.activa && !pt.registros.some((r) => r.corridaId === c.id))
@@ -267,13 +270,45 @@ export function ModoParadas({
               <p className="text-xs text-muted-foreground">La línea no corrió en este turno: cúbrelo con su motivo (LNP).</p>
             )}
 
-            {sinClasificar > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {sinClasificar === 1 ? "1 falla espera" : `${sinClasificar} fallas esperan`} el código de Mantenimiento.
-              </p>
-            )}
+            {sinClasificar.length > 0 &&
+              (esMantenimiento ? (
+                // Mantenimiento las ve acá y les pone el código (dueña, 2026-10-28: «¿dónde ve Mantenimiento eso?»).
+                <div className="flex flex-col gap-1.5 rounded-md border border-warning/50 bg-warning-soft px-3 py-2 text-xs text-warning-foreground">
+                  <p className="font-semibold">
+                    {sinClasificar.length === 1 ? "1 falla espera su código" : `${sinClasificar.length} fallas esperan su código`}
+                  </p>
+                  {sinClasificar.map((p) => (
+                    <div key={p.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        <span className="num">{horaCortaPlanta(p.inicioReal ?? p.inicio, p.inicio)}</span> · {fmtDuracion(duracionMin(p, ahora))}
+                        {p.nota ? ` · ${p.nota}` : ""}
+                      </span>
+                      <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "codigo", paradaId: p.id })}>
+                        Ponerle código
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {sinClasificar.length === 1 ? "1 falla espera" : `${sinClasificar.length} fallas esperan`} el código de Mantenimiento (lo pone
+                  Mantenimiento desde su Modo Paradas).
+                </p>
+              ))}
 
-            {abiertoAca === "terminar" && aTerminar ? (
+            {abiertoAca === "codigo" && aClasificar ? (
+              <FormTerminarParada
+                parada={aClasificar}
+                usuario={usuario}
+                areaCodigo={areaCodigo}
+                esMantenimiento
+                soloCodigo
+                onTerminada={async () => {
+                  setAbierto(null)
+                  await cambio()
+                }}
+              />
+            ) : abiertoAca === "terminar" && aTerminar ? (
               <FormTerminarParada
                 parada={aTerminar}
                 usuario={usuario}
@@ -316,6 +351,7 @@ export function ModoParadas({
               <FormDetenerLinea corrida={enVivo} detener={yRecargar(acciones.detener)} onCerrar={() => setAbierto(null)} />
             ) : abiertoAca === "cubrir" || abiertoAca === "paradas" ? (
               <PanelParadasLinea
+                esMantenimiento={esMantenimiento}
                 lineaCodigo={l.codigo}
                 nombreLinea={l.nombre}
                 areaCodigo={areaCodigo}
@@ -377,15 +413,14 @@ export function ModoParadas({
                       Cubrir {fmtDuracion(faltaMin)}
                     </Button>
                   )}
-                  {!esMantenimiento && (
-                    <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "paradas" })}>
-                      <ListPlus className="size-3.5" />
-                      Anotar
-                      {pendientesLinea.length > 0 && (
-                        <span className="num rounded-sm bg-warning-soft px-1.5 text-xs font-semibold text-warning-foreground">{pendientesLinea.length}</span>
-                      )}
-                    </Button>
-                  )}
+                  {/* Anotar: también Mantenimiento (dueña, 2026-10-28), con el Responsable a elegir. */}
+                  <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "paradas" })}>
+                    <ListPlus className="size-3.5" />
+                    Anotar
+                    {pendientesLinea.length > 0 && (
+                      <span className="num rounded-sm bg-warning-soft px-1.5 text-xs font-semibold text-warning-foreground">{pendientesLinea.length}</span>
+                    )}
+                  </Button>
                 </FilaAcciones>
               </>
             )}

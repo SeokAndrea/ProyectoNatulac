@@ -129,11 +129,12 @@ describe("ModoParadas — paradas de Mantenimiento", () => {
     expect(boton("Parada")).toBeNull()
   })
 
-  it("Mantenimiento entra sin los botones que manejan la línea, pero con Terminar parada y Parar", async () => {
+  it("Mantenimiento entra sin los botones que manejan la línea, pero con Terminar parada, Parar y Anotar", async () => {
     montar({ esMantenimiento: true })
     expect(await screen.findByRole("button", { name: "Terminar parada" })).toBeInTheDocument()
     expect(boton("Parar")).toBeInTheDocument()
-    for (const n of [/continuar/i, /entregar pt/i, /cip/i, /cambiar lote/i, /cubrir/i, /anotar/i]) expect(boton(n)).toBeNull()
+    expect(boton(/anotar/i)).toBeInTheDocument()
+    for (const n of [/continuar/i, /entregar pt/i, /cip/i, /cambiar lote/i, /cubrir/i]) expect(boton(n)).toBeNull()
   })
 
   it("Mantenimiento con la línea libre también puede abrir su parada: no pide responsable y no pausa", async () => {
@@ -191,6 +192,27 @@ describe("ModoParadas — paradas de Mantenimiento", () => {
     const datos = anotarParada.mock.calls[0][1] as { inicio: string; fin: string }
     expect(datos.fin <= existente.inicio.slice(0, 16) + ":59").toBe(true)
     expect(datos.fin > datos.inicio).toBe(true)
+  })
+
+  it("Anotar pregunta el Responsable: el supervisor empieza en Operacional y puede marcar Mantenimiento", async () => {
+    montar({ corridas: [], paradasDetienen: [] })
+    await userEvent.click(await screen.findByRole("button", { name: /anotar/i }))
+    await userEvent.click(screen.getByRole("button", { name: "Otra…" }))
+    await userEvent.click(screen.getByText("Elegir tipo"))
+    expect(screen.getByRole("radio", { name: "Operacional" })).toHaveAttribute("aria-checked", "true")
+    await userEvent.click(screen.getByRole("radio", { name: "Mantenimiento" }))
+    await userEvent.type(screen.getByPlaceholderText("Ej. 10"), "5")
+    await userEvent.click(screen.getByRole("button", { name: "Guardar" }))
+    await waitFor(() => expect(anotarParada).toHaveBeenCalled())
+    expect(anotarParada.mock.calls[0][1]).toMatchObject({ responsable: "MANTENIMIENTO" })
+  })
+
+  it("Mantenimiento anota con el Responsable en Mantenimiento de entrada", async () => {
+    montar({ esMantenimiento: true, corridas: [], paradasDetienen: [] })
+    await userEvent.click(await screen.findByRole("button", { name: /anotar/i }))
+    await userEvent.click(screen.getByRole("button", { name: "Otra…" }))
+    await userEvent.click(screen.getByText("Elegir tipo"))
+    expect(screen.getByRole("radio", { name: "Mantenimiento" })).toHaveAttribute("aria-checked", "true")
   })
 
   it("Terminar parada abre el formulario de cierre", async () => {
