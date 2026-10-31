@@ -5,6 +5,9 @@ import { FormParadaLinea } from "@/components/lineas/FormParadaLinea"
 import type { ResponsableParada } from "@/lib/paradas"
 
 // El buscador del catálogo se prueba aparte: acá basta con elegir un tipo.
+// Catálogo nuevo apagado: estos tests son del flujo con el catálogo anterior (los del nuevo, aparte).
+vi.mock("@/lib/catalogoFallas/switch", () => ({ useCatalogoModular: () => false }))
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ session: { username: "u", esDueno: false, permisos: [], rol: "SUPERVISOR" } }) }))
 vi.mock("@/components/BuscadorTipoParada", () => ({
   BuscadorTipoParada: ({ onElegir }: { onElegir: (t: unknown) => void }) => (
     <button type="button" onClick={() => onElegir({ codigo: "DESVASE_PRODUCTO", nombre: "Desvase de Producto", clase: "NO_PROGRAMADA", tiempoGuiaMin: null })}>

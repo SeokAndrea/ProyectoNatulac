@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Loader2, PauseCircle } from "lucide-react"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
+import { BuscadorParada, type Eleccion } from "@/components/catalogo-fallas/BuscadorParada"
 import { ahoraPlanta, conSegundos } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +9,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { MensajeError } from "@/components/MensajeError"
 import { fmtDuracion, LARGO_NOTA_PARADA, TIPO_FALLA_SIN_ESPECIFICAR, type ResponsableParada, type TipoParada } from "@/lib/paradas"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
+import { useAuth } from "@/lib/auth"
+import { asignarFallaRecienRegistrada, TIPO_FALLA_EQUIPO } from "@/lib/catalogoFallas/paradas"
+import { useCatalogoModular } from "@/lib/catalogoFallas/switch"
 import type { AccionesLinea } from "./tipos"
 import { useAccion } from "@/lib/useAccion"
 
@@ -44,19 +48,31 @@ export function FormParadaLinea({
   const equipos = useEquiposParadas()
   const [elegido, setElegido] = useState<ResponsableParada | null>(null)
   const [tipo, setTipo] = useState<TipoParada | null>(null)
+  // Con el catálogo nuevo encendido (20261113790000): falla de equipo u otra parada, desde un solo buscador.
+  const modular = useCatalogoModular(areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO") === true
+  const [eleccion, setEleccion] = useState<Eleccion | null>(null)
+  const [sinFalla, setSinFalla] = useState<string | null>(null)
+  const { session } = useAuth()
   const [motivo, setMotivo] = useState("")
   const [conInicio, setConInicio] = useState(desdeAntes)
   const [inicio, setInicio] = useState(ahoraPlanta)
   const { enviando, error, ejecutar } = useAccion()
   const area = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
   const responsable = responsableFijo ?? elegido
-  const tipoCodigo = tipo?.codigo
+  const tipoCodigo = modular ? (eleccion?.tipo?.codigo ?? (eleccion?.falla ? TIPO_FALLA_EQUIPO : undefined)) : tipo?.codigo
+  const tipoElegido = modular ? (eleccion?.tipo ?? null) : tipo
   const listo = responsable !== null && tipoCodigo !== undefined && motivo.trim() !== "" && (!conInicio || inicio !== "")
 
   async function confirmar() {
     if (!tipoCodigo || !responsable || !listo) return
     const datos = { motivo: motivo.trim(), tipoCodigo, responsable, inicio: conInicio ? conSegundos(inicio) : null }
-    if (await ejecutar(() => pausar(corridaId, datos))) onCerrar()
+    if (!(await ejecutar(() => pausar(corridaId, datos)))) return
+    // La falla va en un segundo paso: si no se pudo, la parada igual quedó y Mantenimiento se la pone al terminar.
+    if (eleccion?.falla && session) {
+      const r = await asignarFallaRecienRegistrada(session.username, lineaCodigo, eleccion.falla.falla.id, "Líneas")
+      if (!r.ok) return setSinFalla(`La parada quedó registrada, pero sin la falla (${r.error}). Mantenimiento se la pone al terminarla.`)
+    }
+    onCerrar()
   }
 
   return (
@@ -75,16 +91,20 @@ export function FormParadaLinea({
           ))}
         </div>
       )}
-      <BuscadorTipoParada
-        lineaCodigo={lineaCodigo}
-        area={area}
-        equipos={equipos}
-        presentacionMl={presentacionMl}
-        permitir={(t) => t.codigo !== TIPO_FALLA_SIN_ESPECIFICAR}
-        onElegir={setTipo}
-      />
-      {tipo?.clase === "PROGRAMADA" && tipo.tiempoGuiaMin != null && (
-        <p className="text-xs text-muted-foreground">Tiempo guía: {fmtDuracion(tipo.tiempoGuiaMin)}.</p>
+      {modular ? (
+        <BuscadorParada lineaCodigo={lineaCodigo} area={area} presentacionMl={presentacionMl} onElegir={setEleccion} />
+      ) : (
+        <BuscadorTipoParada
+          lineaCodigo={lineaCodigo}
+          area={area}
+          equipos={equipos}
+          presentacionMl={presentacionMl}
+          permitir={(t) => t.codigo !== TIPO_FALLA_SIN_ESPECIFICAR}
+          onElegir={setTipo}
+        />
+      )}
+      {tipoElegido?.clase === "PROGRAMADA" && tipoElegido.tiempoGuiaMin != null && (
+        <p className="text-xs text-muted-foreground">Tiempo guía: {fmtDuracion(tipoElegido.tiempoGuiaMin)}.</p>
       )}
       <Textarea
         value={motivo}
@@ -116,13 +136,13 @@ export function FormParadaLinea({
           <Button size="sm" variant="ghost" onClick={onCerrar} disabled={enviando}>
             Cancelar
           </Button>
-          <Button size="sm" onClick={confirmar} disabled={enviando || !listo}>
+          <Button size="sm" onClick={confirmar} disabled={enviando || !listo || sinFalla !== null}>
             {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PauseCircle className="size-3.5" />}
             Confirmar parada
           </Button>
         </div>
       </div>
-      <MensajeError error={error} />
+      <MensajeError error={error ?? sinFalla} />
     </div>
   )
 }

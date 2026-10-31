@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { useTiposActivos } from "@/lib/paradasCatalogo"
+import { TIPO_FALLA_EQUIPO } from "@/lib/catalogoFallas/paradas"
 import { equiposDeLinea, tiposDeLinea, type EquipoParada } from "@/lib/paradasEquipos"
 import { agruparTipos } from "@/lib/paradasGrupos"
 import { codigoPlanilla, fmtDuracion, TIPO_POR_CLASIFICAR, type TipoParada } from "@/lib/paradas"
@@ -36,7 +37,8 @@ export function BuscadorTipoParada({
   const [equipoFiltro, setEquipoFiltro] = useState("")
 
   const catalogo = tiposDeLinea(
-    useTiposActivos().filter((t) => t.codigo !== TIPO_POR_CLASIFICAR && (permitir ? permitir(t) : true)),
+    // El genérico de las fallas del catálogo nuevo (20261113890000) no se elige: se elige la falla.
+    useTiposActivos().filter((t) => t.codigo !== TIPO_POR_CLASIFICAR && t.codigo !== TIPO_FALLA_EQUIPO && (permitir ? permitir(t) : true)),
     equipos,
     area,
     lineaCodigo,

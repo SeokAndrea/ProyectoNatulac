@@ -1,6 +1,9 @@
 import { useState } from "react"
 import { Check, Loader2, X } from "lucide-react"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
+import { BuscadorParada, type Eleccion } from "@/components/catalogo-fallas/BuscadorParada"
+import { asignarFallaRecienRegistrada, tipoDeFalla, TIPO_FALLA_EQUIPO, type OpcionFalla } from "@/lib/catalogoFallas/paradas"
+import { useCatalogoModular } from "@/lib/catalogoFallas/switch"
 import { ahoraPlanta, conSegundos, FormCompletarParada } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -85,6 +88,10 @@ export function PanelParadasLinea({
   const [completando, setCompletando] = useState<string | null>(null)
   const [verTodos, setVerTodos] = useState(false)
   const [tipo, setTipo] = useState<TipoParada | null>(null)
+  // Con el catálogo nuevo encendido (20261113790000): la falla de equipo elegida (el tipo es el genérico).
+  // El área de la línea (Mantenimiento es un área de apoyo: mira Aséptico).
+  const modular = useCatalogoModular(areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO") === true
+  const [falla, setFalla] = useState<OpcionFalla | null>(null)
   const [buscando, setBuscando] = useState<"LNP" | "OTRA" | null>(null)
   /** De quién es lo que se anota (dueña, 2026-10-28): Operacional (Producción) o Mantenimiento, como en Parar. */
   const [responsable, setResponsable] = useState<ResponsableParada>(esMantenimiento ? "MANTENIMIENTO" : "OPERACIONAL")
@@ -106,10 +113,11 @@ export function PanelParadasLinea({
   // Como en Registrar Paradas: el Área de Pruebas registra en Pruebas; el resto, en Aséptico.
   const areaParadas = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
   const visibles = verTodos ? pendientes : pendientes.slice(0, MAX_PENDIENTES_VISIBLES)
-  const repetido = tipo ? pendientes.find((p) => p.tipoCodigo === tipo.codigo) : undefined
+  const repetido = tipo && tipo.codigo !== TIPO_FALLA_EQUIPO ? pendientes.find((p) => p.tipoCodigo === tipo.codigo) : undefined
 
   function elegir(t: TipoParada | null) {
     setTipo(t)
+    setFalla(null)
     setBuscando(null)
     setError(null)
     setHecho(null)
@@ -118,6 +126,21 @@ export function PanelParadasLinea({
     setHoras(null)
     setVerHoras(false)
     setNota("")
+  }
+
+  /** Del buscador nuevo: una falla de equipo (con su «tipo» genérico) u otra parada. */
+  function elegirDelBuscador(e: Eleccion | null) {
+    if (!e) return
+    if (e.tipo) return elegir(e.tipo)
+    elegir(tipoDeFalla(e.falla))
+    setFalla(e.falla)
+  }
+
+  /** Anota y, si es una falla de equipo del catálogo nuevo, le pone la falla. */
+  async function registrar(datos: Parameters<typeof anotarParada>[1]) {
+    const r = await anotarParada(usuario, datos, PAGINA)
+    if (!r.ok || !falla) return r
+    return asignarFallaRecienRegistrada(usuario, lineaCodigo, falla.falla.id, PAGINA)
   }
 
   const min = Number(minutos)
@@ -162,9 +185,7 @@ export function PanelParadasLinea({
     if (!tipo) return
     setEnviando(true)
     setError(null)
-    const r = await anotarParada(
-      usuario,
-      {
+    const r = await registrar({
         lineaCodigo,
         tipoCodigo: tipo.codigo,
         // Ya pasó: de la hora de inicio a la de fin (por defecto, terminó recién).
@@ -172,9 +193,7 @@ export function PanelParadasLinea({
         fin: minutos === null ? null : conFecha(fin, false),
         nota: notaFinal,
         responsable,
-      },
-      PAGINA,
-    )
+    })
     setEnviando(false)
     if (!r.ok) return setError(r.error)
     setHecho(minutos === null ? `Anotada como +1: ${tipo.nombre}. Pon los minutos cuando los sepas.` : `Anotada: ${tipo.nombre} · ${minutos} min.`)
@@ -192,7 +211,7 @@ export function PanelParadasLinea({
     setEnviando(true)
     setError(null)
     for (const t of tramos) {
-      const r = await anotarParada(usuario, { lineaCodigo, tipoCodigo: tipo.codigo, inicio: t.inicio, fin: t.fin, nota: notaFinal, responsable }, PAGINA)
+      const r = await registrar({ lineaCodigo, tipoCodigo: tipo.codigo, inicio: t.inicio, fin: t.fin, nota: notaFinal, responsable })
       if (!r.ok) {
         setEnviando(false)
         await onCambio()
@@ -376,6 +395,16 @@ export function PanelParadasLinea({
               Volver
             </Button>
           </div>
+        ) : modular && (buscando || esMantenimiento) ? (
+          // Catálogo nuevo: Mantenimiento busca directo su falla; Producción, con «Buscar…».
+          <div className="flex flex-col gap-2">
+            <BuscadorParada lineaCodigo={lineaCodigo} area={areaParadas} presentacionMl={presentacionMl} soloFallas={esMantenimiento} onElegir={elegirDelBuscador} />
+            {!esMantenimiento && (
+              <Button variant="ghost" size="sm" className="self-start" onClick={() => setBuscando(null)}>
+                Volver
+              </Button>
+            )}
+          </div>
         ) : buscando ? (
           <div className="flex flex-col gap-2">
             <BuscadorTipoParada
@@ -405,7 +434,7 @@ export function PanelParadasLinea({
               LNP…
             </Button>
             <Button variant="outline" size="sm" onClick={() => setBuscando("OTRA")}>
-              Otra…
+              {modular ? "Buscar…" : "Otra…"}
             </Button>
           </div>
         )}

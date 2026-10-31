@@ -8,6 +8,9 @@ import type { Parada } from "@/lib/paradas"
 const terminarParada = vi.fn()
 const clasificarFallaMantenimiento = vi.fn()
 const paradaCruzoTurnoCerrado = vi.fn()
+// Catálogo nuevo apagado: estos tests son del flujo con el catálogo anterior (los del nuevo, aparte).
+vi.mock("@/lib/catalogoFallas/switch", () => ({ useCatalogoModular: () => false }))
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ session: { username: "u", esDueno: false, permisos: [], rol: "SUPERVISOR" } }) }))
 vi.mock("@/lib/paradas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/paradas")>()),
   terminarParada: (...a: unknown[]) => terminarParada(...a),

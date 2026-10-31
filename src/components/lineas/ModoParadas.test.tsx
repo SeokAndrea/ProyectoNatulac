@@ -7,6 +7,9 @@ import type { Parada } from "@/lib/paradas"
 import type { Corrida, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
 import type { TurnoActivo } from "@/lib/turno"
 
+// Catálogo nuevo apagado: estos tests son del flujo con el catálogo anterior.
+vi.mock("@/lib/catalogoFallas/switch", () => ({ useCatalogoModular: () => false }))
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ session: { username: "u", esDueno: false, permisos: [], rol: "SUPERVISOR" } }) }))
 vi.mock("@/components/CintaEstadoLinea", () => ({ CintaEstadoLinea: () => <div /> }))
 vi.mock("@/components/LineaVisual", () => ({ LineaVisual: () => <div /> }))
 vi.mock("@/components/BuscadorTipoParada", () => ({

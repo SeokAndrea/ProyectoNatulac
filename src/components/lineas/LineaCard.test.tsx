@@ -16,6 +16,9 @@ import type { CondicionLinea, Corrida, LineaEstado, ParadaQueDetiene } from "@/l
  */
 
 // Las animaciones (canvas/pixel) no interesan acá: solo qué estado reciben.
+// Catálogo nuevo apagado: estos tests son del flujo con el catálogo anterior.
+vi.mock("@/lib/catalogoFallas/switch", () => ({ useCatalogoModular: () => false }))
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ session: { username: "u", esDueno: false, permisos: [], rol: "SUPERVISOR" } }) }))
 vi.mock("@/components/CintaEstadoLinea", () => ({
   CintaEstadoLinea: ({ estado }: { estado: string }) => <div data-testid="cinta">{estado}</div>,
 }))

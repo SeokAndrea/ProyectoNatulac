@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react"
 import { Check, Loader2 } from "lucide-react"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
+import { BuscadorParada, type Eleccion } from "@/components/catalogo-fallas/BuscadorParada"
+import { ElegirFallaMtto } from "@/components/catalogo-fallas/ElegirFallaMtto"
+import { useAuth } from "@/lib/auth"
+import { asignarFallaParada, leerFallasDeParadas, TIPO_FALLA_EQUIPO, type OpcionFalla } from "@/lib/catalogoFallas/paradas"
+import { useCatalogoModular } from "@/lib/catalogoFallas/switch"
+import { puede } from "@/lib/permisos"
 import { MensajeError } from "@/components/MensajeError"
 import { ahoraPlanta, conSegundos, minutosEntre, sumarMinutos } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
@@ -76,6 +82,23 @@ export function FormTerminarParada({
   const [reparacion, setReparacion] = useState("")
   const { enviando, error, ejecutar } = useAccion()
   const area = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
+  // Catálogo nuevo (20261113890000): Mantenimiento elige Equipo › Sistema › Subsistema › Falla; el supervisor, del buscador nuevo.
+  const modular = useCatalogoModular(area) === true
+  const { session } = useAuth()
+  const puedeCrearFalla = !!session?.esDueno || puede(session, "CATALOGO_PARADAS")
+  const [fallaProduccionId, setFallaProduccionId] = useState<string | null | undefined>(undefined)
+  const [fallaMtto, setFallaMtto] = useState<OpcionFalla | null>(null)
+  const [eleccion, setEleccion] = useState<Eleccion | null>(null)
+  const [sinFalla, setSinFalla] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!modular) return
+    let vivo = true
+    void leerFallasDeParadas([parada.id]).then((m) => vivo && setFallaProduccionId(m.get(parada.id)?.fallaProduccionId ?? null))
+    return () => {
+      vivo = false
+    }
+  }, [modular, parada.id])
 
   useEffect(() => {
     // Solo el código: las horas no se tocan, no hace falta saber si cruzó un turno cerrado.
@@ -95,7 +118,13 @@ export function FormTerminarParada({
     )
   }
 
-  const tipoCodigo = tipo?.codigo ?? tipoInicial
+  const mttoModular = modular && esMantenimiento
+  // Con el catálogo nuevo: el de Producción si ya tenía uno (no se cambia); si estaba por clasificar, el genérico.
+  const tipoCodigo = mttoModular
+    ? (tipoInicial ?? (fallaMtto ? TIPO_FALLA_EQUIPO : null))
+    : modular && tipoInicial === null
+      ? (eleccion?.tipo?.codigo ?? (eleccion?.falla ? TIPO_FALLA_EQUIPO : null))
+      : (tipo?.codigo ?? tipoInicial)
   const equipoProduccion = catalogoProduccion.find((t) => t.codigo === tipoCodigo)?.equipoCodigo ?? null
   const equipoMtto = equipoElegido ?? equipoMttoSugerido(equiposMtto, equipoProduccion) ?? ""
   const subsistemasDelEquipo = subsistemas.filter((s) => s.activo && s.equipoCodigo === equipoMtto)
@@ -117,7 +146,20 @@ export function FormTerminarParada({
   const nReparacion = Number(reparacion)
   const reparacionValida = reparacion === "" || (Number.isInteger(nReparacion) && nReparacion >= 1)
   const listo =
-    tipoCodigo !== null && (!esMantenimiento || (equipoMtto !== "" && subsistema !== "")) && solucion.trim() !== "" && tiempoListo && reparacionValida
+    tipoCodigo !== null &&
+    (mttoModular ? fallaMtto !== null : !esMantenimiento || (equipoMtto !== "" && subsistema !== "")) &&
+    solucion.trim() !== "" &&
+    tiempoListo &&
+    reparacionValida
+
+  /** Después de terminar o poner el código: la falla del catálogo nuevo (si la hay). */
+  async function ponerFalla(): Promise<boolean> {
+    const fallaId = mttoModular ? fallaMtto?.falla.id : eleccion?.falla?.falla.id
+    if (!modular || !fallaId) return true
+    const r = await asignarFallaParada(usuario, parada.id, fallaId, mttoModular ? "MANTENIMIENTO" : "PRODUCCION", PAGINA)
+    if (!r.ok) setSinFalla(`La parada quedó terminada, pero sin la falla nueva (${r.error}).`)
+    return r.ok
+  }
 
   async function confirmar() {
     if (!tipoCodigo || !listo) return
@@ -129,7 +171,7 @@ export function FormTerminarParada({
         solucion: solucion.trim(),
         reparacionMin: reparacion !== "" ? nReparacion : null,
       }
-      if (await ejecutar(() => clasificarFallaMantenimiento(usuario, parada.id, codigo, PAGINA))) onTerminada()
+      if ((await ejecutar(() => clasificarFallaMantenimiento(usuario, parada.id, codigo, PAGINA))) && (await ponerFalla())) onTerminada()
       return
     }
     const datos = {
@@ -141,12 +183,20 @@ export function FormTerminarParada({
       inicio: empezoAntes ? conSegundos(inicioFinal) : !usaMinutos && !cruzo && comienzo !== inicioOriginal ? conSegundos(comienzo) : null,
       ...(esMantenimiento && reparacion !== "" ? { reparacionMin: nReparacion } : {}),
     }
-    if (await ejecutar(() => terminarParada(usuario, parada.id, datos, PAGINA))) onTerminada()
+    if ((await ejecutar(() => terminarParada(usuario, parada.id, datos, PAGINA))) && (await ponerFalla())) onTerminada()
   }
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
-      {tipoInicial === null ? (
+      {mttoModular ? (
+        fallaProduccionId === undefined ? (
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        ) : (
+          <ElegirFallaMtto lineaCodigo={parada.lineaCodigo} fallaProduccionId={fallaProduccionId} usuario={usuario} puedeCrear={puedeCrearFalla} onCambiar={setFallaMtto} />
+        )
+      ) : modular && tipoInicial === null ? (
+        <BuscadorParada lineaCodigo={parada.lineaCodigo} area={area} onElegir={setEleccion} />
+      ) : tipoInicial === null ? (
         <BuscadorTipoParada
           lineaCodigo={parada.lineaCodigo}
           area={area}
@@ -157,7 +207,7 @@ export function FormTerminarParada({
       ) : (
         <p className="min-w-0 truncate text-sm font-medium text-foreground">{parada.tipoNombre}</p>
       )}
-      {esMantenimiento && (
+      {esMantenimiento && !mttoModular && (
         <>
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Equipo de Mantenimiento
@@ -271,7 +321,7 @@ export function FormTerminarParada({
           {soloCodigo ? "Guardar código" : "Terminar parada"}
         </Button>
       </div>
-      <MensajeError error={error} />
+      <MensajeError error={error ?? sinFalla} />
     </div>
   )
 }
