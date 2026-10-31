@@ -240,11 +240,12 @@ export const apps: AppDef[] = [
   {
     slug: "catalogo-paradas",
     title: "Catálogo de Paradas",
-    description: "Editar los tipos de parada, su clase, código y tiempo guía.",
+    description: "Fallas de equipos y otras paradas, con sus códigos.",
     href: "/catalogo-paradas",
     icon: Wrench,
     requiereTurno: false,
-    permiso: "CATALOGO_PARADAS",
+    // Ver: todos los roles (20261113590000). Agregar y cambiar: CATALOGO_PARADAS.
+    permiso: ["CATALOGO_PARADAS_VER", "CATALOGO_PARADAS"],
     seccion: "base-datos",
   },
   {
@@ -254,8 +255,9 @@ export const apps: AppDef[] = [
     href: "/codigos-mantenimiento",
     icon: ListChecks,
     requiereTurno: false,
-    // Catálogo propio de Mantenimiento: lo editan Mantenimiento y la dueña (el servidor lo valida). Ningún rol de Producción lo ve.
+    // Catálogo viejo de Mantenimiento: desde el catálogo modular (2026-10-31) solo lo ve la dueña. Sus códigos quedaron como «código del Sheet» de cada subsistema.
     rolesPermitidos: ["MANTENIMIENTO", "SUPERADMINISTRADOR"],
+    soloDueno: true,
     seccion: "base-datos",
   },
   {

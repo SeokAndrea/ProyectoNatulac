@@ -18,6 +18,7 @@ export const PERMISOS = [
   { codigo: "RESUMEN_VER", nombre: "Ver el Resumen Diario" },
   { codigo: "PERSONAL_GESTIONAR", nombre: "Gestionar personal" },
   { codigo: "PROGRAMACION_EDITAR", nombre: "Editar Programación" },
+  { codigo: "CATALOGO_PARADAS_VER", nombre: "Ver Catálogo de Paradas" },
   { codigo: "CATALOGO_PARADAS", nombre: "Editar Catálogo de Paradas" },
   { codigo: "EDICION_DATOS", nombre: "Edición de Datos" },
   { codigo: "CALCULADORAS", nombre: "Calculadoras" },

@@ -13,6 +13,7 @@ import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
 import { esAreaDeApoyo } from "@/lib/catalogos"
 import { agruparPorSeccion, FLUJO_SUPERVISOR, TITULOS_SECCION, useTurnoDeLaSesion } from "@/lib/navegacion"
 import { puede } from "@/lib/permisos"
+import { useTarjetasOcultas } from "@/lib/tarjetasOcultas"
 import { cn } from "@/lib/utils"
 
 /** Emoji del saludo, distinto para algún usuario puntual — por username, en minúscula. */
@@ -36,6 +37,7 @@ export default function Hub() {
   const { session } = useAuth()
   const { turnoActivo, turnoPorAsumir, sinResponsable, continuidad } = useTurnoDeLaSesion()
   useGenerarActasPendientes()
+  const tarjetasOcultas = useTarjetasOcultas()
   const puedeSoloParadas = session?.rol === "JEFE_PRODUCCION" || session?.rol === "ANALISTA"
   const [soloParadas, setSoloParadas] = useState(leerSoloParadas)
   const ocultarTurno = puedeSoloParadas && soloParadas
@@ -48,7 +50,9 @@ export default function Hub() {
     }
   }
   // Mismo criterio que las rutas (ProtectedRoute): puedeVerApp en src/lib/apps.tsx.
-  const appsVisibles = apps.filter((app) => puedeVerApp(session, app) && !(ocultarTurno && APPS_DEL_TURNO.has(app.slug)))
+  const appsVisibles = apps.filter(
+    (app) => puedeVerApp(session, app) && !(ocultarTurno && APPS_DEL_TURNO.has(app.slug)) && !tarjetasOcultas.has(app.slug),
+  )
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
   const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area), session?.rol)

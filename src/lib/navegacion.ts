@@ -1,5 +1,6 @@
 import { useAuth } from "@/lib/auth"
 import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
+import { useTarjetasOcultas } from "@/lib/tarjetasOcultas"
 import { esAreaDeApoyo, type RolCodigo } from "@/lib/catalogos"
 import { puede } from "@/lib/permisos"
 import { useSesionTurno } from "@/lib/sesionTurno"
@@ -112,7 +113,8 @@ export function useTurnoDeLaSesion() {
 export function useAppsNavegables() {
   const { session } = useAuth()
   const { turnoActivo, turnoPorAsumir, continuidad } = useTurnoDeLaSesion()
-  const visibles = apps.filter((app) => app.href && puedeVerApp(session, app))
+  const tarjetasOcultas = useTarjetasOcultas()
+  const visibles = apps.filter((app) => app.href && puedeVerApp(session, app) && !tarjetasOcultas.has(app.slug))
   const principales = visibles.filter((app) => !app.atajo)
   const atajos = visibles.filter((app) => app.atajo)
 

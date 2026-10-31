@@ -102,10 +102,9 @@ describe("Códigos de Mantenimiento", () => {
     debeCompletarPerfil: false,
   })
 
-  it("lo ven Mantenimiento y el Super Administrador; ningún rol de Producción", () => {
-    expect(puedeVerApp(sesion("MANTENIMIENTO"), app)).toBe(true)
-    expect(puedeVerApp(sesion("SUPERADMINISTRADOR"), app)).toBe(true)
-    for (const rol of ["SUPERVISOR", "JEFE_PRODUCCION", "ANALISTA", "VISTA"] as const) {
+  it("desde el catálogo modular (2026-10-31) solo la ve la dueña", () => {
+    expect(puedeVerApp({ ...sesion("SUPERADMINISTRADOR"), esDueno: true }, app)).toBe(true)
+    for (const rol of ["MANTENIMIENTO", "SUPERADMINISTRADOR", "SUPERVISOR", "JEFE_PRODUCCION", "ANALISTA", "VISTA"] as const) {
       expect(puedeVerApp(sesion(rol), app)).toBe(false)
     }
   })

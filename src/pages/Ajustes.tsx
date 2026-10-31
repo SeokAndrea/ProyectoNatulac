@@ -1,20 +1,21 @@
 import type { ReactNode } from "react"
 import { Check, Monitor, Moon, Sun } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
+import { TarjetasDelInicio } from "@/components/ajustes/TarjetasDelInicio"
 import { ESCALA_LETRA, NOMBRE_TAMANO_LETRA, useTamanoLetra, type TamanoLetra } from "@/lib/tamanoLetra"
 import { useTema, type Tema } from "@/lib/tema"
 
 /*
- * Ajustes de este dispositivo (se guardan en el navegador, no en la cuenta):
- * tamaño de letra y tema. Se aplican al instante en toda la app. Se llega
- * tocando las iniciales del encabezado.
+ * Ajustes: tamaño de letra y tema son de este dispositivo (se guardan en el
+ * navegador); las tarjetas del inicio son de la cuenta. Se aplican al
+ * instante en toda la app. Se llega tocando las iniciales del encabezado.
  */
 export default function Ajustes() {
   const { tamano, elegir: elegirTamano } = useTamanoLetra()
   const { tema, elegir: elegirTema } = useTema()
 
   return (
-    <AppShell title="Ajustes" description="Cómo se ve la app en este dispositivo">
+    <AppShell title="Ajustes" description="Cómo se ve la app y qué tarjetas te salen">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
         <Seccion titulo="Tamaño de letra" ayuda="Agranda el texto y los espacios en todas las pantallas, como el zoom del navegador.">
           {(Object.keys(ESCALA_LETRA) as TamanoLetra[]).map((t) => (
@@ -40,6 +41,14 @@ export default function Ajustes() {
             </Opcion>
           ))}
         </Seccion>
+
+        <section className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Tarjetas del inicio</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">Apaga las que no usas: dejan de salir en el inicio y en el menú. Se guarda en tu cuenta, en cualquier equipo.</p>
+          </div>
+          <TarjetasDelInicio />
+        </section>
       </div>
     </AppShell>
   )

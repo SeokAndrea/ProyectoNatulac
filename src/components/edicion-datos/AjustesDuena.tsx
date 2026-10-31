@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { guardarCalidadLibera, useCalidadLibera } from "@/lib/calidad"
 import { guardarMantenimientoFinaliza, useMantenimientoFinaliza } from "@/lib/paradas"
+import { guardarCatalogoModular, useCatalogoModular } from "@/lib/catalogoFallas/switch"
 import { CorreoMantenimiento } from "./CorreoMantenimiento"
 import { SHEET_MANTENIMIENTO_ACTIVO } from "@/lib/sheetMantenimiento"
 import { EnlaceSheetMantenimiento } from "./EnlaceSheetMantenimiento"
@@ -17,6 +18,7 @@ export function AjustesDuena({ usuario }: { usuario: string }) {
       </div>
       <InterruptorCalidad usuario={usuario} />
       <InterruptorMantenimiento usuario={usuario} />
+      <InterruptorCatalogo usuario={usuario} />
       {SHEET_MANTENIMIENTO_ACTIVO && <EnlaceSheetMantenimiento usuario={usuario} />}
       <CorreoMantenimiento usuario={usuario} />
     </div>
@@ -58,6 +60,25 @@ function InterruptorMantenimiento({ usuario }: { usuario: string }) {
       confirmarEncender="Desde ahora, una línea parada con «No sé / es una falla» solo sigue cuando Mantenimiento termina la falla desde su página. El supervisor ya no le da Continuar. Hazlo con Mantenimiento usando la app. ¿Encender?"
       confirmarApagar="El supervisor vuelve a terminar las fallas con Continuar. Mantenimiento solo les pone el código. ¿Apagar?"
       guardar={(activo) => guardarMantenimientoFinaliza(usuario, "ASEPTICO", activo)}
+    />
+  )
+}
+
+/**
+ * Catálogo de paradas nuevo en Aséptico (areas.catalogo_modular, migración
+ * 20261113790000). Encendido: las fallas de equipo usan Equipo › Sistema ›
+ * Subsistema › Falla y la SIF empieza a contar de cero por falla nueva.
+ */
+function InterruptorCatalogo({ usuario }: { usuario: string }) {
+  return (
+    <InterruptorAjuste
+      titulo="Catálogo de paradas nuevo (Aséptico)"
+      cargado={useCatalogoModular("ASEPTICO")}
+      encendido="Encendido · Equipo › Sistema › Subsistema › Falla"
+      apagado="Apagado · catálogo anterior"
+      confirmarEncender="Desde ahora las fallas de equipo se registran con el catálogo nuevo, en todas las líneas de Aséptico, y la SIF empieza a contar de cero por falla nueva. Lo registrado antes queda como está. Hazlo con el catálogo ya cargado, en un cambio de turno. ¿Encender?"
+      confirmarApagar="Vuelve el catálogo anterior para registrar fallas. Lo registrado con el nuevo queda guardado. ¿Apagar?"
+      guardar={(activo) => guardarCatalogoModular(usuario, "ASEPTICO", activo)}
     />
   )
 }

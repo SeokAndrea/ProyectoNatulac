@@ -2,12 +2,17 @@ import { Fragment, useMemo, useState } from "react"
 import { ChevronDown, ChevronRight, Pencil, Plus } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { CatalogoEquipos } from "@/components/CatalogoEquipos"
+import { CatalogoFallas } from "@/components/catalogo-fallas/CatalogoFallas"
+import { OtrasParadas } from "@/components/catalogo-paradas/OtrasParadas"
 import { EquivalenciasMantenimiento } from "@/components/paradas/EquivalenciasMantenimiento"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/auth"
+import { useCatalogoModular } from "@/lib/catalogoFallas/switch"
+import { puede } from "@/lib/permisos"
+import { codigoDesdeNombre } from "@/lib/texto"
 import { AREAS_EQUIPOS, LINEAS_EQUIPOS, nombreLinea, parsearPresentaciones, useEquiposParadas } from "@/lib/paradasEquipos"
 import { agruparTipos } from "@/lib/paradasGrupos"
 import {
@@ -59,14 +64,6 @@ const vacio = (): TipoParadaEditable => ({
   activo: true,
 })
 
-/** 'Cambio de Lote' → 'CAMBIO_DE_LOTE' */
-const codigoDesdeNombre = (nombre: string) =>
-  nombre
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
 
 export default function CatalogoParadas() {
   const { session } = useAuth()
@@ -82,7 +79,11 @@ export default function CatalogoParadas() {
   const [equipoFiltro, setEquipoFiltro] = useState("")
   const [verInactivos, setVerInactivos] = useState(false)
   const [edicion, setEdicion] = useState<{ tipo: TipoParadaEditable; original?: string } | null>(null)
-  const [pestana, setPestana] = useState<"TIPOS" | "EQUIPOS" | "MANTENIMIENTO">("TIPOS")
+  const [pestana, setPestana] = useState<"FALLAS" | "OTRAS" | "TIPOS" | "EQUIPOS" | "MANTENIMIENTO">("FALLAS")
+  const editaCatalogo = !!session?.esDueno || puede(session, "CATALOGO_PARADAS")
+  // Con el switch del catálogo nuevo encendido (20261113790000) las pestañas viejas quedan solo de consulta.
+  const switchEncendido = useCatalogoModular(session?.area === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO") === true
+  const nuevo = switchEncendido ? "" : " (nuevo)"
   const [cerrados, setCerrados] = useState<Set<string>>(new Set())
 
   const filas = useMemo(() => {
@@ -118,21 +119,45 @@ export default function CatalogoParadas() {
     <AppShell title="Catálogo de Paradas" description="Tipos de parada y equipos que ofrece el Registro">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         <div className="flex flex-wrap gap-1.5">
-          <Button size="sm" variant={pestana === "TIPOS" ? "default" : "outline"} onClick={() => setPestana("TIPOS")}>
-            Tipos de parada
+          <Button size="sm" variant={pestana === "FALLAS" ? "default" : "outline"} onClick={() => setPestana("FALLAS")}>
+            Fallas de equipos{nuevo}
           </Button>
-          <Button size="sm" variant={pestana === "EQUIPOS" ? "default" : "outline"} onClick={() => setPestana("EQUIPOS")}>
-            Equipos (mecánicas)
+          <Button size="sm" variant={pestana === "OTRAS" ? "default" : "outline"} onClick={() => setPestana("OTRAS")}>
+            Otras paradas{nuevo}
           </Button>
-          <Button size="sm" variant={pestana === "MANTENIMIENTO" ? "default" : "outline"} onClick={() => setPestana("MANTENIMIENTO")}>
-            Equivalencias de Mantenimiento
-          </Button>
+          {/* El catálogo viejo solo lo ve la dueña (2026-10-31): el resto trabaja con las dos pestañas nuevas. */}
+          {session?.esDueno && (
+            <>
+              <span className="self-center pl-2 text-xs text-muted-foreground">
+                {switchEncendido ? "Catálogo anterior (solo consulta):" : "Catálogo viejo (solo tú):"}
+              </span>
+              <Button size="sm" variant={pestana === "TIPOS" ? "default" : "outline"} onClick={() => setPestana("TIPOS")}>
+                Tipos de parada
+              </Button>
+              <Button size="sm" variant={pestana === "EQUIPOS" ? "default" : "outline"} onClick={() => setPestana("EQUIPOS")}>
+                Equipos (mecánicas)
+              </Button>
+              <Button size="sm" variant={pestana === "MANTENIMIENTO" ? "default" : "outline"} onClick={() => setPestana("MANTENIMIENTO")}>
+                Equivalencias de Mantenimiento
+              </Button>
+            </>
+          )}
         </div>
 
-        {pestana === "MANTENIMIENTO" ? (
-          <EquivalenciasMantenimiento usuario={usuario} />
+        {pestana === "FALLAS" ? (
+          <div className="w-full">
+            <CatalogoFallas usuario={usuario} editable={editaCatalogo} />
+          </div>
+        ) : pestana === "OTRAS" ? (
+          <OtrasParadas usuario={usuario} editable={editaCatalogo} pagina={PAGINA} />
+        ) : pestana === "MANTENIMIENTO" ? (
+          <fieldset disabled={switchEncendido} className="m-0 min-w-0 border-0 p-0">
+            <EquivalenciasMantenimiento usuario={usuario} />
+          </fieldset>
         ) : pestana === "EQUIPOS" ? (
-          <CatalogoEquipos usuario={usuario} />
+          <fieldset disabled={switchEncendido} className="m-0 min-w-0 border-0 p-0">
+            <CatalogoEquipos usuario={usuario} />
+          </fieldset>
         ) : (
         <>
         <div className="flex flex-wrap items-center gap-2">
@@ -178,11 +203,13 @@ export default function CatalogoParadas() {
             <input type="checkbox" checked={verInactivos} onChange={(e) => setVerInactivos(e.target.checked)} />
             Mostrar inactivos
           </label>
-          <div className="ml-auto flex gap-2">
-            <Button size="sm" onClick={() => setEdicion({ tipo: vacio() })}>
-              <Plus className="size-4" /> Nuevo tipo
-            </Button>
-          </div>
+          {!switchEncendido && (
+            <div className="ml-auto flex gap-2">
+              <Button size="sm" onClick={() => setEdicion({ tipo: vacio() })}>
+                <Plus className="size-4" /> Nuevo tipo
+              </Button>
+            </div>
+          )}
         </div>
 
         {(errorCatalogo || errorAccion) && (
@@ -253,14 +280,17 @@ export default function CatalogoParadas() {
                             <input
                               type="checkbox"
                               checked={t.activo}
+                              disabled={switchEncendido}
                               onChange={async (e) => setErrorAccion(await cambiarActivo(usuario, t.codigo, e.target.checked, PAGINA))}
                               aria-label={`Activo: ${t.nombre}`}
                             />
                           </td>
                           <td className="px-3 py-2 text-right">
-                            <Button variant="ghost" size="sm" onClick={() => setEdicion({ tipo: { ...t }, original: t.codigo })}>
-                              <Pencil className="size-4" /> Editar
-                            </Button>
+                            {!switchEncendido && (
+                              <Button variant="ghost" size="sm" onClick={() => setEdicion({ tipo: { ...t }, original: t.codigo })}>
+                                <Pencil className="size-4" /> Editar
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       ))}
