@@ -402,20 +402,22 @@ Los permisos ya no salen del rol sino del **puesto**. El rol de `usuarios` se si
 | `areas.orden` | Orden de aparición en el organigrama |
 | `puestos` | `id`, `codigo` (único, sale del nombre), `nombre`, `area_id`, `nivel` (1 Jefatura, 2 Coordinación, 3 Operación, 4 Apoyo; `null` para Super Administrador y Probador), `rol_equivalente_id` (rol equivalente), `todos_los_permisos`, `activo`. Un puesto no cambia de área ni se borra si tiene gente (solo `activo = false`) |
 | `puesto_permisos` | La matriz: `puesto_id` + `permiso_codigo` |
-| `usuarios.puesto_id` | Obligatorio salvo para `sistema` (check `usuarios_puesto_obligatorio`) |
+| `usuarios.puesto_id` | Obligatorio salvo para `sistema` (check `usuarios_puesto_obligatorio`). El trigger `usuarios_sincroniza_rol` deja `usuario_roles` igual al rol equivalente y al área del puesto, solo cuando el puesto cambia de verdad (o al crear la persona); editar el nombre no lo toca |
 | `usuarios.titulo` | Texto libre que se muestra junto al puesto (ej. «Supervisor de Llenado») |
 | `permisos.tema` | `TURNOS`, `PARADAS`, `MANTENIMIENTO`, `DATOS`, `PERSONAS` o `ADMINISTRACION`; agrupa la matriz |
 
 Permisos nuevos: `ESTRUCTURA_GESTIONAR`, `LECTURAS_SI`, `CODIGOS_MTTO_EDITAR`, `REPORTES_PARADAS_VER`.
 
-**Funciones nuevas o reescritas** (todas con `grant execute` a `anon, authenticated`, salvo `puesto_para`, que es interna; las que cambian datos llaman a `registrar_auditoria`)
+**Funciones nuevas o reescritas** (todas con `grant execute` a `anon, authenticated`, salvo las internas de la migración `puesto_para`, `personal_exigir_puestos`, `personal_asignar_puestos` y `personal_sincronizar_roles`, que no tienen `execute` para `public`; las que cambian datos llaman a `registrar_auditoria`)
 
 | Función | Qué hace |
 |---|---|
-| `puesto_para(rol, area, cargo, area_origen)` | Usada por la migración: decide el puesto de una persona; si la combinación es rara, frena con la lista |
+| `puesto_para(rol, area, cargo, area_origen)` | Interna: decide el puesto de una persona (Super Administrador va antes que el área Pruebas). La usan la migración y `scripts/revisar-personal-puestos.sql` |
+| `personal_exigir_puestos()` | Interna: frena con la lista si alguien tiene más de una fila en `usuario_roles` o una combinación sin puesto |
+| `personal_asignar_puestos()` / `personal_sincronizar_roles()` | Internas de la migración: asignan el puesto y después dejan `usuario_roles` igual al puesto, con una fila de Auditoría (usuario `sistema`, página «Paso a puestos (20261114090000)») por persona que cambia |
 | `permisos_de_puesto(usuario, puesto_id)` | «Ver como»: permisos de un puesto (matriz, o todos si `todos_los_permisos`). Solo la dueña |
 | `tiene_permiso(usuario, permiso)` | Reescrita: sale del puesto (matriz) más los permisos extra de la persona. `todos_los_permisos` no incluye los temas `PERSONAS` ni `ADMINISTRACION` salvo en el puesto `SUPERADMINISTRADOR` |
-| `perfil_sesion(usuario)` | Reescrita: devuelve `activo`, `rol`, `area`, `es_dueno`, `puesto_id`, `puesto`, `nivel`, `titulo` y `permisos`; ya no lleva `cargo` |
+| `perfil_sesion(usuario)` | Reescrita: devuelve `activo`, `rol`, `area` (los dos del puesto), `es_dueno`, `puesto_id`, `puesto_codigo`, `puesto`, `nivel`, `titulo` y `permisos`; ya no lleva `cargo`. Solo Vista lo decide `puesto_codigo = 'SOLO_VISTA'`, no el rol `VISTA` |
 | `puede_gestionar_personal(creador, usuario_id)` | Regla de gestión: nadie se gestiona a sí mismo y la dueña solo la gestiona ella; con `ESTRUCTURA_GESTIONAR` se puede gestionar a cualquiera salvo el puesto Super Administrador (solo la dueña); con `PERSONAL_GESTIONAR`, solo misma área y nivel destino mayor que el propio |
 | `puestos_asignables(usuario)` | Puestos que esa persona puede asignar (misma área, nivel mayor al suyo) |
 | `listar_personal(usuario)` | Personal que ese usuario puede ver, con puesto, área, nivel y título |
@@ -426,11 +428,37 @@ Permisos nuevos: `ESTRUCTURA_GESTIONAR`, `LECTURAS_SI`, `CODIGOS_MTTO_EDITAR`, `
 | `listar_permisos_extra(usuario)` | Permisos extra de las personas visibles |
 | `listar_estructura(usuario)` | JSON con áreas, puestos y matriz (incluye `rol_equivalente`) para las pantallas |
 | `guardar_area(usuario, codigo, nombre, tipo, activo, ...)` | Crea o edita un área; al crear exige `tipo` (`PRODUCCION` o `APOYO`), si no, «Elige el tipo del área.» |
-| `guardar_puesto(usuario, id, area_codigo, nombre, nivel, activo, ...)` | Crea o edita un puesto (el código se genera y es único) |
+| `guardar_puesto(usuario, id, area_codigo, nombre, nivel, activo, ...)` | Crea o edita un puesto (el código se genera y es único). Un puesto nuevo toma como rol equivalente el más débil (menos `rol_permisos`) entre los puestos activos de su área, sin contar Probador ni Super Administrador; `VISTA` si no hay ninguno |
 | `guardar_permisos_puestos(usuario, cambios jsonb, pagina)` | Guarda la matriz de permisos por puesto en un solo paso |
 | `listar_areas()` | Áreas con `tipo`, `activo` y `orden`, sin credencial; las lee la app antes de entrar |
 
-**Aplicar en planta:** las 6 migraciones (`20261113990000`, `20261114090000`, `20261114190000`, `20261114290000`, `20261114390000`, `20261114490000`) van **juntas y en ese orden**, nunca por separado: cada una depende de la anterior y la app nueva necesita todas. Antes, correr `scripts/revisar-personal-puestos.sql` y revisar la lista persona → puesto. La migración 2 frena con un mensaje si hay combinaciones raras (ej. `VISTA` en Mantenimiento, `SUPERVISOR` sin área). Ensayadas sobre una copia de la base de antes: ver `.superpowers/sdd/2026-11-01-personal-areas-puestos-fase1/task-10-report.md`.
+**Aplicar en planta** (las 6 migraciones `20261113990000`, `20261114090000`, `20261114190000`, `20261114290000`, `20261114390000`, `20261114490000`):
+
+1. **Revisar sobre una copia de la base de planta.** Copiarla (`createdb natulac_copia` + `pg_dump -Fc natulac | pg_restore -d natulac_copia`) y, sobre la copia, sacar la lista persona → puesto y probar el freno de la migración 2 (todo en una transacción que se deshace):
+
+   ```bash
+   M=supabase/migrations
+   { echo 'begin;'; cat $M/20261113990000_puestos_estructura.sql
+     sed '/^-- Funciones de la migración y del script de revisión/,$d' $M/20261114090000_puestos_personas.sql
+     cat scripts/revisar-personal-puestos.sql
+     echo 'select personal_exigir_puestos();'; echo 'rollback;'
+   } | psql -X -v ON_ERROR_STOP=1 -d natulac_copia
+   ```
+
+   La dueña revisa la lista, sobre todo las filas con `cambia_acceso = sí`: a esas personas la migración les cambia el rol o el área de `usuario_roles` para que coincidan con el puesto (queda en Auditoría como `sistema`). Si `personal_exigir_puestos()` frena, el mensaje lista a quién arreglar: personas con más de una fila en `usuario_roles`, o con una combinación sin puesto (ej. `VISTA` en Mantenimiento, `JEFE_PRODUCCION` o `ANALISTA` en Mantenimiento, cualquiera salvo Super Administrador en Vacío). Se arregla en planta y se vuelve a revisar.
+2. **Aplicar las 6 en UNA sola transacción y en ese orden** (si una falla, no queda ninguna a medias):
+
+   ```bash
+   M=supabase/migrations
+   cat $M/20261113990000_puestos_estructura.sql $M/20261114090000_puestos_personas.sql        $M/20261114190000_puestos_permisos_y_sesion.sql $M/20261114290000_personal_reglas.sql        $M/20261114390000_estructura_gestion.sql $M/20261114490000_listar_areas.sql      | psql -X -v ON_ERROR_STOP=1 --single-transaction -d natulac
+   psql -d natulac -c "notify pgrst, 'reload schema'"
+   ```
+
+   No usar un `db push` que las aplique una por una: si se corta en la 2, la app nueva llama funciones que no existen todavía.
+3. **Subir el front recién después** de que las 6 entraron bien.
+4. **Comprobar la cuenta de la dueña:** `select u.usuario, p.codigo from usuarios u join puestos p on p.id = u.puesto_id where u.ve_errores;` tiene que dar `SUPERADMINISTRADOR`. Si no, Personal, Áreas y puestos y «Ver como» no le cargan.
+
+Ensayadas de punta a punta sobre una base armada con las migraciones de main más personas «de planta» sintéticas: ver `.superpowers/sdd/2026-11-01-personal-areas-puestos-fase1/final-fix-report.md`.
 
 ## Sesiones con credencial (20261109690000)
 
