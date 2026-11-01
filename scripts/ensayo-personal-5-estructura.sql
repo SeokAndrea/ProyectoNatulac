@@ -21,23 +21,23 @@ begin
   select id into v_probador from puestos where codigo = 'PROBADOR';
   select id into v_sa from puestos where codigo = 'SUPERADMINISTRADOR';
 
-  -- guardar_area crea ALMACEN
-  perform guardar_area('local', 'ALMACEN', 'Almacén', 'APOYO', true, 'ensayo');
-  if not exists (select 1 from areas where codigo='ALMACEN' and nombre='Almacén' and tipo='APOYO' and activo) then
-    raise exception 'guardar_area no creó ALMACEN';
+  -- guardar_area crea ZZENSAYO
+  perform guardar_area('local', 'ZZENSAYO', 'Zz Ensayo', 'APOYO', true, 'ensayo');
+  if not exists (select 1 from areas where codigo='ZZENSAYO' and nombre='Zz Ensayo' and tipo='APOYO' and activo) then
+    raise exception 'guardar_area no creó ZZENSAYO';
   end if;
-  if (select orden from areas where codigo='ALMACEN') <> (select max(orden) from areas where codigo<>'ALMACEN') + 1 then
+  if (select orden from areas where codigo='ZZENSAYO') <> (select max(orden) from areas where codigo<>'ZZENSAYO') + 1 then
     raise exception 'el orden de un área nueva debe ser max+1';
   end if;
   if not exists (select 1 from auditoria where entidad='areas' and usuario='local') then
     raise exception 'guardar_area no dejó auditoría';
   end if;
   -- editar el área: nombre, tipo, activo
-  perform guardar_area('local', 'ALMACEN', 'Almacén general', 'PRODUCCION', false, 'ensayo');
-  if not exists (select 1 from areas where codigo='ALMACEN' and nombre='Almacén general' and tipo='PRODUCCION' and not activo) then
+  perform guardar_area('local', 'ZZENSAYO', 'Zz Ensayo general', 'PRODUCCION', false, 'ensayo');
+  if not exists (select 1 from areas where codigo='ZZENSAYO' and nombre='Zz Ensayo general' and tipo='PRODUCCION' and not activo) then
     raise exception 'guardar_area no editó';
   end if;
-  perform guardar_area('local', 'ALMACEN', 'Almacén', 'APOYO', true, 'ensayo');
+  perform guardar_area('local', 'ZZENSAYO', 'Zz Ensayo', 'APOYO', true, 'ensayo');
 
   -- Código inválido, tipo inválido
   begin perform guardar_area('local', 'ALMA CEN', 'x', 'APOYO', true, null); raise exception 'FALLO: código con espacio';
@@ -47,22 +47,22 @@ begin
   begin perform guardar_area('local', 'OTRA', 'x', 'LOQUESEA', true, null); raise exception 'FALLO: tipo inválido';
   exception when others then if sqlerrm like 'FALLO%' then raise; end if; if sqlerrm not like '%tipo%' then raise exception 'mensaje inesperado: %', sqlerrm; end if; end;
 
-  -- guardar_puesto crea Jefe de Almacén (área sin puestos: rol VISTA)
-  v_id := guardar_puesto('local', null, 'ALMACEN', 'Jefe de Almacén', 1::smallint, true, 'ensayo');
+  -- guardar_puesto crea Jefe de Zz Ensayo (área sin puestos: rol VISTA)
+  v_id := guardar_puesto('local', null, 'ZZENSAYO', 'Jefe de Zz Ensayo', 1::smallint, true, 'ensayo');
   if not exists (select 1 from puestos p join areas a on a.id=p.area_id join roles r on r.id=p.rol_equivalente_id
-                  where p.id=v_id and a.codigo='ALMACEN' and p.nivel=1 and p.codigo='JEFE_DE_ALMACEN' and r.codigo='VISTA' and not p.todos_los_permisos) then
+                  where p.id=v_id and a.codigo='ZZENSAYO' and p.nivel=1 and p.codigo='JEFE_DE_ZZ_ENSAYO' and r.codigo='VISTA' and not p.todos_los_permisos) then
     raise exception 'guardar_puesto no creó bien el puesto';
   end if;
   -- mismo nombre: código único
-  v_id2 := guardar_puesto('local', null, 'ALMACEN', 'Jefe de Almacén', 2::smallint, true, 'ensayo');
-  if (select codigo from puestos where id=v_id2) = 'JEFE_DE_ALMACEN' then raise exception 'el código debe ser único'; end if;
+  v_id2 := guardar_puesto('local', null, 'ZZENSAYO', 'Jefe de Zz Ensayo', 2::smallint, true, 'ensayo');
+  if (select codigo from puestos where id=v_id2) = 'JEFE_DE_ZZ_ENSAYO' then raise exception 'el código debe ser único'; end if;
   -- puesto nuevo en Mantenimiento: rol del más cercano (MANTENIMIENTO)
   v_id2 := guardar_puesto('local', null, 'MANTENIMIENTO', 'Ayudante Mtto', 4::smallint, true, 'ensayo');
   select r.codigo into v_rol from puestos p join roles r on r.id=p.rol_equivalente_id where p.id=v_id2;
   if v_rol <> 'MANTENIMIENTO' then raise exception 'rol equivalente esperado MANTENIMIENTO, fue %', v_rol; end if;
   -- editar nombre, nivel, activo
-  perform guardar_puesto('local', v_id, 'ALMACEN', 'Jefe de Bodega', 2::smallint, false, 'ensayo');
-  if not exists (select 1 from puestos where id=v_id and nombre='Jefe de Bodega' and nivel=2 and not activo and codigo='JEFE_DE_ALMACEN') then
+  perform guardar_puesto('local', v_id, 'ZZENSAYO', 'Jefe de Zz Bodega', 2::smallint, false, 'ensayo');
+  if not exists (select 1 from puestos where id=v_id and nombre='Jefe de Zz Bodega' and nivel=2 and not activo and codigo='JEFE_DE_ZZ_ENSAYO') then
     raise exception 'guardar_puesto no editó (el código no debe cambiar)';
   end if;
 
@@ -75,9 +75,9 @@ begin
   begin perform guardar_puesto('local', v_sa, null, 'X', 1::smallint, true, null); raise exception 'FALLO: editó SA';
   exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- Nivel inválido y nulo
-  begin perform guardar_puesto('local', null, 'ALMACEN', 'Algo', 5::smallint, true, null); raise exception 'FALLO: nivel 5';
+  begin perform guardar_puesto('local', null, 'ZZENSAYO', 'Algo', 5::smallint, true, null); raise exception 'FALLO: nivel 5';
   exception when others then if sqlerrm like 'FALLO%' then raise; end if; if sqlerrm not like '%nivel%' then raise exception 'mensaje inesperado: %', sqlerrm; end if; end;
-  begin perform guardar_puesto('local', null, 'ALMACEN', 'Algo', null::smallint, true, null); raise exception 'FALLO: nivel null';
+  begin perform guardar_puesto('local', null, 'ZZENSAYO', 'Algo', null::smallint, true, null); raise exception 'FALLO: nivel null';
   exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
   -- Área inexistente
   begin perform guardar_puesto('local', null, 'NOEXISTE', 'Algo', 1::smallint, true, null); raise exception 'FALLO: área inexistente';

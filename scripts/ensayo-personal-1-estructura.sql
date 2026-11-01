@@ -62,9 +62,9 @@ begin
   if v_n <> 4 then raise exception 'Faltan permisos nuevos'; end if;
 
   -- Áreas: tipo y orden
-  select count(*) into v_n from areas where codigo in ('ASEPTICO','PRUEBAS') and tipo = 'PRODUCCION';
-  if v_n <> 2 then raise exception 'Aséptico y Pruebas deben ser PRODUCCION'; end if;
-  select count(*) into v_n from areas where codigo not in ('ASEPTICO','PRUEBAS') and tipo <> 'APOYO';
+  select count(*) into v_n from areas where codigo in ('ASEPTICO','PRUEBAS','VACIO') and tipo = 'PRODUCCION';
+  if v_n <> 3 then raise exception 'Aséptico, Pruebas y Vacío deben ser PRODUCCION'; end if;
+  select count(*) into v_n from areas where codigo not in ('ASEPTICO','PRUEBAS','VACIO') and tipo <> 'APOYO';
   if v_n <> 0 then raise exception 'Las demás áreas deben ser APOYO'; end if;
   select count(*) into v_n from areas where codigo = 'CALIDAD' and not activo;
   if v_n <> 1 then raise exception 'Calidad debe estar inactiva'; end if;
