@@ -12,12 +12,17 @@ vi.mock("@/lib/catalogoFallas/switch", () => ({ useCatalogoModular: () => false 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ session: { username: "u", esDueno: false, permisos: [], rol: "SUPERVISOR" } }) }))
 vi.mock("@/components/CintaEstadoLinea", () => ({ CintaEstadoLinea: () => <div /> }))
 vi.mock("@/components/LineaVisual", () => ({ LineaVisual: () => <div /> }))
+/** El filtro que recibió el buscador la última vez (para ver qué tipos ofrece). */
+let permitirBuscador: ((t: { familia: string }) => boolean) | undefined
 vi.mock("@/components/BuscadorTipoParada", () => ({
-  BuscadorTipoParada: ({ onElegir }: { onElegir: (t: unknown) => void }) => (
-    <button type="button" onClick={() => onElegir({ codigo: "FALLA_NIVEL_BTD", nombre: "Falla de Nivel del BTD", clase: "NO_PROGRAMADA", tiempoGuiaMin: null })}>
-      Elegir tipo
-    </button>
-  ),
+  BuscadorTipoParada: ({ onElegir, permitir }: { onElegir: (t: unknown) => void; permitir?: (t: { familia: string }) => boolean }) => {
+    permitirBuscador = permitir
+    return (
+      <button type="button" onClick={() => onElegir({ codigo: "FALLA_NIVEL_BTD", nombre: "Falla de Nivel del BTD", clase: "NO_PROGRAMADA", tiempoGuiaMin: null })}>
+        Elegir tipo
+      </button>
+    )
+  },
 }))
 vi.mock("@/lib/paradasEquipos", () => ({ useEquiposParadas: () => [] }))
 
@@ -227,9 +232,23 @@ describe("ModoParadas — paradas de Mantenimiento", () => {
   it("Mantenimiento anota con el Responsable en Mantenimiento de entrada", async () => {
     montar({ esMantenimiento: true, corridas: [], paradasDetienen: [] })
     await userEvent.click(await screen.findByRole("button", { name: /anotar/i }))
-    await userEvent.click(screen.getByRole("button", { name: "Otra…" }))
     await userEvent.click(screen.getByText("Elegir tipo"))
     expect(screen.getByRole("radio", { name: "Mantenimiento" })).toHaveAttribute("aria-checked", "true")
+  })
+
+  it("el botón se llama «Anotar parada pasada», para el supervisor y para Mantenimiento", async () => {
+    montar({ corridas: [], paradasDetienen: [] })
+    expect(await screen.findByRole("button", { name: /^Anotar parada pasada/ })).toBeInTheDocument()
+  })
+
+  it("Mantenimiento va directo al buscador con solo sus tipos: sin atajos de producción ni LNP", async () => {
+    montar({ esMantenimiento: true, corridas: [], paradasDetienen: [] })
+    await userEvent.click(await screen.findByRole("button", { name: /^Anotar parada pasada/ }))
+    expect(screen.getByText("Elegir tipo")).toBeInTheDocument()
+    for (const n of [/cambio de lote/i, /lnp/i, /otra…/i, /buscar…/i]) expect(boton(n)).toBeNull()
+    expect(permitirBuscador).toBeDefined()
+    expect(permitirBuscador!({ familia: "SUMINISTRO" })).toBe(true)
+    for (const f of ["PROGRAMADA", "EXTERNA", "OPERACIONAL", "OCIOSO"]) expect(permitirBuscador!({ familia: f })).toBe(false)
   })
 
   it("Terminar parada abre el formulario de cierre", async () => {
