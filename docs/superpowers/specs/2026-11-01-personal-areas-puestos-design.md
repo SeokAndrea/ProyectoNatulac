@@ -129,7 +129,7 @@ Solo para `ESTRUCTURA_GESTIONAR`.
 - Cada cambio de persona, puesto, permisos de puesto o área queda en Auditoría con antes y después (`registrar_auditoria`).
 
 ## 8. Casos borde
-- **Quedarse sin quien gestione un área:** al desactivar o cambiar de puesto a la última persona con `PERSONAL_GESTIONAR` de un área, la app avisa (no bloquea: quien administra puede gestionarla igual).
+- **Quedarse sin quien gestione un área:** no se avisa ni se bloquea. Si pasa, alguien toma ese puesto (y mientras tanto quien administra gestiona el área).
 - **Bajar de nivel un puesto con gente:** se permite; la regla de gestión se recalcula sola.
 - **Mover un puesto de área:** no se permite. Se crea uno nuevo y se reasigna la gente.
 - **Un jefe intenta darse más permisos o subir de nivel:** la base lo rechaza (regla 4).
