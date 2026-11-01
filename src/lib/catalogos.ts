@@ -24,8 +24,22 @@ export const TIPOS_AREA: readonly { tipo: TipoArea; nombre: string }[] = [
 /** Área productiva que miran las áreas de apoyo (Panel, Programación, catálogos). */
 export const AREA_QUE_MIRA_EL_APOYO: AreaCodigo = "ASEPTICO"
 
-/** ¿Es un área de apoyo (Calidad, Mantenimiento, Servicios Industriales)? Sin área (Super Administrador): no. */
+/** Tipo de cada área según la base; lo llena CatalogosProvider al cargar las áreas. */
+let tiposDeArea = new Map<string, string>()
+
+/** Guarda el tipo de cada área (vacío = todavía sin cargar: vale la lista fija de abajo). */
+export function registrarTiposDeArea(areas: readonly { codigo: string; tipo: string }[]) {
+  tiposDeArea = new Map(areas.map((a) => [a.codigo, a.tipo]))
+}
+
+/**
+ * ¿Es un área de apoyo (Calidad, Mantenimiento, Servicios Industriales y las que se creen de tipo APOYO)?
+ * Sin área (Super Administrador): no. Antes de cargar las áreas valen las cuatro de siempre.
+ */
 export function esAreaDeApoyo(area: string | null | undefined): boolean {
+  if (!area) return false
+  const tipo = tiposDeArea.get(area)
+  if (tipo) return tipo === "APOYO"
   return area === "SERVICIOS_INDUSTRIALES" || area === "MANTENIMIENTO" || area === "CALIDAD" || area === "OTROS"
 }
 

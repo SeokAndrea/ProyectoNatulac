@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Session } from "@/lib/auth"
 import { apps, puedeVerApp } from "@/lib/apps"
-import { esAreaDeApoyo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
+import { esAreaDeApoyo, registrarTiposDeArea, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
 
 function sesion(area: AreaCodigo, rol: RolCodigo, permisos: Session["permisos"] = []): Session {
   return { username: "prueba", nombre: "Prueba", cedula: null, area, rol, esDueno: false, permisos, debeCompletarPerfil: false }
@@ -44,5 +44,22 @@ describe("áreas de apoyo", () => {
 
   it("Mantenimiento ve Reportes de paradas", () => {
     expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO"]))).toContain("reportes-paradas")
+  })
+})
+
+describe("áreas de apoyo creadas en Áreas y puestos", () => {
+  it("un área nueva de tipo APOYO cuenta como apoyo una vez cargada la lista; las conocidas valen antes", () => {
+    expect(esAreaDeApoyo("ALMACEN")).toBe(false)
+    expect(esAreaDeApoyo("MANTENIMIENTO")).toBe(true)
+    registrarTiposDeArea([
+      { codigo: "ALMACEN", tipo: "APOYO" },
+      { codigo: "ASEPTICO", tipo: "PRODUCCION" },
+      { codigo: "MANTENIMIENTO", tipo: "APOYO" },
+    ])
+    expect(esAreaDeApoyo("ALMACEN")).toBe(true)
+    expect(esAreaDeApoyo("ASEPTICO")).toBe(false)
+    expect(esAreaDeApoyo("MANTENIMIENTO")).toBe(true)
+    registrarTiposDeArea([])
+    expect(esAreaDeApoyo("ALMACEN")).toBe(false)
   })
 })

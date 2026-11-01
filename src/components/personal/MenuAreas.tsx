@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { Settings2 } from "lucide-react"
+import { Plus, Settings2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface ItemMenuArea {
@@ -10,7 +10,7 @@ export interface ItemMenuArea {
 }
 
 /** Áreas a la izquierda en PC (fila deslizable en el teléfono); abajo, el enlace a Áreas y puestos. */
-export function MenuAreas({ areas, actual, onElegir }: { areas: ItemMenuArea[]; actual: string; onElegir: (codigo: string) => void }) {
+export function MenuAreas({ areas, actual, onElegir, onNueva }: { areas: ItemMenuArea[]; actual: string; onElegir: (codigo: string) => void; onNueva?: () => void }) {
   return (
     <nav aria-label="Áreas" className="lg:sticky lg:top-4 lg:w-56 lg:shrink-0">
       <div className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:rounded-xl lg:border lg:border-border lg:bg-card lg:p-2">
@@ -35,6 +35,16 @@ export function MenuAreas({ areas, actual, onElegir }: { areas: ItemMenuArea[]; 
             </button>
           )
         })}
+        {onNueva && (
+          <button
+            type="button"
+            onClick={onNueva}
+            className="flex h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-left text-sm font-medium whitespace-nowrap text-info-foreground hover:bg-muted/60 max-lg:border max-lg:border-border max-lg:bg-card pointer-coarse:h-11"
+          >
+            <Plus className="size-4 shrink-0" />
+            Área
+          </button>
+        )}
         <Link
           to="/areas-puestos"
           className="flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-info-foreground hover:bg-muted/60 max-lg:border max-lg:border-border max-lg:bg-card max-lg:whitespace-nowrap lg:mt-2 pointer-coarse:min-h-11"

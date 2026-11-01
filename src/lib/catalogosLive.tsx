@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth"
-import { AREA_QUE_MIRA_EL_APOYO, esAreaDeApoyo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
+import { AREA_QUE_MIRA_EL_APOYO, esAreaDeApoyo, registrarTiposDeArea, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
 import type { AreaEstructura } from "@/lib/estructura"
 
 /*
@@ -120,18 +120,21 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
     // es la única área productiva real que queda (Vacío se eliminó del
     // todo el 2026-09-25), así que se filtra directo a esa.
     // Calidad y Mantenimiento (también áreas de apoyo) igual: miran Aséptico.
+    // Las áreas van primero: el tipo de cada una (APOYO o no) decide qué líneas pedir.
+    const areasRes = await supabase.rpc("listar_areas")
+    const filasAreas = (areasRes.data ?? []) as FilaArea[]
+    registrarTiposDeArea(filasAreas)
+    setAreas(filasAreas.map((f) => ({ ...f, personas: 0 })))
+
     const areaCatalogo =
       esAreaDeApoyo(session?.area)
         ? AREA_QUE_MIRA_EL_APOYO
         : (session?.area ?? null)
-    const [lineasRes, presentacionesRes, velocidadesRes, areasRes] = await Promise.all([
+    const [lineasRes, presentacionesRes, velocidadesRes] = await Promise.all([
       supabase.rpc("listar_lineas", { p_area_codigo: areaCatalogo }),
       supabase.rpc("listar_presentaciones"),
       supabase.rpc("listar_velocidades"),
-      supabase.rpc("listar_areas"),
     ])
-
-    setAreas(((areasRes.data ?? []) as FilaArea[]).map((f) => ({ ...f, personas: 0 })))
 
     const filasLineas = (lineasRes.data ?? []) as FilaLinea[]
     setAreaDeLinea(Object.fromEntries(filasLineas.map((f) => [f.linea_id, f.area_codigo])))
