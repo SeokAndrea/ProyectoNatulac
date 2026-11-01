@@ -65,6 +65,12 @@
     --color-info-foreground: var(--info-foreground);
     --color-info-soft: var(--info-soft);
     --color-vacio: var(--vacio);
+    --color-serie-mtto: var(--serie-mtto);
+    --color-serie-op: var(--serie-op);
+    --color-linea-1: var(--linea-1);
+    --color-linea-2: var(--linea-2);
+    --color-linea-3: var(--linea-3);
+    --color-marca: var(--marca);
     --color-vacio-soft: var(--vacio-soft);
     --color-flavor-orange: var(--flavor-orange);
     --color-flavor-yellow: var(--flavor-yellow);
@@ -109,6 +115,16 @@
     --danger-foreground: oklch(0.42 0.17 24);
     --danger-soft: oklch(0.94 0.05 22);
     --info: oklch(0.55 0.16 245);
+    /* Series de gráficas: Mantenimiento / Operacional (Panel de Paradas). Validadas con dataviz (claro y oscuro). */
+    --serie-mtto: #1d73c5;
+    --serie-op: #0e8a7a;
+    /* Una por línea (Panel de Paradas), fija: el color sigue a la línea. Verde, azul y naranja vivo (dueña, 2026-10-31);
+       el verde más claro que el naranja para que se distingan también con daltonismo. Validadas con dataviz. */
+    --linea-1: #7cbf45;
+    --linea-2: #3b5bdb;
+    --linea-3: #d4673f;
+    /* El azul marino del logo de texto «Natulac» (igual en claro y oscuro). */
+    --marca: #1e2163;
     --info-foreground: oklch(0.46 0.15 245);
     --info-soft: oklch(0.94 0.04 245);
     /* Vacío (latas): tanques de Aséptico con producto de Vacío y el Modo Vacío de Preparación. */
@@ -168,6 +184,12 @@
     --danger-foreground: oklch(0.9 0.08 24);
     --danger-soft: oklch(0.34 0.09 24);
     --info: oklch(0.72 0.14 245);
+    --serie-mtto: #4a84d6;
+    --serie-op: #14947f;
+    --linea-1: #76b941;
+    --linea-2: #6f82ee;
+    --linea-3: #cf6239;
+    --marca: #1e2163;
     --info-foreground: oklch(0.86 0.08 245);
     --info-soft: oklch(0.32 0.07 245);
     --vacio: oklch(0.74 0.11 268);

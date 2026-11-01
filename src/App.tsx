@@ -20,6 +20,7 @@ const ValidarJornada = lazy(() => import("@/pages/apps/ValidarJornada"))
 const Indicadores = lazy(() => import("@/pages/apps/Indicadores"))
 const PanelProduccion = lazy(() => import("@/pages/apps/PanelProduccion"))
 const PanelParadas = lazy(() => import("@/pages/apps/PanelParadas"))
+const ModoTv = lazy(() => import("@/pages/apps/ModoTv"))
 const ReportesParadas = lazy(() => import("@/pages/apps/ReportesParadas"))
 const SolicitudesIntervencion = lazy(() => import("@/pages/apps/SolicitudesIntervencion"))
 const CatalogoParadas = lazy(() => import("@/pages/apps/CatalogoParadas"))
@@ -190,6 +191,15 @@ export default function App() {
             element={
               <ProtectedRoute app="panel-paradas">
                 <PanelParadas />
+              </ProtectedRoute>
+            }
+          />
+          {/* Modo TV: Producción y Paradas, un minuto cada uno (dueña, 2026-10-31). Quien ve el Panel de Paradas. */}
+          <Route
+            path="/modo-tv"
+            element={
+              <ProtectedRoute app="panel-paradas">
+                <ModoTv />
               </ProtectedRoute>
             }
           />

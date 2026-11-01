@@ -1,8 +1,18 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { AlertTriangle, ChevronDown, ChevronUp, Loader2, Presentation, Tv, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CintaLinea, type EstadoLineaVista } from "@/components/CintaLinea"
+import { BarrasLineas } from "@/components/panel-paradas/BarrasLineas"
+import { colorLinea } from "@/components/panel-paradas/colores"
+import { CarruselTop, type VistaCarrusel } from "@/components/panel-paradas/CarruselTop"
+import { RankCard, RankList } from "@/components/panel-paradas/RankList"
+import { TortaResponsables } from "@/components/panel-paradas/TortaResponsables"
+import { useAjusteAPantalla } from "@/components/panel-paradas/useAjusteAPantalla"
+import { usePresentacion } from "@/components/indicadores/usePresentacion"
+import { conFallas, noProgramadasPorLinea, porResponsable, subsistemasMezclados, topPorNivel, type ParadaConFalla } from "@/lib/catalogoFallas/analisis"
+import { useCatalogoFallas } from "@/lib/catalogoFallas/useCatalogoFallas"
+import { useFallasDeParadas } from "@/lib/catalogoFallas/useFallasDeParadas"
 import { DetalleParadas } from "@/components/paradas/DetalleParadas"
 import { RangoFechas } from "@/components/paradas/RangoFechas"
 import { cn } from "@/lib/utils"
@@ -10,10 +20,8 @@ import type { OeePeriodo } from "@/lib/eficiencia"
 import { fechaJornadaPlanta, restarDias } from "@/lib/tiempoPlanta"
 import { type TurnoTipoCodigo } from "@/lib/catalogos"
 import {
-  agruparPorDia,
   esDeMantenimiento,
   jornadaDeParada,
-  fmtDuracion,
   LINEAS_PARADAS,
   minutosPorClaseSinSolape,
   NOMBRE_CLASE,
@@ -27,7 +35,6 @@ import {
   type ClaseParada,
   type GrupoTipo,
   type Parada,
-  type PuntoDiaParada,
 } from "@/lib/paradas"
 
 /*
@@ -51,12 +58,15 @@ import {
  * real). undefined = todavía cargando.
  */
 
-type PeriodoCodigo = "HOY" | "AYER" | "7D" | "MES" | "FECHAS"
+type PeriodoCodigo = "HOY" | "AYER" | "3D" | "7D" | "MES" | "MES_ELEGIDO" | "FECHAS"
 const PERIODO_FILTRO: { codigo: PeriodoCodigo; etiqueta: string }[] = [
   { codigo: "HOY", etiqueta: "Hoy" },
   { codigo: "AYER", etiqueta: "Ayer" },
+  { codigo: "3D", etiqueta: "Últimos 3 días" },
   { codigo: "7D", etiqueta: "Últimos 7 días" },
   { codigo: "MES", etiqueta: "Este mes" },
+  // Un mes entero (o hasta hoy, si es el de ahora), con su selector (dueña, 2026-10-31).
+  { codigo: "MES_ELEGIDO", etiqueta: "Elegir mes" },
   // Desde–hasta con calendario; el mismo día en los dos = un solo día (dueña, 2026-10-15).
   { codigo: "FECHAS", etiqueta: "Elegir fechas" },
 ]
@@ -112,6 +122,8 @@ export function PanelParadasVista({
   estadoLineas,
   cargarOee,
   mantenimiento,
+  modoTv = false,
+  onModoTv,
 }: {
   cargarParadas: CargarParadas
   /** Estado en vivo de las 3 líneas (no filtrado). Ver nota de cabecera. */
@@ -119,17 +131,35 @@ export function PanelParadasVista({
   cargarOee: CargarOee
   /** Tarjeta de Mantenimiento, al final: recibe las paradas filtradas que reportó Mantenimiento. */
   mantenimiento?: (paradas: Parada[], ahora: Date) => ReactNode
+  /** Dentro del modo TV: siempre presentando; se sale desde el modo TV. */
+  modoTv?: boolean
+  /** Abre el modo TV (Producción y Paradas, un minuto cada uno). */
+  onModoTv?: () => void
 }) {
   const [periodo, setPeriodo] = useState<PeriodoCodigo>("HOY")
   const [rango, setRango] = useState(() => {
     const ayer = restarDias(fechaJornadaPlanta(), 1)
     return { desde: ayer, hasta: ayer }
   })
+  /** «Elegir mes»: 'YYYY-MM'; arranca en el mes pasado. */
+  const [mesElegido, setMesElegido] = useState(() => restarDias(`${fechaJornadaPlanta().slice(0, 8)}01`, 1).slice(0, 7))
   const [clase, setClase] = useState<ClaseParada | "TODAS">("TODAS")
   const [linea, setLinea] = useState("TODAS")
   const [reporto, setReporto] = useState<ReportoCodigo>("TODAS")
   const [turno, setTurno] = useState<TurnoTipoCodigo | "TODOS">("TODOS")
+  /** Un equipo del catálogo nuevo: todo el panel pasa a ser de ese equipo. Vacío = todos. */
+  const [equipo, setEquipo] = useState("")
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  /**
+   * Presentar (TV), como en Indicadores: a pantalla completa, sin el encabezado
+   * ni los filtros, y los carruseles pasan solos (tocar uno lo deja quieto).
+   * Se sale con Esc o con la ✕.
+   */
+  const presentacion = usePresentacion()
+  const presentar = modoTv || presentacion.presentando
+  // Al presentar, todo entra en la pantalla: se agranda o achica junto (dueña, 2026-10-31: en la TV no se veía lo de abajo).
+  const contenidoRef = useRef<HTMLDivElement>(null)
+  const escala = useAjusteAPantalla(contenidoRef, presentar)
 
   // Reloj del panel: avanza cada minuto y dispara la relectura de paradas.
   const [ahora, setAhora] = useState(() => new Date())
@@ -149,9 +179,15 @@ export function PanelParadasVista({
       const ayer = restarDias(hoy, 1)
       return { desde: ayer, hasta: ayer }
     }
+    if (periodo === "3D") return { desde: restarDias(hoy, 2), hasta: hoy }
     if (periodo === "7D") return { desde: restarDias(hoy, 6), hasta: hoy }
+    if (periodo === "MES_ELEGIDO") {
+      const [anio, mes] = mesElegido.split("-").map(Number)
+      const ultimo = `${mesElegido}-${String(new Date(Date.UTC(anio, mes, 0)).getUTCDate()).padStart(2, "0")}`
+      return { desde: `${mesElegido}-01`, hasta: ultimo < hoy ? ultimo : hoy }
+    }
     return { desde: `${hoy.slice(0, 8)}01`, hasta: hoy }
-  }, [periodo, hoy, rango])
+  }, [periodo, hoy, rango, mesElegido])
 
   // Paradas del período. Se guardan con la clave del rango: al refrescar se
   // sigue viendo lo anterior; al cambiar de período, cargando.
@@ -168,7 +204,7 @@ export function PanelParadasVista({
   }, [cargarParadas, desde, hasta, ahora])
   const paradas = paradasCargadas?.clave === claveParadas ? paradasCargadas.filas : null
 
-  const filtradas = useMemo(() => {
+  const base = useMemo(() => {
     return (paradas ?? [])
       .filter((p) => {
         const dia = jornadaDeParada(p)
@@ -182,6 +218,19 @@ export function PanelParadasVista({
       .sort((a, b) => b.inicio.localeCompare(a.inicio))
   }, [paradas, desde, hasta, clase, linea, turno, reporto])
 
+  // Las fallas del catálogo nuevo (desde el switch, 20261113890000). Con un equipo
+  // elegido quedan solo sus paradas; las demás cuentas siguen igual sobre ellas.
+  const fallas = useFallasDeParadas(base)
+  const { catalogo } = useCatalogoFallas()
+  const conFallaBase = useMemo(() => conFallas(base, fallas, catalogo), [base, fallas, catalogo])
+  const conFalla = useMemo(() => (equipo ? conFallaBase.filter((x) => x.cuenta.equipo.id === equipo) : conFallaBase), [conFallaBase, equipo])
+  const filtradas = useMemo(() => (equipo ? conFalla.map((x) => x.parada) : base), [equipo, conFalla, base])
+  const nombreEquipo = catalogo.equipos.find((e) => e.id === equipo)?.nombre ?? null
+  const equiposConParadas = useMemo(() => {
+    const ids = new Set(conFallaBase.map((x) => x.cuenta.equipo.id))
+    return catalogo.equipos.filter((e) => ids.has(e.id) || e.id === equipo).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+  }, [conFallaBase, catalogo.equipos, equipo])
+
   const abiertas = filtradas.filter(paradaAbierta).length
   /** Lo que está filtrando «Ver filtros», para mostrarlo en el botón aunque esté cerrado. */
   const filtrosActivos = [
@@ -193,9 +242,16 @@ export function PanelParadasVista({
   // filas): cada fila dice de qué línea es — ver RankList.
   const topFrecuencia = useMemo(() => primeraDeCadaLinea(porTipoYLineaPorFrecuencia(filtradas, ahora)), [filtradas, ahora])
   const topTiempo = useMemo(() => primeraDeCadaLinea(porTipoYLinea(filtradas, ahora)), [filtradas, ahora])
-  const subsistemas = useMemo(() => porSubsistema(filtradas, ahora), [filtradas, ahora])
-  const topSubsistemaTiempo = subsistemas.slice(0, 3)
-  const topSubsistemaFrecuencia = [...subsistemas].sort((a, b) => b.veces - a.veces || b.minutos - a.minutos).slice(0, 3)
+  /** Top de toda la planta (o del equipo elegido), por tiempo. Sin equipo, los subsistemas incluyen los del catálogo viejo. */
+  const vistasPlanta = useMemo(
+    () =>
+      equipo
+        ? vistasTop(conFalla, ahora, true)
+        : vistasTop(conFalla, ahora, false, subsistemasMezclados(conFalla, porSubsistema(filtradas.filter((p) => !fallas.has(p.id)), ahora), ahora)),
+    [equipo, conFalla, filtradas, fallas, ahora],
+  )
+  const reparto = useMemo(() => porResponsable(filtradas, ahora), [filtradas, ahora])
+  const porLinea = useMemo(() => noProgramadasPorLinea(filtradas, LINEAS_PARADAS.map((l) => l.codigo), ahora), [filtradas, ahora])
 
   // OEE por línea del período — sale de Producción (contadores y velocidades),
   // no de las paradas, así que se pide aparte. Se guarda con la clave del
@@ -217,16 +273,62 @@ export function PanelParadasVista({
   }, [cargarOee, desde, hasta, turno, vueltaOee])
   const oee = oeeCargado?.clave === claveOee ? oeeCargado.datos : undefined
 
-  // Tendencia de la tarjeta "Vista" — un punto por día del rango elegido.
-  const porDia = useMemo(() => agruparPorDia(filtradas, ahora), [filtradas, ahora])
-
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn(presentar && "fixed inset-0 z-50 overflow-hidden bg-background p-3")}>
+    <div ref={contenidoRef} className="flex flex-col gap-4" style={presentar ? { zoom: escala } : undefined}>
+      {presentar && (
+        <div className="flex items-center gap-3">
+          {/* En el modo TV el nombre del panel lo dice el recuadro de arriba a la izquierda: se le deja su lugar. */}
+          {modoTv ? (
+            <div className="shrink-0" style={{ width: `${280 / escala}px` }} aria-hidden />
+          ) : (
+            <h1 className="text-lg font-bold text-foreground">
+              Panel de Paradas{nombreEquipo && <span className="text-muted-foreground"> · {nombreEquipo}</span>}
+            </h1>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {PERIODO_FILTRO.filter((p) => p.codigo !== "FECHAS").map((p) => (
+              <Button key={p.codigo} type="button" size="sm" variant={periodo === p.codigo ? "default" : "outline"} onClick={() => setPeriodo(p.codigo)}>
+                {p.etiqueta}
+              </Button>
+            ))}
+            {periodo === "MES_ELEGIDO" && (
+              <input
+                type="month"
+                aria-label="Mes"
+                value={mesElegido}
+                max={hoy.slice(0, 7)}
+                onChange={(e) => e.target.value && setMesElegido(e.target.value)}
+                className="h-8 rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-11"
+              />
+            )}
+          </div>
+          <select
+            aria-label="Equipo"
+            className="h-8 rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-11"
+            value={equipo}
+            onChange={(e) => setEquipo(e.target.value)}
+          >
+            <option value="">Todos los equipos</option>
+            {equiposConParadas.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.nombre}
+              </option>
+            ))}
+          </select>
+          {turno !== "TODOS" && <span className="text-sm text-muted-foreground">{TURNO_FILTRO.find((t) => t.codigo === turno)?.etiqueta}</span>}
+          {!modoTv && (
+            <Button type="button" size="icon-sm" variant="ghost" className="ml-auto" aria-label="Salir de presentar" onClick={presentacion.salir}>
+              <X />
+            </Button>
+          )}
+        </div>
+      )}
       {/* ---- Filtros — Turno/Fecha siempre visibles (el control principal,
            mismo patrón que Panel de Producción); Clase/Línea son
            secundarios, un botón "Ver filtros" en la MISMA fila los
            despliega debajo — nada de una card aparte. ---- */}
-      <div className="flex flex-col gap-2">
+      <div className={cn("flex flex-col gap-2", presentar && "hidden")}>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">Turno</span>
@@ -260,11 +362,45 @@ export function PanelParadasVista({
               ))}
             </div>
             {periodo === "FECHAS" && <RangoFechas desde={rango.desde} hasta={rango.hasta} max={hoy} onChange={setRango} />}
+            {periodo === "MES_ELEGIDO" && (
+              <input
+                type="month"
+                aria-label="Mes"
+                value={mesElegido}
+                max={hoy.slice(0, 7)}
+                onChange={(e) => e.target.value && setMesElegido(e.target.value)}
+                className="h-8 rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-11"
+              />
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Equipo</span>
+            <select
+            aria-label="Equipo"
+            className="h-8 rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-11"
+            value={equipo}
+            onChange={(e) => setEquipo(e.target.value)}
+          >
+            <option value="">Todos los equipos</option>
+            {equiposConParadas.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.nombre}
+              </option>
+            ))}
+          </select>
           </div>
           <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setMostrarFiltros((v) => !v)}>
             {mostrarFiltros ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
             {filtrosActivos.length > 0 ? `Filtros (${filtrosActivos.join(" · ")})` : "Ver filtros"}
           </Button>
+          <Button type="button" size="sm" variant="outline" className="ml-auto self-end" onClick={() => void presentacion.entrar()} title="Pantalla completa para la TV: los carruseles pasan solos">
+            <Presentation className="size-3.5" /> Presentar
+          </Button>
+          {onModoTv && (
+            <Button type="button" size="sm" variant="outline" className="self-end" onClick={onModoTv} title="Para la TV: Panel de Producción y Panel de Paradas, un minuto cada uno">
+              <Tv className="size-3.5" /> Modo TV
+            </Button>
+          )}
         </div>
 
         {mostrarFiltros && (
@@ -331,23 +467,15 @@ export function PanelParadasVista({
         {/* ---- Hero: ranking + líneas (en vivo + sus números) ----
              Ya no hay columna de KPIs globales: OEE, minutos no
              programados y paradas registradas van DENTRO de cada línea. */}
-        <div className="mx-auto grid w-full max-w-[1500px] grid-cols-1 items-stretch gap-3 lg:grid-cols-3 xl:grid-cols-[minmax(240px,300px)_repeat(3,minmax(0,340px))] xl:justify-center">
-          <div className="flex flex-col gap-3 lg:col-span-3 lg:grid lg:grid-cols-3 xl:col-span-1 xl:flex">
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-              <div className="mb-1 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground">Vista</h2>
-                <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
-              </div>
-              <p className="text-lg font-bold text-foreground">
-                {periodo === "FECHAS" ? (desde === hasta ? "Un día" : "Fechas elegidas") : PERIODO_FILTRO.find((p) => p.codigo === periodo)?.etiqueta}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {fmtRangoCorto(desde, hasta)} · {TURNO_FILTRO.find((t) => t.codigo === turno)?.etiqueta}
-              </p>
-              <Sparkline datos={porDia} />
+        <div className="grid w-full grid-cols-1 items-stretch gap-3 lg:grid-cols-3 xl:grid-cols-[minmax(260px,1fr)_repeat(3,minmax(0,1.3fr))]">
+          <div className="flex flex-col gap-3 lg:col-span-3 lg:grid lg:grid-cols-2 xl:col-span-1 xl:flex">
+            <TortaResponsables produccion={reparto.produccion} mantenimiento={reparto.mantenimiento} />
+            <BarrasLineas lineas={porLinea} />
+            {/* El logo llena lo que queda de la columna en pantallas anchas (la TV): identidad sin ocupar datos (dueña, 2026-10-31). */}
+            <div className="hidden min-h-0 flex-1 items-center justify-center xl:flex">
+              {/* Logo de texto (dueña, 2026-10-31: este es el que va; sin versión HD todavía, se arma con letra y queda nítido). */}
+              <span className="rounded-lg bg-marca px-6 py-2.5 text-4xl font-bold tracking-tight text-white italic shadow-sm">Natulac</span>
             </div>
-            <RankCard titulo="Top Paradas por Frecuencia" tono="info" items={topFrecuencia} metrica="veces" />
-            <RankCard titulo="Top Paradas por Tiempo" tono="danger" items={topTiempo} metrica="minutos" />
           </div>
 
           {/* ---- Una columna por línea: cinta en vivo + sus números. ---- */}
@@ -359,37 +487,61 @@ export function PanelParadasVista({
             const enVivo = estadoLineas?.find((e) => e.lineaCodigo === l.codigo)
             return (
               <div key={l.codigo} className="flex min-w-0 flex-col gap-3">
-                <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-                  <div className="mb-3 flex items-center justify-between gap-2">
+                {/* El filo de arriba con el color de la línea, el mismo de sus barras en todo el panel. */}
+                <div className="flex flex-1 flex-col rounded-xl border border-t-4 border-border bg-card p-3 shadow-sm" style={{ borderTopColor: colorLinea(l.codigo) }}>
+                  {/* Nombre a la izquierda y el dibujo chico al lado, como un guiño (dueña, 2026-10-31). */}
+                  <div className="mb-1 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase text-muted-foreground">Producción</p>
-                      <h2 className="text-lg font-bold text-foreground">{l.nombre}</h2>
+                      <h2 className="flex items-center gap-1.5 text-lg font-bold text-foreground">
+                        <span className="size-3 shrink-0 rounded-[3px]" style={{ background: colorLinea(l.codigo) }} aria-hidden />
+                        {l.nombre}
+                      </h2>
+                      {enVivo && (
+                        <span
+                          className="mt-1 inline-flex items-center gap-1.5 rounded-sm bg-success/10 px-2 py-0.5 text-xs font-bold uppercase text-success-foreground"
+                          title="El dibujo muestra el turno activo real, no el filtro de arriba"
+                        >
+                          <span className="alert-pulse size-1.5 rounded-full bg-current" />
+                          En vivo
+                        </span>
+                      )}
                     </div>
-                    {enVivo && (
-                      <span
-                        className="flex shrink-0 items-center gap-1.5 rounded-sm bg-success/10 px-2 py-1 text-xs font-bold uppercase text-success-foreground"
-                        title="La cinta muestra el turno activo real, no el filtro de arriba"
-                      >
-                        <span className="alert-pulse size-1.5 rounded-full bg-current" />
-                        En vivo
-                      </span>
-                    )}
+                    <div className="min-w-0">
+                      {enVivo ? (
+                      <CintaLinea
+                        numeroLinea={i + 1}
+                        estado={enVivo.estado}
+                        saborNombre={enVivo.saborNombre}
+                        lote={enVivo.lote}
+                        presentacion={enVivo.presentacion}
+                        aviso={enVivo.aviso}
+                        avisoUrgente={enVivo.avisoUrgente}
+                        nota={enVivo.nota}
+                        compacto
+                      />
+                      ) : (
+                        <div className="grid h-14 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+                          <Loader2 className="size-4 animate-spin" />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {enVivo ? (
-                    <CintaLinea
-                      numeroLinea={i + 1}
-                      estado={enVivo.estado}
-                      saborNombre={enVivo.saborNombre}
-                      lote={enVivo.lote}
-                      presentacion={enVivo.presentacion}
-                      aviso={enVivo.aviso}
-                      avisoUrgente={enVivo.avisoUrgente}
-                      nota={enVivo.nota}
-                    />
-                  ) : (
-                    <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" />
-                    </div>
+                  {enVivo && (
+                    <>
+                      {enVivo.aviso ? (
+                        <p className={cn("mt-1.5 truncate text-sm font-semibold", enVivo.avisoUrgente ? "alert-pulse text-danger-foreground" : "text-warning-foreground")}>
+                          {enVivo.aviso}
+                          {enVivo.nota && <span className="font-normal text-muted-foreground"> · {enVivo.nota}</span>}
+                        </p>
+                      ) : (
+                        (enVivo.saborNombre || enVivo.lote) && (
+                          <p className="mt-1.5 truncate text-xs text-muted-foreground">
+                            {[enVivo.saborNombre, enVivo.lote && `Lote ${enVivo.lote}`].filter(Boolean).join(" · ")}
+                          </p>
+                        )
+                      )}
+                    </>
                   )}
                   <OeeLinea oee={oee === undefined ? "cargando" : (oee.get(l.codigo) ?? null)} />
                   <div className="mt-2 grid grid-cols-2 gap-2">
@@ -397,26 +549,33 @@ export function PanelParadasVista({
                     <DatoLinea etiqueta="Paradas registradas" valor={propias.length} tono="text-primary" />
                   </div>
                   <div className="mt-3">
-                    <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Top 3 no programadas · frecuencia</h3>
+                    <h3 className="mb-1.5 text-xs font-bold uppercase text-muted-foreground">Fallas por frecuencia</h3>
                     <div className="text-danger">
-                      <RankList items={porTipoPorFrecuencia(noProgramadas, ahora).slice(0, 3)} metrica="veces" compacto />
+                      <RankList items={porTipoPorFrecuencia(noProgramadas, ahora)} metrica="veces" compacto color={colorLinea(l.codigo)} />
                     </div>
+                  </div>
+                  {/* Pegado al fondo: la tarjeta llega hasta la fila de abajo (dueña, 2026-10-31). */}
+                  <div className="mt-auto border-t border-border pt-3">
+                    <CarruselTop vistas={vistasTop(conFalla.filter((x) => x.parada.lineaCodigo === l.codigo), ahora, !!equipo)} presentar={presentar} color={colorLinea(l.codigo)} />
                   </div>
                 </div>
               </div>
             )
           })}
         </div>
-        {/* Mantenimiento: qué subsistema falla más y cuál quita más tiempo (dueña, 2026-10-28). */}
-        {reporto !== "PRODUCCION" && (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <RankCard titulo="Mantenimiento · Top 3 subsistemas por frecuencia" tono="info" items={topSubsistemaFrecuencia} metrica="veces" />
-            <RankCard titulo="Mantenimiento · Top 3 subsistemas por tiempo" tono="danger" items={topSubsistemaTiempo} metrica="minutos" />
-          </div>
-        )}
+        {/* Lo general de toda la planta: los Top de siempre y el carrusel de equipos, sistemas y subsistemas. */}
+        <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3">
+          <RankCard titulo="Paradas por frecuencia" tono="info" items={topFrecuencia} metrica="veces" porLinea />
+          <RankCard titulo="Paradas por tiempo" tono="danger" items={topTiempo} metrica="minutos" porLinea />
+          <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-card-foreground">{nombreEquipo ? `Resumen de ${nombreEquipo}` : "Resumen de la planta"}</h2>
+            <CarruselTop vistas={vistasPlanta} presentar={presentar} />
+          </section>
+        </div>
         {/* Abajo, cerrado y con su resumen (dueña, 2026-10-15: limpio para la presidencia). Un solo día va por
             turno, Producción y Mantenimiento juntas; varios días, en tabla. */}
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+        {/* Al presentar no van: en la TV no se abren. */}
+        <div className={cn("flex w-full flex-col gap-3", presentar && "hidden")}>
           <DetalleParadas paradas={filtradas} ahora={ahora} unDia={desde === hasta} />
           {mantenimiento && reporto !== "PRODUCCION" && mantenimiento(filtradas.filter(esDeMantenimiento), ahora)}
         </div>
@@ -430,20 +589,10 @@ export function PanelParadasVista({
         </div>
       )}
     </div>
+    </div>
   )
 }
 
-const FMT_DIA_CORTO = new Intl.DateTimeFormat("es-VE", { day: "numeric", month: "short" })
-
-/** "YYYY-MM-DD","YYYY-MM-DD" → "14 sep" (mismo día) o "12–14 sep" (rango) — para la tarjeta "Vista". */
-function fmtRangoCorto(desde: string, hasta: string) {
-  const d = FMT_DIA_CORTO.format(new Date(`${desde}T00:00:00`))
-  if (desde === hasta) return d
-  const h = FMT_DIA_CORTO.format(new Date(`${hasta}T00:00:00`))
-  return `${d} – ${h}`
-}
-
-/** Mismos cortes que la Eficiencia del Panel de Producción (LineaFilaCompacta): ≥ 90 verde, ≥ 60 amarillo, menos rojo. */
 function colorNivel(pct: number | null) {
   return pct === null ? "var(--muted-foreground)" : pct >= 90 ? "var(--success)" : pct >= 60 ? "var(--warning)" : "var(--danger)"
 }
@@ -456,22 +605,22 @@ function colorNivel(pct: number | null) {
 function OeeLinea({ oee }: { oee: OeePeriodo | null | "cargando" }) {
   if (oee === "cargando") {
     return (
-      <div className="mt-2 flex h-[104px] items-center justify-center gap-2 rounded-lg bg-muted/40 text-xs text-muted-foreground">
+      <div className="mt-2 flex h-9 items-center justify-center gap-2 rounded-lg bg-muted/40 text-xs text-muted-foreground">
         <Loader2 className="size-4 animate-spin" /> Calculando OEE…
       </div>
     )
   }
   if (oee === null || oee.oeePct === null) {
     return (
-      <div className="mt-2 flex h-[104px] flex-col items-center justify-center rounded-lg bg-muted/40 text-center text-xs text-muted-foreground">
-        <span className="text-xs font-bold uppercase tracking-wide">OEE</span>
-        Sin producción en el período
+      // Vacío: un renglón, no un recuadro grande (dueña, 2026-10-31: que entre todo en la TV).
+      <div className="mt-2 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-muted/40 text-xs text-muted-foreground">
+        <span className="font-bold uppercase tracking-wide">OEE</span> · Sin producción en el período
       </div>
     )
   }
   return (
     <div className="mt-2 flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2">
-      <AnilloPct pct={oee.oeePct} tamano={88} />
+      <AnilloPct pct={oee.oeePct} tamano={72} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
           OEE · {oee.turnos} {oee.turnos === 1 ? "turno" : "turnos"}
@@ -514,84 +663,6 @@ function AnilloPct({ pct, tamano }: { pct: number; tamano: number }) {
   )
 }
 
-function RankList({ items, metrica, compacto = false }: { items: GrupoTipo[]; metrica: "veces" | "minutos"; compacto?: boolean }) {
-  const max = Math.max(1, ...items.map((i) => i[metrica]))
-  if (items.length === 0) return <p className="text-xs text-muted-foreground">Sin paradas.</p>
-  return (
-    <ol className={compacto ? "flex flex-col gap-2" : "flex flex-col gap-3"}>
-      {items.map((item, index) => (
-        <li key={item.codigo}>
-          <div className="mb-1 flex items-center gap-2 text-xs">
-            <span className="num w-4 text-muted-foreground">{index + 1}</span>
-            <span
-              className="min-w-0 flex-1 truncate font-medium text-foreground"
-              title={item.lineaCodigo ? `${item.nombre} (${nombreLineaParada(item.lineaCodigo)})` : item.nombre}
-            >
-              {item.nombre}
-              {item.lineaCodigo && <span className="font-normal text-muted-foreground"> ({nombreLineaParada(item.lineaCodigo)})</span>}
-            </span>
-            <span className="num font-semibold text-foreground">
-              {item[metrica]}
-              {metrica === "minutos" ? " min" : "×"}
-            </span>
-          </div>
-          <div className="ml-6 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-current" style={{ width: `${Math.max(8, (item[metrica] / max) * 100)}%` }} />
-          </div>
-        </li>
-      ))}
-    </ol>
-  )
-}
-
-function RankCard({ titulo, tono, items, metrica }: { titulo: string; tono: "info" | "danger"; items: GrupoTipo[]; metrica: "veces" | "minutos" }) {
-  return (
-    <section className={cn("rounded-xl border border-t-4 bg-card p-4 shadow-sm", tono === "info" ? "border-t-info text-info" : "border-t-danger text-danger")}>
-      <h2 className="mb-4 text-sm font-semibold text-card-foreground">{titulo}</h2>
-      <div className={tono === "info" ? "text-info" : "text-danger"}>
-        <RankList items={items} metrica={metrica} />
-      </div>
-    </section>
-  )
-}
-
-const SPARK_W = 280
-const SPARK_H = 36
-
-/** Tendencia de minutos perdidos por día, dentro del rango elegido — un vistazo en vez de la vieja tabla "Tendencia". */
-function Sparkline({ datos }: { datos: PuntoDiaParada[] }) {
-  if (datos.length < 2) return <p className="mt-2 text-xs text-muted-foreground">Hace falta un período de más de un día para ver la tendencia.</p>
-
-  const max = Math.max(1, ...datos.map((d) => d.minutos))
-  const pad = 4
-  const stepX = (SPARK_W - pad * 2) / (datos.length - 1)
-  const puntos = datos.map((d, i) => ({
-    x: pad + i * stepX,
-    y: pad + (1 - d.minutos / max) * (SPARK_H - pad * 2),
-    dia: d.dia,
-    minutos: d.minutos,
-  }))
-  const path = puntos.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")
-  const ultimoDia = puntos[puntos.length - 1].dia
-
-  return (
-    <svg
-      viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
-      preserveAspectRatio="none"
-      className="mt-2 h-9 w-full"
-      role="img"
-      aria-label={`Tendencia de minutos perdidos por día: ${datos.map((d) => `${d.dia.slice(5)} ${fmtDuracion(d.minutos)}`).join(", ")}`}
-    >
-      <path d={path} fill="none" stroke="var(--info)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      {puntos.map((p) => (
-        <circle key={p.dia} cx={p.x} cy={p.y} r={p.dia === ultimoDia ? 3 : 1.5} fill="var(--info)">
-          <title>{`${p.dia.slice(5)}: ${fmtDuracion(p.minutos)}`}</title>
-        </circle>
-      ))}
-    </svg>
-  )
-}
-
 /** Número chico de una línea (Min. no programados / Paradas registradas), debajo de su Eficiencia. */
 function DatoLinea({ etiqueta, valor, tono }: { etiqueta: string; valor: number; tono: string }) {
   return (
@@ -602,3 +673,17 @@ function DatoLinea({ etiqueta, valor, tono }: { etiqueta: string; valor: number;
   )
 }
 
+/**
+ * Las vistas del carrusel: Top equipos, sistemas y subsistemas (estos, con los
+ * del catálogo viejo si se pasan). Con un equipo elegido, en vez de equipos
+ * (sería uno solo), sus sistemas, subsistemas y fallas.
+ */
+function vistasTop(items: ParadaConFalla[], ahora: Date, deUnEquipo: boolean, subsistemas?: GrupoTipo[]): VistaCarrusel[] {
+  const sistemasYSubsistemas = [
+    { nombre: "Sistemas", items: topPorNivel(items, "SISTEMA", ahora) },
+    { nombre: "Subsistemas", items: subsistemas ?? topPorNivel(items, "SUBSISTEMA", ahora) },
+  ]
+  return deUnEquipo
+    ? [...sistemasYSubsistemas, { nombre: "Fallas", items: topPorNivel(items, "FALLA", ahora) }]
+    : [{ nombre: "Equipos", items: topPorNivel(items, "EQUIPO", ahora) }, ...sistemasYSubsistemas]
+}

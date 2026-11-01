@@ -45,6 +45,7 @@ export function CintaLinea({
   aviso = null,
   avisoUrgente = false,
   nota = null,
+  compacto = false,
 }: {
   numeroLinea: number
   estado: EstadoLineaVista
@@ -57,6 +58,8 @@ export function CintaLinea({
   avisoUrgente?: boolean
   /** Descripción que escribió quien registró la parada. */
   nota?: string | null
+  /** Chica, como un guiño (Panel de Paradas, dueña 2026-10-31): el dibujo a escala y el aviso abajo, sin tapar. */
+  compacto?: boolean
 }) {
   const meta = META[estado]
   const Icon = meta.icono
@@ -65,16 +68,30 @@ export function CintaLinea({
   const jugoPixel = interpretarSabor(saborNombre)
   const escenaPixel = estado === "CIP" || estado === "DETENIDA"
 
+  const etiquetaEstado = (
+    <span className={cn("flex items-center gap-1.5 text-xs font-semibold", meta.tono, !compacto && "absolute right-2 top-1.5 z-20")}>
+      <span className={cn("size-1.5 rounded-full bg-current", estado === "CORRIENDO" && "alert-pulse")} />
+      {meta.etiqueta}
+    </span>
+  )
+
   return (
-    <div className="relative h-28 overflow-hidden rounded-xl border border-border bg-muted/30">
-      <span className="absolute left-2 top-1.5 z-20 rounded-md border border-border bg-background/85 px-1.5 py-0.5 text-xs font-bold text-foreground">
-        L{numeroLinea}
-      </span>
-      <span className={cn("absolute right-2 top-1.5 z-20 flex items-center gap-1.5 text-xs font-semibold", meta.tono)}>
-        <span className={cn("size-1.5 rounded-full bg-current", estado === "CORRIENDO" && "alert-pulse")} />
-        {meta.etiqueta}
-      </span>
-      {aviso && (
+    <>
+    {/* Compacta: el número y el estado van arriba, en su renglón, para no tapar el dibujo. */}
+    {compacto && (
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="rounded-md border border-border px-1.5 py-0.5 text-xs font-bold text-foreground">L{numeroLinea}</span>
+        {etiquetaEstado}
+      </div>
+    )}
+    <div className={cn("relative overflow-hidden rounded-xl border border-border bg-muted/30", compacto ? "h-14" : "h-28")}>
+      {!compacto && (
+        <span className="absolute left-2 top-1.5 z-20 rounded-md border border-border bg-background/85 px-1.5 py-0.5 text-xs font-bold text-foreground">
+          L{numeroLinea}
+        </span>
+      )}
+      {!compacto && etiquetaEstado}
+      {aviso && !compacto && (
         <span
           className={cn(
             "absolute right-2 top-6 z-20 rounded-md border bg-background/90 px-1.5 py-0.5 text-xs font-semibold",
@@ -84,12 +101,13 @@ export function CintaLinea({
           {aviso}
         </span>
       )}
-      {aviso && nota && (
+      {aviso && nota && !compacto && (
         <span className="absolute right-2 top-[2.8rem] z-20 max-w-[85%] rounded-md border border-border bg-background/90 px-1.5 py-0.5 text-xs text-foreground">
           <TextoDesplazable texto={nota} />
         </span>
       )}
 
+      <div className={compacto ? "absolute inset-0 origin-bottom-left scale-50 [width:200%] [height:200%] [top:-100%]" : "contents"}>
       {/* Track de la cinta (solo para las cajitas lisas — la pixel art trae su propia cinta) */}
       {!(conCajas && jugoPixel) && !escenaPixel && (
         <div className="absolute inset-x-2 bottom-7 h-5 overflow-hidden rounded-md border-y border-border bg-secondary/60">
@@ -141,9 +159,13 @@ export function CintaLinea({
         </div>
       )}
 
-      <p className="absolute bottom-1.5 left-2 max-w-[70%] truncate text-xs text-muted-foreground">
-        {conCajas ? `${saborNombre ?? "Sin sabor"}${lote ? ` · Lote ${lote}` : ""}` : lote ? `Lote ${lote}` : ""}
-      </p>
+      {!compacto && (
+        <p className="absolute bottom-1.5 left-2 max-w-[70%] truncate text-xs text-muted-foreground">
+          {conCajas ? `${saborNombre ?? "Sin sabor"}${lote ? ` · Lote ${lote}` : ""}` : lote ? `Lote ${lote}` : ""}
+        </p>
+      )}
+      </div>
     </div>
+    </>
   )
 }

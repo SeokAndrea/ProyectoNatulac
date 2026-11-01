@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Gauge, Loader2 } from "lucide-react"
-import { AppShell } from "@/components/AppShell"
+import { MarcoPanel } from "@/components/MarcoPanel"
 import { EmptyState } from "@/components/EmptyState"
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { BannerSuperior } from "@/components/panel/BannerSuperior"
@@ -44,7 +44,8 @@ import { horasTranscurridasTurno, mermaEnvasesTurno, mermaSemielaboradoTurno } f
  * panel-grid, shadow-panel, tank-glass, liquid-bubble, dot-ring,
  * rise-in) viven al final de src/index.css.
  */
-export default function PanelProduccion() {
+/** `enTv`: dentro del modo TV, sin encabezado ni menú (src/pages/apps/ModoTv.tsx). */
+export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {}) {
   const { session } = useAuth()
   /** Para el supervisor, tanques y líneas del panel llevan a Preparación (donde puede tocarlos). El jefe y la analista solo miran. */
   const esSupervisor = session?.rol === "SUPERVISOR"
@@ -171,7 +172,7 @@ export default function PanelProduccion() {
 
   // ------------------------------------------------------------ pantalla
   return (
-    <AppShell title="Panel de Producción" description="Estado de la planta en vivo" fullWidth ocultarEstadoBanner sinMenuLateral>
+    <MarcoPanel enTv={enTv} title="Panel de Producción" description="Estado de la planta en vivo" fullWidth ocultarEstadoBanner sinMenuLateral>
       <div className="flex flex-col gap-5">
         <BannerSuperior
           turno={turno}
@@ -245,7 +246,8 @@ export default function PanelProduccion() {
               </div>
             </div>
 
-            <DetalleTurno
+            {/* En el modo TV no van los desplegables (no se abren): así lo de arriba entra más grande. */}
+            {!enTv && <DetalleTurno
               turno={turno}
               areaEfectiva={areaEfectiva}
               eficiencia={eficiencia}
@@ -257,17 +259,17 @@ export default function PanelProduccion() {
               contadores={prod.contadores}
               transferencias={prep.transferencias}
               desvases={prep.desvases}
-            />
+            />}
           </>
         )}
 
-        <div className="flex flex-col gap-3">
+        <div className={enTv ? "hidden" : "flex flex-col gap-3"}>
           <TituloSeccion>Histórico</TituloSeccion>
           <SeccionColapsable titulo="Resumen de Planta" descripcion="KPIs, matriz grupo × supervisor y tablas en un rango de fechas.">
             <ResumenPlanta areaCodigo={areaEfectiva} />
           </SeccionColapsable>
         </div>
       </div>
-    </AppShell>
+    </MarcoPanel>
   )
 }

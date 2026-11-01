@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
-import { AppShell } from "@/components/AppShell"
+import { useNavigate } from "react-router-dom"
+import { MarcoPanel } from "@/components/MarcoPanel"
 import { PanelParadasVista, type CargarOee, type CargarParadas, type EstadoLineaEnVivo } from "@/components/PanelParadasVista"
 import type { EstadoLineaVista } from "@/components/CintaLinea"
 import { listarParadas, LINEAS_PARADAS } from "@/lib/paradas"
@@ -73,7 +74,9 @@ const OEE_PENDIENTE: CargarOee = () => new Promise(() => {})
 /** Cada REFRESCO_MS se vuelve a resolver el turno activo del área + se recargan sus líneas — panel de pared, tiene que verse solo sin recargar la página. */
 const REFRESCO_MS = 20 * 1000
 
-export default function PanelParadas() {
+/** `enTv`: dentro del modo TV, sin encabezado ni menú y en modo presentar (src/pages/apps/ModoTv.tsx). */
+export default function PanelParadas({ enTv = false }: { enTv?: boolean } = {}) {
+  const navigate = useNavigate()
   const { session } = useAuth()
   // Las áreas de apoyo (Calidad, Servicios Industriales, Mantenimiento) no tienen turno propio:
   // miran producción, igual que el Super Admin (null = todas menos Pruebas).
@@ -163,12 +166,18 @@ export default function PanelParadas() {
       })
 
   return (
-    <AppShell title="Panel de Paradas" fullWidth ocultarEstadoBanner>
+    <MarcoPanel enTv={enTv} title="Panel de Paradas" fullWidth ocultarEstadoBanner>
       <div className="w-full">
         <PanelParadasVista
           cargarParadas={cargarParadas}
           estadoLineas={estadoLineas}
           cargarOee={cargandoCatalogos ? OEE_PENDIENTE : cargarOee}
+          modoTv={enTv}
+          onModoTv={() => {
+            // La pantalla completa se pide con el toque (el navegador no la da después de navegar).
+            document.documentElement.requestFullscreen?.().catch(() => {})
+            navigate("/modo-tv")
+          }}
           mantenimiento={
             areaParadas === "PRUEBAS"
               ? undefined
@@ -183,6 +192,6 @@ export default function PanelParadas() {
           }
         />
       </div>
-    </AppShell>
+    </MarcoPanel>
   )
 }
