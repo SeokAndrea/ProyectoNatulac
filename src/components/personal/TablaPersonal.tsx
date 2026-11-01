@@ -19,7 +19,7 @@ export function TablaPersonal({
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-border text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <tr className="border-b border-border text-left text-xs font-semibold tracking-wide text-foreground uppercase">
             <th className="px-3 py-2">Nombre</th>
             <th className="px-3 py-2">Puesto</th>
             <th className="px-3 py-2">Título</th>

@@ -14,7 +14,7 @@ export function MenuAreas({ areas, actual, onElegir }: { areas: ItemMenuArea[]; 
   return (
     <nav aria-label="Áreas" className="lg:sticky lg:top-4 lg:w-56 lg:shrink-0">
       <div className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:rounded-xl lg:border lg:border-border lg:bg-card lg:p-2">
-        <p className="hidden px-2.5 pt-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase lg:block">Áreas</p>
+        <p className="hidden px-2.5 pt-2 pb-1 text-xs font-semibold tracking-wide text-foreground uppercase lg:block">Áreas</p>
         {areas.map((a) => {
           const activo = a.codigo === actual
           return (
@@ -31,7 +31,7 @@ export function MenuAreas({ areas, actual, onElegir }: { areas: ItemMenuArea[]; 
               )}
             >
               <span className="flex-1">{a.nombre}</span>{" "}
-              <span className="text-xs font-normal text-muted-foreground tabular-nums">{a.personas}</span>
+              <span className="text-xs font-normal text-foreground tabular-nums">{a.personas}</span>
             </button>
           )
         })}

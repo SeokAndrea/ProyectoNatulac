@@ -36,6 +36,7 @@ export function PanelPersona({
   extrasActuales,
   puedeEliminar,
   nombreArea,
+  errorInicial,
   onCerrar,
   onCambio,
 }: {
@@ -51,8 +52,10 @@ export function PanelPersona({
   puedeEliminar: boolean
   nombreArea: string
   onCerrar: () => void
-  /** Después de guardar, (des)activar o eliminar: recargar la lista. */
-  onCambio: () => void
+  /** Aviso que llega al reabrir el panel tras un guardado a medias. */
+  errorInicial?: string | null
+  /** Después de guardar, (des)activar o eliminar: recargar la lista. Con abrirId el panel queda abierto en esa persona. */
+  onCambio: (opciones?: { abrirId?: string; error?: string }) => void
 }) {
   const esNueva = persona === null
   const soloLectura = !esNueva && !persona.gestionable
@@ -66,6 +69,7 @@ export function PanelPersona({
   const [confirmar, setConfirmar] = useState<"eliminar" | "desactivar" | null>(null)
   const [nuevaClave, setNuevaClave] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [verInicial, setVerInicial] = useState(true)
   const { enviando, error, setError, ejecutar } = useAccion()
 
   // El puesto de la persona puede no estar entre los asignables (ej. se lo dio alguien más alto): se muestra igual.
@@ -96,8 +100,10 @@ export function PanelPersona({
     if (!puestoId) return setError("Elige un puesto.")
     if (!nombreLimpio) return setError("Escribe el nombre.")
     if (esNueva && (!usuario.trim() || !clave)) return setError("Escribe el usuario y la contraseña inicial.")
+    setVerInicial(false)
+    let id = persona?.id ?? ""
+    let parcial: string | null = null
     const ok = await ejecutar(async () => {
-      let id = persona?.id ?? ""
       if (esNueva) {
         const r = await agregarPersonal(
           usuarioSesion,
@@ -111,12 +117,25 @@ export function PanelPersona({
         if (!r.ok) return r
       }
       if (extrasCambiaron || (esNueva && extras.size > 0)) {
-        const r = await guardarPermisosExtra(usuarioSesion, id, [...extras], pagina)
-        if (!r.ok) return r
+        // Lo anterior ya se guardó: si esto falla, se avisa pero la lista igual se actualiza.
+        try {
+          const r = await guardarPermisosExtra(usuarioSesion, id, [...extras], pagina)
+          if (!r.ok) parcial = r.error
+        } catch {
+          parcial = "No se pudo conectar."
+        }
       }
       return { ok: true as const }
     })
-    if (ok) onCambio()
+    if (!ok) return
+    if (parcial) {
+      onCambio({
+        abrirId: id,
+        error: esNueva ? `La persona se creó, pero no se guardaron los permisos extra: ${parcial}` : `Se guardaron los datos, pero no los permisos extra: ${parcial}`,
+      })
+      return
+    }
+    onCambio()
   }
 
   async function cambiarActivo() {
@@ -271,7 +290,7 @@ export function PanelPersona({
 
       {!soloLectura && (
         <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {(error ?? (verInicial ? errorInicial : null)) && <p className="text-sm text-destructive">{error ?? errorInicial}</p>}
           {aviso && <p className="text-sm text-success-foreground">{aviso}</p>}
           <div className="flex gap-2">
             <Button className="h-11 flex-1" onClick={guardar} disabled={enviando}>

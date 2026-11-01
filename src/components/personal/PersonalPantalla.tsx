@@ -39,6 +39,7 @@ export function PersonalPantalla({ pagina }: { pagina: string }) {
   const [abierta, setAbierta] = useState<string | null>(null)
   const [vista, setVista] = useState<"organigrama" | "tabla">("organigrama")
   const [busqueda, setBusqueda] = useState("")
+  const [avisoPanel, setAvisoPanel] = useState<string | null>(null)
 
   const cargar = useCallback(async () => {
     if (!usuario) return
@@ -86,8 +87,14 @@ export function PersonalPantalla({ pagina }: { pagina: string }) {
   const panelAbierto = abierta === "nueva" || persona !== null
   const areaTitulo = conMenu ? nombreArea(areaActual === SIN_AREA ? null : areaActual) : nombreArea(session?.area ?? null)
 
-  async function despuesDeCambio() {
-    setAbierta(null)
+  function elegir(id: string) {
+    setAvisoPanel(null)
+    setAbierta(id)
+  }
+
+  async function despuesDeCambio(opciones?: { abrirId?: string; error?: string }) {
+    setAvisoPanel(opciones?.error ?? null)
+    setAbierta(opciones?.abrirId ?? null)
     await cargar()
   }
 
@@ -135,15 +142,16 @@ export function PersonalPantalla({ pagina }: { pagina: string }) {
         </div>
 
         {personal === null ? null : vista === "tabla" ? (
-          <TablaPersonal personas={delArea} elegida={abierta} resaltadas={resaltadas} onElegir={setAbierta} />
+          <TablaPersonal personas={delArea} elegida={abierta} resaltadas={resaltadas} onElegir={elegir} />
         ) : (
-          <OrganigramaArea personas={delArea} elegida={abierta} resaltadas={resaltadas} onElegir={setAbierta} />
+          <OrganigramaArea personas={delArea} elegida={abierta} resaltadas={resaltadas} onElegir={elegir} />
         )}
       </div>
 
       {panelAbierto && (
         <PanelPersona
-          key={abierta}
+          key={`${abierta}-${avisoPanel ?? ""}`}
+          errorInicial={avisoPanel}
           persona={persona}
           usuarioSesion={usuario}
           pagina={pagina}

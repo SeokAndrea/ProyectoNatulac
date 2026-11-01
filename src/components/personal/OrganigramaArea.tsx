@@ -33,7 +33,7 @@ export function OrganigramaArea({
     <div className="flex flex-col gap-5">
       {grupos.map((g) => (
         <section key={g.nivel ?? "sin"} className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-foreground uppercase">
             <h3>{g.nombre}</h3>
             <span className="font-normal tabular-nums">{g.items.length}</span>
             <span aria-hidden className="h-px flex-1 bg-border" />

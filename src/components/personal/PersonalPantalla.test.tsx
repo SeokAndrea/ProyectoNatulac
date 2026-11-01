@@ -43,13 +43,16 @@ const GENTE = [
 
 const listarPersonal = vi.fn()
 const listarPuestosAsignables = vi.fn()
+const agregarPersonal = vi.fn()
+const editarPersonal = vi.fn()
+const guardarPermisosExtra = vi.fn()
 vi.mock("@/lib/personal", () => ({
   listarPersonal: (...a: unknown[]) => listarPersonal(...a),
   listarPuestosAsignables: (...a: unknown[]) => listarPuestosAsignables(...a),
   listarPermisosExtra: async () => new Map(),
-  agregarPersonal: vi.fn(),
-  editarPersonal: vi.fn(),
-  guardarPermisosExtra: vi.fn(),
+  agregarPersonal: (...a: unknown[]) => agregarPersonal(...a),
+  editarPersonal: (...a: unknown[]) => editarPersonal(...a),
+  guardarPermisosExtra: (...a: unknown[]) => guardarPermisosExtra(...a),
   restablecerPassword: vi.fn(),
   desactivarPersonal: vi.fn(),
   reactivarPersonal: vi.fn(),
@@ -165,5 +168,36 @@ describe("PersonalPantalla", () => {
     await user.click(await screen.findByRole("button", { name: "Tabla" }))
     expect(await screen.findByRole("table")).toBeTruthy()
     expect(screen.getByRole("cell", { name: "Ana Torres" })).toBeTruthy()
+  })
+
+  it("si la llamada se cae (sin red), el panel avisa y los botones quedan activos", async () => {
+    editarPersonal.mockRejectedValue(new Error("fetch failed"))
+    const user = userEvent.setup()
+    abrir()
+    await user.click(await screen.findByText("Ana Torres"))
+    await user.click(await screen.findByRole("button", { name: "Guardar" }))
+    expect(await screen.findByText("No se pudo conectar. Intenta de nuevo.")).toBeTruthy()
+    expect((screen.getByRole("button", { name: "Guardar" }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it("si la persona se crea pero fallan los permisos extra, se actualiza la lista y se avisa", async () => {
+    agregarPersonal.mockResolvedValue({ ok: true, id: "a" })
+    guardarPermisosExtra.mockResolvedValue({ ok: false, error: "No se pudieron guardar los permisos." })
+    const user = userEvent.setup()
+    abrir()
+    await screen.findByText("Ana Torres")
+    const antes = listarPersonal.mock.calls.length
+    await user.click(screen.getByRole("button", { name: "Persona" }))
+    await user.click(await screen.findByRole("combobox", { name: "Puesto" }))
+    await user.click(await screen.findByRole("option", { name: "Técnico de Mantenimiento" }))
+    await user.type(screen.getByLabelText("Nombre"), "Nuevo Nombre")
+    await user.type(screen.getByLabelText("Usuario"), "nnuevo")
+    await user.type(screen.getByLabelText("Contraseña inicial"), "2580")
+    await user.click(screen.getByRole("checkbox", { name: "Gestionar personal" }))
+    await user.click(screen.getByRole("button", { name: "Agregar" }))
+    expect(await screen.findByText(/La persona se creó, pero no se guardaron los permisos extra: No se pudieron guardar/)).toBeTruthy()
+    expect(listarPersonal.mock.calls.length).toBeGreaterThan(antes)
+    // El panel queda en modo edición: ya no se ofrece «Agregar».
+    expect(screen.queryByRole("button", { name: "Agregar" })).toBeNull()
   })
 })
