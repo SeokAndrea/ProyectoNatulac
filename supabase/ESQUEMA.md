@@ -390,6 +390,46 @@ definidas**. Eso significa que hoy están bloqueadas por defecto para
 puede leer/escribir qué según su rol y área" — pendiente, según los
 comentarios de la primera migración, de terminar de definir los roles.
 
+## Personal: áreas y puestos (20261113990000 a 20261114490000)
+
+Los permisos ya no salen del rol sino del **puesto**. El rol de `usuarios` se sincroniza solo desde el puesto (trigger) y queda como compatibilidad.
+
+**Tablas y columnas nuevas**
+
+| Qué | Notas |
+|---|---|
+| `areas.tipo` | `PRODUCCION` (Aséptico, Pruebas, Vacío y las nuevas) o `APOYO` (Mantenimiento, Servicios Industriales, Calidad, Otros) |
+| `areas.orden` | Orden de aparición en el organigrama |
+| `puestos` | `id`, `codigo` (único, sale del nombre), `nombre`, `area_id`, `nivel` (1 Jefatura, 2 Coordinación, 3 Operación, 4 Apoyo; `null` para Super Administrador y Probador), `rol_id` (rol equivalente), `todos_los_permisos`, `activo`. Un puesto no cambia de área ni se borra si tiene gente (solo `activo = false`) |
+| `puesto_permisos` | La matriz: `puesto_id` + `permiso_codigo` |
+| `usuarios.puesto_id` | Obligatorio salvo para `sistema` (check `usuarios_puesto_obligatorio`) |
+| `usuarios.titulo` | Texto libre que se muestra junto al puesto (ej. «Supervisor de Llenado») |
+| `permisos.tema` | `TURNOS`, `PARADAS`, `MANTENIMIENTO`, `DATOS`, `PERSONAS` o `ADMINISTRACION`; agrupa la matriz |
+
+Permisos nuevos: `ESTRUCTURA_GESTIONAR`, `LECTURAS_SI`, `CODIGOS_MTTO_EDITAR`, `REPORTES_PARADAS_VER`.
+
+**Funciones nuevas o reescritas** (todas con `grant execute` a `anon, authenticated`; las que cambian datos llaman a `registrar_auditoria`)
+
+| Función | Qué hace |
+|---|---|
+| `puesto_para(rol, area, cargo, area_origen)` | Usada por la migración: decide el puesto de una persona; si la combinación es rara, frena con la lista |
+| `permisos_de_puesto(usuario, puesto_id)` | Permisos efectivos de un puesto para ese usuario (matriz o todos) |
+| `puede_gestionar_personal(creador, usuario_id)` | Regla de gestión: misma área y nivel destino mayor que el propio; nadie se edita a sí mismo; la dueña no la edita nadie |
+| `puestos_asignables(usuario)` | Puestos que esa persona puede asignar (misma área, nivel mayor al suyo) |
+| `listar_personal(usuario)` | Personal que ese usuario puede ver, con puesto, área, nivel y título |
+| `crear_usuario(creador, usuario, password, p_puesto_id, ...)` | Alta con puesto; valida la regla de gestión |
+| `editar_personal(creador, usuario_id, ...)` | Edita nombre, cédula, puesto y título; valida la regla |
+| `guardar_permisos_extra(usuario, usuario_id, permisos[], ...)` | Permisos extra de una persona, solo si están dentro de los propios |
+| `eliminar_personal(creador, usuario_id, forzar)` | Borrado real; solo con `ESTRUCTURA_GESTIONAR` |
+| `listar_permisos_extra(usuario)` | Permisos extra de las personas visibles |
+| `listar_estructura(usuario)` | JSON con áreas, puestos y matriz (incluye `rol_equivalente`) para las pantallas |
+| `guardar_area(usuario, codigo, nombre, tipo, activo, ...)` | Crea o edita un área; una área nueva fuera de las 4 de apoyo nace `PRODUCCION` |
+| `guardar_puesto(usuario, id, area_codigo, nombre, nivel, activo, ...)` | Crea o edita un puesto (el código se genera y es único) |
+| `guardar_permisos_puestos(usuario, cambios jsonb, pagina)` | Guarda la matriz de permisos por puesto en un solo paso |
+| `listar_areas()` | Áreas con `tipo`, `activo` y `orden`, sin credencial; las lee la app antes de entrar |
+
+**Aplicar en planta:** las 6 migraciones (`20261113990000`, `20261114090000`, `20261114190000`, `20261114290000`, `20261114390000`, `20261114490000`) van **juntas y en ese orden**, nunca por separado: cada una depende de la anterior y la app nueva necesita todas. Antes, correr `scripts/revisar-personal-puestos.sql` y revisar la lista persona → puesto. La migración 2 frena con un mensaje si hay combinaciones raras (ej. `VISTA` en Mantenimiento, `SUPERVISOR` sin área). Ensayadas sobre una copia de la base de antes: ver `.superpowers/sdd/2026-11-01-personal-areas-puestos-fase1/task-10-report.md`.
+
 ## Sesiones con credencial (20261109690000)
 
 La base ya no le cree al `p_usuario` que manda la app:
