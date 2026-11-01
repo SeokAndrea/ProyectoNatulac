@@ -35,7 +35,11 @@ export function FormArea({
   const [nombre, setNombre] = useState(area?.nombre ?? "")
   const [tipo, setTipo] = useState<"PRODUCCION" | "APOYO" | "">(area?.tipo ?? "")
   const [activo, setActivo] = useState(area?.activo ?? true)
+  const [confirmarDesactivar, setConfirmarDesactivar] = useState(false)
   const { enviando, error, setError, ejecutar } = useAccion()
+  // Desactivar un área que tiene gente: se avisa antes (las personas siguen en ella).
+  const personas = area?.personas ?? 0
+  const desactivaConGente = !!area && area.activo && !activo && personas > 0
 
   async function guardar() {
     const nombreLimpio = nombre.trim()
@@ -43,6 +47,10 @@ export function FormArea({
     if (!tipo) return setError("Elige el tipo del área.")
     const codigo = area?.codigo ?? codigoDeArea(nombreLimpio)
     if (!codigo) return setError("El nombre debe tener letras o números.")
+    if (desactivaConGente && !confirmarDesactivar) {
+      setConfirmarDesactivar(true)
+      return
+    }
     const ok = await ejecutar(() => guardarArea(usuario, { codigo, nombre: nombreLimpio, tipo, activo }, pagina))
     if (ok) onGuardada(codigo)
   }
@@ -66,16 +74,21 @@ export function FormArea({
           <p className="text-xs text-foreground">Un área de apoyo no cuenta como producción: no abre turnos ni carga líneas.</p>
         </Campo>
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-foreground">
-          <Checkbox aria-label="Activa" checked={activo} onCheckedChange={(v) => setActivo(v === true)} />
+          <Checkbox aria-label="Activa" checked={activo} onCheckedChange={(v) => { setActivo(v === true); setConfirmarDesactivar(false) }} />
           Activa
         </label>
       </div>
       <div className="flex flex-col gap-3 border-t border-border px-5 py-4">
         {error && <p className="text-sm text-destructive">{error}</p>}
+        {confirmarDesactivar && (
+          <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-foreground">
+            Esta área tiene {personas} {personas === 1 ? "persona" : "personas"}. Siguen en ella aunque la desactives. ¿Desactivarla igual?
+          </p>
+        )}
         <div className="flex gap-2">
-          <Button className="h-11 flex-1" onClick={guardar} disabled={enviando}>
+          <Button className="h-11 flex-1" variant={confirmarDesactivar ? "destructive" : "default"} onClick={guardar} disabled={enviando}>
             {enviando && <Loader2 className="size-4 animate-spin" />}
-            Guardar
+            {confirmarDesactivar ? "Sí, desactivar" : "Guardar"}
           </Button>
           <Button variant="outline" className="h-11" onClick={onCerrar} disabled={enviando}>
             Cancelar

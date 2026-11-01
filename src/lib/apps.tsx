@@ -26,7 +26,7 @@ import {
   BarChart3,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
-import { puede, type Permiso } from "@/lib/permisos"
+import { esPermisoDeAdministracion, puede, type Permiso } from "@/lib/permisos"
 import { esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
 
 export interface AppDef {
@@ -409,7 +409,13 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (!session) return false
   // Solo Vista: los dos paneles y nada más, aunque esté en Pruebas.
   if (esSoloVista(session)) return PANELES_SOLO_VISTA.some((p) => p.slug === app.slug)
-  if (session.area === "PRUEBAS") return true
+  // Pruebas entra a todo, salvo Personal y Áreas y puestos: esos los decide el permiso
+  // (el Probador no administra personas ni la estructura de la planta real).
+  if (session.area === "PRUEBAS") {
+    const permisos = app.permiso ? [app.permiso].flat() : []
+    if (permisos.length > 0 && permisos.every(esPermisoDeAdministracion)) return permisos.some((p) => puede(session, p))
+    return true
+  }
   if (app.enPrueba) return false
   if (app.permiso && ![app.permiso].flat().some((p) => puede(session, p))) return false
   if (app.soloDueno && !session.esDueno) return false

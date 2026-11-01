@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { NOMBRES_ROL } from "@/lib/catalogos"
 import { guardarPuesto, NIVELES, type Nivel, type PuestoEstructura } from "@/lib/estructura"
 import { useAccion } from "@/lib/useAccion"
 import { Campo, PanelLateral } from "./PanelLateral"
@@ -69,6 +70,17 @@ export function FormPuesto({
           </Select>
           <p className="text-xs text-foreground">Cada puesto solo gestiona a los de un nivel más bajo en su misma área.</p>
         </Campo>
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-semibold text-foreground">Rol equivalente</p>
+          <p className="flex min-h-11 items-center rounded-lg bg-muted px-3 text-base text-foreground">
+            {puesto ? (puesto.rolEquivalente ? NOMBRES_ROL[puesto.rolEquivalente] ?? puesto.rolEquivalente : "—") : "El más básico del área"}
+          </p>
+          <p className="text-xs text-foreground">
+            {puesto
+              ? "Lo usan unas pocas pantallas que todavía miran el rol. Lo que el puesto puede hacer lo deciden sus permisos."
+              : "Un puesto nuevo toma el rol con menos poderes entre los puestos del área (Solo Vista si no hay ninguno). Lo que puede hacer lo deciden sus permisos."}
+          </p>
+        </div>
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-foreground">
           <Checkbox aria-label="Activo" checked={activo} onCheckedChange={(v) => setActivo(v === true)} />
           Activo

@@ -59,6 +59,19 @@ export type RolCodigo =
   | "VISTA"
   | "SUPERADMINISTRADOR"
 
+/** Nombre de cada rol (tabla roles), para mostrar el rol equivalente de un puesto. */
+export const NOMBRES_ROL: Record<RolCodigo, string> = {
+  SUPERVISOR: "Supervisor",
+  ANALISTA: "Analista de Producción",
+  JEFE_PRODUCCION: "Jefe de Producción",
+  MANTENIMIENTO: "Mantenimiento",
+  CALIDAD: "Analista de Calidad",
+  SUPERVISOR_CALIDAD: "Supervisor de Calidad",
+  SERVICIOS_INDUSTRIALES: "Servicios Industriales",
+  VISTA: "Solo Vista",
+  SUPERADMINISTRADOR: "Super Administrador",
+}
+
 /** usuarios.cargo guarda un código (JEFE_PRODUCCION) o texto libre: el código se escribe legible. */
 export function rotuloCargo(cargo: string): string {
   if (!/^[A-Z0-9_]+$/.test(cargo)) return cargo

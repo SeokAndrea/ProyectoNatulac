@@ -69,6 +69,26 @@ describe("tarjetas por permisos del puesto", () => {
     expect(visibles(sesion(null, "SUPERADMINISTRADOR", ["ESTRUCTURA_GESTIONAR"], { esDueno: false }))).toContain("personal")
   })
 
+  it("Probador (Pruebas, todos los permisos menos los de administración): no ve Personal ni Áreas y puestos", () => {
+    const probador = sesion("PRUEBAS", "SUPERVISOR", PERMISOS.map((p) => p.codigo).filter((p) => p !== "PERSONAL_GESTIONAR" && p !== "ESTRUCTURA_GESTIONAR"), { puestoCodigo: "PROBADOR" })
+    const v = visibles(probador)
+    expect(v).not.toContain("personal")
+    expect(v).not.toContain("areas-puestos")
+    expect(v).toContain("calidad")
+    expect(v).toContain("reportes-paradas")
+  })
+
+  it("en Pruebas, con PERSONAL_GESTIONAR como extra, sí ve Personal", () => {
+    const v = visibles(sesion("PRUEBAS", "SUPERVISOR", ["PERSONAL_GESTIONAR"], { puestoCodigo: "PROBADOR" }))
+    expect(v).toContain("personal")
+    expect(v).not.toContain("areas-puestos")
+  })
+
+  it("Super Administrador (su puesto) ve Personal y Áreas y puestos aunque la lista llegue vacía", () => {
+    const v = visibles(sesion(null, "SUPERADMINISTRADOR", [], { puestoCodigo: "SUPERADMINISTRADOR" }))
+    expect(v).toEqual(expect.arrayContaining(["personal", "areas-puestos"]))
+  })
+
   it("un rol ya no decide nada: mismo rol, sin el permiso, no ve la tarjeta", () => {
     expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", []))).not.toContain("reportes-paradas")
   })

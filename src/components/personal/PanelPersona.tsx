@@ -59,6 +59,10 @@ export function PanelPersona({
 }) {
   const esNueva = persona === null
   const soloLectura = !esNueva && !persona.gestionable
+  // La propia cuenta: se editan nombre, cédula y título; el puesto y los extras los cambia otra
+  // persona, y no se ofrece desactivarse ni eliminarse (la dueña no podría volver a entrar).
+  const esPropia = !esNueva && persona.usuario.toLowerCase() === usuarioSesion.toLowerCase()
+  const puestoFijo = soloLectura || esPropia
   const [puestoId, setPuestoId] = useState(persona?.puestoId ?? "")
   const [titulo, setTitulo] = useState(persona?.titulo ?? "")
   const [nombre, setNombre] = useState(persona?.nombre ?? "")
@@ -116,7 +120,7 @@ export function PanelPersona({
         const r = await editarPersonal(usuarioSesion, id, { nombre: nombreLimpio, cedula: cedula.trim() || null, puestoId, titulo: titulo.trim() || null }, pagina)
         if (!r.ok) return r
       }
-      if (extrasCambiaron || (esNueva && extras.size > 0)) {
+      if (!esPropia && (extrasCambiaron || (esNueva && extras.size > 0))) {
         // Lo anterior ya se guardó: si esto falla, se avisa pero la lista igual se actualiza.
         try {
           const r = await guardarPermisosExtra(usuarioSesion, id, [...extras], pagina)
@@ -196,8 +200,8 @@ export function PanelPersona({
         )}
 
         <Campo etiqueta="Puesto" id="pp-puesto">
-          {soloLectura ? (
-            <Lectura>{persona.puesto}</Lectura>
+          {puestoFijo ? (
+            <Lectura>{persona?.puesto}</Lectura>
           ) : (
             <Select value={puestoId} onValueChange={(v) => { setPuestoId(v); setError(null) }}>
               <SelectTrigger id="pp-puesto" aria-label="Puesto" className="h-11 w-full text-base">
@@ -262,7 +266,11 @@ export function PanelPersona({
           )}
         </section>
 
-        {!esNueva && !soloLectura && (
+        {esPropia && !soloLectura && (
+          <p className="text-sm text-foreground">Tu puesto y tus permisos extra los cambia otra persona.</p>
+        )}
+
+        {!esNueva && !puestoFijo && (
           <section className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-foreground">Permisos extra</h3>
             <EditorPermisosExtra ofrecibles={ofrecidos} seleccion={extras} bloqueados={bloqueados} deshabilitado={enviando} onCambiar={cambiarExtra} />
@@ -274,7 +282,7 @@ export function PanelPersona({
             <EditorPermisosExtra ofrecibles={ofrecidos} seleccion={extras} deshabilitado={enviando} onCambiar={cambiarExtra} />
           </section>
         )}
-        {soloLectura && extrasActuales.length > 0 && (
+        {puestoFijo && extrasActuales.length > 0 && (
           <section className="flex flex-col gap-1.5">
             <h3 className="text-sm font-semibold text-foreground">Permisos extra</h3>
             <ul className="flex flex-wrap gap-1.5">
@@ -320,7 +328,7 @@ export function PanelPersona({
                 </div>
               )}
 
-              {confirmar === "desactivar" ? (
+              {esPropia ? null : confirmar === "desactivar" ? (
                 <Confirmacion texto={`¿${persona.activo ? "Desactivar" : "Reactivar"} a ${persona.nombre}?`} si="Sí" onSi={cambiarActivo} onNo={() => setConfirmar(null)} enviando={enviando} peligro={persona.activo} />
               ) : (
                 <button type="button" onClick={() => setConfirmar("desactivar")} className={persona.activo ? "self-start text-sm font-medium text-destructive" : "self-start text-sm font-medium text-info-foreground"}>
@@ -328,7 +336,7 @@ export function PanelPersona({
                 </button>
               )}
 
-              {puedeEliminar &&
+              {puedeEliminar && !esPropia &&
                 (confirmar === "eliminar" ? (
                   <Confirmacion texto="¿Seguro?" si="Sí, eliminar" onSi={eliminar} onNo={() => setConfirmar(null)} enviando={enviando} peligro />
                 ) : (

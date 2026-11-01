@@ -153,6 +153,25 @@ describe("PersonalPantalla", () => {
     expect(screen.getByRole("button", { name: "Sí, eliminar" })).toBeTruthy()
   })
 
+  it("la propia cuenta: edita nombre y cédula, pero no el puesto, los extras, Desactivar ni Eliminar", async () => {
+    session = sesionSuper()
+    listarPersonal.mockResolvedValue([
+      ...GENTE,
+      persona({ id: "yo", usuario: "local", nombre: "Andrea Local", puestoId: "p-jefe", puesto: "Jefe de Mantenimiento", nivel: 1 }),
+    ])
+    const user = userEvent.setup()
+    abrir()
+    await user.click(await screen.findByText("Andrea Local"))
+    const panel = await screen.findByRole("complementary", { name: /Andrea Local/ })
+    expect(within(panel).getByRole("button", { name: "Guardar" })).toBeTruthy()
+    expect(within(panel).getByLabelText("Nombre")).toBeTruthy()
+    expect(within(panel).queryByRole("combobox", { name: "Puesto" })).toBeNull()
+    expect(within(panel).getByText("Tu puesto y tus permisos extra los cambia otra persona.")).toBeTruthy()
+    expect(within(panel).queryByRole("button", { name: "Desactivar" })).toBeNull()
+    expect(within(panel).queryByRole("button", { name: "Eliminar" })).toBeNull()
+    expect(within(panel).queryAllByRole("checkbox")).toHaveLength(0)
+  })
+
   it("escribir «tor» en el buscador marca la tarjeta de Ana Torres", async () => {
     const user = userEvent.setup()
     abrir()
