@@ -9,7 +9,10 @@ do $$ begin
   alter table areas add constraint areas_tipo_check check (tipo in ('PRODUCCION', 'APOYO'));
 exception when duplicate_object then null; end $$;
 
-update areas set tipo = 'PRODUCCION' where codigo in ('ASEPTICO', 'PRUEBAS');
+-- Las cuatro de apoyo de siempre; cualquier otra (Aséptico, Pruebas, Vacío…) produce,
+-- como hacía esAreaDeApoyo antes de leer el tipo de la base.
+update areas set tipo = case when codigo in ('MANTENIMIENTO', 'SERVICIOS_INDUSTRIALES', 'CALIDAD', 'OTROS')
+                             then 'APOYO' else 'PRODUCCION' end;
 update areas set activo = false where codigo = 'CALIDAD';
 update areas a set orden = v.orden
   from (values ('ASEPTICO', 1), ('MANTENIMIENTO', 2), ('SERVICIOS_INDUSTRIALES', 3),
