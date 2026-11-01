@@ -398,9 +398,9 @@ Los permisos ya no salen del rol sino del **puesto**. El rol de `usuarios` se si
 
 | Qué | Notas |
 |---|---|
-| `areas.tipo` | `PRODUCCION` (Aséptico, Pruebas, Vacío y las nuevas) o `APOYO` (Mantenimiento, Servicios Industriales, Calidad, Otros) |
+| `areas.tipo` | `PRODUCCION` o `APOYO`. La migración deja como `APOYO` a Mantenimiento, Servicios Industriales, Calidad y Otros, y como `PRODUCCION` al resto (Aséptico, Pruebas, Vacío) |
 | `areas.orden` | Orden de aparición en el organigrama |
-| `puestos` | `id`, `codigo` (único, sale del nombre), `nombre`, `area_id`, `nivel` (1 Jefatura, 2 Coordinación, 3 Operación, 4 Apoyo; `null` para Super Administrador y Probador), `rol_id` (rol equivalente), `todos_los_permisos`, `activo`. Un puesto no cambia de área ni se borra si tiene gente (solo `activo = false`) |
+| `puestos` | `id`, `codigo` (único, sale del nombre), `nombre`, `area_id`, `nivel` (1 Jefatura, 2 Coordinación, 3 Operación, 4 Apoyo; `null` para Super Administrador y Probador), `rol_equivalente_id` (rol equivalente), `todos_los_permisos`, `activo`. Un puesto no cambia de área ni se borra si tiene gente (solo `activo = false`) |
 | `puesto_permisos` | La matriz: `puesto_id` + `permiso_codigo` |
 | `usuarios.puesto_id` | Obligatorio salvo para `sistema` (check `usuarios_puesto_obligatorio`) |
 | `usuarios.titulo` | Texto libre que se muestra junto al puesto (ej. «Supervisor de Llenado») |
@@ -408,13 +408,15 @@ Los permisos ya no salen del rol sino del **puesto**. El rol de `usuarios` se si
 
 Permisos nuevos: `ESTRUCTURA_GESTIONAR`, `LECTURAS_SI`, `CODIGOS_MTTO_EDITAR`, `REPORTES_PARADAS_VER`.
 
-**Funciones nuevas o reescritas** (todas con `grant execute` a `anon, authenticated`; las que cambian datos llaman a `registrar_auditoria`)
+**Funciones nuevas o reescritas** (todas con `grant execute` a `anon, authenticated`, salvo `puesto_para`, que es interna; las que cambian datos llaman a `registrar_auditoria`)
 
 | Función | Qué hace |
 |---|---|
 | `puesto_para(rol, area, cargo, area_origen)` | Usada por la migración: decide el puesto de una persona; si la combinación es rara, frena con la lista |
-| `permisos_de_puesto(usuario, puesto_id)` | Permisos efectivos de un puesto para ese usuario (matriz o todos) |
-| `puede_gestionar_personal(creador, usuario_id)` | Regla de gestión: misma área y nivel destino mayor que el propio; nadie se edita a sí mismo; la dueña no la edita nadie |
+| `permisos_de_puesto(usuario, puesto_id)` | «Ver como»: permisos de un puesto (matriz, o todos si `todos_los_permisos`). Solo la dueña |
+| `tiene_permiso(usuario, permiso)` | Reescrita: sale del puesto (matriz) más los permisos extra de la persona. `todos_los_permisos` no incluye los temas `PERSONAS` ni `ADMINISTRACION` salvo en el puesto `SUPERADMINISTRADOR` |
+| `perfil_sesion(usuario)` | Reescrita: devuelve `activo`, `rol`, `area`, `es_dueno`, `puesto_id`, `puesto`, `nivel`, `titulo` y `permisos`; ya no lleva `cargo` |
+| `puede_gestionar_personal(creador, usuario_id)` | Regla de gestión: nadie se gestiona a sí mismo y la dueña solo la gestiona ella; con `ESTRUCTURA_GESTIONAR` se puede gestionar a cualquiera salvo el puesto Super Administrador (solo la dueña); con `PERSONAL_GESTIONAR`, solo misma área y nivel destino mayor que el propio |
 | `puestos_asignables(usuario)` | Puestos que esa persona puede asignar (misma área, nivel mayor al suyo) |
 | `listar_personal(usuario)` | Personal que ese usuario puede ver, con puesto, área, nivel y título |
 | `crear_usuario(creador, usuario, password, p_puesto_id, ...)` | Alta con puesto; valida la regla de gestión |
@@ -423,7 +425,7 @@ Permisos nuevos: `ESTRUCTURA_GESTIONAR`, `LECTURAS_SI`, `CODIGOS_MTTO_EDITAR`, `
 | `eliminar_personal(creador, usuario_id, forzar)` | Borrado real; solo con `ESTRUCTURA_GESTIONAR` |
 | `listar_permisos_extra(usuario)` | Permisos extra de las personas visibles |
 | `listar_estructura(usuario)` | JSON con áreas, puestos y matriz (incluye `rol_equivalente`) para las pantallas |
-| `guardar_area(usuario, codigo, nombre, tipo, activo, ...)` | Crea o edita un área; una área nueva fuera de las 4 de apoyo nace `PRODUCCION` |
+| `guardar_area(usuario, codigo, nombre, tipo, activo, ...)` | Crea o edita un área; al crear exige `tipo` (`PRODUCCION` o `APOYO`), si no, «Elige el tipo del área.» |
 | `guardar_puesto(usuario, id, area_codigo, nombre, nivel, activo, ...)` | Crea o edita un puesto (el código se genera y es único) |
 | `guardar_permisos_puestos(usuario, cambios jsonb, pagina)` | Guarda la matriz de permisos por puesto en un solo paso |
 | `listar_areas()` | Áreas con `tipo`, `activo` y `orden`, sin credencial; las lee la app antes de entrar |
