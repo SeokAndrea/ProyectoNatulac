@@ -47,20 +47,17 @@ export function esAreaDeApoyo(area: string | null | undefined): boolean {
 // src/lib/permisos.ts y la migración 20261078090000_roles_y_permisos.sql).
 // Permisos extra por persona (ej. SubJefe = Supervisor + permisos de jefe)
 // se dan desde Personal. Super Administrador (técnicos) tiene todo.
-// ROLES sigue solo para «Ver como» (src/components/VerComo.tsx) hasta la Task 9 / Fase 2.
-export const ROLES = [
-  { codigo: "SUPERVISOR", nombre: "Supervisor" },
-  { codigo: "ANALISTA", nombre: "Analista de Producción" },
-  { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción" },
-  { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
-  { codigo: "CALIDAD", nombre: "Analista de Calidad" },
-  { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad" },
-  { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales" },
-  { codigo: "VISTA", nombre: "Solo Vista" },
-  { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
-] as const
-
-export type RolCodigo = (typeof ROLES)[number]["codigo"]
+// El rol ya no se elige en la app: sale del puesto (permisos_de_puesto, «Ver como» un puesto).
+export type RolCodigo =
+  | "SUPERVISOR"
+  | "ANALISTA"
+  | "JEFE_PRODUCCION"
+  | "MANTENIMIENTO"
+  | "CALIDAD"
+  | "SUPERVISOR_CALIDAD"
+  | "SERVICIOS_INDUSTRIALES"
+  | "VISTA"
+  | "SUPERADMINISTRADOR"
 
 /** usuarios.cargo guarda un código (JEFE_PRODUCCION) o texto libre: el código se escribe legible. */
 export function rotuloCargo(cargo: string): string {

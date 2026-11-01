@@ -23,7 +23,7 @@ describe("áreas de apoyo", () => {
   })
 
   it("Servicios Industriales ve solo sus dos tarjetas (y los accesos de todos)", () => {
-    expect(visibles(sesion("SERVICIOS_INDUSTRIALES", "SERVICIOS_INDUSTRIALES")).sort()).toEqual([
+    expect(visibles(sesion("SERVICIOS_INDUSTRIALES", "SERVICIOS_INDUSTRIALES", ["LECTURAS_SI"])).sort()).toEqual([
       "manual",
       "panel-paradas",
       "panel-produccion",
@@ -32,8 +32,9 @@ describe("áreas de apoyo", () => {
     ])
   })
 
-  it("la tarjeta de Calidad es de los roles de Calidad: el Jefe no la ve aunque libere lotes", () => {
-    expect(visibles(sesion("CALIDAD", "SUPERVISOR_CALIDAD", ["LOTE_LIBERAR", "CALIDAD_PARAMETROS"]))).toContain("calidad")
+  it("la tarjeta de Calidad está en prueba: solo Pruebas la ve, aunque se libere lotes", () => {
+    expect(visibles(sesion("CALIDAD", "SUPERVISOR_CALIDAD", ["LOTE_LIBERAR", "CALIDAD_PARAMETROS"]))).not.toContain("calidad")
+    expect(visibles(sesion("PRUEBAS", "SUPERVISOR", ["LOTE_LIBERAR"]))).toContain("calidad")
     expect(visibles(sesion("ASEPTICO", "JEFE_PRODUCCION", ["LOTE_LIBERAR", "TURNO_CARGAR"]))).not.toContain("calidad")
   })
 
@@ -43,7 +44,7 @@ describe("áreas de apoyo", () => {
   })
 
   it("Mantenimiento ve Reportes de paradas", () => {
-    expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO"]))).toContain("reportes-paradas")
+    expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["REPORTES_PARADAS_VER"]))).toContain("reportes-paradas")
   })
 })
 

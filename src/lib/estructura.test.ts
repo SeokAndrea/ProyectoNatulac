@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { agruparPorNivel, diferenciasMatriz, type PuestoEstructura } from "@/lib/estructura"
+import { agruparPorNivel, diferenciasMatriz, rolDePuesto, type PuestoEstructura } from "@/lib/estructura"
 import type { Permiso } from "@/lib/permisos"
 
 function puesto(id: string, permisos: Permiso[]): PuestoEstructura {
@@ -63,5 +63,15 @@ describe("agruparPorNivel", () => {
     expect(grupos).toHaveLength(2)
     expect(grupos[0].nivel).toBe(2)
     expect(grupos[1].items).toHaveLength(1)
+  })
+})
+
+describe("rolDePuesto", () => {
+  it("usa el rol de la semilla y, para un puesto nuevo, el que le toca por su área", () => {
+    expect(rolDePuesto({ codigo: "JEFE_MANTENIMIENTO", areaCodigo: "MANTENIMIENTO", todosLosPermisos: false })).toBe("MANTENIMIENTO")
+    expect(rolDePuesto({ codigo: "SOLO_VISTA", areaCodigo: "OTROS", todosLosPermisos: false })).toBe("VISTA")
+    expect(rolDePuesto({ codigo: "SUPERADMINISTRADOR", areaCodigo: null, todosLosPermisos: true })).toBe("SUPERADMINISTRADOR")
+    expect(rolDePuesto({ codigo: "AUXILIAR_ALMACEN", areaCodigo: "MANTENIMIENTO", todosLosPermisos: false })).toBe("MANTENIMIENTO")
+    expect(rolDePuesto({ codigo: "AUXILIAR_ALMACEN", areaCodigo: "ALMACEN", todosLosPermisos: false })).toBe("SUPERVISOR")
   })
 })

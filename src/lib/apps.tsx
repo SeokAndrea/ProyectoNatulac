@@ -26,7 +26,6 @@ import {
   BarChart3,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
-import type { RolCodigo } from "@/lib/catalogos"
 import { puede, type Permiso } from "@/lib/permisos"
 import { esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
 
@@ -50,10 +49,6 @@ export interface AppDef {
    * propiedad, la ve cualquier sesión.
    */
   permiso?: Permiso | Permiso[]
-  /** Roles que NO ven la tarjeta aunque no pida permiso (ej. Mantenimiento solo ve los paneles y sus paradas). */
-  rolesExcluidos?: RolCodigo[]
-  /** Si se define, la tarjeta solo aparece para estos roles (ej. Calidad, Servicios Industriales). Lo decide el rol, no el área. */
-  rolesPermitidos?: RolCodigo[]
   /** Tarjeta en prueba: solo la ve el Área de Pruebas hasta que se apruebe (ej. Validar jornada). */
   enPrueba?: boolean
   /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
@@ -127,8 +122,8 @@ export const apps: AppDef[] = [
     icon: FlaskConical,
     requiereTurno: false,
     permiso: "LOTE_LIBERAR",
-    // Solo los roles de Calidad (ven el turno de Aséptico, migración 20261089); Pruebas entra a todo. Ver docs/plan-calidad.md.
-    rolesPermitidos: ["CALIDAD", "SUPERVISOR_CALIDAD"],
+    // Fuera de la planta real (dueña): el módulo vive solo en Pruebas. Ver docs/plan-calidad.md.
+    enPrueba: true,
     color: "purple",
     seccion: "apoyo",
   },
@@ -223,8 +218,8 @@ export const apps: AppDef[] = [
     href: "/reportes-paradas",
     icon: Wrench,
     requiereTurno: false,
-    // Solo revisar (parar, anotar y cubrir viven en Líneas, Modo Paradas). Por rol, como todo el Inicio (dueña, 2026-10-26).
-    rolesPermitidos: ["JEFE_PRODUCCION", "ANALISTA", "MANTENIMIENTO", "SUPERADMINISTRADOR"],
+    // Solo revisar (parar, anotar y cubrir viven en Líneas, Modo Paradas). Lo decide el permiso del puesto.
+    permiso: "REPORTES_PARADAS_VER",
     seccion: "produccion",
   },
   {
@@ -256,9 +251,8 @@ export const apps: AppDef[] = [
     href: "/codigos-mantenimiento",
     icon: ListChecks,
     requiereTurno: false,
-    // Catálogo viejo de Mantenimiento: desde el catálogo modular (2026-10-31) solo lo ve la dueña. Sus códigos quedaron como «código del Sheet» de cada subsistema.
-    rolesPermitidos: ["MANTENIMIENTO", "SUPERADMINISTRADOR"],
-    soloDueno: true,
+    // Catálogo viejo de Mantenimiento: sus códigos quedaron como «código del Sheet» de cada subsistema. Lo decide el permiso del puesto.
+    permiso: "CODIGOS_MTTO_EDITAR",
     seccion: "base-datos",
   },
   {
@@ -288,7 +282,6 @@ export const apps: AppDef[] = [
     title: "Manual",
     description: "Manual de usuario de la aplicación.",
     icon: BookOpen,
-    rolesExcluidos: ["MANTENIMIENTO"],
     requiereTurno: false,
     atajo: true,
   },
@@ -310,7 +303,7 @@ export const apps: AppDef[] = [
     href: "/servicios-industriales",
     icon: Thermometer,
     requiereTurno: false,
-    rolesPermitidos: ["SERVICIOS_INDUSTRIALES"],
+    permiso: "LECTURAS_SI",
     seccion: "apoyo",
   },
   {
@@ -320,7 +313,7 @@ export const apps: AppDef[] = [
     href: "/registros-servicios-industriales",
     icon: History,
     requiereTurno: false,
-    rolesPermitidos: ["SERVICIOS_INDUSTRIALES"],
+    permiso: "LECTURAS_SI",
     seccion: "apoyo",
   },
   {
@@ -351,7 +344,7 @@ export const apps: AppDef[] = [
     description: "Altas, roles y permisos del personal.",
     href: "/personal",
     icon: Users,
-    permiso: "PERSONAL_GESTIONAR",
+    permiso: ["PERSONAL_GESTIONAR", "ESTRUCTURA_GESTIONAR"],
     requiereTurno: false,
     seccion: "base-datos",
   },
@@ -418,8 +411,6 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   if (session.area === "PRUEBAS") return true
   if (app.enPrueba) return false
   if (app.permiso && ![app.permiso].flat().some((p) => puede(session, p))) return false
-  if (app.rolesExcluidos?.includes(session.rol)) return false
-  if (app.rolesPermitidos && !app.rolesPermitidos.includes(session.rol)) return false
   if (app.soloDueno && !session.esDueno) return false
   if (app.usuarioPermitido && session.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
   return true

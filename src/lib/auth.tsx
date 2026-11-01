@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
-import type { Nivel } from "@/lib/estructura"
+import { listarEstructura, rolDePuesto, type Nivel } from "@/lib/estructura"
 import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
 import { esSoloLectura } from "@/lib/rolVista"
@@ -84,22 +84,15 @@ export interface DatosPrimerIngreso {
   cedula: string
 }
 
-/** «Ver como» (solo el dueño): la app se muestra con el rol y los permisos de otro. Lo que se hace sigue con el usuario real. */
+/** «Ver como» un puesto (solo el dueño): la app se muestra con los permisos y el área de ese puesto. Lo que se hace sigue con el usuario real. */
 export interface VistaComo {
+  puestoId: string
   rol: RolCodigo
+  area: AreaCodigo | null
   permisos: Permiso[]
-}
-
-/** Área con la que se mira cada rol en «Ver como». */
-const AREA_DE_VISTA: Partial<Record<RolCodigo, AreaCodigo>> = {
-  SUPERVISOR: "ASEPTICO",
-  ANALISTA: "ASEPTICO",
-  JEFE_PRODUCCION: "ASEPTICO",
-  MANTENIMIENTO: "MANTENIMIENTO",
-  CALIDAD: "CALIDAD",
-  SUPERVISOR_CALIDAD: "CALIDAD",
-  SERVICIOS_INDUSTRIALES: "SERVICIOS_INDUSTRIALES",
-  VISTA: "ASEPTICO",
+  /** Para mostrar en la franja. */
+  puesto?: string
+  nivel?: Nivel | null
 }
 
 interface AuthContextValue {
@@ -109,7 +102,7 @@ interface AuthContextValue {
   sessionReal: Session | null
   vistaComo: VistaComo | null
   /** null = volver a la vista propia. */
-  verComo: (rol: RolCodigo | null) => Promise<{ ok: true } | { ok: false; error: string }>
+  verComo: (puestoId: string | null) => Promise<{ ok: true } | { ok: false; error: string }>
   login: (username: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>
   completarPrimerIngreso: (datos: DatosPrimerIngreso) => Promise<{ ok: true } | { ok: false; error: string }>
   logout: () => void
@@ -144,7 +137,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [vistaComo, setVistaComo] = useState<VistaComo | null>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_VISTA)
-      return raw ? (JSON.parse(raw) as VistaComo) : null
+      const guardada = raw ? (JSON.parse(raw) as Partial<VistaComo>) : null
+      // Una vista guardada por rol (antes de los puestos) ya no sirve.
+      return guardada?.puestoId ? (guardada as VistaComo) : null
     } catch {
       return null
     }
@@ -155,15 +150,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(STORAGE_VISTA)
   }, [vistaComo])
 
-  async function verComo(rol: RolCodigo | null) {
-    if (rol === null) {
+  async function verComo(puestoId: string | null) {
+    if (puestoId === null) {
       setVistaComo(null)
       return { ok: true as const }
     }
     if (!session?.esDueno) return { ok: false as const, error: "Solo el dueño puede usar «Ver como»." }
-    const { data, error } = await supabase.rpc("permisos_de_rol", { p_usuario: session.username, p_rol_codigo: rol })
-    if (error || !Array.isArray(data)) return { ok: false as const, error: error?.message || "No se pudieron leer los permisos de ese rol." }
-    setVistaComo({ rol, permisos: data as Permiso[] })
+    const estructura = await listarEstructura(session.username)
+    const puesto = estructura?.puestos.find((p) => p.id === puestoId)
+    if (!puesto) return { ok: false as const, error: "No se encontró ese puesto." }
+    const { data, error } = await supabase.rpc("permisos_de_puesto", { p_usuario: session.username, p_puesto_id: puestoId })
+    if (error || !Array.isArray(data)) return { ok: false as const, error: error?.message || "No se pudieron leer los permisos de ese puesto." }
+    setVistaComo({
+      puestoId,
+      rol: rolDePuesto(puesto),
+      area: puesto.areaCodigo,
+      permisos: data as Permiso[],
+      puesto: puesto.nombre,
+      nivel: puesto.nivel,
+    })
     return { ok: true as const }
   }
 
@@ -172,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionVista = useMemo<Session | null>(
     () =>
       session && vistaActiva
-        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: AREA_DE_VISTA[vistaActiva.rol] ?? session.area, puestoId: null, puesto: null, nivel: null, titulo: null }
+        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: vistaActiva.area, puestoId: vistaActiva.puestoId, puesto: vistaActiva.puesto ?? null, nivel: vistaActiva.nivel ?? null, titulo: null }
         : session,
     [session, vistaActiva],
   )
