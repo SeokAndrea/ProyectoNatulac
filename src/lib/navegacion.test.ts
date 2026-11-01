@@ -103,9 +103,9 @@ describe("Códigos de Mantenimiento", () => {
     debeCompletarPerfil: false,
   })
 
-  it("la ve quien tiene CODIGOS_MTTO_EDITAR (puestos de Mantenimiento) y la dueña; el resto no", () => {
+  it("solo la ve la dueña, aunque el puesto tenga CODIGOS_MTTO_EDITAR", () => {
     expect(puedeVerApp({ ...sesion("SUPERADMINISTRADOR"), esDueno: true }, app)).toBe(true)
-    expect(puedeVerApp({ ...sesion("MANTENIMIENTO"), permisos: ["CODIGOS_MTTO_EDITAR"] }, app)).toBe(true)
+    expect(puedeVerApp({ ...sesion("MANTENIMIENTO"), permisos: ["CODIGOS_MTTO_EDITAR"] }, app)).toBe(false)
     for (const rol of ["MANTENIMIENTO", "SUPERVISOR", "JEFE_PRODUCCION", "ANALISTA"] as const) {
       expect(puedeVerApp(sesion(rol), app)).toBe(false)
     }

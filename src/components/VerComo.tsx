@@ -46,6 +46,8 @@ export function SelectorVerComo() {
   }, [esDueno, usuario])
 
   const grupos = useMemo(() => agruparPuestosPorArea(puestos), [puestos])
+  // El puesto que se está mirando puede haberse desactivado: igual se muestra, para que el selector no quede en blanco.
+  const mirado = vistaComo && !grupos.some((g) => g.puestos.some((p) => p.id === vistaComo.puestoId)) ? vistaComo : null
   if (!esDueno) return null
 
   async function elegir(valor: string) {
@@ -69,6 +71,7 @@ export function SelectorVerComo() {
           onChange={(e) => elegir(e.target.value)}
         >
           <option value="">Mi vista</option>
+          {mirado && <option value={mirado.puestoId}>{mirado.puesto ?? "Otro puesto"} (inactivo)</option>}
           {grupos.map((g) => (
             <optgroup key={g.areaCodigo ?? "sin-area"} label={g.areaCodigo ? nombreDeArea(areas, g.areaCodigo) : "Sin área"}>
               {g.puestos.map((p) => (

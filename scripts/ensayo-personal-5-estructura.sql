@@ -155,6 +155,10 @@ begin
                   and (e->'permisos') @> '"CATALOGO_PARADAS"' and (e->>'personas')::int >= 1 and e->>'nivel' = '3') then
     raise exception 'puesto técnico mal listado';
   end if;
+  if not exists (select 1 from jsonb_array_elements(v_j->'puestos') e where e->>'codigo'='TECNICO_MANTENIMIENTO' and e->>'rol_equivalente' = 'MANTENIMIENTO')
+     or not exists (select 1 from jsonb_array_elements(v_j->'puestos') e where e->>'codigo'='SOLO_VISTA' and e->>'rol_equivalente' = 'VISTA') then
+    raise exception 'rol_equivalente mal listado';
+  end if;
   -- Sin permisos
   begin perform listar_estructura('t5_tec'); raise exception 'FALLO: técnico listó';
   exception when others then if sqlerrm like 'FALLO%' then raise; end if; if sqlerrm <> 'No tienes permiso para ver esto.' then raise exception 'mensaje inesperado: %', sqlerrm; end if; end;

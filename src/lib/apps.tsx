@@ -251,8 +251,9 @@ export const apps: AppDef[] = [
     href: "/codigos-mantenimiento",
     icon: ListChecks,
     requiereTurno: false,
-    // Catálogo viejo de Mantenimiento: sus códigos quedaron como «código del Sheet» de cada subsistema. Lo decide el permiso del puesto.
+    // Catálogo viejo de Mantenimiento: sus códigos quedaron como «código del Sheet» de cada subsistema. Solo la dueña (2026-10-31); los puestos conservan CODIGOS_MTTO_EDITAR en la base.
     permiso: "CODIGOS_MTTO_EDITAR",
+    soloDueno: true,
     seccion: "base-datos",
   },
   {

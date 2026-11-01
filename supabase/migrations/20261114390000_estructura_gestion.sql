@@ -38,6 +38,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', p.id, 'codigo', p.codigo, 'nombre', p.nombre, 'area_codigo', a.codigo,
            'nivel', p.nivel, 'activo', p.activo, 'todos_los_permisos', p.todos_los_permisos,
+           'rol_equivalente', (select r.codigo from roles r where r.id = p.rol_equivalente_id),
            'personas', (select count(*) from usuarios u where u.puesto_id = p.id),
            'permisos', coalesce((select jsonb_agg(pp.permiso_codigo order by pp.permiso_codigo)
                                    from puesto_permisos pp where pp.puesto_id = p.id), '[]'::jsonb)

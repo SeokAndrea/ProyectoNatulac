@@ -36,6 +36,8 @@ export interface PuestoEstructura {
   nivel: Nivel | null
   activo: boolean
   todosLosPermisos: boolean
+  /** Rol equivalente del puesto (puestos.rol_equivalente_id): decide unos pocos textos y atajos, no las tarjetas. */
+  rolEquivalente: RolCodigo | null
   personas: number
   permisos: Permiso[]
 }
@@ -62,6 +64,7 @@ interface EstructuraCruda {
     nivel: number | null
     activo: boolean
     todos_los_permisos: boolean
+    rol_equivalente?: string | null
     personas: number
     permisos: string[] | null
   }[]
@@ -90,6 +93,7 @@ export async function listarEstructura(usuario: string): Promise<Estructura | nu
       nivel: p.nivel as Nivel | null,
       activo: p.activo,
       todosLosPermisos: p.todos_los_permisos,
+      rolEquivalente: (p.rol_equivalente ?? null) as RolCodigo | null,
       personas: p.personas,
       permisos: (p.permisos ?? []) as Permiso[],
     })),
@@ -171,40 +175,6 @@ export function diferenciasMatriz(original: PuestoEstructura[], editada: Map<str
     }
   }
   return cambios
-}
-
-/** Rol de cada puesto de la semilla (puestos.rol_equivalente_id, migración 20261113990000). */
-const ROL_DE_PUESTO: Record<string, RolCodigo> = {
-  JEFE_PRODUCCION: "JEFE_PRODUCCION",
-  COORDINADOR_PRODUCCION: "ANALISTA",
-  SUPERVISOR: "SUPERVISOR",
-  PASANTE: "SUPERVISOR",
-  JEFE_MANTENIMIENTO: "MANTENIMIENTO",
-  SUPERVISOR_MANTENIMIENTO: "MANTENIMIENTO",
-  TECNICO_MANTENIMIENTO: "MANTENIMIENTO",
-  SERVICIOS_INDUSTRIALES: "SERVICIOS_INDUSTRIALES",
-  SOLO_VISTA: "VISTA",
-  JEFE_CALIDAD: "CALIDAD",
-  SUPERVISOR_CALIDAD: "SUPERVISOR_CALIDAD",
-  ANALISTA_CALIDAD: "CALIDAD",
-  PROBADOR: "SUPERVISOR",
-  SUPERADMINISTRADOR: "SUPERADMINISTRADOR",
-}
-
-/**
- * Rol con el que se mira la app en «Ver como» un puesto. listar_estructura no
- * trae rol_equivalente: se usa el de la semilla y, para puestos creados
- * después, el rol que le tocaría por su área (los permisos ya salen del puesto;
- * el rol solo afecta unos pocos textos y atajos).
- */
-export function rolDePuesto(puesto: Pick<PuestoEstructura, "codigo" | "areaCodigo" | "todosLosPermisos">): RolCodigo {
-  const sembrado = ROL_DE_PUESTO[puesto.codigo]
-  if (sembrado) return sembrado
-  if (puesto.todosLosPermisos) return "SUPERVISOR"
-  if (puesto.areaCodigo === "MANTENIMIENTO") return "MANTENIMIENTO"
-  if (puesto.areaCodigo === "SERVICIOS_INDUSTRIALES") return "SERVICIOS_INDUSTRIALES"
-  if (puesto.areaCodigo === "CALIDAD") return "CALIDAD"
-  return "SUPERVISOR"
 }
 
 /** Agrupa por nivel (1 a 4) sin los niveles vacíos; los de nivel null van al final en un grupo aparte. */

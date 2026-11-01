@@ -13,6 +13,7 @@ const puesto = (over: Partial<PuestoEstructura>): PuestoEstructura => ({
   nivel: 3,
   activo: true,
   todosLosPermisos: false,
+  rolEquivalente: "MANTENIMIENTO",
   personas: 1,
   permisos: [],
   ...over,

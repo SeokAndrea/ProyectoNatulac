@@ -25,10 +25,10 @@ const JEFE_PRODUCCION = sesion("ASEPTICO", "JEFE_PRODUCCION", [
 const PRUEBAS = sesion("PRUEBAS", "SUPERVISOR", PERMISOS.map((p) => p.codigo))
 
 describe("tarjetas por permisos del puesto", () => {
-  it("Técnico de Mantenimiento: Reportes de paradas y Códigos de Mantenimiento sí; Personal no", () => {
+  it("Técnico de Mantenimiento: Reportes de paradas sí; Códigos de Mantenimiento (solo la dueña) y Personal no", () => {
     const v = visibles(TECNICO)
     expect(v).toContain("reportes-paradas")
-    expect(v).toContain("codigos-mantenimiento")
+    expect(v).not.toContain("codigos-mantenimiento")
     expect(v).not.toContain("personal")
   })
 
@@ -36,6 +36,11 @@ describe("tarjetas por permisos del puesto", () => {
     const v = visibles(JEFE_MTTO)
     expect(v).toContain("personal")
     expect(v).toContain("catalogo-paradas")
+    expect(v).not.toContain("codigos-mantenimiento")
+  })
+
+  it("Códigos de Mantenimiento: solo la dueña", () => {
+    expect(visibles({ ...JEFE_MTTO, esDueno: true })).toContain("codigos-mantenimiento")
   })
 
   it("Servicios Industriales ve sus dos tarjetas con LECTURAS_SI; sin el permiso, ninguna", () => {
@@ -53,7 +58,7 @@ describe("tarjetas por permisos del puesto", () => {
     const v = visibles(PRUEBAS)
     expect(v).toContain("calidad")
     expect(v).toContain("validar-jornada")
-    expect(v).toEqual(expect.arrayContaining(["personal", "areas-puestos", "codigos-mantenimiento", "reportes-paradas", "servicios-industriales"]))
+    expect(v).toEqual(expect.arrayContaining(["personal", "areas-puestos", "reportes-paradas", "servicios-industriales"]))
   })
 
   it("Manual lo ve cualquier puesto, también Mantenimiento", () => {

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
-import { listarEstructura, rolDePuesto, type Nivel } from "@/lib/estructura"
+import { listarEstructura, type Nivel } from "@/lib/estructura"
 import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
 import { esSoloLectura } from "@/lib/rolVista"
@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error || !Array.isArray(data)) return { ok: false as const, error: error?.message || "No se pudieron leer los permisos de ese puesto." }
     setVistaComo({
       puestoId,
-      rol: rolDePuesto(puesto),
+      rol: puesto.rolEquivalente ?? "SUPERVISOR",
       area: puesto.areaCodigo,
       permisos: data as Permiso[],
       puesto: puesto.nombre,
