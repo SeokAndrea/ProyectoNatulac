@@ -40,7 +40,8 @@ begin
     ('SUPERVISOR_CALIDAD', 'CALIDAD', null, null, 'SUPERVISOR_CALIDAD', null),
     ('SUPERVISOR', 'PRUEBAS', null, null, 'PROBADOR', null),
     ('CALIDAD', 'PRUEBAS', null, null, 'PROBADOR', null),
-    ('SUPERADMINISTRADOR', null, null, null, 'SUPERADMINISTRADOR', null)
+    ('SUPERADMINISTRADOR', null, null, null, 'SUPERADMINISTRADOR', null),
+    ('SUPERADMINISTRADOR', 'PRUEBAS', null, null, 'SUPERADMINISTRADOR', null)
   ) as t(rol, area, cargo, origen, puesto, titulo) loop
     select pp.puesto_codigo, pp.titulo into v_pc, v_t from puesto_para(r.rol, r.area, r.cargo, r.origen) pp;
     if v_pc is distinct from r.puesto or v_t is distinct from r.titulo then
@@ -74,6 +75,11 @@ begin
       join _snap s on s.usuario = u.usuario
       left join areas ao on ao.id = u.area_origen_id
       left join lateral puesto_para(s.rol, s.area, u.cargo, ao.nombre) pp on true
+     -- solo quienes pasó la migración: a los creados o editados después desde Personal
+     -- (base local) el puesto se lo eligió una persona, no la regla
+     where not exists (select 1 from auditoria au
+                        where au.entidad = 'personal' and au.entidad_id = u.id::text
+                          and au.usuario <> 'sistema' and au.despues ? 'puesto')
   loop
     if r.puesto is distinct from r.puesto_codigo or r.titulo is distinct from r.t_esp then
       raise exception 'Usuario %: puesto % / título % no coincide con puesto_para (% / %)', r.usuario, r.puesto, r.titulo, r.puesto_codigo, r.t_esp;
@@ -147,6 +153,122 @@ begin
       raise exception 'El mensaje no trae usuario · rol · área: %', v_msg;
     end if;
   end;
+end $$;
+
+-- Los pasos de datos de la migración (I2, I3, I5) sobre personas sintéticas «de antes»:
+-- sin puesto y con su usuario_roles viejo. Se quita el check de puesto obligatorio dentro
+-- de esta transacción (vuelve con el rollback).
+do $$
+declare
+  v_n int;
+  v_msg text;
+  v_aud int;
+  r record;
+begin
+  -- zz_ensayo (bloque de arriba) quedó con usuario_roles movido a mano: se vuelve al de su puesto
+  update usuario_roles set area_id = (select id from areas where codigo = 'OTROS')
+   where usuario_id = (select id from usuarios where usuario = 'zz_ensayo');
+
+  -- I3: justo después de la migración, usuario_roles de cada persona = rol y área de su puesto
+  select count(*) into v_n
+    from usuarios u join puestos p on p.id = u.puesto_id
+   where u.usuario <> 'sistema'
+     and ((select count(*) from usuario_roles ur where ur.usuario_id = u.id) <> 1
+          or not exists (select 1 from usuario_roles ur where ur.usuario_id = u.id
+                            and ur.rol_id = p.rol_equivalente_id and ur.area_id is not distinct from p.area_id));
+  if v_n <> 0 then raise exception 'I3: % personas con usuario_roles distinto del de su puesto', v_n; end if;
+
+  alter table usuarios drop constraint usuarios_puesto_obligatorio;
+  insert into usuarios (usuario, password_hash, nombre, cargo)
+  values ('zz_sa_pruebas', 'x', 'Zz SA Pruebas', null),
+         ('zz_subjefe', 'x', 'Zz Subjefe', 'SUBJEFE'),
+         ('zz_vista_asep', 'x', 'Zz Vista Aséptico', null),
+         ('zz_super', 'x', 'Zz Supervisor', null),
+         ('zz_doble', 'x', 'Zz Doble', null);
+  insert into usuario_roles (usuario_id, rol_id, area_id)
+  select u.id, (select id from roles where codigo = x.rol), (select id from areas where codigo = x.area)
+    from (values ('zz_sa_pruebas', 'SUPERADMINISTRADOR', 'PRUEBAS'),
+                 ('zz_subjefe', 'SUPERVISOR', 'ASEPTICO'),
+                 ('zz_vista_asep', 'VISTA', 'ASEPTICO'),
+                 ('zz_super', 'SUPERVISOR', 'ASEPTICO'),
+                 ('zz_doble', 'SUPERVISOR', 'ASEPTICO'),
+                 ('zz_doble', 'SUPERVISOR', 'PRUEBAS')) x(usuario, rol, area)
+    join usuarios u on u.usuario = x.usuario;
+
+  -- I5: dos filas en usuario_roles → la migración frena con la lista
+  begin
+    perform personal_exigir_puestos();
+    raise exception 'FALLO: personal_exigir_puestos no frenó con dos filas';
+  exception when raise_exception then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg like 'FALLO%' or v_msg not like 'Personas con más de un rol%'
+       or v_msg not like '%zz_doble · SUPERVISOR / ASEPTICO, SUPERVISOR / PRUEBAS%'
+       or v_msg like '%zz_super%' then
+      raise exception 'I5: mensaje inesperado: %', v_msg;
+    end if;
+  end;
+  delete from usuario_roles
+   where usuario_id = (select id from usuarios where usuario = 'zz_doble')
+     and area_id = (select id from areas where codigo = 'PRUEBAS');
+
+  -- el paso, en el orden de la migración: asignar (sin el trigger, que la migración instala
+  -- después) y sincronizar
+  alter table usuarios disable trigger usuarios_sincroniza_rol;
+  perform personal_asignar_puestos();
+  alter table usuarios enable trigger usuarios_sincroniza_rol;
+  select count(*) into v_aud from auditoria where pagina = 'Paso a puestos (20261114090000)';
+  v_n := personal_sincronizar_roles();
+  if v_n <> 3 then raise exception 'I3: debían cambiar 3 personas (SA Pruebas, Subjefe, Vista Aséptico) y cambiaron %', v_n; end if;
+
+  for r in select * from (values
+      ('zz_sa_pruebas', 'SUPERADMINISTRADOR', null, 'SUPERADMINISTRADOR', null, true),
+      ('zz_subjefe', 'COORDINADOR_PRODUCCION', 'Subjefe', 'ANALISTA', 'ASEPTICO', true),
+      ('zz_vista_asep', 'SOLO_VISTA', null, 'VISTA', 'OTROS', true),
+      ('zz_super', 'SUPERVISOR', null, 'SUPERVISOR', 'ASEPTICO', false),
+      ('zz_doble', 'SUPERVISOR', null, 'SUPERVISOR', 'ASEPTICO', false)
+    ) x(usuario, puesto, titulo, rol, area, auditada) loop
+    -- I2: el Super Admin con área Pruebas queda en el puesto SUPERADMINISTRADOR
+    if not exists (select 1 from usuarios u join puestos p on p.id = u.puesto_id
+                    where u.usuario = r.usuario and p.codigo = r.puesto and u.titulo is not distinct from r.titulo) then
+      raise exception 'I2/paso: % no quedó en el puesto % / %', r.usuario, r.puesto, r.titulo;
+    end if;
+    if (select count(*) from usuario_roles ur join usuarios u on u.id = ur.usuario_id
+                       join roles ro on ro.id = ur.rol_id left join areas a on a.id = ur.area_id
+         where u.usuario = r.usuario and ro.codigo = r.rol and a.codigo is not distinct from r.area) <> 1
+       or (select count(*) from usuario_roles ur join usuarios u on u.id = ur.usuario_id where u.usuario = r.usuario) <> 1 then
+      raise exception 'I3: usuario_roles de % debía ser una fila % / %', r.usuario, r.rol, r.area;
+    end if;
+    select count(*) into v_n from auditoria a join usuarios u on u.id::text = a.entidad_id
+     where u.usuario = r.usuario and a.usuario = 'sistema' and a.entidad = 'personal'
+       and a.pagina = 'Paso a puestos (20261114090000)';
+    if v_n <> (case when r.auditada then 1 else 0 end) then
+      raise exception 'I3: % filas de auditoría para % (se esperaba %)', v_n, r.usuario, r.auditada;
+    end if;
+  end loop;
+  if not exists (select 1 from auditoria a join usuarios u on u.id::text = a.entidad_id
+                  where u.usuario = 'zz_subjefe' and a.antes = '{"rol":"SUPERVISOR","area":"ASEPTICO"}'::jsonb
+                    and a.despues = '{"rol":"ANALISTA","area":"ASEPTICO"}'::jsonb) then
+    raise exception 'I3: la auditoría del Subjefe no trae antes/después';
+  end if;
+
+  -- correrla de nuevo no cambia a nadie
+  if personal_sincronizar_roles() <> 0 then raise exception 'I3: la segunda sincronía cambió a alguien'; end if;
+
+  -- I3: el trigger solo actúa si el puesto cambia de verdad. Editar el nombre (editar_personal
+  -- hace set puesto_id = el mismo) no reescribe usuario_roles.
+  update usuario_roles set area_id = (select id from areas where codigo = 'PRUEBAS')
+   where usuario_id = (select id from usuarios where usuario = 'zz_super');
+  update usuarios set nombre = 'Zz Supervisor Editado', puesto_id = puesto_id where usuario = 'zz_super';
+  if not exists (select 1 from usuario_roles ur join usuarios u on u.id = ur.usuario_id join areas a on a.id = ur.area_id
+                  where u.usuario = 'zz_super' and a.codigo = 'PRUEBAS') then
+    raise exception 'I3: editar solo el nombre reescribió usuario_roles';
+  end if;
+  -- cambiar el puesto sí sincroniza
+  update usuarios set puesto_id = (select id from puestos where codigo = 'PASANTE') where usuario = 'zz_super';
+  if not exists (select 1 from usuario_roles ur join usuarios u on u.id = ur.usuario_id join areas a on a.id = ur.area_id
+                  where u.usuario = 'zz_super' and a.codigo = 'ASEPTICO') then
+    raise exception 'I3: cambiar el puesto no sincronizó usuario_roles';
+  end if;
 end $$;
 
 rollback;

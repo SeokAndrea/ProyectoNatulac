@@ -4,15 +4,20 @@ begin;
 do $$
 declare
   v_n int;
+  v_i int;
   v_otra uuid;
   v_a text;
   v_b text;
 begin
-  -- 14 puestos, 3 inactivos (Calidad)
-  select count(*) into v_n from puestos;
-  if v_n <> 14 then raise exception 'Se esperaban 14 puestos y hay %', v_n; end if;
-  select count(*) into v_n from puestos where not activo;
-  if v_n <> 3 then raise exception 'Se esperaban 3 puestos inactivos y hay %', v_n; end if;
+  -- Los 14 puestos de la migración, 3 inactivos (Calidad). Los puestos creados después
+  -- desde Áreas y puestos (pruebas locales) no cuentan.
+  select count(*) filter (where true), count(*) filter (where not activo) into v_n, v_i
+    from puestos where codigo in (
+      'SUPERADMINISTRADOR','PROBADOR','JEFE_PRODUCCION','COORDINADOR_PRODUCCION','SUPERVISOR','PASANTE',
+      'JEFE_MANTENIMIENTO','SUPERVISOR_MANTENIMIENTO','TECNICO_MANTENIMIENTO','SERVICIOS_INDUSTRIALES',
+      'SOLO_VISTA','JEFE_CALIDAD','SUPERVISOR_CALIDAD','ANALISTA_CALIDAD');
+  if v_n <> 14 then raise exception 'Se esperaban los 14 puestos de la migración y hay %', v_n; end if;
+  if v_i <> 3 then raise exception 'Se esperaban 3 puestos inactivos y hay %', v_i; end if;
   select count(*) into v_n from puestos where not activo and codigo in ('JEFE_CALIDAD','SUPERVISOR_CALIDAD','ANALISTA_CALIDAD');
   if v_n <> 3 then raise exception 'Los inactivos deben ser los tres de Calidad'; end if;
 

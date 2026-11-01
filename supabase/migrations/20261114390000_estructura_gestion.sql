@@ -204,11 +204,15 @@ begin
     v_codigo := v_base || '_' || v_i;
   end loop;
 
-  -- Rol equivalente: el del puesto activo más cercano en nivel dentro de la misma área; si no hay, VISTA.
-  select p.rol_equivalente_id into v_rol
-    from puestos p
-   where p.area_id = v_area.id and p.activo and not p.todos_los_permisos and p.nivel is not null
-   order by abs(p.nivel - p_nivel), p.nivel
+  -- Rol equivalente: el MÁS DÉBIL (menos permisos en rol_permisos) entre los roles de los
+  -- puestos activos de la misma área; si no hay, VISTA. Así un puesto nuevo no hereda
+  -- poderes de Jefe o Analista que la matriz no muestra (lo que hace lo deciden sus permisos).
+  -- El Probador y el Super Administrador (todos_los_permisos) no cuentan.
+  select r.id into v_rol
+    from roles r
+   where r.id in (select p.rol_equivalente_id from puestos p
+                   where p.area_id = v_area.id and p.activo and not p.todos_los_permisos)
+   order by (select count(*) from rol_permisos rp where rp.rol_id = r.id), r.codigo
    limit 1;
   if v_rol is null then
     select id into v_rol from roles where codigo = 'VISTA';

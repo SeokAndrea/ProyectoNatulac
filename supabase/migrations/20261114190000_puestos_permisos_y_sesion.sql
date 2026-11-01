@@ -80,7 +80,8 @@ as $$
   );
 $$;
 
--- 3) perfil_sesion: suma puesto, nivel y título; quita cargo
+-- 3) perfil_sesion: suma puesto (id, código y nombre), nivel y título; quita cargo.
+--    Solo Vista lo decide el código del puesto (SOLO_VISTA), no el rol VISTA.
 create or replace function perfil_sesion(p_usuario text)
 returns jsonb
 language sql
@@ -95,6 +96,7 @@ as $$
     'area', a.codigo,
     'es_dueno', u.ve_errores,
     'puesto_id', p.id,
+    'puesto_codigo', p.codigo,
     'puesto', p.nombre,
     'nivel', p.nivel,
     'titulo', u.titulo,

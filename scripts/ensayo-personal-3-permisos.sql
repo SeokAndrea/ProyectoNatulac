@@ -85,6 +85,25 @@ begin
   perform registrar_lectura_servicios_industriales('t3_probador', 1, null, null);
   perform registrar_lectura_servicios_industriales('t3_super', 1, null, null);
 
+  -- I1: Solo Vista lo decide el puesto SOLO_VISTA, no el rol VISTA. Un puesto nuevo con
+  -- rol equivalente VISTA y LECTURAS_SI en la matriz: la sesión no dice SOLO_VISTA y la
+  -- persona carga lecturas.
+  insert into puestos (codigo, nombre, area_id, nivel, rol_equivalente_id, activo)
+  select 'ZZ_AUX_ENSAYO', 'Zz Auxiliar', (select id from areas where codigo='OTROS'), 3,
+         (select id from roles where codigo='VISTA'), true
+  returning id into v_pid;
+  insert into puesto_permisos (puesto_id, permiso_codigo) values (v_pid, 'LECTURAS_SI');
+  insert into usuarios (usuario, password_hash, nombre, puesto_id) values ('t3_aux_vista', 'x', 't3_aux_vista', v_pid);
+  v_j := perfil_sesion('t3_aux_vista');
+  if v_j->>'rol' is distinct from 'VISTA' or v_j->>'puesto_codigo' is distinct from 'ZZ_AUX_ENSAYO'
+     or not (v_j->'permisos') ? 'LECTURAS_SI' then
+    raise exception 'I1: perfil_sesion del puesto con rol VISTA: %', v_j;
+  end if;
+  perform registrar_lectura_servicios_industriales('t3_aux_vista', 1, null, null);
+  if perfil_sesion('t3_vista_otra')->>'puesto_codigo' is distinct from 'SOLO_VISTA' then
+    raise exception 'I1: Solo Vista debe llegar con puesto_codigo SOLO_VISTA';
+  end if;
+
   -- permisos_de_puesto: solo la dueña
   select id into v_pid from puestos where codigo='JEFE_MANTENIMIENTO';
   v_arr := permisos_de_puesto('t3_dueno', v_pid);

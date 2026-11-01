@@ -56,10 +56,19 @@ begin
   -- mismo nombre: código único
   v_id2 := guardar_puesto('local', null, 'ZZENSAYO', 'Jefe de Zz Ensayo', 2::smallint, true, 'ensayo');
   if (select codigo from puestos where id=v_id2) = 'JEFE_DE_ZZ_ENSAYO' then raise exception 'el código debe ser único'; end if;
-  -- puesto nuevo en Mantenimiento: rol del más cercano (MANTENIMIENTO)
+  -- puesto nuevo en Mantenimiento: el único rol del área (MANTENIMIENTO)
   v_id2 := guardar_puesto('local', null, 'MANTENIMIENTO', 'Ayudante Mtto', 4::smallint, true, 'ensayo');
   select r.codigo into v_rol from puestos p join roles r on r.id=p.rol_equivalente_id where p.id=v_id2;
   if v_rol <> 'MANTENIMIENTO' then raise exception 'rol equivalente esperado MANTENIMIENTO, fue %', v_rol; end if;
+  -- I4: puesto nuevo de nivel 1 en Aséptico (hay Jefe, Coordinador, Supervisor, Pasante):
+  -- toma el rol más débil del área (SUPERVISOR), no el del Jefe por estar en su nivel
+  v_id2 := guardar_puesto('local', null, 'ASEPTICO', 'Zz Gerente Ensayo', 1::smallint, true, 'ensayo');
+  select r.codigo into v_rol from puestos p join roles r on r.id=p.rol_equivalente_id where p.id=v_id2;
+  if v_rol <> 'SUPERVISOR' then raise exception 'I4: rol equivalente esperado SUPERVISOR (el más débil de Aséptico), fue %', v_rol; end if;
+  -- y en Pruebas (solo el Probador, que no cuenta): VISTA
+  v_id2 := guardar_puesto('local', null, 'PRUEBAS', 'Zz Probador Ensayo', 3::smallint, true, 'ensayo');
+  select r.codigo into v_rol from puestos p join roles r on r.id=p.rol_equivalente_id where p.id=v_id2;
+  if v_rol <> 'VISTA' then raise exception 'I4: rol equivalente esperado VISTA en Pruebas, fue %', v_rol; end if;
   -- editar nombre, nivel, activo
   perform guardar_puesto('local', v_id, 'ZZENSAYO', 'Jefe de Zz Bodega', 2::smallint, false, 'ensayo');
   if not exists (select 1 from puestos where id=v_id and nombre='Jefe de Zz Bodega' and nivel=2 and not activo and codigo='JEFE_DE_ZZ_ENSAYO') then
