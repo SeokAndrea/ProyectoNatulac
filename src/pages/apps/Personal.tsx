@@ -1,15 +1,11 @@
 import { AppShell } from "@/components/AppShell"
-import { PersonalPanel } from "@/components/personal/PersonalPanel"
+import { PersonalPantalla } from "@/components/personal/PersonalPantalla"
 
-/*
- * Personal suelto, para quien tiene PERSONAL_GESTIONAR sin entrar a
- * Edición de Datos (ej. Jefe de Producción). El Super Administrador
- * también lo tiene como pestaña dentro de Edición de Datos.
- */
+/* Organigrama por nivel; el menú de áreas, el panel de la persona y las reglas están en components/personal. */
 export default function Personal() {
   return (
-    <AppShell title="Personal" description="Altas, roles y permisos del personal">
-      <PersonalPanel pagina="Personal" />
+    <AppShell title="Personal" description="Personas, puestos y permisos" fullWidth>
+      <PersonalPantalla pagina="/personal" />
     </AppShell>
   )
 }

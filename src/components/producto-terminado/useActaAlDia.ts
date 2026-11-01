@@ -27,10 +27,10 @@ export function useActaAlDia(turnoId: string | null) {
     if (temporizador.current) clearTimeout(temporizador.current)
     setEstado("actualizando")
     temporizador.current = setTimeout(async () => {
-      const { lineas, presentaciones, velocidades } = catalogos
+      const { areas, lineas, presentaciones, velocidades } = catalogos
       // jsPDF se descarga recién acá, no al abrir Producto Terminado.
       const { regenerarActaDeMiTurno } = await import("@/lib/regenerarActa")
-      const r = await regenerarActaDeMiTurno(session, turnoId, { lineas, presentaciones, velocidades })
+      const r = await regenerarActaDeMiTurno(session, turnoId, { areas, lineas, presentaciones, velocidades })
       setEstado(r.ok ? "lista" : { error: r.error })
     }, ESPERA_MS)
   }

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SeccionColapsable } from "@/components/SeccionColapsable"
 import { finDelTurno, generarActaPdf } from "@/lib/actaPdf"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
-import { AREAS, GRUPOS, nombrePorCodigo, type GrupoCodigo } from "@/lib/catalogos"
+import { GRUPOS, nombrePorCodigo, type GrupoCodigo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
@@ -49,7 +49,7 @@ import {
 export default function Historial() {
   const { session } = useAuth()
   const navigate = useNavigate()
-  const { lineas, presentaciones, velocidades } = useCatalogosLive()
+  const { areas, lineas, presentaciones, velocidades } = useCatalogosLive()
   // La página ya exige AUDITORIA_VER (ver apps.tsx); el registro de cambios y el dataset van con ese mismo permiso.
   const puedeAuditar = puede(session, "AUDITORIA_VER")
   // Eliminar un turno sigue siendo solo del Super Administrador (eliminar_turno lo valida igual).
@@ -177,6 +177,7 @@ export default function Historial() {
         correcciones: detalle.correcciones,
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,
+        areas,
         lineas,
         presentaciones,
         velocidades,
@@ -414,7 +415,7 @@ export default function Historial() {
                     <div className="min-w-0">
                       <p className="truncate font-mono font-medium text-foreground">{a.codigo}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {a.supervisorNombre} · {a.fecha} · {nombrePorCodigo(AREAS, a.area)}
+                        {a.supervisorNombre} · {a.fecha} · {nombrePorCodigo(areas, a.area)}
                       </p>
                     </div>
                   </div>

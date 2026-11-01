@@ -55,7 +55,7 @@ export default function FinalizarTurno() {
   const novedades = useNovedadesTurno()
   const { session } = useAuth()
   const calidadLibera = useCalidadLibera(session?.area ?? null)
-  const { lineas, presentaciones, velocidades } = useCatalogosLive()
+  const { areas, lineas, presentaciones, velocidades } = useCatalogosLive()
   const navigate = useNavigate()
   const [finalizando, setFinalizando] = useState(false)
   const [errorFinalizar, setErrorFinalizar] = useState<string | null>(null)
@@ -256,6 +256,7 @@ export default function FinalizarTurno() {
       // El responsable del turno, no quien lo finaliza (un jefe puede cerrar el turno de otro supervisor).
       supervisorNombre: sesion.supervisorNombre || session.nombre || session.username,
       area: session.area,
+      areas,
       lineas,
       presentaciones,
       velocidades,

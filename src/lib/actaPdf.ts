@@ -1,5 +1,5 @@
 import jsPDF from "jspdf"
-import { AREAS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
+import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo, type GrupoCodigo, type TurnoTipoCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno, type ResultadoEficiencia } from "@/lib/eficiencia"
 import { agruparPorSaborYLote } from "@/lib/agruparProduccion"
@@ -145,6 +145,8 @@ export async function generarActaPdf(params: {
   /** Correcciones abiertas después del cierre. Van al final de 2.3. */
   correcciones?: { nombre: string; motivo: string; creadaEn: string }[]
   area: AreaCodigo | null
+  /** Áreas de la base, para escribir el nombre. Sin ellas se escribe el código. */
+  areas?: { codigo: string; nombre: string }[]
   lineas: LineaLive[]
   presentaciones: PresentacionLive[]
   velocidades: VelocidadLive[]
@@ -173,6 +175,7 @@ export async function generarActaPdf(params: {
     horaInicio = null,
     correcciones = [],
     area,
+    areas = [],
     lineas,
     presentaciones,
     velocidades,
@@ -313,7 +316,7 @@ export async function generarActaPdf(params: {
   // Fila del supervisor más alta: al lado va su firma (la única del acta, dueño 2026-10-01).
   const filaFirma = 10
   celda(M + 6 * C, y, C, fila + filaFirma, "1.5\nIdentificación:", etiqueta)
-  celda(M + 7 * C, y, 2 * C, fila + filaFirma, `${codigo}\n${area ? nombrePorCodigo(AREAS, area) : ""}`, { tamano: 7.5 })
+  celda(M + 7 * C, y, 2 * C, fila + filaFirma, `${codigo}\n${area ? nombrePorCodigo(areas, area) : ""}`, { tamano: 7.5 })
   celda(M, y + fila, C, filaFirma, "1.4 Supervisor:", etiqueta)
   celda(M + C, y + fila, 2.5 * C, filaFirma, supervisorTexto, { ...valor, tamano: responsables.length > 1 ? 6.5 : 8 })
   celda(M + 3.5 * C, y + fila, 0.7 * C, filaFirma, "Firma:", etiqueta)

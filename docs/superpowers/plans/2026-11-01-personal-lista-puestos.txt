@@ -1,0 +1,14 @@
+-- Lista generada sobre la base LOCAL (no hay copia de planta). Incluye usuarios de prueba creados en las tareas 7-8: jefemtto, smtto, aux.almacen. La columna cambia_acceso solo tiene sentido antes de migrar.
+   usuario   |           nombre            |     rol_antes      |  area_antes   | cargo_antes |          puesto          | titulo | cambia_acceso 
+-------------+-----------------------------+--------------------+---------------+-------------+--------------------------+--------+---------------
+ aux.almacen | Auxiliar Almacén Prueba     | VISTA              | ALMACEN       |             | SIN PUESTO               |        | 
+ clavepr     | Clave Prueba                | SUPERVISOR         | ASEPTICO      |             | Supervisor               |        | no
+ super       | Sonia Supervisora           | SUPERVISOR         | ASEPTICO      |             | Supervisor               |        | no
+ jefemtto    | Carlos Jefe                 | MANTENIMIENTO      | MANTENIMIENTO |             | Técnico de Mantenimiento |        | no
+ mtto        | Mario Técnico Mantenimiento | MANTENIMIENTO      | MANTENIMIENTO |             | Técnico de Mantenimiento |        | no
+ smtto       | Sofía Supervisora           | MANTENIMIENTO      | MANTENIMIENTO |             | Técnico de Mantenimiento |        | no
+ pruebas     | Supervisor de Pruebas       | SUPERVISOR         | PRUEBAS       |             | Probador                 |        | no
+ jguerrero   | Jorge Guerrero              | SUPERADMINISTRADOR |               |             | Super Administrador      |        | no
+ local       | Andrea Local                | SUPERADMINISTRADOR |               |             | Super Administrador      |        | no
+(9 rows)
+

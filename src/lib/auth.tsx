@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
-import type { AreaCodigo, CargoCodigo, RolCodigo } from "@/lib/catalogos"
+import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
+import { listarEstructura, type Nivel } from "@/lib/estructura"
 import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
 import { esSoloLectura } from "@/lib/rolVista"
@@ -20,8 +21,11 @@ interface PerfilActual {
   area: AreaCodigo | null
   esDueno: boolean
   permisos: Permiso[]
-  /** Nombre del puesto (usuarios.cargo): solo visual, no decide nada en la app. */
-  cargo: CargoCodigo | null
+  puestoId: string | null
+  puestoCodigo: string | null
+  puesto: string | null
+  nivel: Nivel | null
+  titulo: string | null
 }
 
 /**
@@ -34,14 +38,18 @@ async function cargarPerfil(usuario: string): Promise<PerfilActual | null | unde
   const { data, error } = await supabase.rpc("perfil_sesion", { p_usuario: usuario })
   if (error) return undefined
   if (!data) return null
-  const f = data as { activo: boolean; rol: string; area: string | null; es_dueno: boolean; cargo?: string | null; permisos: string[] | null }
+  const f = data as { activo: boolean; rol: string; area: string | null; es_dueno: boolean; puesto_id?: string | null; puesto_codigo?: string | null; puesto?: string | null; nivel?: number | null; titulo?: string | null; permisos: string[] | null }
   return {
     activo: Boolean(f.activo),
     rol: f.rol as RolCodigo,
     area: f.area as AreaCodigo | null,
     esDueno: Boolean(f.es_dueno),
     permisos: (f.permisos ?? []) as Permiso[],
-    cargo: (f.cargo ?? null) as CargoCodigo | null,
+    puestoId: f.puesto_id ?? null,
+    puestoCodigo: f.puesto_codigo ?? null,
+    puesto: f.puesto ?? null,
+    nivel: (f.nivel ?? null) as Nivel | null,
+    titulo: f.titulo ?? null,
   }
 }
 
@@ -63,8 +71,13 @@ export interface Session {
    * clave escrita no cumple la política. Ver App.tsx y PrimerIngreso.tsx.
    */
   debeCompletarPerfil: boolean
-  /** Rótulo del puesto (Supervisor, Jefe de Producción…). Solo visual: no da permisos. Llega con perfil_sesion al abrir la app. */
-  cargo?: CargoCodigo | null
+  /** Puesto, nivel y título de la persona. Los permisos salen del puesto; esto es para mostrar. Llegan con perfil_sesion al abrir la app. */
+  puestoId?: string | null
+  /** Código del puesto (ej. SOLO_VISTA): decide Solo Vista (ver rolVista.ts). */
+  puestoCodigo?: string | null
+  puesto?: string | null
+  nivel?: Nivel | null
+  titulo?: string | null
   /** Credencial que entregó verificar_login; va en cada petición (ver sesionToken.ts). Las sesiones de antes no la traen. */
   token?: string | null
 }
@@ -75,22 +88,17 @@ export interface DatosPrimerIngreso {
   cedula: string
 }
 
-/** «Ver como» (solo el dueño): la app se muestra con el rol y los permisos de otro. Lo que se hace sigue con el usuario real. */
+/** «Ver como» un puesto (solo el dueño): la app se muestra con los permisos y el área de ese puesto. Lo que se hace sigue con el usuario real. */
 export interface VistaComo {
+  puestoId: string
+  /** Código del puesto: con SOLO_VISTA la vista queda de solo lectura, como la persona real. Las vistas guardadas de antes no lo traen. */
+  puestoCodigo?: string
   rol: RolCodigo
+  area: AreaCodigo | null
   permisos: Permiso[]
-}
-
-/** Área con la que se mira cada rol en «Ver como». */
-const AREA_DE_VISTA: Partial<Record<RolCodigo, AreaCodigo>> = {
-  SUPERVISOR: "ASEPTICO",
-  ANALISTA: "ASEPTICO",
-  JEFE_PRODUCCION: "ASEPTICO",
-  MANTENIMIENTO: "MANTENIMIENTO",
-  CALIDAD: "CALIDAD",
-  SUPERVISOR_CALIDAD: "CALIDAD",
-  SERVICIOS_INDUSTRIALES: "SERVICIOS_INDUSTRIALES",
-  VISTA: "ASEPTICO",
+  /** Para mostrar en la franja. */
+  puesto?: string
+  nivel?: Nivel | null
 }
 
 interface AuthContextValue {
@@ -100,7 +108,7 @@ interface AuthContextValue {
   sessionReal: Session | null
   vistaComo: VistaComo | null
   /** null = volver a la vista propia. */
-  verComo: (rol: RolCodigo | null) => Promise<{ ok: true } | { ok: false; error: string }>
+  verComo: (puestoId: string | null) => Promise<{ ok: true } | { ok: false; error: string }>
   login: (username: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>
   completarPrimerIngreso: (datos: DatosPrimerIngreso) => Promise<{ ok: true } | { ok: false; error: string }>
   logout: () => void
@@ -135,7 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [vistaComo, setVistaComo] = useState<VistaComo | null>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_VISTA)
-      return raw ? (JSON.parse(raw) as VistaComo) : null
+      const guardada = raw ? (JSON.parse(raw) as Partial<VistaComo>) : null
+      // Una vista guardada por rol (antes de los puestos) ya no sirve.
+      return guardada?.puestoId ? (guardada as VistaComo) : null
     } catch {
       return null
     }
@@ -146,15 +156,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(STORAGE_VISTA)
   }, [vistaComo])
 
-  async function verComo(rol: RolCodigo | null) {
-    if (rol === null) {
+  async function verComo(puestoId: string | null) {
+    if (puestoId === null) {
       setVistaComo(null)
       return { ok: true as const }
     }
     if (!session?.esDueno) return { ok: false as const, error: "Solo el dueño puede usar «Ver como»." }
-    const { data, error } = await supabase.rpc("permisos_de_rol", { p_usuario: session.username, p_rol_codigo: rol })
-    if (error || !Array.isArray(data)) return { ok: false as const, error: error?.message || "No se pudieron leer los permisos de ese rol." }
-    setVistaComo({ rol, permisos: data as Permiso[] })
+    const estructura = await listarEstructura(session.username)
+    const puesto = estructura?.puestos.find((p) => p.id === puestoId)
+    if (!puesto) return { ok: false as const, error: "No se encontró ese puesto." }
+    const { data, error } = await supabase.rpc("permisos_de_puesto", { p_usuario: session.username, p_puesto_id: puestoId })
+    if (error || !Array.isArray(data)) return { ok: false as const, error: error?.message || "No se pudieron leer los permisos de ese puesto." }
+    setVistaComo({
+      puestoId,
+      puestoCodigo: puesto.codigo,
+      rol: puesto.rolEquivalente ?? "SUPERVISOR",
+      area: puesto.areaCodigo,
+      permisos: data as Permiso[],
+      puesto: puesto.nombre,
+      nivel: puesto.nivel,
+    })
     return { ok: true as const }
   }
 
@@ -163,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionVista = useMemo<Session | null>(
     () =>
       session && vistaActiva
-        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: AREA_DE_VISTA[vistaActiva.rol] ?? session.area, cargo: null }
+        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: vistaActiva.area, puestoId: vistaActiva.puestoId, puestoCodigo: vistaActiva.puestoCodigo ?? null, puesto: vistaActiva.puesto ?? null, nivel: vistaActiva.nivel ?? null, titulo: null }
         : session,
     [session, vistaActiva],
   )
@@ -216,7 +237,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null)
         return
       }
-      actualizar({ rol: perfil.rol, area: perfil.area, esDueno: perfil.esDueno, permisos: perfil.permisos, cargo: perfil.cargo })
+      actualizar({ rol: perfil.rol, area: perfil.area, esDueno: perfil.esDueno, permisos: perfil.permisos,
+        puestoId: perfil.puestoId,
+        puestoCodigo: perfil.puestoCodigo,
+        puesto: perfil.puesto,
+        nivel: perfil.nivel,
+        titulo: perfil.titulo,
+      })
     })
     return () => {
       cancelado = true
@@ -259,10 +286,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fijarTokenSesion(token)
     limpiarAvisoSalida()
     const permisos = (await cargarPermisos(perfil.usuario)) ?? []
+    // El puesto antes de mostrar nada: sin él, un puesto con rol VISTA entraría como Solo Vista hasta que cargue.
+    const actual = await cargarPerfil(perfil.usuario)
+    const puesto = actual
+      ? { puestoId: actual.puestoId, puestoCodigo: actual.puestoCodigo, puesto: actual.puesto, nivel: actual.nivel, titulo: actual.titulo }
+      : {}
     setPasswordLogin(password)
     setSession({
       token,
       permisos,
+      ...puesto,
       username: perfil.usuario,
       nombre: perfil.nombre ?? perfil.usuario,
       cedula: perfil.cedula ?? null,

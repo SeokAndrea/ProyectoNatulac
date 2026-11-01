@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { AREAS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
+import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo } from "@/lib/catalogos"
 import { turnosActivosPorArea, type TurnoActivoArea } from "@/lib/historialTurnos"
 import { puede } from "@/lib/permisos"
 
@@ -36,7 +36,7 @@ export function EstadoBanner() {
   const { session } = useAuth()
   const sesion = useSesionTurno()
   const { corridas } = useProduccion()
-  const { lineas } = useCatalogosLive()
+  const { areas, lineas } = useCatalogosLive()
   const [turnoDeArea, setTurnoDeArea] = useState<TurnoActivoArea | null>(null)
 
   // turnos_activos_por_area() exige AUDITORIA_VER: sin él (Calidad, Mantenimiento) daba
@@ -59,7 +59,7 @@ export function EstadoBanner() {
         <span>
           <span className="text-muted-foreground">Área: </span>
           <span className="font-medium text-foreground">
-            {session.area ? nombrePorCodigo(AREAS, session.area) : "Todas las áreas"}
+            {session.area ? nombrePorCodigo(areas, session.area) : "Todas las áreas"}
           </span>
         </span>
         <span>

@@ -1,13 +1,13 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth"
-import { AREA_QUE_MIRA_EL_APOYO, esAreaDeApoyo, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
+import { AREA_QUE_MIRA_EL_APOYO, esAreaDeApoyo, registrarTiposDeArea, type LineaCodigo, type PresentacionCodigo } from "@/lib/catalogos"
+import type { AreaEstructura } from "@/lib/estructura"
 
 /*
  * Versión EN VIVO (Supabase) de líneas, presentaciones y velocidades
  * de llenadora — reemplaza a las constantes hardcodeadas del mismo
- * nombre en catalogos.ts, que quedaron solo para AREAS/ROLES/
- * TURNO_TIPOS/GRUPOS (catálogos que casi no cambian). Se carga UNA
+ * nombre en catalogos.ts, que quedaron solo para TURNO_TIPOS/GRUPOS (catálogos que casi no cambian). Se carga UNA
  * vez acá (ver CatalogosProvider en main.tsx) y la comparten todos
  * los componentes que antes leían las constantes estáticas —
  * Comenzar Turno, el banner de estado, el acta de Finalizar Turno, y
@@ -47,6 +47,8 @@ export interface VelocidadLive {
 }
 
 interface CatalogosContextValue {
+  /** Las áreas de la base (nombre, tipo, orden). `personas` va en 0: el conteo es de listar_estructura. */
+  areas: AreaEstructura[]
   /** Las líneas del área de la sesión. Sin área fija (Super Admin): todas menos las de Pruebas. */
   lineas: LineaLive[]
   /** Todas, incluidas las de Pruebas: solo para Edición de Datos. */
@@ -58,6 +60,14 @@ interface CatalogosContextValue {
 }
 
 const CatalogosContext = createContext<CatalogosContextValue | null>(null)
+
+interface FilaArea {
+  codigo: string
+  nombre: string
+  tipo: "PRODUCCION" | "APOYO"
+  activo: boolean
+  orden: number
+}
 
 interface FilaLinea {
   linea_id: string
@@ -90,6 +100,7 @@ interface FilaVelocidad {
 
 export function CatalogosProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth()
+  const [areas, setAreas] = useState<AreaEstructura[]>([])
   const [lineasTodas, setLineasTodas] = useState<LineaLive[]>([])
   /** Área de cada línea (para sacar las de Pruebas cuando la sesión no tiene área). */
   const [areaDeLinea, setAreaDeLinea] = useState<Record<string, string>>({})
@@ -109,6 +120,12 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
     // es la única área productiva real que queda (Vacío se eliminó del
     // todo el 2026-09-25), así que se filtra directo a esa.
     // Calidad y Mantenimiento (también áreas de apoyo) igual: miran Aséptico.
+    // Las áreas van primero: el tipo de cada una (APOYO o no) decide qué líneas pedir.
+    const areasRes = await supabase.rpc("listar_areas")
+    const filasAreas = (areasRes.data ?? []) as FilaArea[]
+    registrarTiposDeArea(filasAreas)
+    setAreas(filasAreas.map((f) => ({ ...f, personas: 0 })))
+
     const areaCatalogo =
       esAreaDeApoyo(session?.area)
         ? AREA_QUE_MIRA_EL_APOYO
@@ -168,7 +185,7 @@ export function CatalogosProvider({ children }: { children: ReactNode }) {
   }, [session?.area])
 
   return (
-    <CatalogosContext.Provider value={{ lineas, lineasTodas, presentaciones, velocidades, cargando, recargar }}>
+    <CatalogosContext.Provider value={{ areas, lineas, lineasTodas, presentaciones, velocidades, cargando, recargar }}>
       {children}
     </CatalogosContext.Provider>
   )
@@ -197,4 +214,9 @@ export function litrosHoraDeLive(
 ): number | null {
   return velocidades.find((v) => v.linea === linea && v.presentacion === presentacion && v.envasesHora === envasesHora)
     ?.litrosHora ?? null
+}
+
+/** Nombre de un área desde la lista de la base; si no está (todavía cargando), el código tal cual. */
+export function nombreDeArea(areas: readonly { codigo: string; nombre: string }[], codigo: string): string {
+  return areas.find((a) => a.codigo === codigo)?.nombre ?? codigo
 }

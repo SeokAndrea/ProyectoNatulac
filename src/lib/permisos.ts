@@ -27,13 +27,31 @@ export const PERMISOS = [
   { codigo: "CALIDAD_PARAMETROS", nombre: "Editar parámetros de Calidad (Brix y acidez por sabor)" },
   { codigo: "SIF_GESTIONAR", nombre: "Gestionar solicitudes de intervención de falla" },
   { codigo: "INVENTARIO_CARGAR", nombre: "Cargar el Inventario diario" },
+  { codigo: "ESTRUCTURA_GESTIONAR", nombre: "Gestionar áreas, puestos y permisos" },
+  { codigo: "LECTURAS_SI", nombre: "Cargar lecturas de Servicios Industriales" },
+  { codigo: "CODIGOS_MTTO_EDITAR", nombre: "Editar los códigos de Mantenimiento" },
+  { codigo: "REPORTES_PARADAS_VER", nombre: "Ver los reportes de paradas" },
 ] as const
 
 export type Permiso = (typeof PERMISOS)[number]["codigo"]
 
-/** ¿La sesión tiene este permiso? Super Administrador siempre. */
+/**
+ * Permisos de tema PERSONAS y ADMINISTRACION (tabla permisos.tema). Un puesto
+ * con todos los permisos que no es el de Super Administrador (el Probador)
+ * no los tiene: espejo de tiene_permiso() en la migración 20261114290000.
+ */
+export const PERMISOS_DE_ADMINISTRACION: readonly Permiso[] = ["PERSONAL_GESTIONAR", "ESTRUCTURA_GESTIONAR"]
+
+export function esPermisoDeAdministracion(permiso: Permiso): boolean {
+  return PERMISOS_DE_ADMINISTRACION.includes(permiso)
+}
+
+/** ¿La sesión tiene este permiso? Super Administrador siempre (los de administración, solo en su puesto). */
 export function puede(session: Session | null, permiso: Permiso): boolean {
   if (!session) return false
-  if (session.rol === "SUPERADMINISTRADOR") return true
+  if (session.rol === "SUPERADMINISTRADOR") {
+    const puestoSuperAdmin = !session.puestoCodigo || session.puestoCodigo === "SUPERADMINISTRADOR"
+    if (puestoSuperAdmin || !esPermisoDeAdministracion(permiso)) return true
+  }
   return (session.permisos ?? []).includes(permiso)
 }

@@ -10,10 +10,17 @@ export function useAccion() {
   async function ejecutar(fn: () => Promise<Resultado>): Promise<boolean> {
     setEnviando(true)
     setError(null)
-    const resultado = await fn()
-    setEnviando(false)
-    if (!resultado.ok) setError(resultado.error)
-    return resultado.ok
+    try {
+      const resultado = await fn()
+      if (!resultado.ok) setError(resultado.error)
+      return resultado.ok
+    } catch {
+      // La llamada a la base se cayó (sin red): que los botones no queden trabados.
+      setError("No se pudo conectar. Intenta de nuevo.")
+      return false
+    } finally {
+      setEnviando(false)
+    }
   }
 
   return { enviando, error, setError, ejecutar }

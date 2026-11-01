@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
-import { CARGOS, nombrePorCodigo } from "@/lib/catalogos"
+import { rotuloCargo } from "@/lib/catalogos"
 import type { RegistroAuditoria } from "@/lib/auditoria"
 
 /*
@@ -85,7 +85,7 @@ function FilaCambio({ r }: { r: RegistroAuditoria }) {
         <span className="text-foreground">{r.resumen ?? `${r.accion} · ${r.entidad}`}</span>
         <span className="text-muted-foreground">
           · {r.usuarioNombre ?? r.usuario ?? "—"}
-          {r.usuarioCargo ? ` (${nombrePorCodigo(CARGOS, r.usuarioCargo)})` : ""}
+          {r.usuarioCargo ? ` (${rotuloCargo(r.usuarioCargo)})` : ""}
           {r.pagina ? ` · ${r.pagina}` : ""}
         </span>
         {diffs.length > 0 && (

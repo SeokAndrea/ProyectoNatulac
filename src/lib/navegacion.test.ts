@@ -78,9 +78,10 @@ describe("Reportes de paradas", () => {
     expect(puedeVerApp(sesion("SUPERVISOR"), reportes)).toBe(false)
   })
 
-  it("la ven el Jefe, la Analista, Mantenimiento y la dueña", () => {
-    for (const rol of ["JEFE_PRODUCCION", "ANALISTA", "MANTENIMIENTO", "SUPERADMINISTRADOR"] as const) {
-      expect(puedeVerApp(sesion(rol), reportes)).toBe(true)
+  it("la ve quien tiene REPORTES_PARADAS_VER, sea del rol que sea", () => {
+    const conPermiso = (rol: RolCodigo): Session => ({ ...sesion(rol), permisos: ["REPORTES_PARADAS_VER"] })
+    for (const rol of ["JEFE_PRODUCCION", "ANALISTA", "MANTENIMIENTO", "SUPERVISOR"] as const) {
+      expect(puedeVerApp(conPermiso(rol), reportes)).toBe(true)
     }
   })
 
@@ -102,9 +103,10 @@ describe("Códigos de Mantenimiento", () => {
     debeCompletarPerfil: false,
   })
 
-  it("desde el catálogo modular (2026-10-31) solo la ve la dueña", () => {
+  it("solo la ve la dueña, aunque el puesto tenga CODIGOS_MTTO_EDITAR", () => {
     expect(puedeVerApp({ ...sesion("SUPERADMINISTRADOR"), esDueno: true }, app)).toBe(true)
-    for (const rol of ["MANTENIMIENTO", "SUPERADMINISTRADOR", "SUPERVISOR", "JEFE_PRODUCCION", "ANALISTA", "VISTA"] as const) {
+    expect(puedeVerApp({ ...sesion("MANTENIMIENTO"), permisos: ["CODIGOS_MTTO_EDITAR"] }, app)).toBe(false)
+    for (const rol of ["MANTENIMIENTO", "SUPERVISOR", "JEFE_PRODUCCION", "ANALISTA"] as const) {
       expect(puedeVerApp(sesion(rol), app)).toBe(false)
     }
   })

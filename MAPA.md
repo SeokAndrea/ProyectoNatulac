@@ -68,7 +68,9 @@ había una del supervisor y otra de Mantenimiento): cada parada entra como
 | Indicadores (mes por línea y presentación: eficiencia, cajas, merma, paradas y semielaborado; cada mes AUTOMÁTICO o MANUAL, con observaciones) | `src/pages/apps/Indicadores.tsx`, `src/components/indicadores/` (editor manual en `editor/`), cuentas en `src/lib/indicadores/`; migración 20261109990000 |
 | Textos de "Validar" (revisión post-turno, VALIDAR) | `src/pages/apps/Validar.tsx`, `src/components/ValidarLista.tsx` |
 | Textos de "Edición de Datos" | `src/pages/apps/EdicionDatos.tsx` |
-| Textos de "Personal" (administradores de área) | `src/pages/apps/Personal.tsx`, `src/components/personal/` (`PersonalPanel`, `FiltrosPersonal`, `FilaPersonal`, `FilaEdicionPersonal`, `FormularioNuevoPersonal`, `EditorPermisosExtra`; selectores de área/rol/cargo en `SelectoresPuesto`) |
+| Personal (organigrama por área y nivel, panel de la persona con puesto, título y permisos extra; cada jefe solo ve su área y los niveles menores) | `src/pages/apps/Personal.tsx`, `src/components/personal/` (`PersonalPantalla`, `OrganigramaArea`, `PanelPersona`, `PanelLateral`, `TablaPersonal`), `src/lib/personal.ts`, `src/lib/estructura.ts` |
+| Áreas y puestos (matriz de permisos por puesto, crear áreas y puestos; solo con `ESTRUCTURA_GESTIONAR`) | `src/pages/apps/AreasPuestos.tsx`, `src/components/personal/` (`MatrizPermisos`, `FormPuesto`), `src/lib/estructura.ts`; migraciones 20261113990000 a 20261114490000 |
+| Qué tarjetas ve cada persona: salen de los permisos del puesto (más los extra), no del rol. Super Administrador y Probador tienen todos | `src/lib/permisos.ts`, `src/lib/apps.tsx`; en la base `tiene_permiso`, `permisos_de_puesto` y `perfil_sesion` |
 | Textos de "Auditoría" (buscar turnos pasados, Super Administrador) | `src/pages/apps/Historial.tsx`, `src/components/AuditoriaTurnos.tsx` |
 
 ## Estilo / apariencia

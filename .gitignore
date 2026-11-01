@@ -47,3 +47,6 @@ supabase/.branches
 plc-bridge/datos/
 
 # Información interna de la empresa: se queda solo en el PC, no va a GitHub
+
+# Maquetas del brainstorming (superpowers)
+.superpowers/
