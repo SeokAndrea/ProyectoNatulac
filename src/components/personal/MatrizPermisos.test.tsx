@@ -76,4 +76,18 @@ describe("MatrizPermisos", () => {
     expect(await screen.findByText("No puedes dar ese permiso.")).toBeInTheDocument()
     expect(caja("Validar producción", "Supervisor")).toBeChecked()
   })
+
+  it("tras guardar con la lista sin recargar, el contador vuelve a 0 y no se reenvía", async () => {
+    const onGuardar = vi.fn().mockResolvedValue({ ok: true })
+    render(<MatrizPermisos puestos={PUESTOS} permisos={PERMISOS} onGuardar={onGuardar} />)
+    await userEvent.click(caja("Validar producción", "Supervisor"))
+    await userEvent.click(caja("Validar producción", "Técnico de Mantenimiento"))
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios (2)" }))
+    expect(await screen.findByText("2 cambios guardados")).toBeInTheDocument()
+    const boton = screen.getByRole("button", { name: "Guardar cambios (0)" })
+    expect(boton).toBeDisabled()
+    await userEvent.click(boton)
+    expect(onGuardar).toHaveBeenCalledTimes(1)
+    expect(caja("Validar producción", "Supervisor")).toBeChecked()
+  })
 })

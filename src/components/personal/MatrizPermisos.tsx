@@ -35,13 +35,16 @@ export function MatrizPermisos({
   /** Con esto, el nombre del puesto en el encabezado abre su formulario. */
   onEditarPuesto?: (puesto: PuestoEstructura) => void
 }) {
+  /** Último estado guardado que se conoce: lo que llegó de la base o lo que se acaba de guardar. */
   const [base, setBase] = useState(puestos)
+  const [recibidos, setRecibidos] = useState(puestos)
   const [editada, setEditada] = useState(() => copiar(puestos))
   const [aviso, setAviso] = useState<string | null>(null)
   const { enviando, error, ejecutar } = useAccion()
 
-  // La lista se recargó (otra área, tras guardar): se parte de ella, pero el aviso se queda.
-  if (base !== puestos) {
+  // El padre pasó una lista nueva (otra área, recarga): se parte de ella; el aviso se queda.
+  if (recibidos !== puestos) {
+    setRecibidos(puestos)
     setBase(puestos)
     setEditada(copiar(puestos))
   }
@@ -56,7 +59,7 @@ export function MatrizPermisos({
     return [...conocidos, { tema: "OTROS" as const, nombre: "Otros", filas: otros }].filter((g) => g.filas.length > 0)
   }, [permisos])
 
-  const cambios = useMemo(() => diferenciasMatriz(puestos, editada), [puestos, editada])
+  const cambios = useMemo(() => diferenciasMatriz(base, editada), [base, editada])
 
   function marcar(puestoId: string, permiso: Permiso, marcado: boolean) {
     setAviso(null)
@@ -78,8 +81,8 @@ export function MatrizPermisos({
       return r.ok ? { ok: true as const } : { ok: false as const, error: r.error ?? "No se pudieron guardar los permisos." }
     })
     if (!ok) return
-    // Lo guardado pasa a ser el punto de partida (si la lista no se recarga, el contador vuelve a 0).
-    const guardados = puestos.map((p) => ({ ...p, permisos: [...(editada.get(p.id) ?? p.permisos)] }))
+    // Lo guardado pasa a ser el punto de partida: el contador vuelve a 0 aunque el padre no recargue.
+    const guardados = base.map((p) => ({ ...p, permisos: [...(editada.get(p.id) ?? p.permisos)] }))
     setBase(guardados)
     setAviso(`${enviados.length} ${enviados.length === 1 ? "cambio guardado" : "cambios guardados"}`)
   }
@@ -98,7 +101,7 @@ export function MatrizPermisos({
                 Permiso
               </th>
               {columnas.map((p) => (
-                <th key={p.id} scope="col" className={cn("min-w-28 border-b border-l border-border bg-card px-3 py-2 text-center font-semibold", !p.activo && "italic")}>
+                <th key={p.id} scope="col" className={cn("min-w-28 border-b border-l border-border bg-card px-3 py-2 text-center font-semibold", !p.activo && "text-muted-foreground italic")}>
                   {onEditarPuesto ? (
                     <button type="button" onClick={() => onEditarPuesto(p)} className="min-h-11 font-semibold text-info-foreground underline-offset-2 hover:underline">
                       {p.nombre}
@@ -148,7 +151,7 @@ export function MatrizPermisos({
           Guardar cambios ({cambios.length})
         </Button>
         {cambios.length > 0 && !enviando && (
-          <Button variant="outline" className="h-11" onClick={() => setEditada(copiar(puestos))}>
+          <Button variant="outline" className="h-11" onClick={() => setEditada(copiar(base))}>
             Deshacer
           </Button>
         )}

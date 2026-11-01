@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Pencil, Plus } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { FormArea } from "@/components/personal/FormArea"
@@ -21,20 +21,33 @@ export default function AreasPuestos() {
   const usuario = session?.username ?? ""
   const [estructura, setEstructura] = useState<Estructura | null>(null)
   const [fallo, setFallo] = useState(false)
+  const [sinRefrescar, setSinRefrescar] = useState(false)
+  const estructuraRef = useRef<Estructura | null>(null)
   const [elegida, setElegida] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>(null)
 
   const cargar = useCallback(async () => {
     if (!usuario) return
     const e = await listarEstructura(usuario)
-    setEstructura(e)
-    setFallo(e === null)
+    // Si la recarga falla se deja lo que ya hay en pantalla (y los avisos de guardado).
+    if (e) {
+      setEstructura(e)
+      setFallo(false)
+      setSinRefrescar(false)
+    } else {
+      setSinRefrescar(true)
+      setFallo((previo) => previo || estructuraRef.current === null)
+    }
   }, [usuario])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial desde la base
     void cargar()
   }, [cargar])
+
+  useEffect(() => {
+    estructuraRef.current = estructura
+  }, [estructura])
 
   const areas = estructura?.areas ?? []
   const areaCodigo = elegida ?? areas[0]?.codigo ?? null
@@ -45,7 +58,7 @@ export default function AreasPuestos() {
   async function guardarMatriz(cambios: CambioMatriz[]) {
     const r = await guardarPermisosPuestos(usuario, cambios, PAGINA)
     if (!r.ok) return r
-    await cargar()
+    await cargar() // si falla, la matriz conserva lo marcado y el aviso de guardado
     return { ok: true }
   }
 
@@ -60,9 +73,11 @@ export default function AreasPuestos() {
             setPanel(null)
           }}
           onNueva={() => setPanel({ que: "area", codigo: null })}
+          sinEnlaceAdministracion
         />
 
         <div className="flex min-w-0 flex-1 flex-col gap-4">
+          {sinRefrescar && estructura && <p className="text-sm text-destructive">No se pudo actualizar la lista. Lo guardado está a salvo; recarga la página para verlo.</p>}
           {fallo ? (
             <p className="rounded-xl border border-border bg-card px-4 py-6 text-sm text-foreground">No se pudo leer la estructura. Revisa la conexión e intenta de nuevo.</p>
           ) : !estructura ? (
