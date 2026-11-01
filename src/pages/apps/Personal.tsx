@@ -1,12 +1,11 @@
-import { Users } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
-import { EmptyState } from "@/components/EmptyState"
+import { PersonalPantalla } from "@/components/personal/PersonalPantalla"
 
-/* Personal se está rehaciendo con áreas y puestos (reemplazo en la Task 7). */
+/* Organigrama por nivel; el menú de áreas, el panel de la persona y las reglas están en components/personal. */
 export default function Personal() {
   return (
-    <AppShell title="Personal" description="Personas, puestos y permisos">
-      <EmptyState icon={Users} title="Personal se está rehaciendo" description="Vuelve en unos días." />
+    <AppShell title="Personal" description="Personas, puestos y permisos" fullWidth>
+      <PersonalPantalla pagina="/personal" />
     </AppShell>
   )
 }
