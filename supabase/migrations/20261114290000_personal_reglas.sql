@@ -375,6 +375,68 @@ begin
 end;
 $$;
 
+-- todos_los_permisos cubre todo salvo los permisos de tema PERSONAS y ADMINISTRACION,
+-- que solo cubre en el puesto SUPERADMINISTRADOR (el Probador no administra personas).
+create or replace function tiene_permiso(p_usuario text, p_permiso text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.exigir_usuario('tiene_permiso', p_usuario);
+  select exists (
+    select 1
+    from usuarios u
+    join puestos p on p.id = u.puesto_id
+    where u.usuario = lower(p_usuario)
+      and u.activo
+      and (
+        (p.todos_los_permisos
+          and (
+            p.codigo = 'SUPERADMINISTRADOR'
+            or not exists (
+              select 1 from permisos pe
+               where pe.codigo = p_permiso and pe.tema in ('PERSONAS', 'ADMINISTRACION')
+            )
+          ))
+        or exists (select 1 from puesto_permisos pp where pp.puesto_id = p.id and pp.permiso_codigo = p_permiso)
+        or exists (select 1 from usuario_permisos up where up.usuario_id = u.id and up.permiso_codigo = p_permiso)
+      )
+  );
+$$;
+
+-- Permisos extra: solo de las personas que quien pregunta puede ver.
+create or replace function listar_permisos_extra(p_usuario text)
+returns table (usuario_id uuid, permiso_codigo text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_todos boolean;
+  v_area uuid;
+begin
+  perform public.exigir_usuario('listar_permisos_extra', p_usuario);
+  v_todos := tiene_permiso(p_usuario, 'ESTRUCTURA_GESTIONAR');
+  if not v_todos then
+    if not tiene_permiso(p_usuario, 'PERSONAL_GESTIONAR') then
+      raise exception 'No tienes permiso para ver esto.';
+    end if;
+    select p.area_id into v_area from usuarios uu join puestos p on p.id = uu.puesto_id
+     where uu.usuario = lower(p_usuario);
+  end if;
+  return query
+  select up.usuario_id, up.permiso_codigo
+    from usuario_permisos up
+    join usuarios u on u.id = up.usuario_id
+    join puestos p on p.id = u.puesto_id
+   where v_todos or (v_area is not null and p.area_id = v_area);
+end;
+$$;
+
+grant execute on function tiene_permiso(text, text) to anon, authenticated;
+grant execute on function listar_permisos_extra(text) to anon, authenticated;
 grant execute on function puede_gestionar_personal(text, uuid) to anon, authenticated;
 grant execute on function puestos_asignables(text) to anon, authenticated;
 grant execute on function listar_personal(text) to anon, authenticated;

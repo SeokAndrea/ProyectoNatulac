@@ -232,6 +232,31 @@ begin
     if sqlerrm like 'FALLO%' then raise; end if;
   end;
 
+  -- Probador: no administra personas; sí tiene los demás permisos
+  insert into usuarios (usuario, password_hash, nombre, puesto_id)
+  select 't4_pr', 'x', 't4_pr', id from puestos where codigo='PROBADOR';
+  if tiene_permiso('t4_pr','ESTRUCTURA_GESTIONAR') then raise exception 'Probador no debe tener ESTRUCTURA_GESTIONAR'; end if;
+  if tiene_permiso('t4_pr','PERSONAL_GESTIONAR') then raise exception 'Probador no debe tener PERSONAL_GESTIONAR'; end if;
+  if not tiene_permiso('t4_pr','VALIDAR') then raise exception 'Probador debe seguir con VALIDAR'; end if;
+  if not tiene_permiso('local','ESTRUCTURA_GESTIONAR') then raise exception 'Super Admin debe tener ESTRUCTURA_GESTIONAR'; end if;
+  begin
+    perform * from listar_personal('t4_pr');
+    raise exception 'FALLO: Probador listó';
+  exception when others then
+    if sqlerrm like 'FALLO%' then raise; end if;
+    if sqlerrm not like 'No tienes permiso para ver esto.%' then raise exception 'mensaje inesperado: %', sqlerrm; end if;
+  end;
+  if exists (select 1 from puestos_asignables('t4_pr')) then raise exception 'Probador no asigna puestos'; end if;
+
+  -- listar_permisos_extra: jm no ve los extras de otra área
+  insert into usuario_permisos (usuario_id, permiso_codigo) values (v_sa, 'CATALOGO_PARADAS');
+  if exists (select 1 from listar_permisos_extra('t4_jm') where usuario_id = v_sa) then
+    raise exception 'jm no debe ver los extras de sa';
+  end if;
+  if not exists (select 1 from listar_permisos_extra('local') where usuario_id = v_sa) then
+    raise exception 'local debe ver los extras de sa';
+  end if;
+
   raise notice 'Ensayo 4 OK';
 end $$;
 
