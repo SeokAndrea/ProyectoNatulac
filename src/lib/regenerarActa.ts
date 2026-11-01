@@ -1,4 +1,5 @@
 import type { Session } from "@/lib/auth"
+import type { AreaEstructura } from "@/lib/estructura"
 import type { LineaLive, PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { finDelTurno, generarActaPdf } from "@/lib/actaPdf"
 import { miTurnoDetalle, subirYRegistrarActa } from "@/lib/historialTurnos"
@@ -16,7 +17,7 @@ import { actualizarSheetEnSilencio } from "@/lib/sheetMantenimiento"
 export async function regenerarActaDeMiTurno(
   session: Session,
   turnoId: string,
-  catalogos: { lineas: LineaLive[]; presentaciones: PresentacionLive[]; velocidades: VelocidadLive[] },
+  catalogos: { areas?: AreaEstructura[]; lineas: LineaLive[]; presentaciones: PresentacionLive[]; velocidades: VelocidadLive[] },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const turno = await miTurnoDetalle(session.username, turnoId)
   if (!turno) return { ok: false, error: "No se pudo leer el turno para armar el acta." }

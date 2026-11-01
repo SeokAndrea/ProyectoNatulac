@@ -8,28 +8,14 @@
  */
 
 /*
- * AREAS y ROLES: espejo de las tablas "areas" y "roles" sembradas en
- * supabase/migrations/20260819120000_core_schema.sql. Se usan en el
- * login (src/lib/auth.tsx) y en la gestión de personal
- * (src/components/PersonalPanel.tsx).
+ * Las áreas (y sus nombres) viven en la base: se leen con
+ * useCatalogosLive().areas — ver src/lib/catalogosLive.tsx y
+ * src/lib/estructura.ts. Acá solo queda lo que no cambia.
  */
-// Vacío se sacó de la app el 2026-09-25: nunca se usó y no se va a usar.
-// El área VACIO sigue en la base (sin migración que la borre).
-// tipo: PRODUCCION abre turnos y tiene líneas; APOYO no produce y mira la producción de Aséptico.
-export const AREAS = [
-  { codigo: "ASEPTICO", nombre: "Producción Aséptico", tipo: "PRODUCCION" },
-  { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales", tipo: "APOYO" },
-  { codigo: "MANTENIMIENTO", nombre: "Mantenimiento", tipo: "APOYO" },
-  { codigo: "CALIDAD", nombre: "Calidad", tipo: "APOYO" },
-  // Quien no es de ningún área (Presidencia, gerencias): casi siempre con Solo Vista. Migración 20261109190000.
-  { codigo: "OTROS", nombre: "Otros", tipo: "APOYO" },
-  { codigo: "PRUEBAS", nombre: "Área de Pruebas", tipo: "PRODUCCION" },
-] as const
+export type AreaCodigo = string
+export type TipoArea = "PRODUCCION" | "APOYO"
 
-export type AreaCodigo = (typeof AREAS)[number]["codigo"]
-export type TipoArea = (typeof AREAS)[number]["tipo"]
-
-/** Títulos de los dos grupos de áreas (selectores de Personal, sección del Hub). */
+/** Títulos de los dos grupos de áreas (selectores, sección del Hub). */
 export const TIPOS_AREA: readonly { tipo: TipoArea; nombre: string }[] = [
   { tipo: "PRODUCCION", nombre: "Producción" },
   { tipo: "APOYO", nombre: "Servicios de apoyo" },
@@ -40,35 +26,14 @@ export const AREA_QUE_MIRA_EL_APOYO: AreaCodigo = "ASEPTICO"
 
 /** ¿Es un área de apoyo (Calidad, Mantenimiento, Servicios Industriales)? Sin área (Super Administrador): no. */
 export function esAreaDeApoyo(area: string | null | undefined): boolean {
-  return AREAS.some((a) => a.codigo === area && a.tipo === "APOYO")
-}
-
-/**
- * Áreas que solo admiten ciertos roles (migraciones 20261089, 20261111290000
- * y 20261113090000). Los roles de Calidad, Servicios Industriales y
- * Mantenimiento tampoco van en otra área (salvo Pruebas, para probar); Solo
- * Vista sí va en cualquiera. Así los roles de Producción (Supervisor,
- * Analista, Jefe) quedan en Aséptico y Pruebas.
- */
-const ROLES_DE_AREA: Partial<Record<AreaCodigo, readonly string[]>> = {
-  CALIDAD: ["CALIDAD", "SUPERVISOR_CALIDAD"],
-  SERVICIOS_INDUSTRIALES: ["SERVICIOS_INDUSTRIALES"],
-  MANTENIMIENTO: ["MANTENIMIENTO", "VISTA"],
-  OTROS: ["VISTA"],
-}
-
-/** ¿Este rol se puede dar en esta área? Mismo criterio que el trigger trg_rol_area_calidad del servidor. */
-export function rolPermitidoEnArea(rol: string, area: string | null | undefined): boolean {
-  if (!area || area === "PRUEBAS") return true
-  const propios = ROLES_DE_AREA[area as AreaCodigo]
-  if (propios) return propios.includes(rol)
-  return rol === "VISTA" || !Object.values(ROLES_DE_AREA).some((roles) => roles?.includes(rol))
+  return area === "SERVICIOS_INDUSTRIALES" || area === "MANTENIMIENTO" || area === "CALIDAD" || area === "OTROS"
 }
 
 // Rework 2026-09-27: el rol es un paquete de permisos por defecto (ver
 // src/lib/permisos.ts y la migración 20261078090000_roles_y_permisos.sql).
 // Permisos extra por persona (ej. SubJefe = Supervisor + permisos de jefe)
 // se dan desde Personal. Super Administrador (técnicos) tiene todo.
+// ROLES sigue solo para «Ver como» (src/components/VerComo.tsx) hasta la Task 9 / Fase 2.
 export const ROLES = [
   { codigo: "SUPERVISOR", nombre: "Supervisor" },
   { codigo: "ANALISTA", nombre: "Analista de Producción" },
@@ -76,62 +41,18 @@ export const ROLES = [
   { codigo: "MANTENIMIENTO", nombre: "Mantenimiento" },
   { codigo: "CALIDAD", nombre: "Analista de Calidad" },
   { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad" },
-  // Solo sus dos tarjetas: lecturas y registros del área (migración 20261111290000).
   { codigo: "SERVICIOS_INDUSTRIALES", nombre: "Servicios Industriales" },
-  // Solo mira el Panel de Producción y el de Paradas (src/lib/rolVista.ts).
   { codigo: "VISTA", nombre: "Solo Vista" },
-  // Técnicos y la dueña: todo. El Jefe y la Analista tienen su rol (migración 20261111290000).
   { codigo: "SUPERADMINISTRADOR", nombre: "Super Administrador" },
 ] as const
 
 export type RolCodigo = (typeof ROLES)[number]["codigo"]
 
-/*
- * CARGOS: solo el nombre del puesto. No decide nada en la app (ni
- * permisos ni el orden del Inicio): eso es del rol de arriba. Ej. el
- * Subjefe es rol Supervisor con cargo Subjefe. Espejo de usuarios.cargo (texto),
- * ver supabase/migrations/20260982090000_cargo_personal.sql (texto
- * libre: sumar un cargo no lleva migración). Para sumar un cargo nuevo,
- * agregar acá una línea con las áreas donde se ofrece.
- */
-const AREAS_CARGO_PRODUCCION = ["ASEPTICO", "PRUEBAS"] as const
-const AREAS_CARGO_CALIDAD = ["CALIDAD", "PRUEBAS"] as const
-const AREAS_CARGO_MANTENIMIENTO = ["MANTENIMIENTO", "PRUEBAS"] as const
-
-export const CARGOS = [
-  { codigo: "JEFE_PRODUCCION", nombre: "Jefe de Producción", areas: AREAS_CARGO_PRODUCCION },
-  { codigo: "SUBJEFE", nombre: "Subjefe", areas: AREAS_CARGO_PRODUCCION },
-  { codigo: "ANALISTA_PRODUCCION", nombre: "Analista de Producción", areas: AREAS_CARGO_PRODUCCION },
-  { codigo: "SUPERVISOR", nombre: "Supervisor", areas: AREAS_CARGO_PRODUCCION },
-  { codigo: "PASANTE", nombre: "Pasante / Aprendiz", areas: AREAS_CARGO_PRODUCCION },
-  { codigo: "JEFE_CALIDAD", nombre: "Jefe de Calidad", areas: AREAS_CARGO_CALIDAD },
-  { codigo: "SUPERVISOR_CALIDAD", nombre: "Supervisor de Calidad", areas: AREAS_CARGO_CALIDAD },
-  { codigo: "ANALISTA_CALIDAD", nombre: "Analista de Calidad", areas: AREAS_CARGO_CALIDAD },
-  { codigo: "JEFE_MANTENIMIENTO", nombre: "Jefe de Mantenimiento", areas: AREAS_CARGO_MANTENIMIENTO },
-  { codigo: "SUPERVISOR_MANTENIMIENTO", nombre: "Supervisor de Mantenimiento", areas: AREAS_CARGO_MANTENIMIENTO },
-  { codigo: "TECNICO_MANTENIMIENTO", nombre: "Técnico de Mantenimiento", areas: AREAS_CARGO_MANTENIMIENTO },
-] as const
-
-export type CargoCodigo = (typeof CARGOS)[number]["codigo"]
-
-/** Cargos que se sugieren en un área (el cargo igual se escribe libre). Sin área elegida: todos. Servicios Industriales todavía no tiene cargos propios. */
-export function cargosDeArea(area: string | null | undefined): readonly (typeof CARGOS)[number][] {
-  if (!area) return CARGOS
-  return CARGOS.filter((c) => (c.areas as readonly string[]).includes(area))
-}
-
-export const LARGO_CARGO = 60
-
-/** Lo que escribieron en Cargo → lo que se guarda: el código si es uno de la lista (sin importar mayúsculas), o el texto tal cual. */
-export function cargoDeTexto(texto: string): string {
-  const limpio = texto.trim().replace(/\s+/g, " ")
-  const conocido = CARGOS.find((c) => c.nombre.toLowerCase() === limpio.toLowerCase())
-  return conocido ? conocido.codigo : limpio
-}
-
-/** ¿El cargo se ofrece en esa área? Al cambiar de área, un cargo que no va ahí se limpia. */
-export function cargoValeEnArea(cargo: string, area: string | null | undefined): boolean {
-  return cargo === "" || cargosDeArea(area).some((c) => c.codigo === cargo)
+/** usuarios.cargo guarda un código (JEFE_PRODUCCION) o texto libre: el código se escribe legible. */
+export function rotuloCargo(cargo: string): string {
+  if (!/^[A-Z0-9_]+$/.test(cargo)) return cargo
+  const texto = cargo.toLowerCase().replace(/_/g, " ")
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
 export const TURNO_TIPOS = [

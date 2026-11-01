@@ -27,6 +27,10 @@ export const PERMISOS = [
   { codigo: "CALIDAD_PARAMETROS", nombre: "Editar parámetros de Calidad (Brix y acidez por sabor)" },
   { codigo: "SIF_GESTIONAR", nombre: "Gestionar solicitudes de intervención de falla" },
   { codigo: "INVENTARIO_CARGAR", nombre: "Cargar el Inventario diario" },
+  { codigo: "ESTRUCTURA_GESTIONAR", nombre: "Gestionar áreas, puestos y permisos" },
+  { codigo: "LECTURAS_SI", nombre: "Cargar lecturas de Servicios Industriales" },
+  { codigo: "CODIGOS_MTTO_EDITAR", nombre: "Editar los códigos de Mantenimiento" },
+  { codigo: "REPORTES_PARADAS_VER", nombre: "Ver los reportes de paradas" },
 ] as const
 
 export type Permiso = (typeof PERMISOS)[number]["codigo"]

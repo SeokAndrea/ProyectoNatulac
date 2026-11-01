@@ -10,7 +10,7 @@ export interface RegistroAuditoria {
   ocurridoEn: string
   usuario: string | null
   usuarioNombre: string | null
-  /** Cargo (rótulo del puesto) de quien hizo la acción — código de CARGOS, o null. */
+  /** Cargo (rótulo del puesto) de quien hizo la acción — texto de usuarios.cargo (código o texto libre), o null. */
   usuarioCargo: string | null
   accion: string
   entidad: string

@@ -71,7 +71,7 @@ vi.mock("@/components/producto-terminado/useActaAlDia", () => ({
 }))
 vi.mock("@/lib/catalogosLive", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/catalogosLive")>()),
-  useCatalogosLive: () => ({ lineas: LINEAS, presentaciones: PRESENTACIONES, velocidades: [], cargando: false }),
+  useCatalogosLive: () => ({ areas: [], lineas: LINEAS, presentaciones: PRESENTACIONES, velocidades: [], cargando: false }),
 }))
 
 /** Orden en que se llamó a cada acción al guardar. */

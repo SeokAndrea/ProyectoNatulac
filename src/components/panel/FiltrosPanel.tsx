@@ -3,10 +3,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AREAS, TURNO_TIPOS, type AreaCodigo } from "@/lib/catalogos"
+import { TURNO_TIPOS, type AreaCodigo } from "@/lib/catalogos"
+import { useCatalogosLive } from "@/lib/catalogosLive"
 
-/** Pruebas y las áreas de apoyo nunca tienen un turno propio: no tiene sentido elegirlas en el filtro de área del Panel. */
-const AREAS_SELECCIONABLES = AREAS.filter((a) => a.tipo === "PRODUCCION" && a.codigo !== "PRUEBAS")
 
 /** Área (si puede elegirla), tipo de turno, fecha y "Ver en vivo". Cambiar turno o fecha busca ese turno. */
 export function FiltrosPanel({
@@ -30,6 +29,7 @@ export function FiltrosPanel({
   onFecha: (fecha: string) => void
   onEnVivo: () => void
 }) {
+  const { areas } = useCatalogosLive()
   return (
     <Card className="border-border bg-surface shadow-sm">
       <CardContent className="flex flex-wrap items-end gap-3">
@@ -41,7 +41,7 @@ export function FiltrosPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {AREAS_SELECCIONABLES.map((a) => (
+                {areas.filter((a) => a.activo && a.tipo === "PRODUCCION" && a.codigo !== "PRUEBAS").map((a) => (
                   <SelectItem key={a.codigo} value={a.codigo}>
                     {a.nombre}
                   </SelectItem>

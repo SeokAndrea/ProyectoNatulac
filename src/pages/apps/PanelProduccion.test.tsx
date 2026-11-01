@@ -64,9 +64,14 @@ const VELOCIDADES: VelocidadLive[] = ["LINEA_1", "LINEA_2", "LINEA_3"].map((line
   litrosHora: 6000,
   activo: true,
 }))
+const AREAS_FIXTURE = [
+  { codigo: "ASEPTICO", nombre: "Producción Aséptico", tipo: "PRODUCCION", activo: true, orden: 1, personas: 0 },
+  { codigo: "MANTENIMIENTO", nombre: "Mantenimiento", tipo: "APOYO", activo: true, orden: 3, personas: 0 },
+  { codigo: "PRUEBAS", nombre: "Área de Pruebas", tipo: "PRODUCCION", activo: true, orden: 6, personas: 0 },
+]
 vi.mock("@/lib/catalogosLive", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/catalogosLive")>()),
-  useCatalogosLive: () => ({ lineas: LINEAS, presentaciones: PRESENTACIONES, velocidades: VELOCIDADES, cargando: false }),
+  useCatalogosLive: () => ({ areas: AREAS_FIXTURE, lineas: LINEAS, presentaciones: PRESENTACIONES, velocidades: VELOCIDADES, cargando: false }),
 }))
 
 /** Datos de los 3 módulos por turno ("t-1" el actual, "t-0" el anterior). */

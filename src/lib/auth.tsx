@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
-import type { AreaCodigo, CargoCodigo, RolCodigo } from "@/lib/catalogos"
+import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
+import type { Nivel } from "@/lib/estructura"
 import { cedulaValida, claveCumplePolitica } from "@/lib/credenciales"
 import type { Permiso } from "@/lib/permisos"
 import { esSoloLectura } from "@/lib/rolVista"
@@ -20,8 +21,10 @@ interface PerfilActual {
   area: AreaCodigo | null
   esDueno: boolean
   permisos: Permiso[]
-  /** Nombre del puesto (usuarios.cargo): solo visual, no decide nada en la app. */
-  cargo: CargoCodigo | null
+  puestoId: string | null
+  puesto: string | null
+  nivel: Nivel | null
+  titulo: string | null
 }
 
 /**
@@ -34,14 +37,17 @@ async function cargarPerfil(usuario: string): Promise<PerfilActual | null | unde
   const { data, error } = await supabase.rpc("perfil_sesion", { p_usuario: usuario })
   if (error) return undefined
   if (!data) return null
-  const f = data as { activo: boolean; rol: string; area: string | null; es_dueno: boolean; cargo?: string | null; permisos: string[] | null }
+  const f = data as { activo: boolean; rol: string; area: string | null; es_dueno: boolean; puesto_id?: string | null; puesto?: string | null; nivel?: number | null; titulo?: string | null; permisos: string[] | null }
   return {
     activo: Boolean(f.activo),
     rol: f.rol as RolCodigo,
     area: f.area as AreaCodigo | null,
     esDueno: Boolean(f.es_dueno),
     permisos: (f.permisos ?? []) as Permiso[],
-    cargo: (f.cargo ?? null) as CargoCodigo | null,
+    puestoId: f.puesto_id ?? null,
+    puesto: f.puesto ?? null,
+    nivel: (f.nivel ?? null) as Nivel | null,
+    titulo: f.titulo ?? null,
   }
 }
 
@@ -63,8 +69,11 @@ export interface Session {
    * clave escrita no cumple la política. Ver App.tsx y PrimerIngreso.tsx.
    */
   debeCompletarPerfil: boolean
-  /** Rótulo del puesto (Supervisor, Jefe de Producción…). Solo visual: no da permisos. Llega con perfil_sesion al abrir la app. */
-  cargo?: CargoCodigo | null
+  /** Puesto, nivel y título de la persona. Los permisos salen del puesto; esto es para mostrar. Llegan con perfil_sesion al abrir la app. */
+  puestoId?: string | null
+  puesto?: string | null
+  nivel?: Nivel | null
+  titulo?: string | null
   /** Credencial que entregó verificar_login; va en cada petición (ver sesionToken.ts). Las sesiones de antes no la traen. */
   token?: string | null
 }
@@ -163,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionVista = useMemo<Session | null>(
     () =>
       session && vistaActiva
-        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: AREA_DE_VISTA[vistaActiva.rol] ?? session.area, cargo: null }
+        ? { ...session, rol: vistaActiva.rol, permisos: vistaActiva.permisos, esDueno: false, area: AREA_DE_VISTA[vistaActiva.rol] ?? session.area, puestoId: null, puesto: null, nivel: null, titulo: null }
         : session,
     [session, vistaActiva],
   )
@@ -216,7 +225,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null)
         return
       }
-      actualizar({ rol: perfil.rol, area: perfil.area, esDueno: perfil.esDueno, permisos: perfil.permisos, cargo: perfil.cargo })
+      actualizar({ rol: perfil.rol, area: perfil.area, esDueno: perfil.esDueno, permisos: perfil.permisos,
+        puestoId: perfil.puestoId,
+        puesto: perfil.puesto,
+        nivel: perfil.nivel,
+        titulo: perfil.titulo,
+      })
     })
     return () => {
       cancelado = true

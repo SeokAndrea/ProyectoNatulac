@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
+import type { Nivel } from "@/lib/estructura"
 import type { Permiso } from "@/lib/permisos"
 
 export interface PersonalRegistrado {
@@ -7,13 +7,16 @@ export interface PersonalRegistrado {
   usuario: string
   nombre: string
   cedula: string | null
-  area: AreaCodigo | null
-  /** De dónde es la persona en realidad, cuando está cubriendo otra área temporalmente (ej. reemplazo). null = sin reemplazo. Es solo informativo, no afecta permisos ni scoping — ver migración 20260979. */
-  areaOrigen: AreaCodigo | null
-  rol: RolCodigo
-  /** Título del puesto, solo visual — no afecta permisos (ver migración 20260982). null = sin cargo cargado. */
-  cargo: string | null
+  puestoId: string
+  puesto: string
+  /** null = puesto sin área (Super Administrador, Probador). */
+  areaCodigo: string | null
+  nivel: Nivel | null
+  /** Rótulo libre de la persona (ej. Subjefe). Solo visual. */
+  titulo: string | null
   activo: boolean
+  /** La base dice si quien pregunta puede editar a esta persona. */
+  gestionable: boolean
 }
 
 /*
@@ -40,11 +43,13 @@ interface FilaPersonal {
   usuario: string
   nombre: string | null
   cedula: string | null
-  rol_codigo: string
+  puesto_id: string
+  puesto: string
   area_codigo: string | null
-  area_origen_codigo: string | null
-  cargo: string | null
+  nivel: number | null
+  titulo: string | null
   activo: boolean
+  gestionable: boolean
 }
 
 export async function listarPersonal(usuarioSesion: string): Promise<PersonalRegistrado[]> {
@@ -55,36 +60,52 @@ export async function listarPersonal(usuarioSesion: string): Promise<PersonalReg
     usuario: fila.usuario,
     nombre: fila.nombre ?? fila.usuario,
     cedula: fila.cedula,
-    area: fila.area_codigo as AreaCodigo | null,
-    areaOrigen: fila.area_origen_codigo as AreaCodigo | null,
-    rol: fila.rol_codigo as RolCodigo,
-    cargo: fila.cargo,
+    puestoId: fila.puesto_id,
+    puesto: fila.puesto,
+    areaCodigo: fila.area_codigo,
+    nivel: fila.nivel as Nivel | null,
+    titulo: fila.titulo,
     activo: fila.activo,
+    gestionable: Boolean(fila.gestionable),
+  }))
+}
+
+/** Puestos que quien pregunta puede dar (su área, nivel menor al propio). */
+export interface PuestoAsignable {
+  puestoId: string
+  codigo: string
+  nombre: string
+  areaCodigo: string
+  nivel: Nivel
+}
+
+export async function listarPuestosAsignables(usuarioSesion: string): Promise<PuestoAsignable[]> {
+  const { data, error } = await supabase.rpc("puestos_asignables", { p_usuario: usuarioSesion })
+  if (error || !data) return []
+  return (
+    data as { puesto_id: string; codigo: string; nombre: string; area_codigo: string; nivel: number }[]
+  ).map((f) => ({
+    puestoId: f.puesto_id,
+    codigo: f.codigo,
+    nombre: f.nombre,
+    areaCodigo: f.area_codigo,
+    nivel: f.nivel as Nivel,
   }))
 }
 
 export async function editarPersonal(
   usuarioSesion: string,
-  datos: {
-    id: string
-    nombre: string
-    cedula: string | null
-    area: AreaCodigo
-    areaOrigen: AreaCodigo | null
-    rol: RolCodigo
-    cargo: string | null
-  },
+  id: string,
+  datos: { nombre: string; cedula: string | null; puestoId: string; titulo: string | null },
   pagina: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await supabase.rpc("editar_personal", {
     p_creador_usuario: usuarioSesion,
-    p_usuario_id: datos.id,
+    p_usuario_id: id,
     p_nombre: datos.nombre,
     p_cedula: datos.cedula,
-    p_area_codigo: datos.area,
-    p_rol_codigo: datos.rol,
-    p_area_origen_codigo: datos.areaOrigen,
-    p_cargo: datos.cargo,
+    p_puesto_id: datos.puestoId,
+    p_titulo: datos.titulo,
     p_pagina: pagina,
   })
   if (error) {
@@ -159,28 +180,17 @@ export async function eliminarPersonal(
 
 export async function agregarPersonal(
   usuarioSesion: string,
-  datos: {
-    usuario: string
-    nombre: string
-    cedula: string | null
-    password: string
-    area: AreaCodigo
-    areaOrigen: AreaCodigo | null
-    rol: RolCodigo
-    cargo: string | null
-  },
+  datos: { usuario: string; password: string; puestoId: string; nombre: string; cedula?: string | null; titulo?: string | null },
   pagina: string,
-): Promise<{ ok: true; personal: PersonalRegistrado } | { ok: false; error: string }> {
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const { data, error } = await supabase.rpc("crear_usuario", {
     p_creador_usuario: usuarioSesion,
     p_usuario: datos.usuario,
     p_password: datos.password,
-    p_rol_codigo: datos.rol,
-    p_area_codigo: datos.area,
+    p_puesto_id: datos.puestoId,
     p_nombre: datos.nombre,
-    p_cedula: datos.cedula,
-    p_area_origen_codigo: datos.areaOrigen,
-    p_cargo: datos.cargo,
+    p_cedula: datos.cedula ?? null,
+    p_titulo: datos.titulo ?? null,
     p_pagina: pagina,
   })
 
@@ -192,33 +202,13 @@ export async function agregarPersonal(
     return { ok: false, error: error.message || "No se pudo agregar el usuario. Intenta de nuevo." }
   }
 
-  return {
-    ok: true,
-    personal: {
-      id: data as string,
-      usuario: datos.usuario,
-      nombre: datos.nombre,
-      cedula: datos.cedula,
-      area: datos.area,
-      areaOrigen: datos.areaOrigen,
-      rol: datos.rol,
-      cargo: datos.cargo,
-      activo: true,
-    },
-  }
+  return { ok: true, id: data as string }
 }
 
 /*
- * Permisos extra por persona (además de los de su rol). Ver
+ * Permisos extra por persona (además de los de su puesto). Ver
  * supabase/migrations/20261078090000_roles_y_permisos.sql.
  */
-
-/** Permisos que trae cada rol por defecto (para no ofrecer como "extra" lo que ya tiene). */
-export async function permisosPorRol(): Promise<Partial<Record<RolCodigo, Permiso[]>>> {
-  const { data, error } = await supabase.rpc("listar_permisos_catalogo")
-  if (error || !data) return {}
-  return (data as { por_rol: Partial<Record<RolCodigo, Permiso[]>> }).por_rol ?? {}
-}
 
 /** Permisos extra de todo el personal, por id de usuario. */
 export async function listarPermisosExtra(usuarioSesion: string): Promise<Map<string, Permiso[]>> {

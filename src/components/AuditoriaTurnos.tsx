@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AREAS, TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
-import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
+import { TURNO_TIPOS, nombrePorCodigo } from "@/lib/catalogos"
+import { useCatalogosLive, type LineaLive, type PresentacionLive } from "@/lib/catalogosLive"
 import {
   coincideBusqueda,
   construirHistorial,
@@ -85,6 +85,7 @@ export function AuditoriaTurnos({
   /** Slot por fila de supervisor (ej. link al acta, "abrir turno"). */
   accionesTurno?: (turno: TurnoAuditoria) => ReactNode
 }) {
+  const { areas } = useCatalogosLive()
   const [preset, setPreset] = useState<PresetFecha>(presetInicial)
   const [fechaExacta, setFechaExacta] = useState(() => fechaPlanta())
   const [turnoTipoFiltro, setTurnoTipoFiltro] = useState<string>("TODOS")
@@ -95,7 +96,7 @@ export function AuditoriaTurnos({
     () =>
       turnos.map((t) => ({
         ...t,
-        areaNombre: nombrePorCodigo(AREAS, t.resumen.area),
+        areaNombre: nombrePorCodigo(areas, t.resumen.area),
         eventos: construirHistorial(t.detalle, lineas, presentaciones),
         chips: resumenTurno(t.detalle, lineas, presentaciones),
       })),

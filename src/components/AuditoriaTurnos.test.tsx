@@ -1,10 +1,21 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { AuditoriaTurnos, type TurnoAuditoria } from "@/components/AuditoriaTurnos"
 import { LINEAS_DEMO, PRESENTACIONES_DEMO, contador, corrida, prep, pt, turnoDemo } from "@/lib/auditoriaDemoFixture"
 import { fechaLocal } from "@/lib/turno"
 import type { TurnoHistorial, TurnoResumen } from "@/lib/historialTurnos"
+
+vi.mock("@/lib/catalogosLive", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/catalogosLive")>()),
+  useCatalogosLive: () => ({
+    areas: [
+      { codigo: "ASEPTICO", nombre: "Producción Aséptico", tipo: "PRODUCCION", activo: true, orden: 1, personas: 0 },
+      { codigo: "MANTENIMIENTO", nombre: "Mantenimiento", tipo: "APOYO", activo: true, orden: 3, personas: 0 },
+      { codigo: "PRUEBAS", nombre: "Área de Pruebas", tipo: "PRODUCCION", activo: true, orden: 6, personas: 0 },
+    ],
+  }),
+}))
 
 const HOY = fechaLocal(new Date())
 

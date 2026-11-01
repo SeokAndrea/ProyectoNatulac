@@ -1,6 +1,7 @@
 import { Activity, Boxes, Building2, CalendarDays, ClipboardList, Clock, RadioTower, Target, UserRound, type LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { AREAS, CARGOS, TURNO_TIPOS, nombreGrupo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
+import { useCatalogosLive } from "@/lib/catalogosLive"
+import { TURNO_TIPOS, nombreGrupo, nombrePorCodigo, rotuloCargo, type AreaCodigo } from "@/lib/catalogos"
 import type { TurnoActivo } from "@/lib/turno"
 import { tramoT2 } from "@/lib/turno12x12"
 import { cn } from "@/lib/utils"
@@ -54,6 +55,7 @@ export function BannerSuperior({
   onAlternarFiltros: () => void
   onAbrirFiltros: () => void
 }) {
+  const { areas } = useCatalogosLive()
   // 12x12: el T2 se parte a las 19:00 (15:00–19:00 / 19:00–22:30).
   const tramo = tramoT2(turno?.esquema, turno?.turnoTipo, turno?.horaInicio)
   const horario = tramo ? { inicio: tramo.desde, fin: tramo.hasta } : HORARIOS[turnoTipo]
@@ -117,7 +119,7 @@ export function BannerSuperior({
             className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground"
           >
             <Building2 className="size-3.5" />
-            {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(AREAS, areaFiltro)}
+            {areaFiltro === "TODAS" ? "Todas las áreas" : nombrePorCodigo(areas, areaFiltro)}
           </button>
         )}
 
@@ -126,7 +128,7 @@ export function BannerSuperior({
             <span className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
               <UserRound className="size-3.5 text-primary" />
               {turno.supervisorNombre}
-              {supervisorCargo && <span className="text-muted-foreground">· {nombrePorCodigo(CARGOS, supervisorCargo)}</span>}
+              {supervisorCargo && <span className="text-muted-foreground">· {rotuloCargo(supervisorCargo)}</span>}
             </span>
             <span className="text-xs text-muted-foreground">
               Turno {turno.codigo} · {nombreGrupo(turno.grupo)}

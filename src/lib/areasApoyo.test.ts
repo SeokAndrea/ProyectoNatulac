@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Session } from "@/lib/auth"
 import { apps, puedeVerApp } from "@/lib/apps"
-import { cargosDeArea, cargoValeEnArea, esAreaDeApoyo, rolPermitidoEnArea, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
+import { esAreaDeApoyo, type AreaCodigo, type RolCodigo } from "@/lib/catalogos"
 
 function sesion(area: AreaCodigo, rol: RolCodigo, permisos: Session["permisos"] = []): Session {
   return { username: "prueba", nombre: "Prueba", cedula: null, area, rol, esDueno: false, permisos, debeCompletarPerfil: false }
@@ -44,45 +44,5 @@ describe("áreas de apoyo", () => {
 
   it("Mantenimiento ve Reportes de paradas", () => {
     expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["PARADAS_MANTENIMIENTO"]))).toContain("reportes-paradas")
-  })
-})
-
-describe("roles por área", () => {
-  it("Calidad y Servicios Industriales solo con sus roles; Otros solo Solo Vista; Pruebas, cualquiera", () => {
-    expect(rolPermitidoEnArea("SUPERVISOR", "SERVICIOS_INDUSTRIALES")).toBe(false)
-    expect(rolPermitidoEnArea("SERVICIOS_INDUSTRIALES", "SERVICIOS_INDUSTRIALES")).toBe(true)
-    expect(rolPermitidoEnArea("SERVICIOS_INDUSTRIALES", "ASEPTICO")).toBe(false)
-    expect(rolPermitidoEnArea("CALIDAD", "ASEPTICO")).toBe(false)
-    expect(rolPermitidoEnArea("SUPERVISOR", "OTROS")).toBe(false)
-    expect(rolPermitidoEnArea("VISTA", "OTROS")).toBe(true)
-    expect(rolPermitidoEnArea("VISTA", "ASEPTICO")).toBe(true)
-    expect(rolPermitidoEnArea("SERVICIOS_INDUSTRIALES", "PRUEBAS")).toBe(true)
-  })
-
-  it("en Mantenimiento solo va su rol (o Solo Vista), y su rol no va en Producción", () => {
-    expect(rolPermitidoEnArea("MANTENIMIENTO", "MANTENIMIENTO")).toBe(true)
-    expect(rolPermitidoEnArea("VISTA", "MANTENIMIENTO")).toBe(true)
-    expect(rolPermitidoEnArea("JEFE_PRODUCCION", "MANTENIMIENTO")).toBe(false)
-    expect(rolPermitidoEnArea("ANALISTA", "MANTENIMIENTO")).toBe(false)
-    expect(rolPermitidoEnArea("SUPERVISOR", "MANTENIMIENTO")).toBe(false)
-    expect(rolPermitidoEnArea("MANTENIMIENTO", "ASEPTICO")).toBe(false)
-    expect(rolPermitidoEnArea("MANTENIMIENTO", "PRUEBAS")).toBe(true)
-  })
-})
-
-describe("cargos por área", () => {
-  it("Producción y Calidad tienen sus cargos; Pruebas, los dos; sin área, todos", () => {
-    expect(cargosDeArea("ASEPTICO").map((c) => c.codigo)).toContain("SUPERVISOR")
-    expect(cargosDeArea("ASEPTICO").map((c) => c.codigo)).not.toContain("ANALISTA_CALIDAD")
-    expect(cargosDeArea("CALIDAD").map((c) => c.codigo)).toEqual(["JEFE_CALIDAD", "SUPERVISOR_CALIDAD", "ANALISTA_CALIDAD"])
-    expect(cargosDeArea("PRUEBAS").length).toBe(cargosDeArea(null).length)
-    expect(cargosDeArea("MANTENIMIENTO").map((c) => c.codigo)).toEqual(["JEFE_MANTENIMIENTO", "SUPERVISOR_MANTENIMIENTO", "TECNICO_MANTENIMIENTO"])
-    expect(cargosDeArea("SERVICIOS_INDUSTRIALES")).toEqual([])
-  })
-
-  it("al cambiar de área, un cargo que no va ahí deja de valer", () => {
-    expect(cargoValeEnArea("SUPERVISOR", "CALIDAD")).toBe(false)
-    expect(cargoValeEnArea("SUPERVISOR", "ASEPTICO")).toBe(true)
-    expect(cargoValeEnArea("", "MANTENIMIENTO")).toBe(true)
   })
 })

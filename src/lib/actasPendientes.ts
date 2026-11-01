@@ -17,7 +17,7 @@ import { misTurnosSinActa } from "@/lib/historialTurnos"
  */
 export function useGenerarActasPendientes(): void {
   const { session } = useAuth()
-  const { lineas, presentaciones, velocidades } = useCatalogosLive()
+  const { areas, lineas, presentaciones, velocidades } = useCatalogosLive()
   const yaCorrio = useRef(false)
 
   useEffect(() => {
@@ -33,8 +33,8 @@ export function useGenerarActasPendientes(): void {
       const { regenerarActaDeMiTurno } = await import("@/lib/regenerarActa")
       for (const { turnoId } of pendientes) {
         // Si falla no se pierde nada: mis_turnos_sin_acta() lo vuelve a traer en la próxima visita mientras no tenga acta VIGENTE.
-        await regenerarActaDeMiTurno(session, turnoId, { lineas, presentaciones, velocidades })
+        await regenerarActaDeMiTurno(session, turnoId, { areas, lineas, presentaciones, velocidades })
       }
     })
-  }, [session, lineas, presentaciones, velocidades])
+  }, [session, areas, lineas, presentaciones, velocidades])
 }

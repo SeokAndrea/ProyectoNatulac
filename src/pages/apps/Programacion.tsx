@@ -8,7 +8,7 @@ import { VistaSemanal } from "@/components/programacion/VistaSemanal"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { AREA_QUE_MIRA_EL_APOYO, AREAS, esAreaDeApoyo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
+import { AREA_QUE_MIRA_EL_APOYO, esAreaDeApoyo, nombrePorCodigo, type AreaCodigo } from "@/lib/catalogos"
 import { eliminarItemSemana, fechaJornada, guardarItemSemana, leerSemana, programarItemDia } from "@/lib/programacion"
 import { diasDeSemana, lunesDe, semanaCerrada, type ItemSemana, type Semana } from "@/lib/programacionSemanal"
 import { listarSabores, type Sabor } from "@/lib/sabores"
@@ -37,7 +37,7 @@ function nombreSemana(lunes: string) {
 export default function Programacion() {
   const { session } = useAuth()
   const usuario = session?.username ?? ""
-  const { presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
+  const { areas, presentaciones, velocidades, cargando: cargandoCatalogos } = useCatalogosLive()
   const puedeEditar = puede(session ?? null, "PROGRAMACION_EDITAR")
   const hoy = fechaJornada()
 
@@ -121,7 +121,7 @@ export default function Programacion() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {AREAS.map((a) => (
+                  {areas.filter((a) => a.activo).map((a) => (
                     <SelectItem key={a.codigo} value={a.codigo}>
                       {a.nombre}
                     </SelectItem>
@@ -129,7 +129,7 @@ export default function Programacion() {
                 </SelectContent>
               </Select>
             ) : (
-              <span className="text-xs text-muted-foreground">{nombrePorCodigo(AREAS, area)}</span>
+              <span className="text-xs text-muted-foreground">{nombrePorCodigo(areas, area)}</span>
             )}
           </div>
         </div>
