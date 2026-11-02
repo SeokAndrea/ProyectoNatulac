@@ -34,6 +34,8 @@ import { esInspeccion, listarSif, RUTA_SIF, type Sif } from "@/lib/sif"
 
 const etiquetaFiltro = "text-xs font-semibold text-foreground"
 const MAX_FILAS = 8
+/** Las SIF cerradas que se piden: muchas, para que un mes viejo o un rango largo no quede sin ellas. */
+const SIF_CERRADAS = 2000
 
 const NIVELES: NivelResumen[] = ["SUBSISTEMA", "EQUIPO", "SISTEMA", "FALLA"]
 
@@ -84,7 +86,7 @@ function Tarjeta({ titulo, valor, nota, alerta = false }: { titulo: string; valo
 interface Props {
   /** Las paradas del período elegido (sin filtrar). null = cargando. */
   paradas: Parada[] | null
-  /** Las del período anterior de igual largo. null = cargando. */
+  /** Las del período anterior de igual largo. null = cargando o no se pudo leer. */
   anteriores: Parada[] | null
   rango: Rango
   onRango: (r: Rango) => void
@@ -118,7 +120,7 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
   const conFalla = useMemo(() => conFallas(actuales, fallas, catalogo), [actuales, fallas, catalogo])
 
   const totales = useMemo(() => totalesResumen(actuales, ahora), [actuales, ahora])
-  const anterior = useMemo(() => totalesResumen(previas, ahora), [previas, ahora])
+  const anterior = useMemo(() => (anteriores === null ? null : totalesResumen(previas, ahora)), [anteriores, previas, ahora])
   const comparacion = comparacionPeriodo(totales, anterior)
   const grupos = useMemo(() => agruparResumen(actuales, conFalla, nivel, ahora), [actuales, conFalla, nivel, ahora])
   const { filas, otros } = useMemo(() => limitarGrupos(grupos, MAX_FILAS), [grupos])
@@ -130,7 +132,7 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
   useEffect(() => {
     if (!usuario) return
     let vivo = true
-    void listarSif(usuario).then((r) => vivo && setSifs(r.ok ? r.data : "error"))
+    void listarSif(usuario, SIF_CERRADAS).then((r) => vivo && setSifs(r.ok ? r.data : "error"))
     return () => {
       vivo = false
     }
@@ -252,9 +254,11 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
                   </p>
                 </div>
               </div>
-              <Button type="button" className="h-11 shrink-0 px-5" onClick={verSusFallas}>
-                Ver sus fallas
-              </Button>
+              {nivel !== "FALLA" && (
+                <Button type="button" className="h-11 shrink-0 px-5" onClick={verSusFallas}>
+                  Ver sus fallas
+                </Button>
+              )}
             </section>
           )}
 

@@ -41,15 +41,16 @@ const fallasPorParada = new Map<string, FallasDeParada>([
 vi.mock("@/lib/catalogoFallas/useCatalogoFallas", () => ({ useCatalogoFallas: () => ({ catalogo, cargando: false, error: null, recargar: async () => {} }) }))
 vi.mock("@/lib/catalogoFallas/useFallasDeParadas", () => ({ useFallasDeParadas: () => fallasPorParada }))
 vi.mock("@/lib/ventanasParadas", () => ({ listarVentanasTurnos: async () => [], ventanasDeParada: () => [] }))
+const pedidoSif = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/sif", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/sif")>()),
-  listarSif: async () => ({
+  listarSif: async (...args: unknown[]) => ({
     ok: true,
-    data: [
+    data: (pedidoSif(...args), [
       { id: "s1", estado: "INSPECCION", fechaJornada: "2026-10-12", lineaCodigo: "LINEA_1", tipoCodigo: "CF-SUP-CAM-01", generadaEn: "2026-10-12T10:00:00" },
       { id: "s2", estado: "PENDIENTE", fechaJornada: "2026-10-14", lineaCodigo: "LINEA_1", tipoCodigo: "CF-SUP-CAM-01", generadaEn: "2026-10-14T10:00:00" },
       { id: "s3", estado: "INSPECCION", fechaJornada: "2026-08-01", lineaCodigo: "LINEA_1", tipoCodigo: "CF-SUP-CAM-01", generadaEn: "2026-08-01T10:00:00" },
-    ],
+    ]),
   }),
 }))
 
@@ -79,9 +80,15 @@ const DEL_MES = [
 ]
 const MES_ANTERIOR = [parada("z", "2026-09-10T08:00:00Z", 10)]
 
+const anterior = { modo: "ok" as "ok" | "error" | "vacio" }
+const leer = async ({ hasta }: { hasta: string }) => {
+  if (hasta >= "2026-10-20") return DEL_MES
+  return anterior.modo === "error" ? null : anterior.modo === "vacio" ? [] : MES_ANTERIOR
+}
 vi.mock("@/lib/paradas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/paradas")>()),
-  listarParadas: async ({ hasta }: { hasta: string }) => (hasta >= "2026-10-20" ? DEL_MES : MES_ANTERIOR),
+  listarParadas: async (f: { hasta: string }) => (await leer(f)) ?? [],
+  listarParadasLectura: (f: { hasta: string }) => leer(f),
 }))
 
 function abrir(ruta = "/reportes-paradas") {
@@ -95,6 +102,8 @@ function abrir(ruta = "/reportes-paradas") {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] })
   vi.setSystemTime(new Date("2026-10-20T15:00:00Z"))
+  anterior.modo = "ok"
+  pedidoSif.mockClear()
   sesion.actual = { username: "local", nombre: "Local", area: "ASEPTICO" } as Session
 })
 afterEach(() => {
@@ -189,5 +198,52 @@ describe("Reportes de paradas · Resumen", () => {
     expect(screen.getByRole("tab", { name: "Lista de paradas" }).getAttribute("aria-selected")).toBe("true")
     await u.click(screen.getByRole("tab", { name: "Resumen" }))
     expect(await screen.findByRole("region", { name: "Totales" })).toBeTruthy()
+  })
+
+  it("al cerrar un reporte abierto con ?parada se queda en la Lista", async () => {
+    const u = userEvent.setup({ advanceTimers: () => {} })
+    abrir("/reportes-paradas?parada=a")
+    await screen.findByTestId("reporte")
+    await u.click(screen.getByRole("button", { name: "Cerrar reporte" }))
+    expect(screen.queryByTestId("reporte")).toBeNull()
+    expect(screen.getByRole("tab", { name: "Lista de paradas" }).getAttribute("aria-selected")).toBe("true")
+    expect(screen.queryByRole("region", { name: "Totales" })).toBeNull()
+  })
+
+  it("si el período anterior no se pudo leer no dice que no hubo paradas; si cargó vacío, sí", async () => {
+    anterior.modo = "error"
+    const { unmount } = abrir()
+    const tarjetas = await screen.findByRole("region", { name: "Totales" })
+    await waitFor(() => expect(within(tarjetas).getAllByText("—").length).toBeGreaterThanOrEqual(3))
+    expect(screen.queryByText("el período anterior no tuvo paradas")).toBeNull()
+    unmount()
+    anterior.modo = "vacio"
+    abrir()
+    expect((await screen.findAllByText("el período anterior no tuvo paradas")).length).toBe(3)
+  })
+
+  it("pide muchas SIF cerradas para que un período viejo no quede sin ellas", async () => {
+    abrir()
+    await screen.findByRole("region", { name: "Totales" })
+    await waitFor(() => expect(pedidoSif).toHaveBeenCalledWith("local", 2000))
+  })
+
+  it("cada pestaña guarda su período", async () => {
+    const u = userEvent.setup({ advanceTimers: () => {} })
+    abrir()
+    await screen.findByRole("region", { name: "Totales" })
+    await u.click(screen.getByRole("button", { name: "Mes pasado" }))
+    await u.click(screen.getByRole("tab", { name: "Lista de paradas" }))
+    expect((screen.getByLabelText("Desde") as HTMLInputElement).value).toBe("2026-09-21")
+    await u.click(screen.getByRole("tab", { name: "Resumen" }))
+    expect((screen.getByLabelText("Desde") as HTMLInputElement).value).toBe("2026-09-01")
+  })
+
+  it("agrupando por Falla no hay «Ver sus fallas»", async () => {
+    const u = userEvent.setup({ advanceTimers: () => {} })
+    abrir()
+    await screen.findByRole("button", { name: "Ver sus fallas" })
+    await u.selectOptions(screen.getByLabelText("Agrupar por"), "FALLA")
+    expect(screen.queryByRole("button", { name: "Ver sus fallas" })).toBeNull()
   })
 })

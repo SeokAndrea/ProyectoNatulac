@@ -89,7 +89,9 @@ export interface TextosComparacion {
 }
 
 /** Las frases de las tarjetas contra el período anterior de igual largo. */
-export function comparacionPeriodo(actual: Totales, anterior: Totales): TextosComparacion {
+export function comparacionPeriodo(actual: Totales, anterior: Totales | null): TextosComparacion {
+  // Todavía cargando o no se pudo leer: no se compara (no es lo mismo que «no hubo paradas»).
+  if (!anterior) return { veces: "—", tiempo: "—", promedio: "—" }
   if (anterior.veces === 0) {
     const sin = "el período anterior no tuvo paradas"
     return { veces: sin, tiempo: sin, promedio: sin }

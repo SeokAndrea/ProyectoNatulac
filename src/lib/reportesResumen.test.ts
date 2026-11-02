@@ -126,6 +126,10 @@ describe("comparación con el período anterior", () => {
     expect(comparacionPeriodo({ veces: 3, minutos: 10, promedio: 3 }, { veces: 3, minutos: 20, promedio: 4 }).veces).toBe("igual que el período anterior")
   })
 
+  it("sin dato del período anterior (cargando o con error) no compara", () => {
+    expect(comparacionPeriodo({ veces: 3, minutos: 10, promedio: 3 }, null)).toEqual({ veces: "—", tiempo: "—", promedio: "—" })
+  })
+
   it("sin paradas antes lo dice", () => {
     const c0 = comparacionPeriodo({ veces: 3, minutos: 10, promedio: 3 }, { veces: 0, minutos: 0, promedio: 0 })
     expect(c0).toEqual({ veces: "el período anterior no tuvo paradas", tiempo: "el período anterior no tuvo paradas", promedio: "el período anterior no tuvo paradas" })

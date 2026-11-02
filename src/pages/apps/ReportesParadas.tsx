@@ -8,7 +8,7 @@ import { ReporteParada, textoTiempos } from "@/components/paradas/ReporteParada"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
-import { LINEAS_PARADAS, listarParadas, nombreLineaParada, type Parada, type ResponsableParada } from "@/lib/paradas"
+import { LINEAS_PARADAS, listarParadas, listarParadasLectura, nombreLineaParada, type Parada, type ResponsableParada } from "@/lib/paradas"
 import type { VentanaTurno } from "@/lib/paradasTramo"
 import { listarVentanasTurnos, ventanasDeParada } from "@/lib/ventanasParadas"
 import { esteMes, periodoAnterior } from "@/lib/reportesResumen"
@@ -63,8 +63,11 @@ export default function ReportesParadas() {
   const hoy = fechaPlanta()
 
   const vista: Vista = params.get("vista") === "lista" || params.get("parada") ? "lista" : "resumen"
-  // Resumen arranca en «Este mes»; la Lista, en los últimos 30 días, como siempre.
-  const [rango, setRango] = useState(() => (vista === "resumen" ? esteMes(hoy) : { desde: restarDias(hoy, 29), hasta: hoy }))
+  // Cada vista guarda su período: el Resumen arranca en «Este mes»; la Lista, en los últimos 30 días, como siempre.
+  const [rangoResumen, setRangoResumen] = useState(() => esteMes(hoy))
+  const [rangoLista, setRangoLista] = useState(() => ({ desde: restarDias(hoy, 29), hasta: hoy }))
+  const rango = vista === "resumen" ? rangoResumen : rangoLista
+  const setRango = vista === "resumen" ? setRangoResumen : setRangoLista
   const [linea, setLinea] = useState<FiltroLinea>("TODAS")
   const [responsable, setResponsable] = useState<FiltroResponsable>("TODOS")
   const [estado, setEstado] = useState<FiltroEstado>("TODOS")
@@ -94,13 +97,14 @@ export default function ReportesParadas() {
     let vivo = true
     setAnteriores(null)
     const ant = periodoAnterior(rango)
-    void listarParadas({ desde: ant.desde, hasta: ant.hasta, area }).then((r) => vivo && setAnteriores(r))
+    void listarParadasLectura({ desde: ant.desde, hasta: ant.hasta, area }).then((r) => vivo && setAnteriores(r))
     return () => {
       vivo = false
     }
   }, [vista, rango, area])
 
   function irA(v: Vista) {
+    setAbierta(null)
     params.delete("parada")
     if (v === "lista") params.set("vista", "lista")
     else params.delete("vista")
@@ -128,7 +132,9 @@ export default function ReportesParadas() {
   function abrir(id: string | null) {
     setAbierta(id)
     if (params.get("parada")) {
+      // El reporte venía de ?parada=: al cerrarlo se queda en la Lista, no salta al Resumen.
       params.delete("parada")
+      params.set("vista", "lista")
       setParams(params, { replace: true })
     }
   }
