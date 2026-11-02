@@ -137,4 +137,19 @@ describe("Solicitudes de Intervención: configurar la frecuencia", () => {
     await user.click(screen.getByRole("button", { name: "Pruebas" }))
     await waitFor(() => expect(api.leer).toHaveBeenCalledWith("jefe", "PRUEBAS"))
   })
+
+  it("si falla la lectura del área no se muestran los números de otra y Guardar queda apagado", async () => {
+    const user = userEvent.setup()
+    sesion.actual = sesionCon([], { rol: "SUPERADMINISTRADOR", area: null })
+    api.leer.mockImplementation(async (_u: string, area: string) =>
+      area === "PRUEBAS" ? { ok: false, error: "No hay conexión con el servidor. Revisa la red e intenta de nuevo." } : { ok: true, data: { ventana: "TURNO", inspeccionEn: 2, intervencionEn: 3 } },
+    )
+    pintar()
+    await user.click(await screen.findByRole("button", { name: /configurar sif/i }))
+    await waitFor(() => expect(screen.getByTestId("frase-control").textContent).toContain("en un turno"))
+    await user.click(screen.getByRole("button", { name: "Pruebas" }))
+    expect(await screen.findByText(/No se pudo leer la configuración de esta área/)).toBeTruthy()
+    expect((screen.getByRole("button", { name: "Guardar" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(api.guardar).not.toHaveBeenCalled()
+  })
 })

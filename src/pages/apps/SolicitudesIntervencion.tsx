@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowLeft, Loader2, Settings2, Wrench } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useCatalogoParadas } from "@/lib/paradasCatalogo"
 import { puede } from "@/lib/permisos"
-import { areaDeSif, CONFIG_SIF_POR_DEFECTO, descripcionSif, leerConfigSif, listarSif, nombreSolicitud, type ConfigSif, type Sif } from "@/lib/sif"
+import { areaDeSif, descripcionSif, leerConfigSif, listarSif, nombreSolicitud, type ConfigSif, type Sif } from "@/lib/sif"
 
 const TITULO = "Solicitudes de Intervención"
 
@@ -43,7 +43,8 @@ export default function SolicitudesIntervencion() {
   const areasProduccion = areas.filter((a) => a.tipo === "PRODUCCION" && a.activo).sort((a, b) => a.orden - b.orden)
   const [areaElegida, setAreaElegida] = useState<string | null>(null)
   const areaSif = administraTodo && areaElegida ? areaElegida : areaDeSif(session?.area)
-  const [config, setConfig] = useState<ConfigSif>(CONFIG_SIF_POR_DEFECTO)
+  const [config, setConfig] = useState<ConfigSif | null>(null)
+  const [errorConfig, setErrorConfig] = useState<string | null>(null)
   const [configurando, setConfigurando] = useState(false)
 
   // Si falla, queda la lista que había: una caída de la red no la borra ni la hace pasar por vacía.
@@ -62,11 +63,17 @@ export default function SolicitudesIntervencion() {
     void recargar()
   }, [recargar])
 
+  // Cada lectura es de un área: si el área cambia, la respuesta vieja se ignora y no se muestran los números de la anterior.
+  const pedidoConfig = useRef(0)
   const cargarConfig = useCallback(async () => {
     if (!usuario) return
+    const pedido = ++pedidoConfig.current
+    setConfig(null)
+    setErrorConfig(null)
     const r = await leerConfigSif(usuario, areaSif)
-    // Si falla se queda la que había (al inicio, la de siempre): el encabezado no es crítico.
+    if (pedido !== pedidoConfig.current) return
     if (r.ok) setConfig(r.data)
+    else setErrorConfig(r.error)
   }, [usuario, areaSif])
 
   useEffect(() => {
@@ -117,7 +124,7 @@ export default function SolicitudesIntervencion() {
   }
 
   return (
-    <AppShell title={TITULO} description={descripcionSif(config)}>
+    <AppShell title={TITULO} description={config ? descripcionSif(config) : "Fallas repetidas: inspección y intervención según la configuración del área"}>
       <div className="mx-auto flex max-w-2xl flex-col gap-3">
         {puedeConfigurar && (
           <Button variant="outline" className="min-h-11 self-start" onClick={() => setConfigurando(true)}>
@@ -132,6 +139,8 @@ export default function SolicitudesIntervencion() {
             usuario={usuario}
             area={areaSif}
             config={config}
+            errorLectura={errorConfig}
+            onReintentar={() => void cargarConfig()}
             areas={administraTodo ? areasProduccion : undefined}
             onCambiarArea={setAreaElegida}
             onGuardado={() => {
@@ -151,7 +160,7 @@ export default function SolicitudesIntervencion() {
           <EmptyState
             icon={Wrench}
             title="No hay solicitudes"
-            description={`Se generan solas. ${descripcionSif(config)}.`}
+            description={config ? `Se generan solas. ${descripcionSif(config)}.` : "Se generan solas cuando una misma falla se repite en una línea."}
           />
         ) : (
           <ListaSif lista={lista} onElegir={elegir} />

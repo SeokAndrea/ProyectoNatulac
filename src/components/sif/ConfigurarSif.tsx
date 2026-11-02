@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { errorConfigSif, fraseControlSif, guardarConfigSif, VENTANAS_SIF, type ConfigSif } from "@/lib/sif"
+import { CONFIG_SIF_POR_DEFECTO, errorConfigSif, fraseControlSif, guardarConfigSif, VENTANAS_SIF, type ConfigSif } from "@/lib/sif"
 import { cn } from "@/lib/utils"
 import { ErrorSif } from "./ErrorSif"
 
@@ -42,7 +42,10 @@ interface Props {
   /** Área que se está configurando. */
   area: string
   /** Lo guardado hoy para esa área. */
-  config: ConfigSif
+  config: ConfigSif | null
+  /** La lectura de esa área falló: no se muestra ni se guarda nada hasta que salga bien. */
+  errorLectura?: string | null
+  onReintentar?: () => void
   /** Áreas de producción para elegir (solo quien administra todo); con una sola o ninguna no se muestra el selector. */
   areas?: { codigo: string; nombre: string }[]
   onCambiarArea?: (codigo: string) => void
@@ -51,19 +54,20 @@ interface Props {
 }
 
 /** Panel «Configurar SIF»: ventana, a la cuántas veces es Inspección y a la cuántas Intervención. */
-export function ConfigurarSif({ abierto, onCerrar, usuario, area, config, areas, onCambiarArea, onGuardado }: Props) {
-  const [borrador, setBorrador] = useState<ConfigSif>(config)
+export function ConfigurarSif({ abierto, onCerrar, usuario, area, config, errorLectura, onReintentar, areas, onCambiarArea, onGuardado }: Props) {
+  const [borrador, setBorrador] = useState<ConfigSif>(config ?? CONFIG_SIF_POR_DEFECTO)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Al abrir (o cambiar de área) se parte de lo guardado.
   useEffect(() => {
     if (abierto) {
-      setBorrador(config)
+      setBorrador(config ?? CONFIG_SIF_POR_DEFECTO)
       setError(null)
     }
   }, [abierto, config, area])
 
+  const sinLectura = config === null
   const aviso = errorConfigSif(borrador)
 
   async function guardar() {
@@ -131,7 +135,8 @@ export function ConfigurarSif({ abierto, onCerrar, usuario, area, config, areas,
           <p className="rounded-lg bg-muted px-3 py-2.5 text-sm font-medium text-foreground" aria-live="polite" data-testid="frase-control">
             {Number.isNaN(borrador.inspeccionEn) || Number.isNaN(borrador.intervencionEn) ? "Escribe los dos números." : fraseControlSif(borrador)}
           </p>
-          {aviso && <ErrorSif mensaje={aviso} />}
+          {errorLectura && <ErrorSif mensaje={`No se pudo leer la configuración de esta área. ${errorLectura}`} accion="Reintentar" onAccion={onReintentar} />}
+          {!sinLectura && aviso && <ErrorSif mensaje={aviso} />}
           <p className="text-sm text-foreground">Aplica a las fallas desde ahora; las solicitudes que ya existen no cambian.</p>
           {error && <ErrorSif mensaje={error} />}
         </div>
@@ -140,7 +145,7 @@ export function ConfigurarSif({ abierto, onCerrar, usuario, area, config, areas,
           <Button type="button" variant="outline" className="min-h-11" disabled={guardando} onClick={onCerrar}>
             Cancelar
           </Button>
-          <Button type="button" className="min-h-11" disabled={guardando || aviso !== null} onClick={() => void guardar()}>
+          <Button type="button" className="min-h-11" disabled={guardando || sinLectura || aviso !== null} onClick={() => void guardar()}>
             {guardando && <Loader2 className="size-4 animate-spin" />}
             Guardar
           </Button>
