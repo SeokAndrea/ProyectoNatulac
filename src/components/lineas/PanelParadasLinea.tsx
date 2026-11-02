@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useTiposActivos } from "@/lib/paradasCatalogo"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
 import type { TramoHora } from "@/lib/cubrirTurno"
-import { anotarParada, fmtDuracion, LARGO_NOTA_PARADA, type Parada, type ResponsableParada, type TipoParada } from "@/lib/paradas"
+import { anotarParada, fmtDuracion, LARGO_NOTA_PARADA, registraSupervisor, type Parada, type ResponsableParada, type TipoParada } from "@/lib/paradas"
 import { esLineaNoProgramada } from "@/lib/paradasTurnoCompleto"
 import { restarDias } from "@/lib/tiempoPlanta"
 
@@ -24,6 +24,8 @@ const COMUNES: { codigo: string; texto: string }[] = [
   { codigo: "ORDEN_LIMPIEZA_FIN_TURNO", texto: "Limpieza fin de turno" },
 ]
 const MAX_PENDIENTES_VISIBLES = 3
+/** Lo que anota Mantenimiento: las familias de equipos, no las del supervisor ni el ocioso (dueña, 2026-11-01). */
+const esDeMantenimiento = (t: Pick<TipoParada, "familia">) => !registraSupervisor(t) && t.familia !== "OCIOSO"
 
 /** "HH:MM" ± minutos, dando la vuelta a la medianoche. */
 function moverHora(hhmm: string, min: number): string {
@@ -405,18 +407,22 @@ export function PanelParadasLinea({
               </Button>
             )}
           </div>
-        ) : buscando ? (
+        ) : buscando || esMantenimiento ? (
+          // Mantenimiento, con el catálogo anterior: directo al buscador, solo con sus tipos (sin atajos de producción ni LNP).
           <div className="flex flex-col gap-2">
             <BuscadorTipoParada
               lineaCodigo={lineaCodigo}
               area={areaParadas}
               equipos={equipos}
               presentacionMl={presentacionMl}
+              permitir={esMantenimiento ? esDeMantenimiento : undefined}
               onElegir={elegir}
             />
-            <Button variant="ghost" size="sm" className="self-start" onClick={() => setBuscando(null)}>
-              Volver
-            </Button>
+            {!esMantenimiento && (
+              <Button variant="ghost" size="sm" className="self-start" onClick={() => setBuscando(null)}>
+                Volver
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">

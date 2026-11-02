@@ -440,10 +440,10 @@ export function ModoParadas({
                       Cubrir {fmtDuracion(faltaMin)}
                     </Button>
                   )}
-                  {/* Anotar: también Mantenimiento (dueña, 2026-10-28), con el Responsable a elegir. */}
+                  {/* Anotar parada pasada: también Mantenimiento (dueña, 2026-10-28), con el Responsable a elegir. Nombre: dueña, 2026-11-01. */}
                   <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "paradas" })}>
                     <ListPlus className="size-3.5" />
-                    Anotar
+                    Anotar parada pasada
                     {pendientesLinea.length > 0 && (
                       <span className="num rounded-sm bg-warning-soft px-1.5 text-xs font-semibold text-warning-foreground">{pendientesLinea.length}</span>
                     )}

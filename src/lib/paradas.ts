@@ -674,6 +674,11 @@ export interface FilaParada {
 
 /** Lee `listar_paradas` (migración 20261061). Devuelve [] si la lectura falla. */
 export async function listarParadas(filtros: FiltrosParadas): Promise<Parada[]> {
+  return (await listarParadasLectura(filtros)) ?? []
+}
+
+/** Igual que listarParadas, pero null si la lectura falla (para no confundir un error con «no hubo paradas»). */
+export async function listarParadasLectura(filtros: FiltrosParadas): Promise<Parada[] | null> {
   const { data, error } = await supabase.rpc("listar_paradas", {
     p_desde: filtros.desde,
     p_hasta: filtros.hasta,
@@ -682,7 +687,7 @@ export async function listarParadas(filtros: FiltrosParadas): Promise<Parada[]> 
     p_turno_id: filtros.turnoId ?? null,
     p_area: filtros.area ?? null,
   })
-  if (error || !data) return []
+  if (error || !data) return null
   return (data as FilaParada[]).map(mapearFilaParada)
 }
 
