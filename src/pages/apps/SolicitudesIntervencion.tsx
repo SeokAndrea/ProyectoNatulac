@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useState } from "react"
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { ArrowLeft, Loader2, Wrench } from "lucide-react"
+import { ArrowLeft, Loader2, Settings2, Wrench } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
+import { ConfigurarSif } from "@/components/sif/ConfigurarSif"
 import { DetalleSif } from "@/components/sif/DetalleSif"
 import { ErrorSif } from "@/components/sif/ErrorSif"
 import { ListaSif } from "@/components/sif/ListaSif"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
+import { useCatalogosLive } from "@/lib/catalogosLive"
 import { useCatalogoParadas } from "@/lib/paradasCatalogo"
 import { puede } from "@/lib/permisos"
-import { listarSif, nombreSolicitud, type Sif } from "@/lib/sif"
+import { areaDeSif, CONFIG_SIF_POR_DEFECTO, descripcionSif, leerConfigSif, listarSif, nombreSolicitud, type ConfigSif, type Sif } from "@/lib/sif"
 
 const TITULO = "Solicitudes de Intervención"
 
 /*
- * Solicitudes de Falla (migraciones 20261109390000 y 20261111690000). Las
- * genera el servidor: Inspección a la 3.ª vez que una parada se repite en una
- * línea en la jornada, Intervención a la 4.ª. Mantenimiento (SIF_GESTIONAR)
+ * Solicitudes de Falla (migraciones 20261109390000, 20261111690000 y
+ * 20261114590000). Las genera el servidor: Inspección a la 3.ª vez que una
+ * falla se repite en una línea en la jornada, Intervención a la 4.ª (por
+ * defecto: cada área lo configura, con SIF_CONFIGURAR). Mantenimiento (SIF_GESTIONAR)
  * marca revisada la Inspección y asigna el responsable y cierra la
  * Intervención; el resto las ve en solo lectura. Como Mis Actas: la lista de
  * tarjetas, y ?sif=<id> abre una (la tarjeta o el aviso de pendientes).
@@ -33,6 +36,15 @@ export default function SolicitudesIntervencion() {
   const [cargando, setCargando] = useState(true)
   const usuario = session?.username ?? ""
   const puedeGestionar = puede(session, "SIF_GESTIONAR")
+  const puedeConfigurar = puede(session, "SIF_CONFIGURAR")
+  const { areas } = useCatalogosLive()
+  // Quien administra todo elige el área de producción; el resto, la suya (Pruebas con Pruebas, lo demás con Aséptico).
+  const administraTodo = session?.rol === "SUPERADMINISTRADOR"
+  const areasProduccion = areas.filter((a) => a.tipo === "PRODUCCION" && a.activo).sort((a, b) => a.orden - b.orden)
+  const [areaElegida, setAreaElegida] = useState<string | null>(null)
+  const areaSif = administraTodo && areaElegida ? areaElegida : areaDeSif(session?.area)
+  const [config, setConfig] = useState<ConfigSif>(CONFIG_SIF_POR_DEFECTO)
+  const [configurando, setConfigurando] = useState(false)
 
   // Si falla, queda la lista que había: una caída de la red no la borra ni la hace pasar por vacía.
   const recargar = useCallback(async () => {
@@ -49,6 +61,17 @@ export default function SolicitudesIntervencion() {
   useEffect(() => {
     void recargar()
   }, [recargar])
+
+  const cargarConfig = useCallback(async () => {
+    if (!usuario) return
+    const r = await leerConfigSif(usuario, areaSif)
+    // Si falla se queda la que había (al inicio, la de siempre): el encabezado no es crítico.
+    if (r.ok) setConfig(r.data)
+  }, [usuario, areaSif])
+
+  useEffect(() => {
+    void cargarConfig()
+  }, [cargarConfig])
 
   const idPedido = params.get("sif")
   const abierta = lista?.find((s) => s.id === idPedido) ?? null
@@ -94,8 +117,29 @@ export default function SolicitudesIntervencion() {
   }
 
   return (
-    <AppShell title={TITULO} description="Fallas repetidas: inspección a la 3.ª, intervención a la 4.ª">
+    <AppShell title={TITULO} description={descripcionSif(config)}>
       <div className="mx-auto flex max-w-2xl flex-col gap-3">
+        {puedeConfigurar && (
+          <Button variant="outline" className="min-h-11 self-start" onClick={() => setConfigurando(true)}>
+            <Settings2 className="size-4" />
+            Configurar SIF
+          </Button>
+        )}
+        {puedeConfigurar && (
+          <ConfigurarSif
+            abierto={configurando}
+            onCerrar={() => setConfigurando(false)}
+            usuario={usuario}
+            area={areaSif}
+            config={config}
+            areas={administraTodo ? areasProduccion : undefined}
+            onCambiarArea={setAreaElegida}
+            onGuardado={() => {
+              setConfigurando(false)
+              void cargarConfig()
+            }}
+          />
+        )}
         {errorCarga}
         {lista === null ? (
           cargando && (
@@ -107,7 +151,7 @@ export default function SolicitudesIntervencion() {
           <EmptyState
             icon={Wrench}
             title="No hay solicitudes"
-            description="Se generan solas: de inspección cuando la misma falla se repite 3 veces en una línea en el día, y pasa a intervención a la 4.ª."
+            description={`Se generan solas. ${descripcionSif(config)}.`}
           />
         ) : (
           <ListaSif lista={lista} onElegir={elegir} />
