@@ -46,9 +46,9 @@ vi.mock("@/lib/sif", async (importOriginal) => ({
   listarSif: async () => ({
     ok: true,
     data: [
-      { id: "s1", estado: "INSPECCION", fechaJornada: "2026-10-12", lineaCodigo: "LINEA_1" },
-      { id: "s2", estado: "PENDIENTE", fechaJornada: "2026-10-14", lineaCodigo: "LINEA_1" },
-      { id: "s3", estado: "INSPECCION", fechaJornada: "2026-08-01", lineaCodigo: "LINEA_1" },
+      { id: "s1", estado: "INSPECCION", fechaJornada: "2026-10-12", lineaCodigo: "LINEA_1", tipoCodigo: "CF-SUP-CAM-01", generadaEn: "2026-10-12T10:00:00" },
+      { id: "s2", estado: "PENDIENTE", fechaJornada: "2026-10-14", lineaCodigo: "LINEA_1", tipoCodigo: "CF-SUP-CAM-01", generadaEn: "2026-10-14T10:00:00" },
+      { id: "s3", estado: "INSPECCION", fechaJornada: "2026-08-01", lineaCodigo: "LINEA_1", tipoCodigo: "CF-SUP-CAM-01", generadaEn: "2026-08-01T10:00:00" },
     ],
   }),
 }))
@@ -73,6 +73,8 @@ const DEL_MES = [
   parada("b", "2026-10-11T08:00:00Z", 30),
   parada("c", "2026-10-12T08:00:00Z", 10, { terminadaPor: "Sofía Supervisora" }),
   parada("d", "2026-10-13T08:00:00Z", 20, { lineaCodigo: "LINEA_2", terminadaPor: "Sofía Supervisora" }),
+  parada("fer", "2026-10-15T08:00:00Z", 480, { clase: "PROGRAMADA", tipoNombre: "Feriado", tipoCodigo: "FERIADO" }),
+  parada("oci", "2026-10-16T08:00:00Z", 60, { clase: "OCIOSO", tipoCodigo: null, tipoNombre: "Retraso en la limpieza" }),
   parada("e", "2026-10-14T08:00:00Z", 50, { responsable: "OPERACIONAL", tipoCodigo: "CAMBIO", tipoNombre: "Cambio de sabor", terminadaPor: null }),
 ]
 const MES_ANTERIOR = [parada("z", "2026-09-10T08:00:00Z", 10)]
@@ -104,11 +106,19 @@ describe("Reportes de paradas · Resumen", () => {
     abrir()
     const banner = await screen.findByRole("region", { name: "Lo que más paró" })
     // Mordazas: 10 + 20 = 30 min en 2 veces; Cámara: 60 min en 2 veces (gana por tiempo).
-    expect(within(banner).getByText(/Cámara aséptica — Llenadora A3/)).toBeTruthy()
+    expect(within(banner).getByText("Cámara aséptica")).toBeTruthy()
+    expect(within(banner).getByText("Llenadora A3")).toBeTruthy()
     expect(within(banner).getByText(/Se repitió/).textContent).toContain("2 veces")
     expect(within(banner).getByText(/Se repitió/).textContent).toContain("1 h parada")
     expect(within(banner).getByText(/Se repitió/).textContent).toContain("30 min cada vez")
     expect(within(banner).getByText(/La falla más común: Baja presión \(2 veces\)/)).toBeTruthy()
+    // Solo fallas: lo programado y el ocioso no cuentan, y se avisa.
+    expect(screen.getByText("Cuenta las paradas no programadas (fallas); no cuenta programadas, LNP ni ocioso.")).toBeTruthy()
+    expect(screen.queryByText("Feriado")).toBeNull()
+    expect(within(screen.getByRole("region", { name: "Totales" })).getByText("5")).toBeTruthy()
+    // Badge de SIF en la falla repetida: Intervención pendiente de Baja presión (código CF-SUP-CAM-01).
+    const badge = await screen.findByRole("link", { name: "Intervención pendiente" })
+    expect(badge.getAttribute("href")).toBe("/solicitudes-intervencion?sif=s2")
 
     const tarjetas = screen.getByRole("region", { name: "Totales" })
     expect(within(tarjetas).getByText("+4 que el período anterior")).toBeTruthy()

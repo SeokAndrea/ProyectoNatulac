@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest"
 import { conFallas } from "@/lib/catalogoFallas/analisis"
 import type { FallasDeParada } from "@/lib/catalogoFallas/paradas"
 import type { CatalogoFallas } from "@/lib/catalogoFallas/tipos"
-import type { Parada } from "@/lib/paradas"
+import { fijarCodigosLNPE, type Parada } from "@/lib/paradas"
+import type { Sif } from "@/lib/sif"
 import {
   agruparResumen,
+  etiquetaSif,
+  sifDeFalla,
   comparacionPeriodo,
   fallasQueMasSeRepiten,
   filtrarResumen,
@@ -214,5 +217,72 @@ describe("fallas que más se repiten", () => {
     const r = fallasQueMasSeRepiten(muchas, [], ahora)
     expect(r).toHaveLength(6)
     expect(r[0].nombre).toBe("Tipo 8")
+  })
+})
+
+describe("solo fallas", () => {
+  it("no cuenta programadas, ocioso ni LNPE; sí las no programadas de Producción", () => {
+    const mezcla = [
+      parada("f", "2026-10-30T14:00:00Z", 10),
+      parada("prog", "2026-10-30T14:00:00Z", 480, { clase: "PROGRAMADA" }),
+      parada("oci", "2026-10-30T14:00:00Z", 60, { clase: "OCIOSO" }),
+      parada("lnpe", "2026-10-30T14:00:00Z", 60, { tipoCodigo: "LNPE_LLUVIA" }),
+      parada("op", "2026-10-30T14:00:00Z", 5, { responsable: "OPERACIONAL" }),
+    ]
+    const todos = { linea: "TODAS", responsable: "TODOS", atendio: "TODOS" } as const
+    fijarCodigosLNPE([{ codigo: "LNPE_LLUVIA", prefijoPlanilla: "LNPE" }])
+    expect(filtrarResumen(mezcla, todos).map((p) => p.id)).toEqual(["f", "op"])
+  })
+})
+
+describe("nombres sin repetir", () => {
+  it("quita el «Equipo · » del comienzo del nombre viejo y no repite en la línea de abajo", () => {
+    const p = [parada("a", "2026-10-30T14:00:00Z", 10, { tipoCodigo: "DES", tipoNombre: "Flex/Drink · Desplace Incorrecto", equipoNombre: "Flex/Drink" })]
+    const [g] = agruparResumen(p, [], "FALLA", ahora)
+    expect(g).toMatchObject({ nombre: "Desplace Incorrecto", detalle: "Flex/Drink" })
+    const q = [parada("b", "2026-10-30T14:00:00Z", 10, { subsistemaCodigo: "S", subsistemaNombre: "A3 Compact Flex · Mordazas", mttoEquipoNombre: "A3 Compact Flex" })]
+    expect(agruparResumen(q, [], "SUBSISTEMA", ahora)[0]).toMatchObject({ nombre: "Mordazas", detalle: "A3 Compact Flex" })
+  })
+
+  it("la falla de las tarjetas dice subsistema · equipo; el grupo no repite su nombre", () => {
+    const [f] = agruparResumen(paradas, items, "FALLA", ahora)
+    expect(f.detalle).toBe("Cámara aséptica · Llenadora A3")
+    const [eq] = agruparResumen(paradas, items, "EQUIPO", ahora)
+    expect(eq.detalle).toBeNull()
+  })
+
+  it("sin falla más común cuando se llama igual que el grupo", () => {
+    const p = [parada("a", "2026-10-30T14:00:00Z", 10, { tipoCodigo: "X", tipoNombre: "Cambio de sabor" })]
+    expect(agruparResumen(p, [], "SUBSISTEMA", ahora)[0].fallaMasComun).toBeNull()
+  })
+})
+
+describe("SIF de una falla", () => {
+  const sif = (id: string, estado: Sif["estado"], fecha: string, extra: Partial<Sif> = {}) =>
+    ({ id, estado, fechaJornada: fecha, lineaCodigo: "LINEA_1", tipoCodigo: "CF-SUP-CAM-01", generadaEn: `${fecha}T10:00:00`, ...extra }) as Sif
+  const rango = { desde: "2026-10-01", hasta: "2026-10-31" }
+  const [baja] = fallasQueMasSeRepiten(paradas, items, ahora)
+
+  it("el código de la falla se arma como en la base", () => {
+    expect(baja.codigoSif).toBe("CF-SUP-CAM-01")
+    expect(baja.lineas).toEqual(["LINEA_1"])
+  })
+
+  it("elige la Intervención sobre la Inspección y respeta línea, código y período", () => {
+    const s = [sif("i", "INSPECCION", "2026-10-05"), sif("v", "PENDIENTE", "2026-10-09"), sif("otra", "PENDIENTE", "2026-10-09", { lineaCodigo: "LINEA_2" }), sif("fuera", "PENDIENTE", "2026-09-30"), sif("otro", "PENDIENTE", "2026-10-09", { tipoCodigo: "CF-X" })]
+    expect(sifDeFalla(baja, s, rango)?.id).toBe("v")
+    expect(sifDeFalla(baja, [sif("i", "INSPECCION", "2026-10-05"), sif("r", "REVISADA", "2026-10-07")], rango)?.id).toBe("r")
+    expect(sifDeFalla(baja, [sif("fuera", "PENDIENTE", "2026-09-30")], rango)).toBeNull()
+  })
+
+  it("con el catálogo viejo se une por el código del tipo", () => {
+    const viejas = [parada("a", "2026-10-30T14:00:00Z", 10, { tipoCodigo: "EQ-1" }), parada("b", "2026-10-30T15:00:00Z", 10, { tipoCodigo: "EQ-1" })]
+    const [v] = fallasQueMasSeRepiten(viejas, [], ahora)
+    expect(sifDeFalla(v, [sif("x", "CERRADA", "2026-10-10", { tipoCodigo: "EQ-1" })], rango)?.id).toBe("x")
+  })
+
+  it("las etiquetas dicen Inspección o Intervención", () => {
+    expect(etiquetaSif("CERRADA")).toBe("Intervención cerrada")
+    expect(etiquetaSif("INSPECCION")).toBe("Inspección")
   })
 })

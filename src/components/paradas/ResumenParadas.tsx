@@ -12,17 +12,19 @@ import {
   agruparResumen,
   comparacionPeriodo,
   esteMes,
+  etiquetaSif,
   fallasQueMasSeRepiten,
   filtrarResumen,
   limitarGrupos,
   mesPasado,
   NOMBRE_NIVEL,
   personasQueAtendieron,
+  sifDeFalla,
   totalesResumen,
   type NivelResumen,
   type Rango,
 } from "@/lib/reportesResumen"
-import { esInspeccion, listarSif, RUTA_SIF } from "@/lib/sif"
+import { esInspeccion, listarSif, RUTA_SIF, type Sif } from "@/lib/sif"
 
 /*
  * Pestaña «Resumen» de Reportes de paradas: qué subsistema (o equipo, sistema
@@ -73,7 +75,7 @@ function Tarjeta({ titulo, valor, nota, alerta = false }: { titulo: string; valo
   return (
     <div className={"flex flex-col gap-1 rounded-xl border p-4 " + (alerta ? "border-warning/40 bg-warning-soft" : "border-border bg-card")}>
       <span className="text-sm text-foreground">{titulo}</span>
-      <span className="num text-3xl font-medium text-foreground">{valor}</span>
+      <span className="num text-2xl font-medium whitespace-nowrap text-foreground">{valor}</span>
       <span className="text-sm text-foreground">{nota}</span>
     </div>
   )
@@ -124,21 +126,22 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
   const primero = grupos[0] ?? null
 
   // Fallas repetidas (SIF) del período: cuántas Inspecciones e Intervenciones hubo en esas líneas.
-  const [sif, setSif] = useState<{ inspecciones: number; intervenciones: number } | "error" | null>(null)
+  const [sifs, setSifs] = useState<Sif[] | "error" | null>(null)
   useEffect(() => {
     if (!usuario) return
     let vivo = true
-    void listarSif(usuario).then((r) => {
-      if (!vivo) return
-      if (!r.ok) return setSif("error")
-      const delPeriodo = r.data.filter((s) => s.fechaJornada >= rango.desde && s.fechaJornada <= rango.hasta && (linea === "TODAS" || s.lineaCodigo === linea))
-      const inspecciones = delPeriodo.filter((s) => esInspeccion(s.estado)).length
-      setSif({ inspecciones, intervenciones: delPeriodo.length - inspecciones })
-    })
+    void listarSif(usuario).then((r) => vivo && setSifs(r.ok ? r.data : "error"))
     return () => {
       vivo = false
     }
-  }, [usuario, rango.desde, rango.hasta, linea])
+  }, [usuario])
+  const sif = useMemo(() => {
+    if (!sifs || sifs === "error") return sifs
+    const delPeriodo = sifs.filter((s) => s.fechaJornada >= rango.desde && s.fechaJornada <= rango.hasta && (linea === "TODAS" || s.lineaCodigo === linea))
+    const inspecciones = delPeriodo.filter((s) => esInspeccion(s.estado)).length
+    return { inspecciones, intervenciones: delPeriodo.length - inspecciones }
+  }, [sifs, rango.desde, rango.hasta, linea])
+  const listaSif = Array.isArray(sifs) ? sifs : []
 
   const esEsteMes = rango.desde === esteMes(hoy).desde && rango.hasta === esteMes(hoy).hasta
   const esMesPasado = rango.desde === mesPasado(hoy).desde && rango.hasta === mesPasado(hoy).hasta
@@ -213,6 +216,7 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
             </select>
           </label>
         </div>
+        <p className="text-sm text-foreground">Cuenta las paradas no programadas (fallas); no cuenta programadas, LNP ni ocioso.</p>
       </section>
 
       {paradas === null ? (
@@ -235,8 +239,8 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
                   </p>
                   <p className="text-xl font-bold text-foreground sm:text-2xl">
                     {primero.nombre}
-                    {primero.detalle ? ` — ${primero.detalle}` : ""}
                   </p>
+                  {primero.detalle && <p className="text-sm font-medium text-foreground">{primero.detalle}</p>}
                   <p className="text-sm text-foreground">
                     Se repitió <b>{veces(primero.veces)}</b>: {fmtDuracion(primero.minutos)} parada, <b>{fmtDuracion(primero.promedio)}</b> cada vez.
                     {primero.fallaMasComun && (
@@ -377,7 +381,23 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {repetidas.map((f) => (
                   <div key={f.clave} className="flex flex-col gap-1.5 rounded-xl border border-border bg-card p-4">
-                    <span className="font-semibold text-foreground">{f.nombre}</span>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <span className="font-semibold text-foreground">{f.nombre}</span>
+                      {(() => {
+                        const s = sifDeFalla(f, listaSif, rango)
+                        return s ? (
+                          <Link
+                            to={`${RUTA_SIF}?sif=${s.id}`}
+                            className={
+                              "inline-flex min-h-11 items-center rounded-md px-2.5 text-xs font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50 " +
+                              (esInspeccion(s.estado) ? "bg-warning-soft text-warning-foreground" : "bg-danger-soft text-danger-foreground")
+                            }
+                          >
+                            {etiquetaSif(s.estado)}
+                          </Link>
+                        ) : null
+                      })()}
+                    </div>
                     {f.detalle && <span className="text-sm text-foreground">{f.detalle}</span>}
                     <span className="num text-sm text-foreground">
                       {veces(f.veces)} · {fmtDuracion(f.minutos)} · {fmtDuracion(f.promedio)} c/u
