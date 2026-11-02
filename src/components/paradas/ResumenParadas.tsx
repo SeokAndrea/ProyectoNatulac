@@ -323,9 +323,9 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
                               </div>
                             )}
                           </td>
-                          <td className="num px-2 py-1.5 text-right">{g.veces}</td>
-                          <td className="num px-2 py-1.5 text-right">{fmtDuracion(g.minutos)}</td>
-                          <td className="num px-2 py-1.5 text-right">{fmtDuracion(g.promedio)}</td>
+                          <td className="num whitespace-nowrap px-2 py-1.5 text-right">{g.veces}</td>
+                          <td className="num whitespace-nowrap px-2 py-1.5 text-right">{fmtDuracion(g.minutos)}</td>
+                          <td className="num whitespace-nowrap px-2 py-1.5 text-right">{fmtDuracion(g.promedio)}</td>
                           <td className="px-4 py-1.5">
                             <div className="flex items-center gap-2">
                               <div className="h-2.5 flex-1 rounded-sm bg-muted" role="presentation">
@@ -357,9 +357,9 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
                   {otros && (
                     <tr className="border-t border-border">
                       <td className="px-4 py-3 text-foreground">Otros {otros.cantidad}</td>
-                      <td className="num px-2 py-3 text-right">{otros.veces}</td>
-                      <td className="num px-2 py-3 text-right">{fmtDuracion(otros.minutos)}</td>
-                      <td className="num px-2 py-3 text-right">{fmtDuracion(otros.promedio)}</td>
+                      <td className="num whitespace-nowrap px-2 py-3 text-right">{otros.veces}</td>
+                      <td className="num whitespace-nowrap px-2 py-3 text-right">{fmtDuracion(otros.minutos)}</td>
+                      <td className="num whitespace-nowrap px-2 py-3 text-right">{fmtDuracion(otros.promedio)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="h-2.5 flex-1 rounded-sm bg-muted" role="presentation">
