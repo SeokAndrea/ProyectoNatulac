@@ -3,8 +3,13 @@ import type { Session } from "@/lib/auth"
 import { apps, puedeVerApp } from "@/lib/apps"
 import type { AreaCodigo, RolCodigo } from "@/lib/catalogos"
 import {
+  areaDeSif,
+  CONFIG_SIF_POR_DEFECTO,
+  descripcionSif,
+  errorConfigSif,
   errorDesactualizado,
   fechaHoraSif,
+  fraseControlSif,
   mensajeErrorSif,
   minutosEntre,
   nombreSolicitud,
@@ -12,6 +17,7 @@ import {
   sifPorAtender,
   textoDuracion,
   textoPorAtender,
+  type ConfigSif,
   type EstadoSif,
   type Sif,
 } from "@/lib/sif"
@@ -117,5 +123,52 @@ describe("Solicitudes de Intervención de Falla", () => {
     expect(mensajeErrorSif(null)).toMatch(/^No se pudo completar/)
     expect(errorDesactualizado("La solicitud no está en reparación. Recarga la pantalla.")).toBe(true)
     expect(errorDesactualizado("Escribe el trabajo realizado.")).toBe(false)
+  })
+})
+
+describe("frecuencia de las SIF (configuración por área)", () => {
+  const dia: ConfigSif = { ventana: "DIA", inspeccionEn: 3, intervencionEn: 4 }
+
+  it("la configuración por defecto es la de siempre: por día, 3 y 4", () => {
+    expect(CONFIG_SIF_POR_DEFECTO).toEqual(dia)
+  })
+
+  it("la frase de control dice el número y la ventana", () => {
+    expect(fraseControlSif({ ventana: "TURNO", inspeccionEn: 3, intervencionEn: 4 })).toBe(
+      "La misma falla 3 veces en un turno → Inspección; a la 4.ª → Intervención.",
+    )
+    expect(fraseControlSif({ ventana: "TURNO", inspeccionEn: 2, intervencionEn: 3 })).toBe(
+      "La misma falla 2 veces en un turno → Inspección; a la 3.ª → Intervención.",
+    )
+    expect(fraseControlSif(dia)).toBe("La misma falla 3 veces en un día → Inspección; a la 4.ª → Intervención.")
+    expect(fraseControlSif({ ventana: "SEMANA", inspeccionEn: 5, intervencionEn: 8 })).toBe(
+      "La misma falla 5 veces en una semana → Inspección; a la 8.ª → Intervención.",
+    )
+  })
+
+  it("la descripción del encabezado sale de la configuración", () => {
+    expect(descripcionSif({ ventana: "TURNO", inspeccionEn: 3, intervencionEn: 4 })).toBe(
+      "Fallas repetidas en el turno: inspección a la 3.ª, intervención a la 4.ª",
+    )
+    expect(descripcionSif(dia)).toBe("Fallas repetidas en el día: inspección a la 3.ª, intervención a la 4.ª")
+    expect(descripcionSif({ ventana: "SEMANA", inspeccionEn: 2, intervencionEn: 6 })).toBe(
+      "Fallas repetidas en la semana: inspección a la 2.ª, intervención a la 6.ª",
+    )
+  })
+
+  it("avisa lo que no se puede guardar", () => {
+    expect(errorConfigSif(dia)).toBeNull()
+    expect(errorConfigSif({ ...dia, inspeccionEn: 4, intervencionEn: 4 })).toBe("La intervención tiene que ser después de la inspección.")
+    expect(errorConfigSif({ ...dia, inspeccionEn: 5, intervencionEn: 3 })).toBe("La intervención tiene que ser después de la inspección.")
+    expect(errorConfigSif({ ...dia, inspeccionEn: 1, intervencionEn: 4 })).toBe("La inspección va de la 2.ª a la 10.ª vez.")
+    expect(errorConfigSif({ ...dia, inspeccionEn: 11, intervencionEn: 12 })).toBe("La inspección va de la 2.ª a la 10.ª vez.")
+    expect(errorConfigSif({ ...dia, intervencionEn: 16 })).toBe("La intervención llega hasta la 15.ª vez.")
+  })
+
+  it("el área de las SIF: Pruebas es PRUEBAS y el resto ASEPTICO", () => {
+    expect(areaDeSif("PRUEBAS")).toBe("PRUEBAS")
+    expect(areaDeSif("ASEPTICO")).toBe("ASEPTICO")
+    expect(areaDeSif("MANTENIMIENTO")).toBe("ASEPTICO")
+    expect(areaDeSif(null)).toBe("ASEPTICO")
   })
 })

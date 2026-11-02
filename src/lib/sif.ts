@@ -4,11 +4,12 @@ import { supabase } from "@/lib/supabase"
 import { fechaPlanta, horaPlanta } from "@/lib/tiempoPlanta"
 
 /*
- * Solicitudes de Falla (SIF), migraciones 20261109390000 y 20261111690000.
- * Las genera el servidor solo: a la 3.ª vez que el mismo código de parada se
- * repite en una línea en la jornada (7:00 → 7:00) nace una de Inspección
- * (solo aviso; Mantenimiento la marca revisada) y a la 4.ª esa misma sube a
- * Intervención. Mantenimiento (SIF_GESTIONAR) asigna el responsable y la
+ * Solicitudes de Falla (SIF), migraciones 20261109390000, 20261111690000 y
+ * 20261114590000. Las genera el servidor solo: a la 3.ª vez (por defecto) que
+ * la misma falla se repite en una línea en la jornada (7:00 → 7:00) nace una
+ * de Inspección (solo aviso; Mantenimiento la marca revisada) y a la 4.ª esa
+ * misma sube a Intervención. El número y la ventana (turno, día o semana) se
+ * configuran por área (SIF_CONFIGURAR). Mantenimiento (SIF_GESTIONAR) asigna el responsable y la
  * cierra; el resto la ve.
  */
 
@@ -356,4 +357,73 @@ export function useSifPendientes(usuario: string | null, activo: boolean): Sif[]
 /** Código de planilla de la falla (ej. CPL2-6). Si el catálogo de paradas aún no cargó, el código del tipo. */
 export function codigoParadaSif(sif: Pick<Sif, "tipoCodigo" | "lineaCodigo">): string {
   return codigoDeParadaLive({ tipoCodigo: sif.tipoCodigo, lineaCodigo: sif.lineaCodigo }) ?? sif.tipoCodigo
+}
+
+/* ------------------------------------------------------------
+ * Frecuencia configurable (migración 20261114590000)
+ * ------------------------------------------------------------ */
+
+export type VentanaSif = "TURNO" | "DIA" | "SEMANA"
+
+export interface ConfigSif {
+  ventana: VentanaSif
+  /** A la cuántas veces nace la Inspección (2 a 10). */
+  inspeccionEn: number
+  /** A la cuántas sube a Intervención (mayor que la anterior, hasta 15). */
+  intervencionEn: number
+}
+
+/** Sin configuración guardada: como siempre. */
+export const CONFIG_SIF_POR_DEFECTO: ConfigSif = { ventana: "DIA", inspeccionEn: 3, intervencionEn: 4 }
+
+export const VENTANAS_SIF: { codigo: VentanaSif; boton: string; en: string; unUna: string }[] = [
+  { codigo: "TURNO", boton: "Por turno", en: "el turno", unUna: "un turno" },
+  { codigo: "DIA", boton: "Por día", en: "el día", unUna: "un día" },
+  { codigo: "SEMANA", boton: "Por semana", en: "la semana", unUna: "una semana" },
+]
+
+function datosVentana(v: VentanaSif) {
+  return VENTANAS_SIF.find((x) => x.codigo === v) ?? VENTANAS_SIF[1]
+}
+
+/** «La misma falla 3 veces en un turno → Inspección; a la 4.ª → Intervención.» */
+export function fraseControlSif(c: ConfigSif): string {
+  return `La misma falla ${c.inspeccionEn} veces en ${datosVentana(c.ventana).unUna} → Inspección; a la ${c.intervencionEn}.ª → Intervención.`
+}
+
+/** Descripción del encabezado de Solicitudes de Intervención. */
+export function descripcionSif(c: ConfigSif): string {
+  return `Fallas repetidas en ${datosVentana(c.ventana).en}: inspección a la ${c.inspeccionEn}.ª, intervención a la ${c.intervencionEn}.ª`
+}
+
+/** Lo que impide guardar (las mismas reglas del servidor), o null. */
+export function errorConfigSif(c: ConfigSif): string | null {
+  if (!Number.isInteger(c.inspeccionEn) || c.inspeccionEn < 2 || c.inspeccionEn > 10) return "La inspección va de la 2.ª a la 10.ª vez."
+  if (!Number.isInteger(c.intervencionEn) || c.intervencionEn <= c.inspeccionEn) return "La intervención tiene que ser después de la inspección."
+  if (c.intervencionEn > 15) return "La intervención llega hasta la 15.ª vez."
+  return null
+}
+
+/** Área de producción de las SIF: Pruebas va con Pruebas; el resto, con Aséptico (como las demás pantallas de paradas). */
+export function areaDeSif(area: string | null | undefined): string {
+  return area === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
+}
+
+export async function leerConfigSif(usuario: string, area: string): Promise<Lectura<ConfigSif>> {
+  const { data, error } = await supabase.rpc("leer_config_sif", { p_usuario: usuario, p_area: area })
+  const fila = (data as { ventana: VentanaSif; inspeccion_en: number; intervencion_en: number }[] | null)?.[0]
+  if (error || !fila) return { ok: false, error: mensajeErrorSif(error?.message) }
+  return { ok: true, data: { ventana: fila.ventana, inspeccionEn: fila.inspeccion_en, intervencionEn: fila.intervencion_en } }
+}
+
+export async function guardarConfigSif(usuario: string, area: string, config: ConfigSif, pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("guardar_config_sif", {
+    p_usuario: usuario,
+    p_area: area,
+    p_ventana: config.ventana,
+    p_inspeccion_en: config.inspeccionEn,
+    p_intervencion_en: config.intervencionEn,
+    p_pagina: pagina,
+  })
+  return error ? { ok: false, error: mensajeErrorSif(error.message) } : { ok: true }
 }

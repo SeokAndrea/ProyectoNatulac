@@ -460,6 +460,32 @@ Permisos nuevos: `ESTRUCTURA_GESTIONAR`, `LECTURAS_SI`, `CODIGOS_MTTO_EDITAR`, `
 
 Ensayadas de punta a punta sobre una base armada con las migraciones de main más personas «de planta» sintéticas: ver `.superpowers/sdd/2026-11-01-personal-areas-puestos-fase1/final-fix-report.md`.
 
+## SIF: frecuencia configurable (20261114590000)
+
+Antes la SIF era fija: la misma falla en la misma línea, 3 veces en la jornada = Inspección y 4 = Intervención. Ahora cada área de producción lo configura. Sin fila para un área = DIA, 3 y 4 (como antes). Aplica desde que se guarda; no recalcula las solicitudes que ya existen.
+
+### `sif_config`
+Una fila por área (`area_id` es la llave). Sin políticas: solo se toca por las funciones.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `area_id` | `uuid` PK | → `areas` |
+| `ventana` | `text` | `TURNO`, `DIA` (por defecto) o `SEMANA` |
+| `inspeccion_en` | `integer` | 2 a 10 (por defecto 3) |
+| `intervencion_en` | `integer` | 3 a 15 (por defecto 4); siempre mayor que `inspeccion_en` |
+| `actualizado_en`, `actualizado_por` | | quién y cuándo |
+
+### Funciones
+| Función | Qué hace |
+|---|---|
+| `leer_config_sif(p_usuario, p_area)` | Ventana y umbrales del área (los de por defecto si no hay fila). Cualquier usuario activo |
+| `guardar_config_sif(p_usuario, p_area, p_ventana, p_inspeccion_en, p_intervencion_en, p_pagina)` | Exige el permiso `SIF_CONFIGURAR` (tema MANTENIMIENTO; el Jefe de Mantenimiento y Super Admin). Valida las reglas con mensajes en español y audita con antes/después |
+| `ventana_sif(p_area_id, p_instante)` | Interna. `DIA`: la jornada (7:00 a 7:00). `SEMANA`: del lunes 7:00 al lunes 7:00 de la jornada del instante. `TURNO`: el turno real del área que lo contiene (misma ventana que `ventana_paradas_turno`; abierto = hasta su hora oficial de fin), y si no hay, el turno teórico del esquema (3x8: 7-15, 15-22:30, 22:30-7; 12x12: 7-19 y 19-7) |
+| `config_sif_area(p_area_id)`, `texto_ventana_sif(p_ventana)` | Internas |
+| `fn_paradas_sif()` | El trigger de `paradas`: los umbrales y la ventana del área reemplazan al 3, al 4 y a la jornada; los correos dicen el número y la ventana reales |
+
+Ensayo: `scripts/ensayo-sif-frecuencia.sql` (begin ... rollback).
+
 ## Sesiones con credencial (20261109690000)
 
 La base ya no le cree al `p_usuario` que manda la app:
