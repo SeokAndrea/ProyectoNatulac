@@ -73,7 +73,7 @@ export function usePanelTurno() {
   const [produccionDia, setProduccionDia] = useState<ProduccionDiaItem[]>([])
   /**
    * Paradas del turno mostrado (listarParadas con el turno). Alimenta
-   * "Tiempo de parada", "Parada con mayor duración" y la eficiencia (OEE)
+   * "Tiempo detenido", "Parada con mayor duración" y la eficiencia (OEE)
    * de cada línea — ver src/lib/eficiencia.ts.
    */
   const [paradasTurno, setParadasTurno] = useState<Parada[]>([])

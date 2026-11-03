@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Pencil, Plus } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { CatalogoEquipos } from "@/components/CatalogoEquipos"
 import { CatalogoFallas } from "@/components/catalogo-fallas/CatalogoFallas"
+import { ColaFallasNuevas, useConteoFallasNuevas } from "@/components/catalogo-fallas/ColaFallasNuevas"
 import { OtrasParadas } from "@/components/catalogo-paradas/OtrasParadas"
 import { EquivalenciasMantenimiento } from "@/components/paradas/EquivalenciasMantenimiento"
 import { Button } from "@/components/ui/button"
@@ -79,7 +80,10 @@ export default function CatalogoParadas() {
   const [equipoFiltro, setEquipoFiltro] = useState("")
   const [verInactivos, setVerInactivos] = useState(false)
   const [edicion, setEdicion] = useState<{ tipo: TipoParadaEditable; original?: string } | null>(null)
-  const [pestana, setPestana] = useState<"FALLAS" | "OTRAS" | "TIPOS" | "EQUIPOS" | "MANTENIMIENTO">("FALLAS")
+  const [pestana, setPestana] = useState<"FALLAS" | "OTRAS" | "NUEVAS" | "TIPOS" | "EQUIPOS" | "MANTENIMIENTO">("FALLAS")
+  // Cola «Fallas nuevas»: cuántas paradas faltan por revisar (se vuelve a contar al descartar).
+  const [versionCola, setVersionCola] = useState(0)
+  const porRevisar = useConteoFallasNuevas(usuario, versionCola)
   const editaCatalogo = !!session?.esDueno || puede(session, "CATALOGO_PARADAS")
   // Con el switch del catálogo nuevo encendido (20261113790000) las pestañas viejas quedan solo de consulta.
   const switchEncendido = useCatalogoModular(session?.area === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO") === true
@@ -125,6 +129,9 @@ export default function CatalogoParadas() {
           <Button size="sm" variant={pestana === "OTRAS" ? "default" : "outline"} onClick={() => setPestana("OTRAS")}>
             Otras paradas{nuevo}
           </Button>
+          <Button size="sm" variant={pestana === "NUEVAS" ? "default" : "outline"} onClick={() => setPestana("NUEVAS")}>
+            Fallas nuevas{porRevisar ? ` (${porRevisar})` : ""}
+          </Button>
           {/* El catálogo viejo solo lo ve la dueña (2026-10-31): el resto trabaja con las dos pestañas nuevas. */}
           {session?.esDueno && (
             <>
@@ -150,6 +157,8 @@ export default function CatalogoParadas() {
           </div>
         ) : pestana === "OTRAS" ? (
           <OtrasParadas usuario={usuario} editable={editaCatalogo} pagina={PAGINA} />
+        ) : pestana === "NUEVAS" ? (
+          <ColaFallasNuevas usuario={usuario} editable={editaCatalogo} onCambio={() => setVersionCola((v) => v + 1)} />
         ) : pestana === "MANTENIMIENTO" ? (
           <fieldset disabled={switchEncendido} className="m-0 min-w-0 border-0 p-0">
             <EquivalenciasMantenimiento usuario={usuario} />

@@ -230,14 +230,14 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
       ) : (
         <>
           {primero && (
-            <section aria-label="Lo que más paró" className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border border-danger/30 bg-danger-soft p-4 sm:p-5">
+            <section aria-label="Lo que más detuvo" className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border border-danger/30 bg-danger-soft p-4 sm:p-5">
               <div className="flex min-w-0 flex-1 basis-80 items-start gap-3">
                 <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-danger/20 text-danger-foreground">
                   <AlertTriangle className="size-5" aria-hidden />
                 </span>
                 <div className="flex min-w-0 flex-col gap-1">
                   <p className="text-xs font-semibold tracking-wide text-danger-foreground uppercase">
-                    Lo que más te paró · {linea === "TODAS" ? "todas las líneas" : nombreLineaParada(linea)} · {rango.desde.slice(8)}/{rango.desde.slice(5, 7)} al {rango.hasta.slice(8)}/{rango.hasta.slice(5, 7)}
+                    Lo que más te detuvo · {linea === "TODAS" ? "todas las líneas" : nombreLineaParada(linea)} · {rango.desde.slice(8)}/{rango.desde.slice(5, 7)} al {rango.hasta.slice(8)}/{rango.hasta.slice(5, 7)}
                   </p>
                   <p className="text-xl font-bold text-foreground sm:text-2xl">
                     {primero.nombre}
@@ -264,7 +264,7 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
 
           <section aria-label="Totales" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Tarjeta titulo="Paradas" valor={String(totales.veces)} nota={comparacion.veces} />
-            <Tarjeta titulo="Tiempo total parado" valor={fmtDuracion(totales.minutos)} nota={comparacion.tiempo} />
+            <Tarjeta titulo="Tiempo total detenido" valor={fmtDuracion(totales.minutos)} nota={comparacion.tiempo} />
             <Tarjeta titulo="Promedio por parada" valor={fmtDuracion(totales.promedio)} nota={comparacion.promedio} />
             <Link to={RUTA_SIF} className="rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
               <Tarjeta
@@ -285,7 +285,7 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
           <section id="ranking-resumen" aria-label={`Por ${nombreNivel}`} className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
               <h2 className="text-base font-semibold text-foreground">Por {nombreNivel}</h2>
-              <span className="text-sm text-foreground">Ordenado por tiempo parado{nivel !== "FALLA" ? " · toca uno para ver sus fallas" : ""}</span>
+              <span className="text-sm text-foreground">Ordenado por tiempo detenido{nivel !== "FALLA" ? " · toca uno para ver sus fallas" : ""}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[620px] border-collapse text-sm">

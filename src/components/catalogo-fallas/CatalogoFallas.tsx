@@ -22,17 +22,22 @@ export function CatalogoFallas({ usuario, editable }: { usuario: string; editabl
   const { catalogo, cargando, error, recargar } = useCatalogoFallas()
   const [busqueda, setBusqueda] = useState("")
   const [equipoId, setEquipoId] = useState("")
+  // Filtros en cascada: Equipo → Sistema → Subsistema (cada uno depende del anterior).
+  const [sistemaId, setSistemaId] = useState("")
+  const [subsistemaId, setSubsistemaId] = useState("")
   const [verInactivos, setVerInactivos] = useState(false)
   const [nivelAEditar, setNivelAEditar] = useState<NivelAEditar | null>(null)
   // Dónde está parado el formulario; la clave lo vuelve a montar al tocar el «+» de una franja.
   const [formulario, setFormulario] = useState<{ inicio: Inicio | null; clave: number }>({ inicio: null, clave: 0 })
 
-  const grupos = useMemo(() => armarGrupos(catalogo, { busqueda, equipoId, verInactivos }), [catalogo, busqueda, equipoId, verInactivos])
+  const grupos = useMemo(() => armarGrupos(catalogo, { busqueda, equipoId, sistemaId, subsistemaId, verInactivos }), [catalogo, busqueda, equipoId, sistemaId, subsistemaId, verInactivos])
+  const sistemasDelEquipo = useMemo(() => catalogo.sistemas.filter((x) => x.equipoId === equipoId && (verInactivos || x.activo)), [catalogo.sistemas, equipoId, verInactivos])
+  const subsistemasDelSistema = useMemo(() => catalogo.subsistemas.filter((x) => x.sistemaId === sistemaId && (verInactivos || x.activo)), [catalogo.subsistemas, sistemaId, verInactivos])
   const sinSubsistemas = useMemo(() => equiposSinSubsistemas(catalogo), [catalogo])
   const fallasVisibles = grupos.reduce((n, g) => n + g.fallas.length, 0)
 
   const primerLugar = (): Inicio => {
-    const g = armarGrupos(catalogo, { busqueda: "", equipoId: "", verInactivos: false })[0]
+    const g = armarGrupos(catalogo, { busqueda: "", equipoId: "", verInactivos: false }).find((x) => !x.subsistema.reservada)
     return g ? { equipoId: g.equipo.id, sistemaId: g.sistema.id, subsistemaId: g.subsistema.id } : { equipoId: NUEVO, sistemaId: NUEVO, subsistemaId: NUEVO }
   }
 
@@ -64,7 +69,16 @@ export function CatalogoFallas({ usuario, editable }: { usuario: string; editabl
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input type="search" aria-label="Buscar en el catálogo" placeholder="Buscar falla, subsistema o código" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="pl-8" />
         </div>
-        <select aria-label="Equipo" className={`${selectClase} sm:w-56`} value={equipoId} onChange={(e) => setEquipoId(e.target.value)}>
+        <select
+          aria-label="Equipo"
+          className={`${selectClase} sm:w-56`}
+          value={equipoId}
+          onChange={(e) => {
+            setEquipoId(e.target.value)
+            setSistemaId("")
+            setSubsistemaId("")
+          }}
+        >
           <option value="">Todos los equipos</option>
           {catalogo.equipos
             .filter((e) => verInactivos || e.activo)
@@ -73,6 +87,31 @@ export function CatalogoFallas({ usuario, editable }: { usuario: string; editabl
                 {e.nombre}
               </option>
             ))}
+        </select>
+        <select
+          aria-label="Sistema"
+          className={`${selectClase} sm:w-56`}
+          value={sistemaId}
+          disabled={!equipoId}
+          onChange={(e) => {
+            setSistemaId(e.target.value)
+            setSubsistemaId("")
+          }}
+        >
+          <option value="">{equipoId ? "Todos los sistemas" : "Sistema (elige un equipo)"}</option>
+          {sistemasDelEquipo.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.nombre}
+            </option>
+          ))}
+        </select>
+        <select aria-label="Subsistema" className={`${selectClase} sm:w-56`} value={subsistemaId} disabled={!sistemaId} onChange={(e) => setSubsistemaId(e.target.value)}>
+          <option value="">{sistemaId ? "Todos los subsistemas" : "Subsistema (elige un sistema)"}</option>
+          {subsistemasDelSistema.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.nombre}
+            </option>
+          ))}
         </select>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">

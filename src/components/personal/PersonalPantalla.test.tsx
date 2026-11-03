@@ -111,6 +111,17 @@ describe("PersonalPantalla", () => {
     expect(screen.getByText("Carlos Jefe")).toBeTruthy()
   })
 
+  it("las personas inactivas se ocultan y el botón las muestra y las vuelve a ocultar", async () => {
+    const user = userEvent.setup()
+    abrir()
+    expect(await screen.findByText("Ana Torres")).toBeTruthy()
+    expect(screen.queryByText("Luis Pérez")).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Ver inactivas (1)" }))
+    expect(await screen.findByText("Luis Pérez")).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Ocultar inactivas" }))
+    expect(screen.queryByText("Luis Pérez")).toBeNull()
+  })
+
   it("el select de Puesto ofrece solo los puestos asignables", async () => {
     const user = userEvent.setup()
     abrir()

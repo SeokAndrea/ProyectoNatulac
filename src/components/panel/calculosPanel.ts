@@ -60,7 +60,7 @@ export interface FilaLineaCompacta extends LineaConEstado {
   mermaPct: number | null
   /** Suma de los minutos de TODAS las paradas registradas de esta línea en el turno (Módulo Paradas) — null si no tiene ninguna. */
   minutosParada: number | null
-  /** Total de la parada completa (todos los turnos), solo si alguna empezó en un turno anterior: va en el title de «Tiempo de parada». */
+  /** Total de la parada completa (todos los turnos), solo si alguna empezó en un turno anterior: va en el title de «Tiempo detenido». */
   minutosParadaTotal: number | null
   /**
    * TP = Tiempo de Producción del turno (dueña, 2026-10-28): desde que

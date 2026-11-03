@@ -58,8 +58,8 @@ export function OrganigramaArea({
                 )}
               >
                 <span className="text-sm font-semibold text-foreground">{p.nombre}</span>
-                <span className="text-sm text-foreground">{p.puesto}</span>
-                {p.titulo && <span className="text-xs font-medium text-info-foreground">{p.titulo}</span>}
+                {/* Una sola línea de cargo: el título si la persona lo tiene, si no su puesto. */}
+                <span className="text-sm text-foreground">{p.titulo || p.puesto}</span>
                 {!p.activo && <span className="text-xs font-medium text-foreground">Inactiva</span>}
               </button>
             ))}

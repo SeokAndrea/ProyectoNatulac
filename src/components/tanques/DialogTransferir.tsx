@@ -136,7 +136,7 @@ export function DialogTransferir({
               onCambiar={setMotivo}
               opciones={[
                 { valor: "CONSOLIDAR_RESTOS", texto: "Consolidar restos" },
-                { valor: "ENRUTAR_MANIFOLD", texto: "No parar la línea" },
+                { valor: "ENRUTAR_MANIFOLD", texto: "No detener la línea" },
               ]}
             />
 

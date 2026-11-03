@@ -5,16 +5,33 @@ import type { CatalogoFallas, NivelCatalogo, Resultado, TipoEquipo } from "./tip
 /* Lectura y escritura del catálogo de fallas (RPC de la migración 20261113490000). */
 
 interface Crudo {
-  equipos: { id: string; sufijo: string; nombre: string; tipo: TipoEquipo; activo: boolean; lineas: string[] | null }[]
-  sistemas: { id: string; equipo_id: string; sufijo: string; nombre: string; activo: boolean }[]
-  subsistemas: { id: string; sistema_id: string; sufijo: string; nombre: string; codigo_sheet: string | null; activo: boolean }[]
-  fallas: { id: string; subsistema_id: string; numero: number; nombre: string; clase: ClaseParada; activo: boolean; codigo: string }[]
+  equipos: { id: string; sufijo: string; nombre: string; tipo: TipoEquipo; activo: boolean; lineas: string[] | null; creado_en?: string; reservada?: boolean }[]
+  sistemas: { id: string; equipo_id: string; sufijo: string; nombre: string; activo: boolean; creado_en?: string; reservada?: boolean }[]
+  subsistemas: { id: string; sistema_id: string; sufijo: string; nombre: string; codigo_sheet: string | null; activo: boolean; creado_en?: string; reservada?: boolean }[]
+  fallas: { id: string; subsistema_id: string; numero: number; nombre: string; clase: ClaseParada; activo: boolean; codigo: string; reservada?: boolean }[]
 }
 
 export function mapearCatalogo(c: Crudo): CatalogoFallas {
   return {
-    equipos: c.equipos.map((e) => ({ id: e.id, sufijo: e.sufijo, nombre: e.nombre, tipo: e.tipo, activo: e.activo, lineas: e.lineas ?? [] })),
-    sistemas: c.sistemas.map((s) => ({ id: s.id, equipoId: s.equipo_id, sufijo: s.sufijo, nombre: s.nombre, activo: s.activo })),
+    equipos: c.equipos.map((e) => ({
+      id: e.id,
+      sufijo: e.sufijo,
+      nombre: e.nombre,
+      tipo: e.tipo,
+      activo: e.activo,
+      lineas: e.lineas ?? [],
+      creadoEn: e.creado_en,
+      reservada: e.reservada ?? false,
+    })),
+    sistemas: c.sistemas.map((s) => ({
+      id: s.id,
+      equipoId: s.equipo_id,
+      sufijo: s.sufijo,
+      nombre: s.nombre,
+      activo: s.activo,
+      creadoEn: s.creado_en,
+      reservada: s.reservada ?? false,
+    })),
     subsistemas: c.subsistemas.map((u) => ({
       id: u.id,
       sistemaId: u.sistema_id,
@@ -22,6 +39,8 @@ export function mapearCatalogo(c: Crudo): CatalogoFallas {
       nombre: u.nombre,
       codigoSheet: u.codigo_sheet,
       activo: u.activo,
+      creadoEn: u.creado_en,
+      reservada: u.reservada ?? false,
     })),
     fallas: c.fallas.map((f) => ({
       id: f.id,
@@ -31,6 +50,7 @@ export function mapearCatalogo(c: Crudo): CatalogoFallas {
       clase: f.clase,
       activo: f.activo,
       codigo: f.codigo,
+      reservada: f.reservada ?? false,
     })),
   }
 }
@@ -120,4 +140,32 @@ export async function guardarFalla(usuario: string, d: { id: string; nombre: str
 export async function contarParadas(nivel: NivelCatalogo, id: string): Promise<number | null> {
   const { data, error } = await supabase.rpc("contar_paradas_catalogo", { p_nivel: nivel, p_id: id })
   return error ? null : Number(data)
+}
+
+/** Lo que se puede quitar del catálogo: las cuatro cosas que cuelgan unas de otras. */
+export type NivelQuitable = NivelCatalogo | "FALLA"
+
+/** Cuánto usa algo del catálogo (migración 20261114890000): lo que se muestra antes de «Quitar». */
+export interface UsoCatalogo {
+  nombre: string
+  reservada: boolean
+  /** Fallas que se van con él (la propia, si es una falla). */
+  fallas: number
+  paradas: number
+  sif: number
+}
+
+export const sePuedeQuitar = (u: UsoCatalogo) => !u.reservada && u.paradas === 0 && u.sif === 0
+
+export async function usoCatalogo(nivel: NivelQuitable, id: string): Promise<Resultado<UsoCatalogo>> {
+  const { data, error } = await supabase.rpc("uso_catalogo", { p_nivel: nivel, p_id: id })
+  if (error || !data) return fallo(error, "No se pudo saber si se usó.")
+  const d = data as { nombre: string; reservada: boolean; fallas: number | string; paradas: number | string; sif: number | string }
+  return { ok: true, valor: { nombre: d.nombre, reservada: d.reservada, fallas: Number(d.fallas), paradas: Number(d.paradas), sif: Number(d.sif) } }
+}
+
+/** Quita de verdad (solo lo que nunca se usó); queda una foto completa en la auditoría. */
+export async function quitarCatalogo(usuario: string, nivel: NivelQuitable, id: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("quitar_catalogo", { p_usuario: usuario, p_nivel: nivel, p_id: id })
+  return error ? fallo(error, "No se pudo quitar.") : { ok: true, valor: undefined }
 }

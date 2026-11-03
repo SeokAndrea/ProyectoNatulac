@@ -10,6 +10,7 @@ import { MensajeError } from "@/components/MensajeError"
 import { fmtDuracion, LARGO_NOTA_PARADA, TIPO_FALLA_SIN_ESPECIFICAR, type ResponsableParada, type TipoParada } from "@/lib/paradas"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
 import { useAuth } from "@/lib/auth"
+import { esParadaNueva } from "@/lib/catalogoFallas/fallaNueva"
 import { asignarFallaRecienRegistrada, TIPO_FALLA_EQUIPO } from "@/lib/catalogoFallas/paradas"
 import { useCatalogoModular } from "@/lib/catalogoFallas/switch"
 import type { AccionesLinea } from "./tipos"
@@ -80,7 +81,7 @@ export function FormParadaLinea({
       <p className="text-xs text-foreground">
         {sinCorrida
           ? "La línea no tiene corrida: la parada queda abierta desde ahora y cuenta hasta que la termines o arranques la línea."
-          : "La línea se para ya; el tiempo cuenta hasta Continuar."}
+          : "La línea se detiene ya; el tiempo cuenta hasta Continuar."}
       </p>
       {responsableFijo === undefined && (
         <div role="radiogroup" aria-label="Responsable de la parada" className="grid grid-cols-2 gap-2">
@@ -105,6 +106,10 @@ export function FormParadaLinea({
       )}
       {tipoElegido?.clase === "PROGRAMADA" && tipoElegido.tiempoGuiaMin != null && (
         <p className="text-xs text-muted-foreground">Tiempo guía: {fmtDuracion(tipoElegido.tiempoGuiaMin)}.</p>
+      )}
+      {/* «Falla nueva» / «Parada nueva» (20261114890000): el detalle va en «Qué pasó» y lo lee quien crea las fallas del catálogo. */}
+      {modular && (eleccion?.falla?.falla.reservada || (eleccion?.tipo && esParadaNueva(eleccion.tipo.codigo))) && (
+        <p className="text-xs text-warning-foreground">Cuenta bien en «Qué pasó» cuál es la falla y cómo se ve: quien crea las fallas del catálogo lo va a leer.</p>
       )}
       <Textarea
         value={motivo}

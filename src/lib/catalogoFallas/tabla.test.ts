@@ -37,6 +37,25 @@ describe("armarGrupos", () => {
     expect(armarGrupos(c, { ...sin, equipoId: "e2" })).toHaveLength(0)
     expect(armarGrupos(c, { ...sin, verInactivos: true })[1].fallas).toHaveLength(2)
   })
+
+  it("filtra en cascada por sistema y subsistema", () => {
+    expect(armarGrupos(c, { ...sin, equipoId: "e1", sistemaId: "s1" }).map((x) => x.subsistema.id)).toEqual(["u2", "u1"])
+    expect(armarGrupos(c, { ...sin, equipoId: "e1", sistemaId: "s1", subsistemaId: "u1" }).map((x) => x.subsistema.id)).toEqual(["u1"])
+    expect(armarGrupos(c, { ...sin, equipoId: "e2", sistemaId: "s1" })).toHaveLength(0)
+  })
+
+  it("ordena por creación; lo creado igual o sin fecha, por sufijo", () => {
+    const orden: CatalogoFallas = {
+      ...c,
+      subsistemas: [
+        { id: "u1", sistemaId: "s1", sufijo: "CAM", nombre: "Cámara", codigoSheet: null, activo: true, creadoEn: "2026-11-02T10:00:00Z" },
+        { id: "u2", sistemaId: "s1", sufijo: "AIR", nombre: "Aire", codigoSheet: null, activo: true, creadoEn: "2026-11-03T10:00:00Z" },
+        { id: "u3", sistemaId: "s1", sufijo: "BOM", nombre: "Bomba", codigoSheet: null, activo: true, creadoEn: "2026-11-02T10:00:00Z" },
+      ],
+      fallas: [],
+    }
+    expect(armarGrupos(orden, sin).map((x) => x.subsistema.id)).toEqual(["u3", "u1", "u2"])
+  })
 })
 
 it("equiposSinSubsistemas y fallasDeNivel", () => {

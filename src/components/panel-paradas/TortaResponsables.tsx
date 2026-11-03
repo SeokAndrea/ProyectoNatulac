@@ -5,9 +5,9 @@ const R = 42
 const VUELTA = 2 * Math.PI * R
 
 /**
- * ¿Quién tiene más paradas, Producción o Mantenimiento? Torta (dona) de dos
- * partes por cantidad de paradas, con el total al centro; al lado, cada uno
- * con su % y sus minutos (la identidad nunca va solo por color).
+ * Producción y Mantenimiento: torta (dona) de dos partes por cantidad de
+ * paradas, con el total al centro; al lado, cada uno con su % y sus minutos
+ * (la identidad nunca va solo por color). Sin título (dueña, 2026-11-02).
  */
 export function TortaResponsables({ produccion, mantenimiento }: { produccion: Reparto; mantenimiento: Reparto }) {
   const total = produccion.veces + mantenimiento.veces
@@ -20,7 +20,6 @@ export function TortaResponsables({ produccion, mantenimiento }: { produccion: R
 
   return (
     <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-semibold text-card-foreground">¿Quién tiene más paradas?</h2>
       {total === 0 ? (
         <p className="text-xs text-muted-foreground">Sin paradas.</p>
       ) : (

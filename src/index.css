@@ -239,6 +239,12 @@
   body {
     @apply bg-background text-foreground;
     }
+  /* Las listas desplegables nativas toman el fondo del tema: en oscuro el select es translúcido y la lista salía blanca con letra clara. */
+  select option,
+  select optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+    }
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;
     }

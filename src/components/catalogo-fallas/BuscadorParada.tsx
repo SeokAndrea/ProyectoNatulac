@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { fallaNuevaDeEquipo } from "@/lib/catalogoFallas/fallaNueva"
 import { buscarFallas, fallasDeLinea, type OpcionFalla } from "@/lib/catalogoFallas/paradas"
 import { useCatalogoFallas } from "@/lib/catalogoFallas/useCatalogoFallas"
 import { useCatalogosLive } from "@/lib/catalogosLive"
@@ -46,10 +47,15 @@ export function BuscadorParada({
   const [texto, setTexto] = useState("")
   const [filtro, setFiltro] = useState("")
   const [elegido, setElegido] = useState<Eleccion | null>(null)
+  const [pideEquipo, setPideEquipo] = useState(false)
 
   const lineaId = lineasTodas.find((l) => l.codigo === lineaCodigo)?.id ?? null
   const opciones = useMemo(() => fallasDeLinea(catalogo, lineaId), [catalogo, lineaId])
-  const equipos = useMemo(() => [...new Map(opciones.map((o) => [o.equipo.id, o.equipo])).values()], [opciones])
+  // «Equipo no listado» (reservado) va al final del desplegable.
+  const equipos = useMemo(
+    () => [...new Map(opciones.map((o) => [o.equipo.id, o.equipo])).values()].sort((a, b) => Number(!!a.reservada) - Number(!!b.reservada)),
+    [opciones],
+  )
   const otras = useMemo(
     () =>
       soloFallas
@@ -73,6 +79,27 @@ export function BuscadorParada({
     onElegir(e)
   }
 
+  /**
+   * «Falla nueva» (20261114890000): cuando la falla no está en la lista. Con un
+   * equipo elegido, es la falla reservada de ese equipo (cuenta como cualquier
+   * otra; el detalle va en «Qué pasó»). Con «Otras paradas», muestra las
+   * «Parada nueva» de cada grupo (PP, LNPE, OP…). Sin equipo, pide elegirlo.
+   */
+  function fallaNueva() {
+    if (filtro === OTRAS) {
+      setPideEquipo(false)
+      setTexto("Parada nueva")
+      return
+    }
+    const nueva = fallaNuevaDeEquipo(opciones, filtro)
+    if (nueva) {
+      setPideEquipo(false)
+      elegir({ falla: nueva })
+    } else {
+      setPideEquipo(true)
+    }
+  }
+
   if (elegido) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-primary bg-card px-3 py-2">
@@ -94,7 +121,16 @@ export function BuscadorParada({
   return (
     <div className="flex flex-col gap-2">
       {(equipos.length > 0 || otras.length > 0) && (
-        <select aria-label="Equipo" className={selectClase} value={filtro} onChange={(e) => setFiltro(e.target.value)}>
+        <>
+        <select
+          aria-label="Equipo"
+          className={selectClase}
+          value={filtro}
+          onChange={(e) => {
+            setFiltro(e.target.value)
+            setPideEquipo(false)
+          }}
+        >
           <option value="">Todos los equipos</option>
           {equipos.map((e) => (
             <option key={e.id} value={e.id}>
@@ -103,6 +139,20 @@ export function BuscadorParada({
           ))}
           {otras.length > 0 && <option value={OTRAS}>Otras paradas (no son de equipo)</option>}
         </select>
+        {/* Como «Empezó antes»: pequeño, debajo del equipo, siempre a mano para cuando la falla no está en la lista. */}
+        <button
+          type="button"
+          onClick={fallaNueva}
+          className="self-start text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
+        >
+          {filtro === OTRAS ? "Parada nueva" : "Falla nueva"}
+        </button>
+        {pideEquipo && (
+          <p role="status" className="text-xs text-warning-foreground">
+            Elige primero el equipo de la lista de arriba{soloFallas || otras.length === 0 ? "" : " (o «Otras paradas» si no es de un equipo)"}. Si el equipo tampoco está, elige «Equipo no listado».
+          </p>
+        )}
+        </>
       )}
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />

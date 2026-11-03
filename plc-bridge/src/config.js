@@ -4,7 +4,7 @@
 //
 // Prioridad: si la misma clave viene como variable de entorno (un "set" en el
 // .bat o "environment:" en docker-compose.yml), gana la variable de entorno.
-// Asi el .bat solo decide real/simulacion y el resto sale del archivo.
+// Asi plc-bridge.bat solo decide real/simulacion y el resto sale del archivo.
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";

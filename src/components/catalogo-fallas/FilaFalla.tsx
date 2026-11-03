@@ -7,6 +7,7 @@ import type { FallaCatalogo } from "@/lib/catalogoFallas/tipos"
 import { NOMBRE_CLASE, type ClaseParada } from "@/lib/paradas"
 import { useAccion } from "@/lib/useAccion"
 import { cn } from "@/lib/utils"
+import { BotonQuitar } from "./BotonQuitar"
 import { OPCIONES_CLASE } from "./opciones"
 import { Segmentado } from "./Segmentado"
 
@@ -35,13 +36,22 @@ export function FilaFalla({ falla, usuario, editable, onGuardado }: { falla: Fal
       <span className="num col-start-1 row-start-2 text-xs text-muted-foreground sm:row-start-1 sm:text-sm">{falla.codigo}</span>
       <span className={cn("col-start-1 row-start-1 text-sm text-foreground sm:col-start-2", !falla.activo && "line-through")}>{falla.nombre}</span>
       <span className="col-start-2 row-span-2 row-start-1 self-center text-right text-sm text-muted-foreground sm:col-start-3 sm:row-span-1 sm:text-left">
-        {!falla.activo ? "Inactiva" : falla.clase === "NO_PROGRAMADA" ? <span className="hidden sm:inline">{NOMBRE_CLASE.NO_PROGRAMADA}</span> : NOMBRE_CLASE[falla.clase]}
+        {falla.reservada ? (
+          <span title="Es de todos los equipos: se elige cuando la falla no está en la lista. No se cambia ni se quita.">Reservada</span>
+        ) : !falla.activo ? (
+          "Inactiva"
+        ) : falla.clase === "NO_PROGRAMADA" ? (
+          <span className="hidden sm:inline">{NOMBRE_CLASE.NO_PROGRAMADA}</span>
+        ) : (
+          NOMBRE_CLASE[falla.clase]
+        )}
       </span>
     </>
   )
   const clase = cn(COLUMNAS_FALLAS, "w-full items-baseline gap-x-3 px-3 py-2 text-left", !falla.activo && "opacity-60")
 
-  return editable ? (
+  // Lo reservado (la «Falla nueva» de cada equipo) lo maneja el sistema: solo se mira.
+  return editable && !falla.reservada ? (
     <button type="button" className={cn(clase, "outline-none hover:bg-muted focus-visible:bg-muted pointer-coarse:py-2.5")} onClick={() => setEditando(true)}>
       {celdas}
     </button>
@@ -78,6 +88,8 @@ function EditorFalla({ falla, usuario, onListo }: { falla: FallaCatalogo; usuari
       </div>
       <Segmentado etiqueta="Clase de la falla" opciones={OPCIONES_CLASE} valor={clase} onCambiar={setClase} deshabilitado={enviando} />
       <MensajeError error={error} />
+      {/* Quitar de verdad solo si nunca se usó. */}
+      <BotonQuitar nivel="FALLA" id={falla.id} usuario={usuario} onQuitado={() => onListo(true)} />
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="ghost" disabled={enviando} onClick={() => void onListo(false)}>
           Cancelar

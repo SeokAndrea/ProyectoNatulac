@@ -57,7 +57,7 @@ export function textoUltimoLote(lote: string): string {
  * Vacío arrastra esos litros y la merma sale falsa. Esas acciones quedan
  * bloqueadas hasta cargarlo (BotonCargarPt). La corrida que sigue corriendo
  * no bloquea: su volumen es en vivo y transferir con la línea andando es
- * «No parar la línea».
+ * «No detener la línea».
  */
 export function paradasSinPt(corridas: Corrida[]): Corrida[] {
   return corridas.filter((c) => !c.activa)

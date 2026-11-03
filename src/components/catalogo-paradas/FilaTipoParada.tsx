@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MensajeError } from "@/components/MensajeError"
+import { esParadaNueva } from "@/lib/catalogoFallas/fallaNueva"
 import { codigoPlanilla, fmtDuracion } from "@/lib/paradas"
 import { nombreLinea } from "@/lib/paradasEquipos"
 import { cambiarActivo, guardarTipo, type TipoParadaEditable } from "@/lib/paradasCatalogo"
@@ -31,7 +32,8 @@ export function FilaTipoParada({ tipo, usuario, pagina, editable }: { tipo: Tipo
     </>
   )
   const clase = cn(COLUMNAS_TIPOS, "w-full items-baseline gap-x-3 px-3 py-2 text-left", !tipo.activo && "opacity-60")
-  return editable ? (
+  // Las «Parada nueva · <prefijo>» las maneja el sistema (20261114890000): solo se miran.
+  return editable && !esParadaNueva(tipo.codigo) ? (
     <button type="button" className={cn(clase, "outline-none hover:bg-muted focus-visible:bg-muted pointer-coarse:py-2.5")} onClick={() => setEditando(true)}>
       {celdas}
     </button>

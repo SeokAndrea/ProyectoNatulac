@@ -109,10 +109,13 @@ services:
       - ./plc-bridge/bridge.conf:/app/bridge.conf:ro
       - ../natulac-plc-datos:/app/datos
     environment:
-      # Le gana a bridge.conf. Dejar en "simulacion" hasta confirmar que el
-      # servidor tiene ruta de red hacia 192.168.0.0/24 (subred del PLC,
-      # distinta de la 192.168.10.0/24 de este servidor).
-      - PLC_MODO=simulacion
+      # Le gana a bridge.conf. En "real" el servidor necesita ruta de red
+      # hacia 192.168.0.0/24 (subred del PLC, distinta de la 192.168.10.0/24
+      # de este servidor); sin ella la pantalla muestra "sin conexion al PLC".
+      - PLC_MODO=real
+      # Ahi el bridge revisa el permiso de quien abre/cierra una valvula
+      # auxiliar y deja la auditoria (ver plc-bridge/src/control.js).
+      - PLC_API_URL=http://api:3000
     restart: unless-stopped
     profiles:
       - preview

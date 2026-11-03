@@ -26,6 +26,7 @@ import {
   BarChart3,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
+import type { AreaCodigo } from "@/lib/catalogos"
 import { esPermisoDeAdministracion, puede, type Permiso } from "@/lib/permisos"
 import { esSoloVista, PANELES_SOLO_VISTA } from "@/lib/rolVista"
 
@@ -49,6 +50,8 @@ export interface AppDef {
    * propiedad, la ve cualquier sesión.
    */
   permiso?: Permiso | Permiso[]
+  /** Si se define, la tarjeta solo aparece para quien trabaja en estas áreas (Super Administrador, sin área, la ve igual). */
+  areasPermitidas?: AreaCodigo[]
   /** Tarjeta en prueba: solo la ve el Área de Pruebas hasta que se apruebe (ej. Validar jornada). */
   enPrueba?: boolean
   /** Atajo chico junto al saludo del hub, en vez de la grilla principal (ver Hub.tsx). */
@@ -371,15 +374,14 @@ export const apps: AppDef[] = [
   },
   {
     slug: "preparacion-plc",
-    title: "Llenado PLC (prueba)",
-    description: "Litros y válvulas en vivo del PLC de Preparación — vista de prueba, en simulación.",
+    title: "Contador de Agua",
+    description: "Litros, caudal y válvulas en vivo del PLC de Preparación.",
     href: "/preparacion-plc",
     icon: Droplets,
     requiereTurno: false,
-    // TEMPORAL (rama feature/preparacion-plc, solo para sacar capturas con
-    // el usuario "pruebas"): revertir a "arondon" o decidir el permiso final
-    // antes de mezclar a main.
-    usuarioPermitido: "pruebas",
+    // Solo Producción Aséptico (Alexander, 2026-10-30). Abrir/cerrar las
+    // válvulas auxiliares pide además el permiso VALVULA_AUX (en la página).
+    areasPermitidas: ["ASEPTICO"],
     atajo: true,
   },
   {
@@ -418,6 +420,7 @@ export function puedeVerApp(session: Session | null, app: AppDef): boolean {
   }
   if (app.enPrueba) return false
   if (app.permiso && ![app.permiso].flat().some((p) => puede(session, p))) return false
+  if (app.areasPermitidas && session.area && !app.areasPermitidas.includes(session.area)) return false
   if (app.soloDueno && !session.esDueno) return false
   if (app.usuarioPermitido && session.username.toLowerCase() !== app.usuarioPermitido.toLowerCase()) return false
   return true

@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
+import { BotonEliminarParada } from "@/components/paradas/BotonEliminarParada"
 import { RangoFechas } from "@/components/paradas/RangoFechas"
 import { ResumenParadas } from "@/components/paradas/ResumenParadas"
 import { ReporteParada, textoTiempos } from "@/components/paradas/ReporteParada"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
+import { puede } from "@/lib/permisos"
 import { LINEAS_PARADAS, listarParadas, listarParadasLectura, nombreLineaParada, type Parada, type ResponsableParada } from "@/lib/paradas"
 import type { VentanaTurno } from "@/lib/paradasTramo"
 import { listarVentanasTurnos, ventanasDeParada } from "@/lib/ventanasParadas"
@@ -212,9 +214,24 @@ export default function ReportesParadas() {
 
         {elegida && (
           <section className="flex flex-col gap-2">
-            <Button type="button" size="sm" variant="ghost" className="self-start" onClick={() => abrir(null)}>
-              Cerrar reporte
-            </Button>
+            <div className="flex flex-wrap items-start gap-2">
+              <Button type="button" size="sm" variant="ghost" onClick={() => abrir(null)}>
+                Cerrar reporte
+              </Button>
+              {/* Eliminar una parada cargada por error: solo con el permiso PARADAS_ELIMINAR (queda en Auditoría). */}
+              {session && puede(session, "PARADAS_ELIMINAR") && (
+                <BotonEliminarParada
+                  key={elegida.id}
+                  parada={elegida}
+                  usuario={session.username}
+                  pagina="Reportes de paradas"
+                  onEliminada={() => {
+                    abrir(null)
+                    void cargar()
+                  }}
+                />
+              )}
+            </div>
             <ReporteParada parada={elegida} ventanas={ventanasDeParada(elegida, turnos, ahora)} ahora={ahora} />
           </section>
         )}

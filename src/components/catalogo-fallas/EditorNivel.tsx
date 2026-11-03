@@ -6,6 +6,7 @@ import { contarParadas, guardarEquipo, guardarSistema, guardarSubsistema } from 
 import { errorSufijo, normalizarSufijo } from "@/lib/catalogoFallas/codigo"
 import type { NivelCatalogo, TipoEquipo } from "@/lib/catalogoFallas/tipos"
 import { useAccion } from "@/lib/useAccion"
+import { BotonQuitar } from "./BotonQuitar"
 import { OPCIONES_TIPO_EQUIPO } from "./opciones"
 import { Segmentado } from "./Segmentado"
 import { SelectorLineas } from "./SelectorLineas"
@@ -115,6 +116,9 @@ export function EditorNivel({
         </p>
       )}
       <MensajeError error={error} />
+
+      {/* Quitar de verdad solo si nunca se usó (equipos y sistemas siguen solo con Desactivar). */}
+      {nivel === "SUBSISTEMA" && <BotonQuitar nivel="SUBSISTEMA" id={item.id} usuario={usuario} onQuitado={() => onListo(true)} />}
 
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="ghost" disabled={enviando} onClick={() => void onListo(false)}>

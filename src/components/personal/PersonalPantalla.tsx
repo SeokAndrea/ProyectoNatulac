@@ -39,6 +39,8 @@ export function PersonalPantalla({ pagina }: { pagina: string }) {
   const [abierta, setAbierta] = useState<string | null>(null)
   const [vista, setVista] = useState<"organigrama" | "tabla">("organigrama")
   const [busqueda, setBusqueda] = useState("")
+  /** Las personas dadas de baja se ocultan por defecto; este interruptor las muestra. */
+  const [verInactivas, setVerInactivas] = useState(false)
   const [avisoPanel, setAvisoPanel] = useState<string | null>(null)
 
   const cargar = useCallback(async () => {
@@ -67,13 +69,19 @@ export function PersonalPantalla({ pagina }: { pagina: string }) {
 
   // Área que se muestra: la elegida; si no hay, la de la sesión o la primera con gente.
   const areaActual = area ?? items.find((i) => i.personas > 0)?.codigo ?? items[0]?.codigo ?? null
-  const delArea = useMemo(() => {
+  const delAreaTodas = useMemo(() => {
     const lista = personal ?? []
     // Sin menú y sin área fija (no debería pasar): se muestra todo lo que la base entrega.
     if (!conMenu && !session?.area) return lista
     const codigo = conMenu ? areaActual : session?.area
     return lista.filter((p) => (codigo === SIN_AREA ? p.areaCodigo === null : p.areaCodigo === codigo))
   }, [personal, conMenu, areaActual, session?.area])
+  const inactivas = delAreaTodas.filter((p) => !p.activo).length
+  // La persona abierta en el panel no desaparece al desactivarla: se cierra el panel cuando uno quiere.
+  const delArea = useMemo(
+    () => (verInactivas ? delAreaTodas : delAreaTodas.filter((p) => p.activo || p.id === abierta)),
+    [delAreaTodas, verInactivas, abierta],
+  )
 
   const resaltadas = useMemo(() => {
     const q = plano(busqueda.trim())
@@ -129,6 +137,11 @@ export function PersonalPantalla({ pagina }: { pagina: string }) {
               className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />
           </label>
+          {(inactivas > 0 || verInactivas) && (
+            <Button variant="outline" aria-pressed={verInactivas} onClick={() => setVerInactivas(!verInactivas)} className={cn(verInactivas && "ring-2 ring-ring")}>
+              {verInactivas ? "Ocultar inactivas" : `Ver inactivas (${inactivas})`}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setVista(vista === "tabla" ? "organigrama" : "tabla")}>
             {vista === "tabla" ? <LayoutGrid className="size-4" /> : <Table2 className="size-4" />}
             {vista === "tabla" ? "Organigrama" : "Tabla"}

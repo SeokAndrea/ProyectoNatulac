@@ -56,9 +56,10 @@ export function FormAgregar({
   const sistemaEsNuevo = equipoEsNuevo || sistemaId === NUEVO || sistemaId === ""
   const subsistemaEsNuevo = sistemaEsNuevo || subsistemaId === NUEVO || subsistemaId === ""
 
-  const equipos = activos(catalogo.equipos)
-  const sistemas = equipoEsNuevo ? [] : activos(catalogo.sistemas).filter((s) => s.equipoId === equipoId)
-  const subsistemas = sistemaEsNuevo ? [] : activos(catalogo.subsistemas).filter((u) => u.sistemaId === sistemaId)
+  // Lo reservado («Falla nueva», «Equipo no listado») lo maneja el sistema: no se ofrece para agregar.
+  const equipos = activos(catalogo.equipos).filter((e) => !e.reservada)
+  const sistemas = equipoEsNuevo ? [] : activos(catalogo.sistemas).filter((s) => s.equipoId === equipoId && !s.reservada)
+  const subsistemas = sistemaEsNuevo ? [] : activos(catalogo.subsistemas).filter((u) => u.sistemaId === sistemaId && !u.reservada)
   const ocupadosEquipo = catalogo.equipos.map((e) => e.sufijo)
   const ocupadosSistema = equipoEsNuevo ? [] : catalogo.sistemas.filter((s) => s.equipoId === equipoId).map((s) => s.sufijo)
   const ocupadosSubsistema = sistemaEsNuevo ? [] : catalogo.subsistemas.filter((u) => u.sistemaId === sistemaId).map((u) => u.sufijo)
@@ -73,12 +74,12 @@ export function FormAgregar({
   // Al cambiar un nivel, los de abajo pasan al primero que tenga (o a «nuevo» si no tiene).
   function elegirEquipo(id: string) {
     setEquipoId(id)
-    const s = activos(catalogo.sistemas).find((x) => x.equipoId === id)
+    const s = activos(catalogo.sistemas).find((x) => x.equipoId === id && !x.reservada)
     elegirSistema(s?.id ?? NUEVO)
   }
   function elegirSistema(id: string) {
     setSistemaId(id)
-    setSubsistemaId(activos(catalogo.subsistemas).find((x) => x.sistemaId === id)?.id ?? NUEVO)
+    setSubsistemaId(activos(catalogo.subsistemas).find((x) => x.sistemaId === id && !x.reservada)?.id ?? NUEVO)
   }
 
   async function agregar(nombres: string[]) {

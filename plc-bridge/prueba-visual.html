@@ -181,7 +181,7 @@
 </style>
 </head>
 <body>
-  <h1>Prueba visual - Llenado de tanques (Preparacion)</h1>
+  <h1>Prueba visual - Contador de Agua (Preparacion)</h1>
   <p class="subt">Pagina suelta de verificacion, no forma parte del dashboard. Solo lee el WebSocket del plc-bridge.</p>
 
   <div class="barra-conexion">
@@ -196,7 +196,7 @@
       <div class="tanque-cab">
         <span class="tanque-titulo">Tanque 1</span>
         <span>
-          <span class="valvula">entrada cerrada</span>
+          <span class="valvula">agua cerrada</span>
           <span class="aux">aux apagado</span>
         </span>
       </div>
@@ -206,7 +206,7 @@
       <div class="tanque-cab">
         <span class="tanque-titulo">Tanque 2</span>
         <span>
-          <span class="valvula">entrada cerrada</span>
+          <span class="valvula">agua cerrada</span>
           <span class="aux">aux apagado</span>
         </span>
       </div>
@@ -216,7 +216,7 @@
       <div class="tanque-cab">
         <span class="tanque-titulo">Tanque 3</span>
         <span>
-          <span class="valvula">entrada cerrada</span>
+          <span class="valvula">agua cerrada</span>
           <span class="aux">aux apagado</span>
         </span>
       </div>
@@ -266,7 +266,7 @@
     tarjeta.classList.toggle("activo", activo);
 
     const chipValvula = tarjeta.querySelector(".valvula");
-    chipValvula.textContent = entradaAbierta ? "entrada abierta" : "entrada cerrada";
+    chipValvula.textContent = entradaAbierta ? "agua abierta" : "agua cerrada";
     chipValvula.classList.toggle("abierta", entradaAbierta);
 
     const chipAux = tarjeta.querySelector(".aux");

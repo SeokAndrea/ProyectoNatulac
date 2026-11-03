@@ -16,7 +16,15 @@ export interface GrupoTabla {
   total: number
 }
 
-const porSufijo = <T extends { sufijo: string }>(a: T, b: T) => a.sufijo.localeCompare(b.sufijo)
+/**
+ * Orden de creación; lo creado en el mismo instante (o sin fecha) queda por
+ * sufijo. Lo reservado («General › Sin clasificar › Falla nueva») va siempre
+ * al final de su nivel, aunque el sistema lo haya creado antes que lo del usuario.
+ */
+const porCreacion = <T extends { sufijo: string; creadoEn?: string; reservada?: boolean }>(a: T, b: T) =>
+  Number(!!a.reservada) - Number(!!b.reservada) ||
+  (a.creadoEn && b.creadoEn && a.creadoEn !== b.creadoEn ? a.creadoEn.localeCompare(b.creadoEn) : 0) ||
+  a.sufijo.localeCompare(b.sufijo)
 
 /**
  * Grupos que coinciden con los filtros. La búsqueda mira el nombre y el código
@@ -24,14 +32,14 @@ const porSufijo = <T extends { sufijo: string }>(a: T, b: T) => a.sufijo.localeC
  * un nivel, van todas sus fallas. Sin búsqueda también van los subsistemas que
  * todavía no tienen fallas, para poder agregarles.
  */
-export function armarGrupos(c: CatalogoFallas, filtros: { busqueda: string; equipoId: string; verInactivos: boolean }): GrupoTabla[] {
+export function armarGrupos(c: CatalogoFallas, filtros: { busqueda: string; equipoId: string; sistemaId?: string; subsistemaId?: string; verInactivos: boolean }): GrupoTabla[] {
   const visible = (x: { activo: boolean }) => filtros.verInactivos || x.activo
   const hayBusqueda = filtros.busqueda.trim() !== ""
   const grupos: GrupoTabla[] = []
 
-  for (const equipo of c.equipos.filter((e) => visible(e) && (!filtros.equipoId || e.id === filtros.equipoId)).sort(porSufijo)) {
-    for (const sistema of c.sistemas.filter((s) => s.equipoId === equipo.id && visible(s)).sort(porSufijo)) {
-      for (const subsistema of c.subsistemas.filter((u) => u.sistemaId === sistema.id && visible(u)).sort(porSufijo)) {
+  for (const equipo of c.equipos.filter((e) => visible(e) && (!filtros.equipoId || e.id === filtros.equipoId)).sort(porCreacion)) {
+    for (const sistema of c.sistemas.filter((s) => s.equipoId === equipo.id && visible(s) && (!filtros.sistemaId || s.id === filtros.sistemaId)).sort(porCreacion)) {
+      for (const subsistema of c.subsistemas.filter((u) => u.sistemaId === sistema.id && visible(u) && (!filtros.subsistemaId || u.id === filtros.subsistemaId)).sort(porCreacion)) {
         const todas = c.fallas.filter((f) => f.subsistemaId === subsistema.id && visible(f)).sort((a, b) => a.numero - b.numero)
         const niveles = `${equipo.nombre} ${sistema.nombre} ${subsistema.nombre} ${subsistema.codigoSheet ?? ""}`
         const fallas =

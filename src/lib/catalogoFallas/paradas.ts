@@ -21,21 +21,25 @@ export interface OpcionFalla {
   equipo: EquipoCatalogo
 }
 
+const reservadaAlFinal = <T extends { reservada?: boolean }>(a: T, b: T) => Number(!!a.reservada) - Number(!!b.reservada)
+
 /** Las fallas activas que se pueden elegir en una línea: las de sus equipos y las de los equipos de servicios. */
 export function fallasDeLinea(c: CatalogoFallas, lineaId: string | null): OpcionFalla[] {
   const opciones: OpcionFalla[] = []
   for (const equipo of c.equipos) {
     if (!equipo.activo) continue
     if (equipo.tipo === "LINEA" && (!lineaId || !equipo.lineas.includes(lineaId))) continue
-    for (const sistema of c.sistemas.filter((s) => s.activo && s.equipoId === equipo.id)) {
-      for (const subsistema of c.subsistemas.filter((u) => u.activo && u.sistemaId === sistema.id)) {
+    // Lo reservado («General › Sin clasificar › Falla nueva») va al final de su equipo.
+    for (const sistema of c.sistemas.filter((s) => s.activo && s.equipoId === equipo.id).sort(reservadaAlFinal)) {
+      for (const subsistema of c.subsistemas.filter((u) => u.activo && u.sistemaId === sistema.id).sort(reservadaAlFinal)) {
         for (const falla of c.fallas.filter((f) => f.activo && f.subsistemaId === subsistema.id)) {
           opciones.push({ falla, subsistema, sistema, equipo })
         }
       }
     }
   }
-  return opciones.sort((a, b) => a.falla.codigo.localeCompare(b.falla.codigo))
+  // Sin reordenar: sale en el orden del catálogo (equipo, sistema y subsistema por creación; fallas por número).
+  return opciones
 }
 
 /** Busca por nombre de la falla, subsistema, sistema, equipo o código; sin tildes, palabras en cualquier orden. */

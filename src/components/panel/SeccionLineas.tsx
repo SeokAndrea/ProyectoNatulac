@@ -46,7 +46,7 @@ export function SeccionLineas({ filas, conLinks }: { filas: FilaLineaCompacta[];
               <span>Línea</span>
               <span className="text-right">Cajas producidas</span>
               <span className="text-right">Merma</span>
-              <span className="text-right">Tiempo de parada</span>
+              <span className="text-right">Tiempo detenido</span>
               <span className="text-right">Eficiencia</span>
               <span className="text-right">Litros producidos</span>
             </div>

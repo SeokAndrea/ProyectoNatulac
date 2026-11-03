@@ -21,7 +21,7 @@ const fila = (over: Partial<FilaLineaCompacta>): FilaLineaCompacta =>
     ...over,
   }) as FilaLineaCompacta
 
-describe("SeccionLineas · Tiempo de parada", () => {
+describe("SeccionLineas · Tiempo detenido", () => {
   it("muestra el tramo del turno y, al pasar el cursor, el total si la parada viene de otro turno", () => {
     render(<SeccionLineas conLinks={false} filas={[fila({ minutosParada: 150, minutosParadaTotal: 210 })]} />)
     const celda = screen.getByText("2h 30min")

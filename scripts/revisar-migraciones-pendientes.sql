@@ -118,6 +118,12 @@ from (
   ('20261113290000', 'Paradas: Anotar con Responsable y Mantenimiento pone el código',
     exists (select 1 from fn where proname = 'clasificar_falla_mantenimiento')),
   ('20261113390000', 'Líneas: el CIP termina solo al arrancar una corrida',
-    exists (select 1 from fn where proname = 'cip_termina_al_arrancar'))
+    exists (select 1 from fn where proname = 'cip_termina_al_arrancar')),
+  ('20261114790000', 'Catálogo de fallas: orden de creación',
+    exists (select 1 from fn where proname = 'listar_catalogo_fallas' and prosrc like '%creado_en%')),
+  ('20261114890000', 'Fallas nuevas, Quitar del catálogo y Eliminar paradas',
+    exists (select 1 from fn where proname = 'quitar_catalogo') and exists (select 1 from fn where proname = 'listar_fallas_nuevas')),
+  ('20261114990000', 'Arreglo: crear fallas no falla por sistema_id',
+    exists (select 1 from fn where proname = 'catalogo_fallas_sin_hijos_en_reservada'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

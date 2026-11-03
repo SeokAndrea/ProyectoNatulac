@@ -24,6 +24,11 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
   let ultimoTanque = null;
   let caudalLMin = 0;
   let pausaHastaMs = 0;
+  // Valvula auxiliar simulada: se abre en el tanque que termina de llenarse
+  // (como si la abriera el operador desde la HMI) y se cierra sola a los 45 s.
+  // Una orden de la app la deja abierta o cerrada hasta la orden siguiente.
+  const AUX_ABIERTA_MS = 45000;
+  const auxHastaMs = { 1: 0, 2: 0, 3: 0 };
   let temporizador = null;
   const extras = tagsExtra();
   for (const { nombre, direccion } of extras) {
@@ -65,9 +70,8 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
       caudal_l_min: Math.round(caudalLMin),
       valvulas: estadoValvulas(),
       // Actuador_Aux_Tank_X = valvula de recirculacion/CIP, no de entrada
-      // de agua (ver s7.js); la simulacion solo modela el llenado, asi que
-      // se dejan siempre apagados.
-      auxiliares: { 1: false, 2: false, 3: false },
+      // de agua (ver s7.js).
+      auxiliares: Object.fromEntries(NUMEROS_TANQUE.map((n) => [n, Date.now() < auxHastaMs[n]])),
       llenando: tanqueActivo !== null,
       extra: valoresExtraSimulados(),
       tags_con_error: [],
@@ -109,6 +113,7 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
     if (litrosActuales >= setpointL) {
       litrosActuales = setpointL;
       emitir();
+      auxHastaMs[tanqueActivo] = ahora + AUX_ABIERTA_MS;
       tanqueActivo = null;
       caudalLMin = 0;
       pausaHastaMs = ahora + pausaEntreLlenadosMs;
@@ -124,6 +129,10 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
     },
     detener() {
       if (temporizador) clearInterval(temporizador);
+    },
+    escribirAux(tanque, abrir) {
+      auxHastaMs[tanque] = abrir ? Infinity : 0;
+      return Promise.resolve();
     },
   };
 }

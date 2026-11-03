@@ -11,7 +11,9 @@ import { TortaResponsables } from "@/components/panel-paradas/TortaResponsables"
 import { useAjusteAPantalla } from "@/components/panel-paradas/useAjusteAPantalla"
 import { usePresentacion } from "@/components/indicadores/usePresentacion"
 import { conFallas, noProgramadasPorLinea, porResponsable, subsistemasMezclados, topPorNivel, type ParadaConFalla } from "@/lib/catalogoFallas/analisis"
+import { useCatalogoModular } from "@/lib/catalogoFallas/switch"
 import { useCatalogoFallas } from "@/lib/catalogoFallas/useCatalogoFallas"
+import { useAuth } from "@/lib/auth"
 import { useFallasDeParadas } from "@/lib/catalogoFallas/useFallasDeParadas"
 import { DetalleParadas } from "@/components/paradas/DetalleParadas"
 import { RangoFechas } from "@/components/paradas/RangoFechas"
@@ -148,7 +150,10 @@ export function PanelParadasVista({
   const [reporto, setReporto] = useState<ReportoCodigo>("TODAS")
   const [turno, setTurno] = useState<TurnoTipoCodigo | "TODOS">("TODOS")
   /** Un equipo del catálogo nuevo: todo el panel pasa a ser de ese equipo. Vacío = todos. */
-  const [equipo, setEquipo] = useState("")
+  const [equipoElegido, setEquipo] = useState("")
+  // El switch del catálogo nuevo (por área). Apagado y sin paradas con falla nueva en el período, el panel es el de antes (solo subsistemas del catálogo viejo).
+  const { session } = useAuth()
+  const switchEncendido = useCatalogoModular(session?.area === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO") === true
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
   /**
    * Presentar (TV), como en Indicadores: a pantalla completa, sin el encabezado
@@ -223,6 +228,9 @@ export function PanelParadasVista({
   const fallas = useFallasDeParadas(base)
   const { catalogo } = useCatalogoFallas()
   const conFallaBase = useMemo(() => conFallas(base, fallas, catalogo), [base, fallas, catalogo])
+  // Si el switch se apagó pero ya hay fallas nuevas registradas, siguen a la vista: el panel las muestra por los datos, no solo por el switch.
+  const modular = switchEncendido || conFallaBase.length > 0
+  const equipo = modular ? equipoElegido : ""
   const conFalla = useMemo(() => (equipo ? conFallaBase.filter((x) => x.cuenta.equipo.id === equipo) : conFallaBase), [conFallaBase, equipo])
   const filtradas = useMemo(() => (equipo ? conFalla.map((x) => x.parada) : base), [equipo, conFalla, base])
   const nombreEquipo = catalogo.equipos.find((e) => e.id === equipo)?.nombre ?? null
@@ -240,15 +248,19 @@ export function PanelParadasVista({
   ].filter((x): x is string => !!x)
   // Por tipo + línea, y de ahí SOLO la primera de cada línea (máximo 3
   // filas): cada fila dice de qué línea es — ver RankList.
-  const topFrecuencia = useMemo(() => primeraDeCadaLinea(porTipoYLineaPorFrecuencia(filtradas, ahora)), [filtradas, ahora])
-  const topTiempo = useMemo(() => primeraDeCadaLinea(porTipoYLinea(filtradas, ahora)), [filtradas, ahora])
+  // Solo las no programadas: una programada (arranque, cambio de sabor…) o un ocioso no son «lo que más para» (dueña, 2026-11-03).
+  const soloNoProgramadas = useMemo(() => filtradas.filter((p) => p.clase === "NO_PROGRAMADA"), [filtradas])
+  const topFrecuencia = useMemo(() => primeraDeCadaLinea(porTipoYLineaPorFrecuencia(soloNoProgramadas, ahora)), [soloNoProgramadas, ahora])
+  const topTiempo = useMemo(() => primeraDeCadaLinea(porTipoYLinea(soloNoProgramadas, ahora)), [soloNoProgramadas, ahora])
   /** Top de toda la planta (o del equipo elegido), por tiempo. Sin equipo, los subsistemas incluyen los del catálogo viejo. */
   const vistasPlanta = useMemo(
     () =>
-      equipo
+      !modular
+        ? [{ nombre: "Subsistemas", items: porSubsistema(filtradas, ahora) }]
+        : equipo
         ? vistasTop(conFalla, ahora, true)
         : vistasTop(conFalla, ahora, false, subsistemasMezclados(conFalla, porSubsistema(filtradas.filter((p) => !fallas.has(p.id)), ahora), ahora)),
-    [equipo, conFalla, filtradas, fallas, ahora],
+    [modular, equipo, conFalla, filtradas, fallas, ahora],
   )
   const reparto = useMemo(() => porResponsable(filtradas, ahora), [filtradas, ahora])
   const porLinea = useMemo(() => noProgramadasPorLinea(filtradas, LINEAS_PARADAS.map((l) => l.codigo), ahora), [filtradas, ahora])
@@ -303,19 +315,21 @@ export function PanelParadasVista({
               />
             )}
           </div>
-          <select
-            aria-label="Equipo"
-            className="h-8 rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-11"
-            value={equipo}
-            onChange={(e) => setEquipo(e.target.value)}
-          >
-            <option value="">Todos los equipos</option>
-            {equiposConParadas.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nombre}
-              </option>
-            ))}
-          </select>
+          {modular && (
+            <select
+              aria-label="Equipo"
+              className="h-8 rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-11"
+              value={equipo}
+              onChange={(e) => setEquipo(e.target.value)}
+            >
+              <option value="">Todos los equipos</option>
+              {equiposConParadas.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nombre}
+                </option>
+              ))}
+            </select>
+          )}
           {turno !== "TODOS" && <span className="text-sm text-muted-foreground">{TURNO_FILTRO.find((t) => t.codigo === turno)?.etiqueta}</span>}
           {!modoTv && (
             <Button type="button" size="icon-sm" variant="ghost" className="ml-auto" aria-label="Salir de presentar" onClick={presentacion.salir}>
@@ -373,6 +387,7 @@ export function PanelParadasVista({
               />
             )}
           </div>
+          {modular && (
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">Equipo</span>
             <select
@@ -389,6 +404,7 @@ export function PanelParadasVista({
             ))}
           </select>
           </div>
+          )}
           <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setMostrarFiltros((v) => !v)}>
             {mostrarFiltros ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
             {filtrosActivos.length > 0 ? `Filtros (${filtrosActivos.join(" · ")})` : "Ver filtros"}
@@ -556,7 +572,7 @@ export function PanelParadasVista({
                   </div>
                   {/* Pegado al fondo: la tarjeta llega hasta la fila de abajo (dueña, 2026-10-31). */}
                   <div className="mt-auto border-t border-border pt-3">
-                    <CarruselTop vistas={vistasTop(conFalla.filter((x) => x.parada.lineaCodigo === l.codigo), ahora, !!equipo)} presentar={presentar} color={colorLinea(l.codigo)} />
+                    <CarruselTop vistas={modular ? vistasTop(conFalla.filter((x) => x.parada.lineaCodigo === l.codigo), ahora, !!equipo) : [{ nombre: "Subsistemas", items: porSubsistema(propias, ahora) }]} presentar={presentar} color={colorLinea(l.codigo)} />
                   </div>
                 </div>
               </div>

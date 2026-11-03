@@ -47,6 +47,15 @@ const TAGS_BASE = [
   ["PLC_TAG_CAUDAL", "caudal_l_min", "DB5,INT16"],
 ];
 
+// Comandos que la app puede escribir (DB_COMANDOS, DB9). La HMI escribe el
+// mismo bit, asi app y tablero quedan sincronizados. Lista blanca: nunca se
+// escribe una direccion que venga de afuera.
+const TAGS_COMANDO = [
+  ["PLC_TAG_CMD_AUX_1", "cmd_aux_1", "DB9,X0.0"],
+  ["PLC_TAG_CMD_AUX_2", "cmd_aux_2", "DB9,X0.1"],
+  ["PLC_TAG_CMD_AUX_3", "cmd_aux_3", "DB9,X0.2"],
+];
+
 const PREFIJO_EXTRA_INTERNO = "extra.";
 
 function construirMapaTags() {
@@ -84,6 +93,9 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
   const reconexionMs = Number(leer("PLC_RECONEXION_MS", 5000));
 
   const tags = construirMapaTags();
+  const comandos = Object.fromEntries(
+    TAGS_COMANDO.map(([clave, nombre, porDefecto]) => [nombre, validarDireccion(clave, leer(clave, porDefecto))]),
+  );
   const nombresExtra = Object.keys(tags)
     .filter((n) => n.startsWith(PREFIJO_EXTRA_INTERNO))
     .map((n) => n.slice(PREFIJO_EXTRA_INTERNO.length));
@@ -92,6 +104,9 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
   console.log(`[plc-bridge] PLC ${host}:${puerto} rack ${rack} slot ${slot}`);
   for (const [nombre, direccion] of Object.entries(tags)) {
     console.log(`[plc-bridge]   ${nombre.padEnd(28)} ${direccion}`);
+  }
+  for (const [nombre, direccion] of Object.entries(comandos)) {
+    console.log(`[plc-bridge]   ${nombre.padEnd(28)} ${direccion} (escritura)`);
   }
 
   function extrasDe(valores) {
@@ -217,7 +232,7 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
       }
 
       conectado = true;
-      conn.setTranslationCB((tag) => tags[tag]);
+      conn.setTranslationCB((tag) => tags[tag] ?? comandos[tag]);
       conn.addItems(Object.keys(tags));
       temporizadorLectura = setInterval(leerCiclo, intervaloMs);
     });
@@ -226,6 +241,20 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
   return {
     iniciar() {
       conectar();
+    },
+    /** Escribe Valv_Aux_TankN (DB9). Resuelve cuando el PLC acepta la escritura. */
+    escribirAux(tanque, abrir) {
+      return new Promise((resolve, reject) => {
+        if (!conectado) {
+          reject(new Error("El bridge no está conectado al PLC."));
+          return;
+        }
+        const ocupado = conn.writeItems(`cmd_aux_${tanque}`, abrir, (malo) => {
+          if (malo) reject(new Error("El PLC rechazó la escritura (revisar que el DB9 sea escribible y PUT/GET esté habilitado)."));
+          else resolve();
+        });
+        if (ocupado) reject(new Error("Hay otra orden en curso, intenta de nuevo."));
+      });
     },
     detener() {
       detenido = true;

@@ -113,7 +113,7 @@ afterEach(() => {
 describe("Reportes de paradas · Resumen", () => {
   it("entra al Resumen y muestra el banner del grupo que más paró, las tarjetas y la tabla", async () => {
     abrir()
-    const banner = await screen.findByRole("region", { name: "Lo que más paró" })
+    const banner = await screen.findByRole("region", { name: "Lo que más detuvo" })
     // Mordazas: 10 + 20 = 30 min en 2 veces; Cámara: 60 min en 2 veces (gana por tiempo).
     expect(within(banner).getByText("Cámara aséptica")).toBeTruthy()
     expect(within(banner).getByText("Llenadora A3")).toBeTruthy()
@@ -142,7 +142,7 @@ describe("Reportes de paradas · Resumen", () => {
   it("el filtro de línea y «De quién es» cambian la tabla", async () => {
     const u = userEvent.setup({ advanceTimers: () => {} })
     abrir()
-    await screen.findByRole("region", { name: "Lo que más paró" })
+    await screen.findByRole("region", { name: "Lo que más detuvo" })
 
     await u.click(within(screen.getByRole("group", { name: "Línea" })).getByRole("button", { name: "Línea 2" }))
     const tabla = screen.getByRole("region", { name: "Por subsistema" })
@@ -159,7 +159,7 @@ describe("Reportes de paradas · Resumen", () => {
   it("toca una fila y muestra sus fallas; «Ver sus fallas» abre el primer grupo", async () => {
     const u = userEvent.setup({ advanceTimers: () => {} })
     abrir()
-    await screen.findByRole("region", { name: "Lo que más paró" })
+    await screen.findByRole("region", { name: "Lo que más detuvo" })
     await u.click(screen.getByRole("button", { name: "Ver sus fallas" }))
     expect(within(screen.getByRole("region", { name: "Por subsistema" })).getByText(/2 veces · 1 h · 30 min/)).toBeTruthy()
   })
@@ -167,7 +167,7 @@ describe("Reportes de paradas · Resumen", () => {
   it("filtra por quien atendió", async () => {
     const u = userEvent.setup({ advanceTimers: () => {} })
     abrir()
-    await screen.findByRole("region", { name: "Lo que más paró" })
+    await screen.findByRole("region", { name: "Lo que más detuvo" })
     await u.selectOptions(screen.getByLabelText("Responsable (quién la atendió)"), "Sofía Supervisora")
     const tabla = screen.getByRole("region", { name: "Por subsistema" })
     expect(within(tabla).queryByText("Cámara aséptica")).toBeNull()
@@ -177,16 +177,16 @@ describe("Reportes de paradas · Resumen", () => {
   it("sin paradas con los filtros no hay banner y avisa", async () => {
     const u = userEvent.setup({ advanceTimers: () => {} })
     abrir()
-    await screen.findByRole("region", { name: "Lo que más paró" })
+    await screen.findByRole("region", { name: "Lo que más detuvo" })
     await u.click(within(screen.getByRole("group", { name: "Línea" })).getByRole("button", { name: "Línea 3" }))
     expect(screen.getByText("No hay paradas con esos filtros.")).toBeTruthy()
-    expect(screen.queryByRole("region", { name: "Lo que más paró" })).toBeNull()
+    expect(screen.queryByRole("region", { name: "Lo que más detuvo" })).toBeNull()
   })
 
   it("Mantenimiento arranca en «De quién es: Mantenimiento»", async () => {
     sesion.actual = { username: "mtto", nombre: "Mtto", area: "MANTENIMIENTO" } as Session
     abrir()
-    await screen.findByRole("region", { name: "Lo que más paró" })
+    await screen.findByRole("region", { name: "Lo que más detuvo" })
     expect(within(screen.getByRole("group", { name: "De quién es" })).getByRole("button", { name: "Mantenimiento" }).getAttribute("aria-pressed")).toBe("true")
     expect(screen.queryByText("Cambio de sabor")).toBeNull()
   })

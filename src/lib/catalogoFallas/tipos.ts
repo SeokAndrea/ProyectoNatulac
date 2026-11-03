@@ -19,6 +19,10 @@ export interface EquipoCatalogo {
   activo: boolean
   /** ids de las líneas donde está (vacío en los de servicios). */
   lineas: string[]
+  /** Cuándo se creó (ISO); sirve para ordenar por creación. Sin él (servidor sin 20261114790000), por sufijo. */
+  creadoEn?: string
+  /** «Equipo no listado»: lo crea el sistema y no se cambia (20261114890000). */
+  reservada?: boolean
 }
 
 export interface SistemaCatalogo {
@@ -27,6 +31,9 @@ export interface SistemaCatalogo {
   sufijo: string
   nombre: string
   activo: boolean
+  creadoEn?: string
+  /** «General»: contiene la «Falla nueva» del equipo. */
+  reservada?: boolean
 }
 
 export interface SubsistemaCatalogo {
@@ -37,6 +44,9 @@ export interface SubsistemaCatalogo {
   /** Código viejo del Sheet de Mantenimiento (ej. A3CF-AIR-05). */
   codigoSheet: string | null
   activo: boolean
+  creadoEn?: string
+  /** «Sin clasificar». */
+  reservada?: boolean
 }
 
 export interface FallaCatalogo {
@@ -48,6 +58,8 @@ export interface FallaCatalogo {
   activo: boolean
   /** Armado por el servidor con los sufijos de hoy. */
   codigo: string
+  /** «Falla nueva»: una por equipo, para cuando la falla no está en el catálogo. */
+  reservada?: boolean
 }
 
 export interface CatalogoFallas {

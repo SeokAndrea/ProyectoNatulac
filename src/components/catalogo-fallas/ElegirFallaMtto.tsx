@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MensajeError } from "@/components/MensajeError"
 import { agregarFallas } from "@/lib/catalogoFallas/api"
+import { fallaNuevaDeEquipo } from "@/lib/catalogoFallas/fallaNueva"
 import { fallasDeLinea, opcionDeFalla, type OpcionFalla } from "@/lib/catalogoFallas/paradas"
 import { useCatalogoFallas } from "@/lib/catalogoFallas/useCatalogoFallas"
 import { useCatalogosLive } from "@/lib/catalogosLive"
@@ -54,7 +55,8 @@ export function ElegirFallaMtto({
   }, [produccion?.falla.id])
 
   const unicos = <T extends { id: string }>(xs: T[]) => [...new Map(xs.map((x) => [x.id, x])).values()]
-  const equipos = unicos(opciones.map((o) => o.equipo))
+  // «Equipo no listado» (reservado) va al final.
+  const equipos = unicos(opciones.map((o) => o.equipo)).sort((a, b) => Number(!!a.reservada) - Number(!!b.reservada))
   const sistemas = unicos(opciones.filter((o) => o.equipo.id === equipoId).map((o) => o.sistema))
   // Los subsistemas sin fallas también (para crearles la primera).
   const subsistemas = catalogo.subsistemas.filter((u) => u.activo && u.sistemaId === sistemaId)
@@ -65,6 +67,16 @@ export function ElegirFallaMtto({
   function elegirFalla(id: string) {
     setFallaId(id)
     onCambiar(opciones.find((o) => o.falla.id === id) ?? null)
+  }
+  /** «Falla nueva» (20261114890000): la reservada del equipo elegido, para cuando la falla no está en la lista. */
+  function elegirFallaNueva() {
+    const nueva = fallaNuevaDeEquipo(opciones, equipoId)
+    if (!nueva) return setError("Elige primero el equipo. Si tampoco está, elige «Equipo no listado».")
+    setError(null)
+    setSistemaId(nueva.sistema.id)
+    setSubsistemaId(nueva.subsistema.id)
+    setFallaId(nueva.falla.id)
+    onCambiar(nueva)
   }
   function cambiarNivel(nivel: "equipo" | "sistema" | "subsistema", id: string) {
     if (nivel === "equipo") {
@@ -120,11 +132,19 @@ export function ElegirFallaMtto({
   return (
     <div className="flex flex-col gap-2">
       {select("mt-equipo", "Equipo", equipoId, equipos, (v) => cambiarNivel("equipo", v))}
+      <button
+        type="button"
+        onClick={elegirFallaNueva}
+        className="self-start text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
+      >
+        Falla nueva
+      </button>
       {select("mt-sistema", "Sistema", sistemaId, sistemas, (v) => cambiarNivel("sistema", v), !equipoId)}
       {select("mt-subsistema", "Subsistema", subsistemaId, subsistemas, (v) => cambiarNivel("subsistema", v), !sistemaId)}
       {select("mt-falla", "Falla", fallaId, fallas.map((o) => ({ id: o.falla.id, nombre: o.falla.nombre })), elegirFalla, !subsistemaId)}
 
       {subsistemaId &&
+        !subsistemas.find((u) => u.id === subsistemaId)?.reservada &&
         (puedeCrear ? (
           <div className="flex gap-2">
             <Input

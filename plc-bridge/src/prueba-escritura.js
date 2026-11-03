@@ -1,26 +1,28 @@
-// Herramienta de consola para probar ESCRITURA al PLC sobre DB_COMANDOS (DB9),
-// el bloque de pruebas que creo automatizacion (no afecta el proceso real).
-// Escribe una variable, la lee de vuelta y muestra si llego. El valor tambien
-// se ve en la pantalla de prueba de la HMI.
+// Herramienta de consola para probar ESCRITURA al PLC sobre DB_COMANDOS (DB9):
+// Valv_Aux_Tank1..3, las valvulas auxiliares (la HMI escribe el mismo bit).
+// OJO: abre y cierra la valvula de verdad. Escribe una variable, la lee de
+// vuelta y muestra si llego; la HMI tiene que mostrar lo mismo.
 //
 // Independiente del bridge (src/index.js): no abre WebSocket ni toca la app.
-// Se corre con probar-escritura.bat.
+// Se corre desde plc-bridge.bat (opcion 3). La IP del PLC y las direcciones
+// salen de bridge.conf, igual que en el bridge.
 
 import readline from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
 import NodeS7 from "nodes7";
+import { leer, validarDireccion } from "./config.js";
 
-const host = process.env.PLC_HOST || "192.168.0.10";
-const puerto = Number(process.env.PLC_PUERTO || 102);
-const rack = Number(process.env.PLC_RACK || 0);
-const slot = Number(process.env.PLC_SLOT || 1);
+const host = leer("PLC_HOST", "192.168.0.10");
+const puerto = Number(leer("PLC_PUERTO", 102));
+const rack = Number(leer("PLC_RACK", 0));
+const slot = Number(leer("PLC_SLOT", 1));
+const direccion = (clave, porDefecto) => validarDireccion(clave, leer(clave, porDefecto));
 
 // Solo estas variables se pueden escribir: lista blanca, nunca direcciones libres.
 const VARIABLES = {
-  Setpoint_Litros: { direccion: "DB9,INT0", tipo: "int", min: 0, max: 32767 },
-  START: { direccion: "DB9,X2.0", tipo: "bool" },
-  STOP: { direccion: "DB9,X2.1", tipo: "bool" },
-  Valvula: { direccion: "DB9,X2.2", tipo: "bool" },
+  Valv_Aux_Tank1: { direccion: direccion("PLC_TAG_CMD_AUX_1", "DB9,X0.0"), tipo: "bool" },
+  Valv_Aux_Tank2: { direccion: direccion("PLC_TAG_CMD_AUX_2", "DB9,X0.1"), tipo: "bool" },
+  Valv_Aux_Tank3: { direccion: direccion("PLC_TAG_CMD_AUX_3", "DB9,X0.2"), tipo: "bool" },
 };
 const NOMBRES = Object.keys(VARIABLES);
 

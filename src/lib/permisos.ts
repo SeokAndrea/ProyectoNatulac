@@ -32,6 +32,8 @@ export const PERMISOS = [
   { codigo: "LECTURAS_SI", nombre: "Cargar lecturas de Servicios Industriales" },
   { codigo: "CODIGOS_MTTO_EDITAR", nombre: "Editar los códigos de Mantenimiento" },
   { codigo: "REPORTES_PARADAS_VER", nombre: "Ver los reportes de paradas" },
+  { codigo: "VALVULA_AUX", nombre: "Abrir y cerrar las válvulas auxiliares (Contador de Agua)" },
+  { codigo: "PARADAS_ELIMINAR", nombre: "Eliminar paradas" },
 ] as const
 
 export type Permiso = (typeof PERMISOS)[number]["codigo"]

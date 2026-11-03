@@ -37,15 +37,16 @@ export function TablaFallas({
         <section key={g.subsistema.id} aria-label={`${g.equipo.nombre}, ${g.sistema.nombre}, ${g.subsistema.nombre}`} className="border-b border-border last:border-b-0">
           <div className="flex items-center gap-2 border-b border-border/60 bg-muted/60 py-1 pr-1 pl-3">
             <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 py-1 text-sm">
-              <Nivel nivel="EQUIPO" id={g.equipo.id} nombre={g.equipo.nombre} sufijo={g.equipo.sufijo} editable={editable} onEditar={onEditarNivel} />
+              <Nivel nivel="EQUIPO" id={g.equipo.id} nombre={g.equipo.nombre} sufijo={g.equipo.sufijo} editable={editable && !g.equipo.reservada} onEditar={onEditarNivel} />
               <span className="text-muted-foreground" aria-hidden>›</span>
-              <Nivel nivel="SISTEMA" id={g.sistema.id} nombre={g.sistema.nombre} sufijo={g.sistema.sufijo} editable={editable} onEditar={onEditarNivel} />
+              <Nivel nivel="SISTEMA" id={g.sistema.id} nombre={g.sistema.nombre} sufijo={g.sistema.sufijo} editable={editable && !g.sistema.reservada} onEditar={onEditarNivel} />
               <span className="text-muted-foreground" aria-hidden>›</span>
-              <Nivel nivel="SUBSISTEMA" id={g.subsistema.id} nombre={g.subsistema.nombre} sufijo={g.subsistema.sufijo} editable={editable} onEditar={onEditarNivel} fuerte />
+              <Nivel nivel="SUBSISTEMA" id={g.subsistema.id} nombre={g.subsistema.nombre} sufijo={g.subsistema.sufijo} editable={editable && !g.subsistema.reservada} onEditar={onEditarNivel} fuerte />
               {g.subsistema.codigoSheet && <span className="num text-xs text-muted-foreground">Sheet {g.subsistema.codigoSheet}</span>}
+              {g.subsistema.reservada && <span className="text-xs text-muted-foreground">· reservado</span>}
             </div>
             <span className="num shrink-0 text-xs text-muted-foreground">{g.total}</span>
-            {editable && (
+            {editable && !g.subsistema.reservada && (
               <Button variant="ghost" size="icon-sm" aria-label={`Agregar falla en ${g.subsistema.nombre}`} onClick={() => onAgregarEn(g)}>
                 <Plus />
               </Button>

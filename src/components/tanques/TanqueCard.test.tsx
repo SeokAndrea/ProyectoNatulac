@@ -568,7 +568,7 @@ describe("TanqueCard — transferir", () => {
     await elegir(u, within(dialogo).getByRole("combobox"), /Tanque 2 · Limpio/)
     expect(within(dialogo).queryByText(/qué identidad se queda/)).not.toBeInTheDocument()
     expect(within(dialogo).getByText(/Se transfieren/)).toHaveTextContent("Se transfieren 7.000 L. El Tanque 2 queda con ~7.000 L (calculado — falta medir el tanque).")
-    await u.click(within(dialogo).getByRole("button", { name: "No parar la línea" }))
+    await u.click(within(dialogo).getByRole("button", { name: "No detener la línea" }))
     await u.click(within(dialogo).getByRole("button", { name: "Transferir" }))
     expect(a.transferir).toHaveBeenCalledWith(1, 2, "LIQUIDO", "ENRUTAR_MANIFOLD")
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())

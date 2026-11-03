@@ -27,7 +27,8 @@ import { useEquiposParadas } from "@/lib/paradasEquipos"
 import { useAccion } from "@/lib/useAccion"
 
 const PAGINA = "Líneas"
-const LARGO_SOLUCION = 300
+/** «¿Qué se realizó?»: de ahí sale la información para crear la falla nueva en el catálogo (dueña, 2026-11-02: 300 → 1000). */
+const LARGO_SOLUCION = 1000
 
 const selectClase =
   "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
