@@ -49,7 +49,7 @@ const AYUDA: Record<Paso, string> = {
   cajas: "La misma corrección del mensaje de WhatsApp: lo corregido es el número oficial del turno.",
   envases: "Envases del PT = cajas × envases por caja. Se corrige el contador de la llenadora si se cargó mal (por ejemplo, la lectura acumulada).",
   lotes:
-    "Consumo = inicio + entradas − salidas (transferencias, desvases, Vacío) − final. Se corrige el volumen final si el tanque se midió distinto. Los lotes de Vacío no cuentan.",
+    "Rendimiento = total envasado ÷ preparado × 100; merma = 100 − rendimiento; diferencia = preparado − envasado. Preparado = lo preparado del lote + lo recibido − lo transferido, desvasado, entregado a Vacío o pasado al lote siguiente. Un lote abierto sale «en curso». Los lotes de Vacío no cuentan.",
   paradas: "Se corrigen los minutos, o se marca «No cuenta» una parada repetida (supervisor y Mantenimiento cargaron la misma falla).",
 }
 

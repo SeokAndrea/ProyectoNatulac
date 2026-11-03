@@ -170,14 +170,34 @@ describe("guardrails — merma de semielaborado", () => {
     }
   })
 
-  it("un lote con fin ≥ inicio queda fuera del % (parcial), sin dar negativo", () => {
-    // Lote que produjo pero cuyo volumen final quedó por encima del inicial
-    // (transferencia entrante / re-medición al alza).
+  it("un lote abierto queda en curso: fuera del %, sin marcar parcial", () => {
+    // L1 cerrado: 6.000 preparados, 200 pasaron al lote siguiente, 5.400 envasados.
+    // L2 sigue abierto: su rendimiento sale al cerrarlo.
     const turno = turnoDemo({
       ...BASE,
       preparaciones: [
-        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 200 }),
-        prep({ id: "L2", numeroTanque: 2, creadoEn: "23:00:00", saborNombre: "Mango", lote: "0002", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 9000 }),
+        prep({
+          id: "L1",
+          numeroTanque: 1,
+          creadoEn: "22:35:00",
+          saborNombre: "Fresa",
+          lote: "0001",
+          volumenPreparadoL: 6000,
+          volumenAlIniciarTurnoL: 6000,
+          volumenActualL: 200,
+          totales: { preparadoL: 6000, entrantesL: 0, salientesL: 200, envasadoL: 5400, cerrado: true },
+        }),
+        prep({
+          id: "L2",
+          numeroTanque: 2,
+          creadoEn: "23:00:00",
+          saborNombre: "Mango",
+          lote: "0002",
+          volumenPreparadoL: 6000,
+          volumenAlIniciarTurnoL: 6000,
+          volumenActualL: 9000,
+          totales: { preparadoL: 6000, entrantesL: 0, salientesL: 0, envasadoL: 4800, cerrado: false },
+        }),
       ],
       corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Fresa", lote: "0001", loteId: "L1", presentacion: "1000" }),
@@ -193,18 +213,27 @@ describe("guardrails — merma de semielaborado", () => {
       ],
     })
     const r = resumenTurno(turno, LINEAS_DEMO, PRESENTACIONES_DEMO)
-    // L1 medible (6000 → 200), L2 no (6000 → 9000): su PT queda sin contrastar
-    expect(r.mermaSemielaboradoParcial).toBe(true)
-    expect(r.litrosSinContraste).toBe(4800)
-    expect(r.mermaSemielaboradoPct).not.toBeNull()
-    expect(r.mermaSemielaboradoPct!).toBeGreaterThanOrEqual(0)
+    // Solo L1: 5.400 / (6.000 − 200) → merma 6,9 %. L2 en curso no es "parcial".
+    expect(r.mermaSemielaboradoParcial).toBe(false)
+    expect(r.litrosSinContraste).toBe(0)
+    expect(r.mermaSemielaboradoPct).toBe(6.9)
   })
 
-  it("un lote cuyo PT excede su volumen preparado (margen de redondeo) queda fuera del %", () => {
+  it("sin filtros: un lote con PT por encima de lo preparado da merma negativa, tal cual", () => {
     const turno = turnoDemo({
       ...BASE,
       preparaciones: [
-        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Pera", lote: "0004", volumenPreparadoL: 10000, volumenAlIniciarTurnoL: 10000, volumenActualL: 100 }),
+        prep({
+          id: "L1",
+          numeroTanque: 1,
+          creadoEn: "22:35:00",
+          saborNombre: "Pera",
+          lote: "0004",
+          volumenPreparadoL: 10000,
+          volumenAlIniciarTurnoL: 10000,
+          volumenActualL: 100,
+          totales: { preparadoL: 10000, entrantesL: 0, salientesL: 0, envasadoL: 19440, cerrado: true },
+        }),
       ],
       corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Pera", lote: "0004", loteId: "L1", presentacion: "1000" }),
@@ -220,9 +249,10 @@ describe("guardrails — merma de semielaborado", () => {
       ],
     })
     const r = resumenTurno(turno, LINEAS_DEMO, PRESENTACIONES_DEMO)
-    // Σ PT del lote = 19.440 > 10.000 × 1,05 → no medible → todo sin contrastar
-    expect(r.mermaSemielaboradoParcial).toBe(true)
-    expect(r.mermaSemielaboradoPct).toBeNull()
+    // Σ PT del lote = 19.440 sobre 10.000 preparados: se muestra, no se esconde.
+    expect(r.mermaSemielaboradoParcial).toBe(false)
+    expect(r.mermaSemielaboradoPct).not.toBeNull()
+    expect(r.mermaSemielaboradoPct!).toBeLessThan(0)
   })
 })
 

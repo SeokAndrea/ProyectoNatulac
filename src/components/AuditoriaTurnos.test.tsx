@@ -50,7 +50,7 @@ function turnoSano(over: { id: string; supervisorUsuario: string; supervisorNomb
     ...BASE,
     ...over,
     preparaciones: [
-      prep({ id: `${over.id}-L`, numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenPreparadoL: 7000, volumenAlIniciarTurnoL: 7000, volumenActualL: 200 }),
+      prep({ id: `${over.id}-L`, numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenPreparadoL: 7000, volumenAlIniciarTurnoL: 7000, volumenActualL: 200, totales: { preparadoL: 7000, entrantesL: 0, salientesL: 200, envasadoL: 5400, cerrado: true } }),
     ],
     corridas: [
       corrida({ id: `${over.id}-c`, linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Fresa", lote: "0001", loteId: `${over.id}-L`, presentacion: "1000" }),
@@ -88,7 +88,7 @@ describe("AuditoriaTurnos", () => {
     expect(screen.getByText("Comenzar Turno")).toBeInTheDocument()
   })
 
-  it("merma de semielaborado parcial: un lote con fin ≥ inicio", () => {
+  it("merma de semielaborado parcial: un lote sin totales leídos", () => {
     const turno = turnoDemo({
       ...BASE,
       id: "tp",
@@ -96,8 +96,8 @@ describe("AuditoriaTurnos", () => {
       supervisorUsuario: "psalas",
       supervisorNombre: "Pedro Salas",
       preparaciones: [
-        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 200 }),
-        prep({ id: "L2", numeroTanque: 2, creadoEn: "23:00:00", saborNombre: "Mango", lote: "0002", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 9000 }),
+        prep({ id: "L1", numeroTanque: 1, creadoEn: "22:35:00", saborNombre: "Fresa", lote: "0001", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 200, totales: { preparadoL: 6000, entrantesL: 0, salientesL: 200, envasadoL: 5400, cerrado: true } }),
+        prep({ id: "L2", numeroTanque: 2, creadoEn: "23:00:00", saborNombre: "Mango", lote: "0002", volumenPreparadoL: 6000, volumenAlIniciarTurnoL: 6000, volumenActualL: 9000, totales: null }),
       ],
       corridas: [
         corrida({ id: "c1", linea: "LINEA_1", activadaEn: "23:05:00", saborNombre: "Fresa", lote: "0001", loteId: "L1", presentacion: "1000" }),

@@ -37,6 +37,7 @@ import {
   mapearTransferencia,
   salidasComoDesvases,
 } from "./mapear"
+import { conTotales, leerTotalesLotes } from "./totalesLote"
 import {
   entregarAVacio as entregarAVacioAccion,
   pasarLoteAAseptico as pasarLoteAAsepticoAccion,
@@ -143,7 +144,13 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
 
   function tomarDatos(fila: FilaTurnoPreparacion | null) {
     setTanques(fila ? fila.tanques.map(mapearTanque) : [])
-    setPreparaciones(fila ? fila.preparaciones.map(mapearPreparacion) : [])
+    const preps = fila ? fila.preparaciones.map(mapearPreparacion) : []
+    // Conserva los totales ya leídos mientras llegan los nuevos (evita que la merma parpadee).
+    setPreparaciones((antes) => preps.map((p) => ({ ...p, totales: antes.find((a) => a.id === p.id)?.totales ?? null })))
+    // Totales de cada lote en todos los turnos, para el rendimiento (envasado / preparado).
+    if (preps.length > 0) {
+      void leerTotalesLotes(preps.map((p) => p.id)).then((totales) => setPreparaciones((actuales) => conTotales(actuales, totales)))
+    }
     setTransferencias(fila ? fila.transferencias.map(mapearTransferencia) : [])
     const salidas = fila ? (fila.salidas_vacio ?? []).map(mapearSalidaVacio) : []
     setDesvases(fila ? [...fila.desvases.map(mapearDesvaseLote), ...salidasComoDesvases(salidas)] : [])

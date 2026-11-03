@@ -12,6 +12,7 @@ import {
   mapearTransferencia,
   salidasComoDesvases,
 } from "@/lib/preparacion/mapear"
+import { adjuntarTotales } from "@/lib/preparacion/totalesLote"
 import type {
   AjusteVolumenRegistro,
   DesvaseLoteRegistro,
@@ -229,7 +230,8 @@ export async function listarTurnosHistorial(
 export async function obtenerTurnoDetalle(usuarioSesion: string, turnoId: string): Promise<TurnoHistorial | null> {
   const { data, error } = await supabase.rpc("turno_detalle", { p_usuario: usuarioSesion, p_turno_id: turnoId })
   if (error || !data) return null
-  return mapearTurnoHistorial(data as FilaTurnoHistorial)
+  const [turno] = await adjuntarTotales([mapearTurnoHistorial(data as FilaTurnoHistorial)])
+  return turno
 }
 
 /** Mismo turno_json() que obtenerTurnoDetalle(), pero solo para EL PROPIO turno del supervisor (ver src/lib/actasPendientes.ts). */
@@ -251,7 +253,8 @@ export async function asignarGrupoTurno(
 export async function miTurnoDetalle(usuarioSesion: string, turnoId: string): Promise<TurnoHistorial | null> {
   const { data, error } = await supabase.rpc("mi_turno_detalle", { p_usuario: usuarioSesion, p_turno_id: turnoId })
   if (error || !data) return null
-  return mapearTurnoHistorial(data as FilaTurnoHistorial)
+  const [turno] = await adjuntarTotales([mapearTurnoHistorial(data as FilaTurnoHistorial)])
+  return turno
 }
 
 /** Turnos CERRADOS por cierre_automatico (cron, abandonados) del propio supervisor que todavía no tienen acta VIGENTE. */

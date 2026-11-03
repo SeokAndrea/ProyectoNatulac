@@ -307,6 +307,22 @@ function construirCaso(nombre: string, filas: FilaCaso[]): CasoPrueba {
     })
   })
 
+  // Totales del lote (rendimiento_lotes, migración 20261115090000): el CSV
+  // modela el lote completo en este turno. litros_finales = el resto que
+  // pasó al lote siguiente (salida, no merma); envasado = Σ PT del lote.
+  for (const prep of preparacionesMap.values()) {
+    const envasadoL = productoTerminado
+      .filter((p) => corridas.find((c) => c.id === p.corridaId)?.loteId === prep.id)
+      .reduce((a, p) => a + p.litrosProducidos, 0)
+    prep.totales = {
+      preparadoL: prep.volumenPreparadoL ?? 0,
+      entrantesL: 0,
+      salientesL: prep.volumenActualL ?? 0,
+      envasadoL,
+      cerrado: prep.cerradoEn !== null,
+    }
+  }
+
   return {
     nombre,
     turnoId: nombre,

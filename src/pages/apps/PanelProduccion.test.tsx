@@ -306,7 +306,8 @@ function cargarDatosDelTurno() {
       tanque(3, { condicion: "CIP", cipIniciadoEn: "2026-10-05T08:00:00" }),
     ],
     preparaciones: [
-      prep({}),
+      // Totales del lote (rendimiento_lotes): cerrado, 12.800 L preparados, 11.400 L envasados → 89,06 %.
+      prep({ totales: { preparadoL: 12800, entrantesL: 0, salientesL: 0, envasadoL: 11400, cerrado: true } }),
       prep({ id: "p2", numeroTanque: 2, saborNombre: "Mango", lote: "0002", tambores: 12, liberadoEn: null, volumenActualL: 2100, volumenPreparadoL: 2100, volumenAlIniciarTurnoL: 2100, creadoEn: "2026-10-05T09:40:00" }),
     ],
     corridas: [
@@ -323,7 +324,17 @@ function cargarDatosDelTurno() {
   })
   datos.set("t-0", {
     tanques: [],
-    preparaciones: [prep({ id: "p0", turnoId: "t-0", lote: "0000", volumenActualL: 1000, volumenPreparadoL: 12000, volumenAlIniciarTurnoL: 12000 })],
+    preparaciones: [
+      prep({
+        id: "p0",
+        turnoId: "t-0",
+        lote: "0000",
+        volumenActualL: 1000,
+        volumenPreparadoL: 12000,
+        volumenAlIniciarTurnoL: 12000,
+        totales: { preparadoL: 11000, entrantesL: 0, salientesL: 0, envasadoL: 9840, cerrado: true },
+      }),
+    ],
     corridas: [corrida({ id: "c0", loteId: "p0", activa: false, finalizadaEn: "2026-10-05T06:30:00", activadaEn: "2026-10-04T23:00:00" })],
     contadores: [contador("k0", "LINEA_1", "c0", 10000, "2026-10-05T06:00:00")],
     lineasEstado: [],

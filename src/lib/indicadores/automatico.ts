@@ -4,6 +4,7 @@ import { planDelMes } from "@/lib/programacionSemanal"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
 import { mapearTurnoHistorial, type TurnoHistorial } from "@/lib/historialTurnos"
+import { adjuntarTotales } from "@/lib/preparacion/totalesLote"
 import { duracionMin, mapearFilaParada, type FilaParada, type Parada } from "@/lib/paradas"
 import { aValidacion, consumoLote, filasEnvases, filasLotes, type FilaValidacion, type TurnoJornada, type Validacion } from "@/lib/validarJornada"
 import { finDeMes, numeroLinea } from "@/lib/indicadores/calculos"
@@ -341,9 +342,11 @@ export async function cargarMesAutomatico(usuario: string, area: string, mes: st
   // de la diaria de antes. Si la base todavía no tiene la semanal, todo como antes.
   const planes = "error" in prog ? null : planDelMes(prog.semanas, mes)
   const viejoDelMes = "error" in prog ? [] : prog.viejo.filter((v) => v.fecha.slice(0, 7) === mes.slice(0, 7)).map((v) => ({ volumenMl: v.presentacionMl, cajas: v.cajasPlan }))
+  // Totales de cada lote (todos sus turnos) para el rendimiento de semielaborado.
+  const turnosMes = await adjuntarTotales(r.turnos.map((t) => mapearTurnoHistorial(t.turno)))
   return calcularMesAutomatico(
     {
-      turnos: r.turnos.map((t) => ({ turno: mapearTurnoHistorial(t.turno), paradas: t.paradas.map(mapearFilaParada) })),
+      turnos: r.turnos.map((t, i) => ({ turno: turnosMes[i], paradas: t.paradas.map(mapearFilaParada) })),
       validaciones: new Map(
         r.validaciones.map((v) => [
           v.fecha,

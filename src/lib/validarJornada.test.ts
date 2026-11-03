@@ -7,6 +7,7 @@ import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import {
   consumoLote,
+  diferenciaLote,
   etiquetarTurnos,
   filasCajas,
   filasEnvases,
@@ -14,7 +15,9 @@ import {
   filasParadas,
   mermaEnvases,
   mermaLote,
+  rendimientoLote,
   revisada,
+  totalLotes,
   type Validacion,
 } from "./validarJornada"
 
@@ -79,30 +82,64 @@ describe("etiquetarTurnos", () => {
 })
 
 describe("filasLotes — semielaborado del día", () => {
-  it("suma los tramos de los turnos: inicio del primero, final del último", () => {
-    // T1: el lote nace con 20.000, queda en 9.000; T2: de 9.000 a 1.000.
+  // Lote cerrado: 20.000 preparados, 1.000 pasaron al lote siguiente, 18.800 envasados en el día.
+  const totales = { preparadoL: 20000, entrantesL: 0, salientesL: 1000, envasadoL: 18800, cerrado: true }
+
+  it("suma los turnos: preparado y envasado por línea; rendimiento = envasado / preparado", () => {
     const t1 = turno({
       id: "t1",
-      preparaciones: [lote({ volumenActualL: 9000 })],
+      preparaciones: [lote({ totales })],
       corridas: [corrida({ id: "c1" })],
       productoTerminado: [pt("c1", 10900)],
     })
     const t2 = turno({
       id: "t2",
       turnoTipo: "TURNO_2",
-      preparaciones: [lote({ volumenAlIniciarTurnoL: 9000, volumenActualL: 1000 })],
-      corridas: [corrida({ id: "c2" })],
-      productoTerminado: [pt("c2", 7900)],
+      preparaciones: [lote({ totales })],
+      corridas: [corrida({ id: "c2", linea: "LINEA_2" })],
+      productoTerminado: [{ ...pt("c2", 7900), linea: "LINEA_2" }],
     })
     const [f] = filasLotes(etiquetarTurnos([t1, t2]), PRES, new Map())
-    expect(f).toMatchObject({ inicio: 20000, final: 1000, consumo: 19000, pt: 18800 })
+    expect(f.tambores).toBe(10)
+    expect(f.pt).toBe(18800)
+    expect(f.consumo).toBeCloseTo(19000, 6)
+    expect(f.ptPorLinea).toEqual({ LINEA_1: 10900, LINEA_2: 7900 })
+    expect(rendimientoLote(f)).toBe(98.95)
+    expect(mermaLote(f)).toBe(1.05)
+    expect(diferenciaLote(f)).toBeCloseTo(200, 6)
+  })
+
+  it("el volumen vivo del tanque no cambia nada, y no hay final que corregir", () => {
+    const t1 = turno({ preparaciones: [lote({ volumenActualL: 5000, totales })], corridas: [corrida({})], productoTerminado: [pt("c1", 18800)] })
+    const [f] = filasLotes(etiquetarTurnos([t1]), PRES, new Map([["L1", corregido(800)]]))
+    expect(consumoLote(f)).toBe(19000)
     expect(mermaLote(f)).toBe(1.05)
   })
 
-  it("el final corregido pasa al consumo", () => {
-    const t1 = turno({ preparaciones: [lote({ volumenActualL: 1000 })], corridas: [corrida({})], productoTerminado: [pt("c1", 18800)] })
-    const [f] = filasLotes(etiquetarTurnos([t1]), PRES, new Map([["L1", corregido(800)]]))
-    expect(consumoLote(f)).toBe(19200)
+  it("lote abierto: sale en curso, sin rendimiento ni merma", () => {
+    const t1 = turno({ preparaciones: [lote({ totales: { ...totales, cerrado: false } })], corridas: [corrida({})], productoTerminado: [pt("c1", 9000)] })
+    const [f] = filasLotes(etiquetarTurnos([t1]), PRES, new Map())
+    expect(f.sinContraste).toBe("EN_CURSO")
+    expect(rendimientoLote(f)).toBeNull()
+    expect(mermaLote(f)).toBeNull()
+  })
+
+  it("los tambores cuentan el día en que se preparó el lote", () => {
+    const deAyer = turno({ id: "t9", preparaciones: [lote({ turnoId: "t-ayer", totales })], corridas: [corrida({})], productoTerminado: [pt("c1", 18800)] })
+    const [f] = filasLotes(etiquetarTurnos([deAyer]), PRES, new Map())
+    expect(f.tambores).toBe(0)
+  })
+
+  it("la fila de totales suma solo los lotes que entran", () => {
+    const t1 = turno({
+      preparaciones: [lote({ totales }), lote({ id: "L2", lote: "0413", totales: { ...totales, cerrado: false } })],
+      corridas: [corrida({}), corrida({ id: "c2", loteId: "L2", lote: "0413" })],
+      productoTerminado: [pt("c1", 18800), pt("c2", 5000)],
+    })
+    const total = totalLotes(filasLotes(etiquetarTurnos([t1]), PRES, new Map()))
+    expect(total.tambores).toBe(20)
+    expect(total.pt).toBe(18800)
+    expect(mermaLote(total)).toBe(1.05)
   })
 
   it("los lotes de Vacío no aparecen", () => {

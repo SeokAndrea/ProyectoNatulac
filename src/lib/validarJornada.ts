@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import { mapearTurnoHistorial, type TurnoHistorial } from "@/lib/historialTurnos"
+import { adjuntarTotales } from "@/lib/preparacion/totalesLote"
 import { duracionMin, esDeMantenimiento, listarParadas, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { restarDias } from "@/lib/tiempoPlanta"
@@ -105,7 +106,9 @@ export async function cargarJornada(usuario: string, area: string, fecha: string
   if (caida?.error) return { error: caida.error.message || "No se pudieron cargar los turnos del día." }
 
   const turnos = etiquetarTurnos(
-    porTipo.flatMap((r) => (Array.isArray(r.data) ? (r.data as Parameters<typeof mapearTurnoHistorial>[0][]) : [])).map(mapearTurnoHistorial),
+    await adjuntarTotales(
+      porTipo.flatMap((r) => (Array.isArray(r.data) ? (r.data as Parameters<typeof mapearTurnoHistorial>[0][]) : [])).map(mapearTurnoHistorial),
+    ),
   )
 
   const cajas = new Map<string, { turnoId: string; saborNombre: string; volumenMl: number; cajas: number }>()
@@ -278,37 +281,65 @@ export interface FilaLote {
   numeroTanque: number
   saborId: string | null
   saborNombre: string | null
-  /** Volumen al empezar la jornada (o el preparado, si nació ese día). */
+  tambores: number
+  /** Preparado del lote (la parte de esta jornada). */
   inicio: number | null
-  /** Recibido de otros lotes a mitad de turno. */
+  /** Recibido de otros lotes (transferencias). */
   entradas: number
   /** Transferido, desvasado o entregado a Vacío. */
   salidas: number
-  /** Volumen al terminar la jornada, según el sistema. */
+  /** Volumen vivo del tanque al terminar la jornada — informativo, ya no entra al cálculo. */
   final: number
-  /** Suma de los tramos de los turnos (consumo según el sistema). */
+  /** Preparado neto = inicio + entradas − salidas (suma de los turnos de la jornada). */
   consumo: number
+  /** Total envasado (litros de PT) en la jornada. */
   pt: number
-  /** Por qué no entra en la merma, si algún turno lo dejó afuera. */
+  /** Envasado por línea (código de línea → litros). */
+  ptPorLinea: Record<string, number>
+  /** Por qué no entra en la merma (EN_CURSO = lote abierto). */
   sinContraste: MotivoSinContraste | null
   validacion: Validacion | null
 }
 
-/** Consumo con el final corregido: lo que se corrige del final pasa al consumo. */
+/** Total preparado del lote en la jornada (denominador del rendimiento). */
 export function consumoLote(f: FilaLote): number {
-  return f.validacion?.valor != null ? f.consumo + (f.final - f.validacion.valor) : f.consumo
+  return f.consumo
 }
 
-/** Merma de semielaborado del lote en la jornada. null si no hay consumo. */
-export function mermaLote(f: FilaLote): number | null {
-  const consumo = consumoLote(f)
-  if (consumo <= 0) return null
-  return Math.round((1 - f.pt / consumo) * 10000) / 100
+/** Rendimiento = envasado / preparado × 100. null si no hay preparado o el lote no entra. */
+export function rendimientoLote(f: Pick<FilaLote, "consumo" | "pt" | "sinContraste">): number | null {
+  if (f.sinContraste !== null || f.consumo <= 0) return null
+  return Math.round((f.pt / f.consumo) * 10000) / 100
+}
+
+/** Merma de semielaborado del lote en la jornada = 100 − rendimiento. */
+export function mermaLote(f: Pick<FilaLote, "consumo" | "pt" | "sinContraste">): number | null {
+  const r = rendimientoLote(f)
+  return r === null ? null : Math.round((100 - r) * 100) / 100
+}
+
+/** Diferencia en litros: preparado − envasado. */
+export function diferenciaLote(f: Pick<FilaLote, "consumo" | "pt" | "sinContraste">): number | null {
+  return f.sinContraste !== null ? null : f.consumo - f.pt
+}
+
+/** Fila de totales: suma de los lotes que entran (los en curso quedan fuera del preparado y del envasado). */
+export function totalLotes(filas: FilaLote[]): Pick<FilaLote, "tambores" | "consumo" | "pt" | "ptPorLinea" | "sinContraste"> {
+  const total = { tambores: 0, consumo: 0, pt: 0, ptPorLinea: {} as Record<string, number>, sinContraste: null }
+  for (const f of filas) {
+    total.tambores += f.tambores
+    if (f.sinContraste !== null) continue
+    total.consumo += f.consumo
+    total.pt += f.pt
+    for (const [l, v] of Object.entries(f.ptPorLinea)) total.ptPorLinea[l] = (total.ptPorLinea[l] ?? 0) + v
+  }
+  return total
 }
 
 /** Lotes que tocó la jornada, sumando sus tramos turno por turno (los de Vacío no cuentan). */
 export function filasLotes(turnos: TurnoJornada[], presentaciones: PresentacionLive[], validadas: Map<string, Validacion>): FilaLote[] {
   const porLote = new Map<string, FilaLote>()
+  const turnosDelDia = new Set(turnos.map((t) => t.turno.id))
   for (const { turno } of turnos) {
     const { tramos } = tramosPorLote(
       turno.id,
@@ -320,8 +351,18 @@ export function filasLotes(turnos: TurnoJornada[], presentaciones: PresentacionL
       turno.transferencias,
       turno.desvases,
     )
+    // Envasado de cada lote por línea en este turno (PT → corrida → lote).
+    const ptLinea = new Map<string, Record<string, number>>()
+    for (const pt of turno.productoTerminado) {
+      const loteId = turno.corridas.find((c) => c.id === pt.corridaId)?.loteId
+      if (!loteId) continue
+      const m = ptLinea.get(loteId) ?? {}
+      m[pt.linea] = (m[pt.linea] ?? 0) + pt.litrosProducidos
+      ptLinea.set(loteId, m)
+    }
     for (const t of tramos) {
       if (!t.lote) continue
+      const lineasDelTurno = ptLinea.get(t.loteId) ?? {}
       const fila = porLote.get(t.loteId)
       if (!fila) {
         porLote.set(t.loteId, {
@@ -330,22 +371,27 @@ export function filasLotes(turnos: TurnoJornada[], presentaciones: PresentacionL
           numeroTanque: t.lote.numeroTanque,
           saborId: t.lote.saborId,
           saborNombre: t.lote.saborNombre,
+          // Los tambores cuentan el día en que se preparó el lote (no se repiten si el lote cruza días).
+          tambores: t.lote.turnoId !== null && turnosDelDia.has(t.lote.turnoId) ? t.lote.tambores : 0,
           inicio: t.inicio,
           entradas: t.entrantes,
           salidas: t.salientes,
           final: t.fin,
           consumo: t.tramo ?? 0,
           pt: t.pt,
+          ptPorLinea: { ...lineasDelTurno },
           sinContraste: t.excluido,
           validacion: validadas.get(t.loteId) ?? null,
         })
         continue
       }
+      if (t.inicio !== null) fila.inicio = (fila.inicio ?? 0) + t.inicio
       fila.entradas += t.entrantes
       fila.salidas += t.salientes
       fila.final = t.fin
       fila.consumo += t.tramo ?? 0
       fila.pt += t.pt
+      for (const [l, v] of Object.entries(lineasDelTurno)) fila.ptPorLinea[l] = (fila.ptPorLinea[l] ?? 0) + v
       fila.sinContraste = fila.sinContraste ?? t.excluido
     }
   }

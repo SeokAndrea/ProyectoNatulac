@@ -33,6 +33,7 @@ export function AccionesFila({
   valorOriginal,
   bloqueada,
   conNoCuenta = false,
+  conCorregir = true,
   onAccion,
 }: {
   validacion: Validacion | null
@@ -40,6 +41,8 @@ export function AccionesFila({
   /** Jornada validada: no se cambia. */
   bloqueada: boolean
   conNoCuenta?: boolean
+  /** false = solo Confirmar (p. ej. Semielaborado: no hay número que corregir). */
+  conCorregir?: boolean
   onAccion: (accion: AccionValidar) => Promise<Resultado>
 }) {
   const [editando, setEditando] = useState(false)
@@ -122,9 +125,11 @@ export function AccionesFila({
             <Button size="sm" variant="outline" className="h-7" disabled={enviando} onClick={() => hacer({ tipo: "CONFIRMAR" })}>
               {enviando ? <Loader2 className="size-3.5 animate-spin" /> : "Confirmar"}
             </Button>
-            <Button size="sm" variant="outline" className="h-7" disabled={enviando} onClick={abrirCorreccion}>
-              Corregir
-            </Button>
+            {conCorregir && (
+              <Button size="sm" variant="outline" className="h-7" disabled={enviando} onClick={abrirCorreccion}>
+                Corregir
+              </Button>
+            )}
             {conNoCuenta && (
               <Button size="sm" variant="outline" className="h-7" disabled={enviando} onClick={() => hacer({ tipo: "NO_CUENTA" })}>
                 No cuenta

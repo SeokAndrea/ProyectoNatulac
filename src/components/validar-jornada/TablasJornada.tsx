@@ -2,8 +2,11 @@ import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import {
   consumoLote,
+  diferenciaLote,
   mermaEnvases,
   mermaLote,
+  rendimientoLote,
+  totalLotes,
   type FilaCajas,
   type FilaEnvases,
   type FilaLote,
@@ -129,50 +132,98 @@ export function TablaEnvases({ filas, bloqueada, onAccion }: { filas: FilaEnvase
 
 const MOTIVO: Record<NonNullable<FilaLote["sinContraste"]>, string> = {
   SIN_LOTE: "Sin lote",
-  SIN_TRAMO: "Sin consumo del tanque",
-  PT_EXCEDE: "El PT supera lo que bajó del tanque",
+  SIN_TRAMO: "No se pudieron leer los totales del lote",
+  PT_EXCEDE: "El PT supera lo preparado",
+  EN_CURSO: "En curso: el rendimiento sale al cerrar el lote",
 }
 
+const litros = (n: number | null) => (n === null ? "—" : fmt(Math.round(n)))
+
+function Rendimiento({ pct }: { pct: number | null }) {
+  if (pct === null) return <span className="text-muted-foreground">—</span>
+  return <span className="num">{pct.toFixed(2).replace(".", ",")}%</span>
+}
+
+/**
+ * Semielaborado de la jornada (dueña, 2026-11-03): por lote, tambores ·
+ * preparado · envasado por línea · total envasado · rendimiento · merma ·
+ * diferencia, y abajo el total. Rendimiento = envasado / preparado × 100;
+ * merma = 100 − rendimiento; diferencia = preparado − envasado (litros).
+ * Ya no se corrige el volumen final: el tanque no entra al cálculo.
+ */
 export function TablaLotes({ filas, bloqueada, onAccion }: { filas: FilaLote[]; bloqueada: boolean; onAccion: (f: FilaLote, a: AccionValidar) => Promise<Resultado> }) {
+  const lineas = [...new Set(filas.flatMap((f) => Object.keys(f.ptPorLinea)))].sort()
+  const total = totalLotes(filas)
   return (
     <Tabla
       vacio={filas.length === 0 ? "Ningún lote de Aséptico se usó o preparó en esta jornada." : null}
       columnas={[
         { texto: "Lote" },
-        { texto: "Tanque" },
         { texto: "Sabor" },
-        { texto: "Inicio", derecha: true },
-        { texto: "Entradas", derecha: true },
-        { texto: "Salidas", derecha: true },
-        { texto: "Final", derecha: true },
-        { texto: "Consumo", derecha: true },
-        { texto: "PT (L)", derecha: true },
+        { texto: "Tambores", derecha: true },
+        { texto: "Preparado (L)", derecha: true },
+        ...lineas.map((l) => ({ texto: nombreLinea(l), derecha: true })),
+        { texto: "Total envasado (L)", derecha: true },
+        { texto: "Rendimiento", derecha: true },
         { texto: "Merma", derecha: true },
+        { texto: "Diferencia (L)", derecha: true },
         { texto: "", derecha: true },
       ]}
     >
-      {filas.map((f) => (
-        <tr key={f.id}>
-          <td className={td}>{f.lote ?? "—"}</td>
-          <td className={td}>TQ{f.numeroTanque}</td>
-          <td className={td}>{f.saborNombre ?? "Sin sabor"}</td>
-          <td className={cn(tdR, "num")}>{f.inicio !== null ? fmt(Math.round(f.inicio)) : "—"}</td>
-          <td className={cn(tdR, "num")}>{fmt(Math.round(f.entradas))}</td>
-          <td className={cn(tdR, "num")}>{fmt(Math.round(f.salidas))}</td>
-          <td className={tdR}>
-            <ValorValidado original={Math.round(f.final)} validacion={f.validacion} />
+      {filas.map((f) => {
+        const enCurso = f.sinContraste !== null
+        return (
+          <tr key={f.id}>
+            <td className={td}>
+              {f.lote ?? "—"}
+              <p className="text-xs text-muted-foreground">TQ{f.numeroTanque}</p>
+            </td>
+            <td className={td}>
+              {f.saborNombre ?? "Sin sabor"}
+              {f.sinContraste && <p className="text-xs text-warning-foreground">{MOTIVO[f.sinContraste]}</p>}
+            </td>
+            <td className={cn(tdR, "num")}>{f.tambores > 0 ? f.tambores.toLocaleString("es-CO") : "—"}</td>
+            <td className={cn(tdR, "num")}>{enCurso ? "—" : litros(consumoLote(f))}</td>
+            {lineas.map((l) => (
+              <td key={l} className={cn(tdR, "num")}>
+                {f.ptPorLinea[l] ? litros(f.ptPorLinea[l]) : "—"}
+              </td>
+            ))}
+            <td className={cn(tdR, "num font-semibold")}>{litros(f.pt)}</td>
+            <td className={tdR}>
+              <Rendimiento pct={rendimientoLote(f)} />
+            </td>
+            <td className={tdR}>
+              <Merma pct={mermaLote(f)} limite={LIMITE_SEMIELABORADO} />
+            </td>
+            <td className={cn(tdR, "num")}>{litros(diferenciaLote(f))}</td>
+            <td className={tdR}>
+              <AccionesFila validacion={f.validacion} valorOriginal={0} conCorregir={false} bloqueada={bloqueada} onAccion={(a) => onAccion(f, a)} />
+            </td>
+          </tr>
+        )
+      })}
+      <tr className="bg-muted/40 font-semibold">
+        <td className={td} colSpan={2}>
+          Total
+        </td>
+        <td className={cn(tdR, "num")}>{total.tambores > 0 ? total.tambores.toLocaleString("es-CO") : "—"}</td>
+        <td className={cn(tdR, "num")}>{litros(total.consumo)}</td>
+        {lineas.map((l) => (
+          <td key={l} className={cn(tdR, "num")}>
+            {total.ptPorLinea[l] ? litros(total.ptPorLinea[l]) : "—"}
           </td>
-          <td className={cn(tdR, "num")}>{fmt(Math.round(consumoLote(f)))}</td>
-          <td className={cn(tdR, "num")}>{fmt(Math.round(f.pt))}</td>
-          <td className={tdR}>
-            <Merma pct={mermaLote(f)} limite={LIMITE_SEMIELABORADO} />
-            {f.sinContraste && <p className="text-xs text-warning-foreground">{MOTIVO[f.sinContraste]}</p>}
-          </td>
-          <td className={tdR}>
-            <AccionesFila validacion={f.validacion} valorOriginal={Math.round(f.final)} bloqueada={bloqueada} onAccion={(a) => onAccion(f, a)} />
-          </td>
-        </tr>
-      ))}
+        ))}
+        <td className={cn(tdR, "num")}>{litros(total.pt)}</td>
+        <td className={tdR}>
+          <Rendimiento pct={rendimientoLote(total)} />
+        </td>
+        <td className={tdR}>
+          <Merma pct={mermaLote(total)} limite={LIMITE_SEMIELABORADO} />
+        </td>
+        <td className={cn(tdR, "num")}>{litros(diferenciaLote(total))}</td>
+        <td className={td} />
+      </tr>
     </Tabla>
   )
 }

@@ -374,6 +374,8 @@ function cuadrarNumeros(turno: TurnoHistorial) {
       lote.volumenPreparadoL = consumo + 140
       lote.volumenAlIniciarTurnoL = consumo + 140
       lote.volumenActualL = 140
+      // Totales del lote (rendimiento_lotes): cerrado, los 140 L de resto pasaron al lote siguiente.
+      lote.totales = { preparadoL: consumo + 140, entrantesL: 0, salientesL: 140, envasadoL: pt.litrosProducidos, cerrado: true }
     }
   }
 }

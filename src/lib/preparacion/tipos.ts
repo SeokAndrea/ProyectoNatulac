@@ -87,6 +87,25 @@ export interface PreparacionRegistro {
   cerradoEn: string | null
   /** Lote de Vacío: fuera de la merma de Aséptico. */
   paraVacio: boolean
+  /**
+   * Totales del lote en TODOS los turnos (rendimiento_lotes, migración
+   * 20261115090000) — de acá sale el rendimiento: envasado / preparado.
+   * null mientras no se leyeron (o la base no tiene la migración).
+   */
+  totales?: TotalesLote | null
+}
+
+/** Ver rendimiento_lotes() en 20261115090000_rendimiento_semielaborado.sql. */
+export interface TotalesLote {
+  /** volumen_inicial_l: tambores + agua + ajustes + desvase + resto que trajo del lote anterior. */
+  preparadoL: number
+  /** Transferencias que absorbió ya existiendo. */
+  entrantesL: number
+  /** Transferido + desvasado + entregado a Vacío + resto que pasó al lote siguiente: no es merma. */
+  salientesL: number
+  /** PT de todas las corridas del lote, en todos los turnos. */
+  envasadoL: number
+  cerrado: boolean
 }
 
 /**
