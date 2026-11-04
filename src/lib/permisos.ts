@@ -32,6 +32,7 @@ export const PERMISOS = [
   { codigo: "LECTURAS_SI", nombre: "Cargar lecturas de Servicios Industriales" },
   { codigo: "CODIGOS_MTTO_EDITAR", nombre: "Editar los códigos de Mantenimiento" },
   { codigo: "REPORTES_PARADAS_VER", nombre: "Ver los reportes de paradas" },
+  { codigo: "ROBOT_TAVIL_CARGAR", nombre: "Cargar paletas del Robot Tavil" },
 ] as const
 
 export type Permiso = (typeof PERMISOS)[number]["codigo"]

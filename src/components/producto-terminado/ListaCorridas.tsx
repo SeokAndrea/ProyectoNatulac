@@ -6,6 +6,7 @@ import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
+import type { PrecargaRobot } from "@/lib/robotTavil"
 import { cn } from "@/lib/utils"
 import { infoSabor } from "./calculosPT"
 import { FilaProductoTerminado } from "./FilaProductoTerminado"
@@ -19,6 +20,8 @@ export interface DatosListaCorridas {
   preparaciones: PreparacionRegistro[]
   lineas: LineaLive[]
   presentaciones: PresentacionLive[]
+  /** Lo que cargó el operador del Robot Tavil, por corrida (ver src/lib/robotTavil.ts). */
+  precargas?: PrecargaRobot[]
   acciones: AccionesPT
   /** Turno ya cerrado (gracia o corrección) — solo Paletas/Cajas sueltas, sin Contador ni Terminar/Entregar línea. */
   soloPT?: boolean
@@ -38,6 +41,7 @@ export function ListaCorridas({
   preparaciones,
   lineas,
   presentaciones,
+  precargas = [],
   acciones,
   soloPT = false,
 }: DatosListaCorridas) {
@@ -117,6 +121,7 @@ export function ListaCorridas({
                 tanques={tanques}
                 preparaciones={preparaciones}
                 registro={productoTerminado.find((p) => p.corridaId === l.id) ?? null}
+                precarga={precargas.find((p) => p.corridaId === l.id) ?? null}
                 acciones={acciones}
                 soloPT={soloPT}
               />

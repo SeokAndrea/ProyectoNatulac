@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { guardarCalidadLibera, useCalidadLibera } from "@/lib/calidad"
 import { guardarMantenimientoFinaliza, useMantenimientoFinaliza } from "@/lib/paradas"
 import { guardarCatalogoModular, useCatalogoModular } from "@/lib/catalogoFallas/switch"
+import { guardarRobotTavilActivo, useRobotTavilActivo } from "@/lib/robotTavil"
 import { CorreoMantenimiento } from "./CorreoMantenimiento"
 import { SHEET_MANTENIMIENTO_ACTIVO } from "@/lib/sheetMantenimiento"
 import { EnlaceSheetMantenimiento } from "./EnlaceSheetMantenimiento"
@@ -19,6 +20,7 @@ export function AjustesDuena({ usuario }: { usuario: string }) {
       <InterruptorCalidad usuario={usuario} />
       <InterruptorMantenimiento usuario={usuario} />
       <InterruptorCatalogo usuario={usuario} />
+      <InterruptorRobotTavil usuario={usuario} />
       {SHEET_MANTENIMIENTO_ACTIVO && <EnlaceSheetMantenimiento usuario={usuario} />}
       <CorreoMantenimiento usuario={usuario} />
     </div>
@@ -79,6 +81,25 @@ function InterruptorCatalogo({ usuario }: { usuario: string }) {
       confirmarEncender="Desde ahora las fallas de equipo se registran con el catálogo nuevo, en todas las líneas de Aséptico, y la SIF empieza a contar de cero por falla nueva. Lo registrado antes queda como está. Hazlo con el catálogo ya cargado, en un cambio de turno. ¿Encender?"
       confirmarApagar="Vuelve el catálogo anterior para registrar fallas. Lo registrado con el nuevo queda guardado. ¿Apagar?"
       guardar={(activo) => guardarCatalogoModular(usuario, "ASEPTICO", activo)}
+    />
+  )
+}
+
+/**
+ * Robot Tavil en Aséptico (areas.robot_tavil, migración 20261114690000).
+ * Encendido: el operador carga las paletas y el supervisor ve la precarga en
+ * Producto Terminado.
+ */
+function InterruptorRobotTavil({ usuario }: { usuario: string }) {
+  return (
+    <InterruptorAjuste
+      titulo="Robot Tavil (Aséptico)"
+      cargado={useRobotTavilActivo("ASEPTICO")}
+      encendido="Encendido · el operador precarga las paletas"
+      apagado="Apagado · el supervisor carga todo el PT"
+      confirmarEncender="Desde ahora quien tenga el permiso del Robot Tavil puede cargar las paletas y el Resto, y el supervisor ve la precarga en Producto Terminado. Hazlo en un cambio de turno. ¿Encender?"
+      confirmarApagar="El operador deja de poder cargar y el supervisor deja de ver la precarga. Lo cargado queda guardado. ¿Apagar?"
+      guardar={(activo) => guardarRobotTavilActivo(usuario, "ASEPTICO", activo)}
     />
   )
 }

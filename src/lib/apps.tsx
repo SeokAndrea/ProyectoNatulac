@@ -24,6 +24,7 @@ import {
   Siren,
   ListChecks,
   BarChart3,
+  Boxes,
 } from "lucide-react"
 import type { Session } from "@/lib/auth"
 import { esPermisoDeAdministracion, puede, type Permiso } from "@/lib/permisos"
@@ -158,6 +159,17 @@ export const apps: AppDef[] = [
     icon: PackageCheck,
     requiereTurno: true,
     permiso: "TURNO_CARGAR",
+    seccion: "produccion",
+  },
+  {
+    slug: "robot-tavil",
+    title: "Robot Tavil",
+    description: "Cuenta las paletas que salen del robot y el Resto de cada lote.",
+    href: "/robot-tavil",
+    icon: Boxes,
+    // El operador no abre turno: ve las líneas activas de la planta (migración 20261114690000).
+    requiereTurno: false,
+    permiso: "ROBOT_TAVIL_CARGAR",
     seccion: "produccion",
   },
   {

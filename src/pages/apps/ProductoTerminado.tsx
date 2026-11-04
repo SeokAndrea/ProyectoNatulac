@@ -14,6 +14,7 @@ import { useTurnoEfectivo } from "@/lib/turnoCorreccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
+import { usePrecargaRobot } from "@/lib/robotTavil"
 import { AvisoActa } from "@/components/producto-terminado/AvisoActa"
 import { useActaAlDia } from "@/components/producto-terminado/useActaAlDia"
 
@@ -90,6 +91,8 @@ export default function ProductoTerminado() {
     cargando: cargandoPreparacion,
   } = usePreparacion(turnoIdEfectivo)
   const { lineas, presentaciones, cargando: cargandoCatalogos } = useCatalogosLive()
+  // Lo que cargó el operador del Robot Tavil: se confirma o se corrige en cada tarjeta.
+  const precargas = usePrecargaRobot(sesion.usuario, turnoIdEfectivo)
   const cargando =
     sesion.cargando ||
     cargandoCorreccion ||
@@ -194,6 +197,7 @@ export default function ProductoTerminado() {
     preparaciones,
     lineas,
     presentaciones,
+    precargas,
     acciones: {
       registrarProducto: enGraciaPT ? acta.conActa(registrarProductoTerminadoYRefrescarTanque) : registrarProductoTerminadoYRefrescarTanque,
       registrarContador: enGraciaPT ? acta.conActa(registrarContador) : registrarContador,
