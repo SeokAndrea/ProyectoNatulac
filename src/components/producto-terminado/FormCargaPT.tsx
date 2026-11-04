@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AlertTriangle, Loader2, PackageCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,8 +8,10 @@ import { Textarea } from "@/components/ui/textarea"
 import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import type { Corrida } from "@/lib/produccion/tipos"
+import type { PrecargaRobot } from "@/lib/robotTavil"
 import { useAccion } from "@/lib/useAccion"
 import { cn } from "@/lib/utils"
+import { AvisoPrecarga, PistaPrecarga } from "./AvisoPrecarga"
 import { LIMITE_MERMA_PCT, vistaPreviaCarga } from "./calculosPT"
 import { CabeceraFila } from "./CabeceraFila"
 import type { AccionesPT } from "./tipos"
@@ -42,6 +44,7 @@ export function FormCargaPT({
   contadorActual,
   contadorBuenosActual,
   registro,
+  precarga = null,
   modoCorreccion,
   puedeElegirProximoEstado,
   acciones,
@@ -56,6 +59,8 @@ export function FormCargaPT({
   /** Suma de Contador 2 (envases buenos) de esta corrida. */
   contadorBuenosActual: number
   registro: ProductoTerminadoRegistro | null
+  /** Lo que cargó el operador del Robot Tavil en esta corrida. */
+  precarga?: PrecargaRobot | null
   /** Corrigiendo una corrida ya cerrada ("Editar un error"). */
   modoCorreccion: boolean
   /** Sigue corriendo y todavía no se decidió su próximo estado. */
@@ -77,6 +82,27 @@ export function FormCargaPT({
   /** El contador de esta pasada ya se guardó y el resto falló: se avisa para que no lo vuelvan a escribir. */
   const [contadorGuardado, setContadorGuardado] = useState(false)
   const { enviando, error, ejecutar } = useAccion()
+
+  /*
+   * Precarga del Robot Tavil. No se escribe sola en Paletas y Cajas sueltas
+   * mientras la corrida corre: registrar el contador a media corrida
+   * mandaría también el PT, y pasada 1 h ya no se puede cambiar. Se usa con
+   * el botón, o sola cuando el PT es obligatorio (al cerrar o esperando su PT)
+   * y los campos siguen vacíos.
+   */
+  const restoRobot = precarga?.resto ?? 0
+  const usarPrecarga = () => {
+    if (!precarga) return
+    setPaletas(String(precarga.paletas))
+    setCajasSueltas(String(restoRobot))
+  }
+  const ptObligatorio = !modoCorreccion && (proximoEstado !== null || corrida.esperandoCierre)
+  useEffect(() => {
+    if (ptObligatorio && precarga && !registro && paletas === "" && cajasSueltas === "") usarPrecarga()
+    // Solo al pasar a obligatorio o al llegar la precarga; lo que se escribe después no se pisa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ptObligatorio, precarga?.paletas, precarga?.resto])
+  const coincidePrecarga = precarga !== null && paletas === String(precarga.paletas) && cajasSueltas === String(restoRobot)
 
   // Corrigiendo, lo escrito ya es el total: la vista previa no le suma lo cargado.
   const previa = vistaPreviaCarga({
@@ -207,6 +233,14 @@ export function FormCargaPT({
         descripcion={presentacion?.nombre ?? `${corrida.presentacion} ml`}
       />
       <CardContent className="flex flex-col gap-3">
+        {precarga && (
+          <AvisoPrecarga
+            precarga={precarga}
+            registrado={registro ? { paletas: registro.paletas, cajasSueltas: registro.cajasSueltas } : null}
+            coincide={coincidePrecarga}
+            onUsar={usarPrecarga}
+          />
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor={`contador-${corrida.id}`}>Envases llenadora (Contador)</Label>
@@ -241,6 +275,7 @@ export function FormCargaPT({
           <div className="flex flex-col gap-2">
             <Label htmlFor={`paletas-${corrida.id}`}>Paletas</Label>
             <Input id={`paletas-${corrida.id}`} type="number" min={0} placeholder="Paletas" value={paletas} onChange={(e) => setPaletas(e.target.value)} />
+            {precarga && <PistaPrecarga escrito={paletas} robot={precarga.paletas} />}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor={`resto-${corrida.id}`}>Cajas sueltas</Label>
@@ -252,6 +287,7 @@ export function FormCargaPT({
               value={cajasSueltas}
               onChange={(e) => setCajasSueltas(e.target.value)}
             />
+            {precarga && <PistaPrecarga escrito={cajasSueltas} robot={restoRobot} />}
           </div>
         </div>
 

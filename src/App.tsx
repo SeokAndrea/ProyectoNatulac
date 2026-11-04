@@ -13,6 +13,7 @@ const ComenzarTurno = lazy(() => import("@/pages/apps/ComenzarTurno"))
 const Preparacion = lazy(() => import("@/pages/apps/Preparacion"))
 const Lineas = lazy(() => import("@/pages/apps/Lineas"))
 const ProductoTerminado = lazy(() => import("@/pages/apps/ProductoTerminado"))
+const RobotTavil = lazy(() => import("@/pages/apps/RobotTavil"))
 const FinalizarTurno = lazy(() => import("@/pages/apps/FinalizarTurno"))
 const MisActas = lazy(() => import("@/pages/apps/MisActas"))
 const ResumenDia = lazy(() => import("@/pages/apps/ResumenDia"))
@@ -123,6 +124,14 @@ export default function App() {
             element={
               <ProtectedRoute app="producto-terminado">
                 <ProductoTerminado />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/robot-tavil"
+            element={
+              <ProtectedRoute app="robot-tavil">
+                <RobotTavil />
               </ProtectedRoute>
             }
           />

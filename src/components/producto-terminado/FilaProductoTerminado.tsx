@@ -6,6 +6,7 @@ import type { PresentacionLive } from "@/lib/catalogosLive"
 import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import type { Corrida } from "@/lib/produccion/tipos"
+import type { PrecargaRobot } from "@/lib/robotTavil"
 import { deltaEnvases, tanqueDeCorrida } from "./calculosPT"
 import { FormCargaPT } from "./FormCargaPT"
 import { MedirTanqueTrasCierre } from "./MedirTanqueTrasCierre"
@@ -29,6 +30,7 @@ export function FilaProductoTerminado({
   tanques,
   preparaciones,
   registro,
+  precarga = null,
   acciones,
   soloPT = false,
 }: {
@@ -41,6 +43,8 @@ export function FilaProductoTerminado({
   tanques: TanqueRecepcion[]
   preparaciones: PreparacionRegistro[]
   registro: ProductoTerminadoRegistro | null
+  /** Lo que cargó el operador del Robot Tavil en esta corrida. */
+  precarga?: PrecargaRobot | null
   acciones: AccionesPT
   /** Turno cerrado, dentro de la ventana de gracia (ver TurnoGraciaPT en sesionTurno.tsx) o en corrección: contador y PT, sin Terminar/Entregar línea. */
   soloPT?: boolean
@@ -116,6 +120,7 @@ export function FilaProductoTerminado({
       contadorActual={contadorActual}
       contadorBuenosActual={contadorBuenosActual}
       registro={registro}
+      precarga={precarga}
       modoCorreccion={estaCerrada && editandoError}
       puedeElegirProximoEstado={!soloPT && corrida.activa && corrida.entregadaEn === null}
       acciones={acciones}

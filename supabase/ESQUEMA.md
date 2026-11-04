@@ -486,6 +486,31 @@ Una fila por área (`area_id` es la llave). Sin políticas: solo se toca por las
 
 Ensayo: `scripts/ensayo-sif-frecuencia.sql` (begin ... rollback).
 
+## Robot Tavil: precarga de paletas (20261114690000)
+
+El operador del Robot Tavil (permiso `ROBOT_TAVIL_CARGAR`, tema TURNOS, sin puesto por defecto) cuenta las paletas por línea y escribe el Resto de la corrida. Es una precarga: no toca `producto_terminado`; el supervisor la confirma o la corrige con `registrar_producto_terminado`. Área del operador: Pruebas si su sesión es de Pruebas; si no, Aséptico. Una corrida está abierta para el robot si está activa o esperando su PT y no se entregó. Las tres tablas tienen RLS sin políticas.
+
+### `robot_tavil_paletas`
+Una fila por paleta: `linea_id`, `turno_linea_id` (null = salió con la línea entregada y el turno siguiente sin abrir), `creada_en`, `creada_por`. El «−» la anula (`anulada_en`, `anulada_por`), no la borra.
+
+### `robot_tavil_resto`
+Una fila por corrida (`turno_linea_id` PK): `cajas` (≥ 0, se reemplaza), `actualizado_en`, `actualizado_por`.
+
+### `robot_tavil_seguimiento`
+Qué corrida cuenta el operador en cada línea (`linea_id` PK, `turno_linea_id`) y la que contaba antes (`anterior_turno_linea_id`, para el aviso «el lote X cerró con N paletas»).
+
+### Funciones
+| Función | Qué hace |
+|---|---|
+| `robot_tavil_estado(p_usuario)` | La pantalla del operador: una entrada por línea con `estado` (`EN_CURSO`, `LOTE_NUEVO`, `ENTREGADA`, `TERMINADA`), `puede_sumar`, la corrida, las paletas sin corrida, el lote nuevo y el anterior. Antes pone al día el seguimiento: adopta la corrida vigente si la línea no tenía y pasa sola a la continuación de una corrida entregada (mismo lote, otro turno) con las paletas sin corrida. Una corrida cerrada hace más de 12 h no se muestra |
+| `robot_tavil_sumar(p_usuario, p_linea_codigo)`, `robot_tavil_restar(…)` | «+» y «−». Con la línea entregada, a las paletas sin corrida. Terminada, o con un lote nuevo sin iniciar y la corrida anterior cerrada: rechazan |
+| `robot_tavil_guardar_resto(p_usuario, p_linea_codigo, p_cajas)` | Resto de la corrida en curso |
+| `robot_tavil_iniciar(p_usuario, p_linea_codigo)` | «Iniciar con el lote …»: pasa al lote nuevo de la línea (con las paletas sin corrida) |
+| `listar_precarga_robot_tavil(p_usuario, p_turno_id)` | Para la tarjeta de PT: por corrida del turno, paletas, última paleta y quién, Resto y quién. Solo lectura |
+| `robot_tavil_preparar`, `robot_tavil_sincronizar`, `robot_tavil_estado_linea`, `robot_tavil_pantalla`, `robot_tavil_corrida_json`, `robot_tavil_corrida_abierta`, `robot_tavil_corrida_vigente`, `robot_tavil_es_continuacion`, `robot_tavil_area`, `robot_tavil_linea` | Internas |
+
+Ensayo: `scripts/ensayo-robot-tavil.sql` (begin ... rollback).
+
 ## Sesiones con credencial (20261109690000)
 
 La base ya no le cree al `p_usuario` que manda la app:

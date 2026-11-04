@@ -7,6 +7,7 @@ import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import type { PreparacionRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { ContadorRegistro, Corrida } from "@/lib/produccion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
+import type { PrecargaRobot } from "@/lib/robotTavil"
 
 /*
  * Producto Terminado y Contador, página completa: qué se ve en cada
@@ -125,6 +126,12 @@ vi.mock("@/lib/productoTerminado", async (importOriginal) => ({
     return { registros: datos.pt, cargando: false, registrarProductoTerminado: acc.registrarProductoTerminado }
   },
 }))
+/** Precarga del Robot Tavil que ve la página (vacía salvo en sus pruebas). */
+const robot = { precargas: [] as PrecargaRobot[] }
+vi.mock("@/lib/robotTavil", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/robotTavil")>()),
+  usePrecargaRobot: () => robot.precargas,
+}))
 vi.mock("@/lib/preparacion/usePreparacion", () => ({
   usePreparacion: (id: string | null) => {
     pedidoCon.preparacion.push(id)
@@ -239,7 +246,18 @@ beforeEach(() => {
     orden.push("refrescar")
     redibujar()
   })
+  robot.precargas = []
   cargarDatos()
+})
+
+const precarga = (corridaId: string, paletas: number, resto: number | null): PrecargaRobot => ({
+  corridaId,
+  paletas,
+  ultimaPaletaEn: "2026-10-05T16:01:00+00:00",
+  ultimaPaletaPor: "Operador Robot",
+  resto,
+  restoEn: resto === null ? null : "2026-10-05T16:05:00+00:00",
+  restoPor: resto === null ? null : "Operador Robot",
 })
 
 function renderPagina() {
@@ -484,6 +502,64 @@ describe("Producto Terminado — validaciones", () => {
     expect(t.getByRole("button", { name: "Cerrar" })).toBeDisabled()
     await escribir(u, t, "Paletas", "0")
     expect(t.queryByText(/Para cerrar la corrida hay que cargar el Producto Terminado/)).not.toBeInTheDocument()
+  })
+})
+
+describe("Producto Terminado — precarga del Robot Tavil", () => {
+  it("a media corrida no se escribe sola: «Usar la precarga» la pasa a los campos y se manda al cerrar", async () => {
+    const u = userEvent.setup()
+    robot.precargas = [precarga("c2", 7, 15)]
+    renderPagina()
+    const t = tarjeta("Línea 2")
+    expect(t.getByText("Precarga del Robot Tavil")).toBeInTheDocument()
+    expect(t.getByText(/7 paletas · 15 cajas sueltas · última paleta 12:01 \(Operador Robot\)/)).toBeInTheDocument()
+    // Registrar el contador a media corrida no debe mandar también el PT.
+    expect(t.getByPlaceholderText("Paletas")).toHaveValue(null)
+    expect(t.getByText("Robot: 7")).toBeInTheDocument()
+    expect(t.getByText("Robot: 15")).toBeInTheDocument()
+
+    await u.click(t.getByRole("button", { name: "Usar la precarga" }))
+    expect(t.getByPlaceholderText("Paletas")).toHaveValue(7)
+    expect(t.getByPlaceholderText("Cajas sueltas")).toHaveValue(15)
+    expect(t.queryByRole("button", { name: "Usar la precarga" })).not.toBeInTheDocument()
+
+    await u.click(t.getByRole("button", { name: "Entregar línea (sigue el próximo turno)" }))
+    await u.click(t.getByRole("button", { name: "Cerrar" }))
+    await waitFor(() => expect(orden).toContain('entregar ["c2"]'))
+    expect(orden.find((o) => o.startsWith("producto"))).toContain('"paletas":7,"cajasSueltas":15')
+  })
+
+  it("al elegir Terminar o Entregar, con los campos vacíos, se llena sola", async () => {
+    const u = userEvent.setup()
+    robot.precargas = [precarga("c2", 7, null)]
+    renderPagina()
+    const t = tarjeta("Línea 2")
+    await u.click(t.getByRole("button", { name: "Terminar" }))
+    expect(t.getByPlaceholderText("Paletas")).toHaveValue(7)
+    // Sin Resto escrito por el operador: 0 cajas sueltas.
+    expect(t.getByPlaceholderText("Cajas sueltas")).toHaveValue(0)
+  })
+
+  it("esperando su PT: viene llena y corregirla se marca", async () => {
+    const u = userEvent.setup()
+    robot.precargas = [precarga("c3", 4, 20)]
+    renderPagina()
+    const t = tarjeta("Línea 3")
+    expect(t.getByPlaceholderText("Paletas")).toHaveValue(4)
+    expect(t.getByPlaceholderText("Cajas sueltas")).toHaveValue(20)
+    await escribir(u, t, "Paletas", "5")
+    expect(t.getByText("Corriges la precarga: Robot 4")).toBeInTheDocument()
+    await u.click(t.getByRole("button", { name: "Registrar" }))
+    await waitFor(() => expect(orden.some((o) => o.startsWith("producto"))).toBe(true))
+    expect(orden.find((o) => o.startsWith("producto"))).toContain('"paletas":5,"cajasSueltas":20')
+  })
+
+  it("con PT ya registrado distinto de la precarga, lo avisa y no lo pisa", () => {
+    robot.precargas = [precarga("c1", 8, 50)]
+    renderPagina()
+    const t = tarjeta("Línea 1")
+    expect(t.getByText(/Lo registrado \(9 paletas y 50 cajas\) no coincide con la precarga/)).toBeInTheDocument()
+    expect(t.getByPlaceholderText("Paletas")).toHaveValue(9)
   })
 })
 
