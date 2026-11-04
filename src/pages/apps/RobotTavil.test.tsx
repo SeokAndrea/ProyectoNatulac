@@ -23,7 +23,7 @@ vi.mock("@/lib/catalogosLive", () => ({
   useCatalogosLive: () => ({ presentaciones: [{ codigo: "1000", nombre: "1 L", volumenMl: 1000 }] }),
 }))
 
-const estado = { lineas: [] as LineaRobot[], error: null as string | null }
+const estado = { lineas: [] as LineaRobot[], error: null as string | null, apagado: false }
 const llamadas: string[] = []
 const OK = { ok: true as const, data: [] as LineaRobot[] }
 vi.mock("@/lib/robotTavil", () => ({
@@ -31,6 +31,7 @@ vi.mock("@/lib/robotTavil", () => ({
     lineas: estado.lineas,
     cargando: false,
     error: estado.error,
+    apagado: estado.apagado,
     ejecutar: async (fn: () => Promise<{ ok: boolean }>) => (await fn()).ok,
   }),
   sumarPaleta: vi.fn(async (u: string, l: string) => (llamadas.push(`sumar ${u} ${l}`), OK)),
@@ -67,10 +68,18 @@ const tarjeta = () => within(document.querySelector<HTMLElement>('[data-slot="ca
 beforeEach(() => {
   estado.lineas = []
   estado.error = null
+  estado.apagado = false
   llamadas.length = 0
 })
 
 describe("Robot Tavil", () => {
+  it("con el switch apagado avisa que no está habilitado", () => {
+    estado.apagado = true
+    render(<RobotTavil />)
+    expect(screen.getByText("El Robot Tavil no está habilitado")).toBeInTheDocument()
+    expect(screen.queryByText("No hay líneas activas")).not.toBeInTheDocument()
+  })
+
   it("sin líneas activas lo dice", () => {
     render(<RobotTavil />)
     expect(screen.getByText("No hay líneas activas")).toBeInTheDocument()

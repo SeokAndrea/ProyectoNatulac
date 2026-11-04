@@ -35,6 +35,7 @@ declare
   v_p jsonb;
   v_l jsonb;
   v_n int;
+  v_prep uuid; v_pres uuid; v_cxp numeric; v_lxc numeric;
 begin
   select id, codigo into v_linea, v_cod from lineas where area_id = v_area and activo order by codigo limit 1;
   if v_linea is null then raise exception 'Falta una línea activa en Pruebas.'; end if;
@@ -57,6 +58,17 @@ begin
   if not tiene_permiso('rt_op', 'ROBOT_TAVIL_CARGAR') then raise exception 'El Probador debe tenerlo'; end if;
   if not pg_temp.falla($q$ select robot_tavil_estado('rt_sup') $q$, 'No tienes permiso') then raise exception 'Sin permiso debe rechazar'; end if;
   if not pg_temp.falla($q$ select robot_tavil_sumar('rt_sup', 'LINEA_1') $q$, 'No tienes permiso') then raise exception 'Sin permiso no suma'; end if;
+
+  -- ---------------------------------------------------------------------
+  -- 0b. Switch por área (Pruebas arranca encendido; Aséptico, apagado)
+  -- ---------------------------------------------------------------------
+  if not robot_tavil_area_activo('PRUEBAS') then raise exception 'Pruebas debe arrancar encendido'; end if;
+  if not pg_temp.falla($q$ select guardar_robot_tavil('rt_sup', 'PRUEBAS', false) $q$, 'Solo el dueño') then raise exception 'Solo la dueña cambia el switch'; end if;
+  update areas set robot_tavil = false where id = v_area;
+  if (robot_tavil_estado('rt_op') ->> 'habilitado')::boolean is distinct from false then raise exception 'Apagado: la pantalla debe decirlo'; end if;
+  if not pg_temp.falla($q$ select robot_tavil_sumar('rt_op', 'LINEA_1') $q$, 'no está habilitado') then raise exception 'Apagado: no debe sumar'; end if;
+  if exists (select 1 from listar_precarga_robot_tavil('rt_op', gen_random_uuid())) then raise exception 'Apagado: no hay precarga'; end if;
+  update areas set robot_tavil = true where id = v_area;
 
   -- ---------------------------------------------------------------------
   -- 1. Sin corridas no hay líneas; con una corrida, la adopta sola
@@ -171,6 +183,34 @@ begin
   if pg_temp.linea(robot_tavil_estado('rt_op'), v_cod) ->> 'estado' <> 'TERMINADA' then raise exception '6: a las 11 h todavía se muestra'; end if;
   update turno_lineas set finalizada_en = now() - interval '13 hours' where id = v_c2;
   if pg_temp.linea(robot_tavil_estado('rt_op'), v_cod) is not null then raise exception '6: a las 13 h ya no se muestra'; end if;
+
+  -- ---------------------------------------------------------------------
+  -- 7. Nivel estimado de los tanques en el Panel
+  -- ---------------------------------------------------------------------
+  update turnos set estado = 'CERRADO' where id = v_tb;
+  delete from robot_tavil_seguimiento where linea_id = v_linea;
+  insert into turnos (codigo, area_id, supervisor_id, turno_tipo_id, grupo_id, fecha, hora_inicio, created_at)
+  values ('RT-C', v_area, v_sis, v_tt1, v_grupo, current_date, time '07:00', now())
+  returning id into v_ta;
+  insert into preparaciones (turno_id, numero_tanque, sabor_id, lote, tambores, usuario_id, volumen_l, volumen_inicial_l)
+  values (v_ta, 1, v_sabor, 'RT-E', 0, v_sis, 10000, 10000)
+  returning id into v_prep;
+  insert into recepcion_tanques (turno_id, numero_tanque, sabor_id, condicion, volumen_l, lote, lote_id)
+  values (v_ta, 1, v_sabor, 'LISTO', 10000, 'RT-E', v_prep);
+  select id, cajas_x_paleta, litros_x_caja into v_pres, v_cxp, v_lxc from presentaciones where cajas_x_paleta > 0 and litros_x_caja > 0 limit 1;
+  insert into turno_lineas (turno_id, linea_id, sabor_id, presentacion_id, lote, lote_id, activa, activada_en)
+  values (v_ta, v_linea, v_sabor, v_pres, 'RT-E', v_prep, true, now())
+  returning id into v_c1;
+  perform robot_tavil_estado('rt_op');
+  perform robot_tavil_sumar('rt_op', v_cod);
+  perform robot_tavil_sumar('rt_op', v_cod);
+  perform robot_tavil_guardar_resto('rt_op', v_cod, 5);
+  select count(*) into v_n from estimacion_tanques_robot_tavil('rt_sup', v_ta) e
+   where e.numero_tanque = 1 and e.volumen_oficial_l = 10000 and e.litros_pendientes = (2 * v_cxp + 5) * v_lxc;
+  if v_n <> 1 then raise exception '7: estimación del tanque 1: %', (select jsonb_agg(e) from estimacion_tanques_robot_tavil('rt_sup', v_ta) e); end if;
+  update areas set robot_tavil = false where id = v_area;
+  if exists (select 1 from estimacion_tanques_robot_tavil('rt_sup', v_ta)) then raise exception '7: apagado no estima'; end if;
+  update areas set robot_tavil = true where id = v_area;
 
   raise notice 'ENSAYO ROBOT TAVIL: todo bien';
 end $$;

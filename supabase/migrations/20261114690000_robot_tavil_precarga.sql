@@ -72,6 +72,62 @@ values ('ROBOT_TAVIL_CARGAR', 'Cargar paletas del Robot Tavil', 'TURNOS')
 on conflict (codigo) do nothing;
 
 -- ------------------------------------------------------------
+-- Switch por área
+-- ------------------------------------------------------------
+-- Como «Calidad libera» y el catálogo de paradas nuevo: un interruptor por
+-- área que solo la dueña cambia (Edición de Datos → Ajustes de planta).
+-- Apagado: el operador no puede cargar y el supervisor no ve la precarga.
+-- Pruebas arranca encendido para ensayar.
+alter table areas add column if not exists robot_tavil boolean not null default false;
+alter table areas add column if not exists robot_tavil_desde timestamptz;
+update areas set robot_tavil = true, robot_tavil_desde = now() where codigo = 'PRUEBAS' and not robot_tavil;
+comment on column areas.robot_tavil is 'Encendido: el Robot Tavil precarga el Producto Terminado (20261114690000).';
+comment on column areas.robot_tavil_desde is 'Desde cuándo está encendido el Robot Tavil.';
+
+-- Sin área (dueña / Super Admin): Aséptico, como catalogo_modular_area().
+create or replace function robot_tavil_area_activo(p_area_codigo text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select robot_tavil from areas where codigo = coalesce(p_area_codigo, 'ASEPTICO')), false);
+$$;
+grant execute on function robot_tavil_area_activo(text) to anon, authenticated;
+
+create or replace function guardar_robot_tavil(p_usuario text, p_area_codigo text, p_activo boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_area areas;
+begin
+  perform public.exigir_usuario('guardar_robot_tavil', p_usuario);
+  if not es_dueno(p_usuario) then
+    raise exception 'Solo el dueño puede cambiar este ajuste.';
+  end if;
+  select * into v_area from areas where codigo = p_area_codigo for update;
+  if not found then
+    raise exception 'Esa área no existe.';
+  end if;
+  update areas
+  set robot_tavil = p_activo,
+      robot_tavil_desde = case when p_activo and not v_area.robot_tavil then now() else robot_tavil_desde end
+  where id = v_area.id;
+  perform registrar_auditoria(
+    p_usuario, 'EDITAR', 'robot_tavil', v_area.id::text, 'Edición de Datos',
+    case when p_activo then 'Prendió' else 'Apagó' end || ' el Robot Tavil en ' || p_area_codigo,
+    jsonb_build_object('robot_tavil', v_area.robot_tavil, 'desde', v_area.robot_tavil_desde),
+    jsonb_build_object('robot_tavil', p_activo)
+  );
+end;
+$$;
+grant execute on function guardar_robot_tavil(text, text, boolean) to anon, authenticated;
+
+-- ------------------------------------------------------------
 -- Ayudas internas (no se exponen)
 -- ------------------------------------------------------------
 -- ¿El operador todavía puede cargar en esta corrida?
@@ -298,8 +354,9 @@ end;
 $$;
 revoke execute on function robot_tavil_pantalla(uuid) from public, anon, authenticated;
 
--- Permiso + área + seguimiento al día, para toda función del operador.
-create or replace function robot_tavil_preparar(p_funcion text, p_usuario text)
+-- Permiso + switch + área + seguimiento al día, para toda función del operador.
+-- Con el switch apagado: error, o null si p_tolerar_apagado (lo usa la pantalla).
+create or replace function robot_tavil_preparar(p_funcion text, p_usuario text, p_tolerar_apagado boolean default false)
 returns uuid
 language plpgsql
 security definer
@@ -316,11 +373,17 @@ begin
   if v_area is null then
     raise exception 'No se encontró el área de planta.';
   end if;
+  if not (select robot_tavil from areas where id = v_area) then
+    if p_tolerar_apagado then
+      return null;
+    end if;
+    raise exception 'El Robot Tavil todavía no está habilitado en esta planta.';
+  end if;
   perform robot_tavil_sincronizar(v_area);
   return v_area;
 end;
 $$;
-revoke execute on function robot_tavil_preparar(text, text) from public, anon, authenticated;
+revoke execute on function robot_tavil_preparar(text, text, boolean) from public, anon, authenticated;
 
 -- La línea por código, dentro del área del operador.
 create or replace function robot_tavil_linea(p_area_id uuid, p_linea_codigo text)
@@ -353,8 +416,11 @@ set search_path = public
 as $$
 declare
   -- En su propia instrucción: la pantalla (stable) tiene que ver lo que sincronizó.
-  v_area uuid := robot_tavil_preparar('robot_tavil_estado', p_usuario);
+  v_area uuid := robot_tavil_preparar('robot_tavil_estado', p_usuario, true);
 begin
+  if v_area is null then
+    return jsonb_build_object('habilitado', false, 'lineas', '[]'::jsonb);
+  end if;
   return robot_tavil_pantalla(v_area);
 end;
 $$;
@@ -522,8 +588,82 @@ begin
   ) pu on true
   left join robot_tavil_resto r on r.turno_linea_id = tl.id
   left join usuarios ru on ru.id = r.actualizado_por
+  join lineas li on li.id = tl.linea_id
+  join areas ar on ar.id = li.area_id and ar.robot_tavil
   where tl.turno_id = p_turno_id
     and (coalesce(pa.n, 0) > 0 or r.turno_linea_id is not null);
 end;
 $$;
 grant execute on function listar_precarga_robot_tavil(text, uuid) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Para el Panel: nivel estimado de los tanques
+-- ------------------------------------------------------------
+/*
+ * Por tanque con líquido del turno: el volumen oficial (volumen_vivo_tanque)
+ * y los litros de la precarga que el supervisor todavía no confirmó. El Panel
+ * muestra oficial − pendientes; el volumen oficial no se toca.
+ * Pendiente de una corrida del lote: lo precargado menos el PT ya registrado,
+ * nunca negativo; 0 si la corrida ya cerró y tiene su PT (el supervisor
+ * confirmó). Las paletas que salieron con la línea entregada (sin corrida)
+ * cuentan para el lote de la corrida que seguía el operador.
+ * Solo turnos abiertos y con el switch encendido. Solo lectura.
+ */
+create or replace function estimacion_tanques_robot_tavil(p_usuario text, p_turno_id uuid)
+returns table (numero_tanque smallint, volumen_oficial_l numeric, litros_pendientes numeric)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+begin
+  perform public.exigir_usuario('estimacion_tanques_robot_tavil', p_usuario);
+  return query
+  with tanques as (
+    select rt.numero_tanque, rt.lote_id
+    from recepcion_tanques rt
+    join turnos t on t.id = rt.turno_id and t.estado = 'ABIERTO'
+    join areas a on a.id = t.area_id and a.robot_tavil
+    where rt.turno_id = p_turno_id
+      and rt.condicion in ('LISTO', 'STANDBY')
+      and rt.lote_id is not null
+  ),
+  corridas as (
+    select tl.id, tl.lote_id, p.cajas_x_paleta, p.litros_x_caja,
+           robot_tavil_corrida_abierta(tl.id) as abierta
+    from turno_lineas tl
+    join presentaciones p on p.id = tl.presentacion_id
+    where tl.lote_id in (select lote_id from tanques)
+  ),
+  pendientes as (
+    select c.lote_id,
+           case
+             when not c.abierta and pt.turno_linea_id is not null then 0::numeric
+             else greatest(0::numeric,
+               ((select count(*) from robot_tavil_paletas rp where rp.turno_linea_id = c.id and rp.anulada_en is null) * c.cajas_x_paleta
+                + coalesce(r.cajas, 0)) * c.litros_x_caja
+               - coalesce(pt.litros_producidos, 0))
+           end as litros
+    from corridas c
+    left join robot_tavil_resto r on r.turno_linea_id = c.id
+    left join producto_terminado pt on pt.turno_linea_id = c.id
+    union all
+    select c.lote_id, (count(*) * c.cajas_x_paleta * c.litros_x_caja)::numeric
+    from robot_tavil_paletas rp
+    join robot_tavil_seguimiento s on s.linea_id = rp.linea_id
+    join corridas c on c.id = s.turno_linea_id
+    where rp.turno_linea_id is null and rp.anulada_en is null
+    group by c.lote_id, c.cajas_x_paleta, c.litros_x_caja
+  )
+  select tq.numero_tanque,
+         volumen_vivo_tanque(p_turno_id, tq.numero_tanque),
+         coalesce((select sum(pe.litros) from pendientes pe where pe.lote_id = tq.lote_id), 0)::numeric
+  from tanques tq
+  order by tq.numero_tanque;
+end;
+$$;
+grant execute on function estimacion_tanques_robot_tavil(text, uuid) to anon, authenticated;
+
+-- Regla de 20261109690000: cada función nueva con p_usuario revisa que sea el de la credencial.
+select * from asegurar_control_usuario();

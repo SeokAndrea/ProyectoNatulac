@@ -142,10 +142,41 @@ export function mensajeErrorRobot(mensaje: string | null | undefined): string {
   return m
 }
 
+/** Error de la lectura cuando el switch del Robot Tavil está apagado en el área. */
+export const ROBOT_TAVIL_APAGADO = "ROBOT_TAVIL_APAGADO"
+
 async function llamar(funcion: string, args: Record<string, unknown>): Promise<Lectura<LineaRobot[]>> {
   const { data, error } = await supabase.rpc(funcion, args)
   if (error) return { ok: false, error: mensajeErrorRobot(error.message) }
+  if ((data as { habilitado?: boolean } | null)?.habilitado === false) return { ok: false, error: ROBOT_TAVIL_APAGADO }
   return { ok: true, data: mapearPantallaRobot(data) }
+}
+
+/*
+ * Switch del Robot Tavil, por área (areas.robot_tavil, migración
+ * 20261114690000). Encendido: el operador carga paletas y el supervisor ve la
+ * precarga. Lo cambia solo la dueña.
+ */
+
+/** ¿Está encendido en el área? Sin área, Aséptico. null mientras carga. */
+export function useRobotTavilActivo(area: string | null): boolean | null {
+  const [resultado, setResultado] = useState<{ area: string | null; valor: boolean } | null>(null)
+  useEffect(() => {
+    let vivo = true
+    supabase.rpc("robot_tavil_area_activo", { p_area_codigo: area }).then(({ data, error }) => {
+      // Sin la migración en el servidor, la función no existe: se comporta como apagado.
+      if (vivo) setResultado({ area, valor: !error && data === true })
+    })
+    return () => {
+      vivo = false
+    }
+  }, [area])
+  return resultado?.area === area ? resultado.valor : null
+}
+
+export async function guardarRobotTavilActivo(usuario: string, area: string, activo: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc("guardar_robot_tavil", { p_usuario: usuario, p_area_codigo: area, p_activo: activo })
+  return error ? { ok: false, error: error.message || "No se pudo cambiar el ajuste." } : { ok: true }
 }
 
 export const leerPantallaRobot = (usuario: string) => llamar("robot_tavil_estado", { p_usuario: usuario })
@@ -174,6 +205,7 @@ export function useRobotTavil(usuario: string | null) {
   const [lineas, setLineas] = useState<LineaRobot[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [apagado, setApagado] = useState(false)
 
   useEffect(() => {
     if (!usuario) return
@@ -181,8 +213,9 @@ export function useRobotTavil(usuario: string | null) {
     async function cargar() {
       const r = await leerPantallaRobot(usuario!)
       if (!vivo) return
+      setApagado(!r.ok && r.error === ROBOT_TAVIL_APAGADO)
       if (r.ok) setLineas(r.data)
-      else setError(r.error)
+      else if (r.error !== ROBOT_TAVIL_APAGADO) setError(r.error)
       setCargando(false)
     }
     void cargar()
@@ -206,7 +239,7 @@ export function useRobotTavil(usuario: string | null) {
     }
   }, [])
 
-  return { lineas, cargando, error, ejecutar }
+  return { lineas, cargando, error, apagado, ejecutar }
 }
 
 /** Precarga del Robot Tavil de las corridas del turno (vacía sin turno). */
@@ -233,3 +266,60 @@ export function usePrecargaRobot(usuario: string | null | undefined, turnoId: st
 }
 
 const SIN_PRECARGAS: PrecargaRobot[] = []
+
+/** Nivel estimado de un tanque en el Panel: el oficial y lo precargado que falta confirmar. */
+export interface EstimacionTanque {
+  numeroTanque: number
+  volumenOficialL: number
+  litrosPendientes: number
+}
+
+interface FilaEstimacion {
+  numero_tanque: number
+  volumen_oficial_l: number | string | null
+  litros_pendientes: number | string | null
+}
+
+export function mapearEstimaciones(data: unknown): EstimacionTanque[] {
+  return ((data as FilaEstimacion[] | null) ?? []).map((f) => ({
+    numeroTanque: Number(f.numero_tanque),
+    volumenOficialL: Number(f.volumen_oficial_l) || 0,
+    litrosPendientes: Number(f.litros_pendientes) || 0,
+  }))
+}
+
+/** El Panel relee la estimación cada 30 s; el resto del Panel sigue con su refresco. */
+const REFRESCO_ESTIMACION_MS = 30_000
+
+/**
+ * Estimación de los tanques de un turno (vacía sin turno, con el switch
+ * apagado o con el turno cerrado). Trae también el volumen oficial del mismo
+ * momento, para que estimado y oficial no se desfasen.
+ */
+export function useEstimacionTanques(usuario: string | null | undefined, turnoId: string | null): EstimacionTanque[] {
+  const [leida, setLeida] = useState<{ turnoId: string; estimaciones: EstimacionTanque[] } | null>(null)
+
+  useEffect(() => {
+    if (!usuario || !turnoId) return
+    let vivo = true
+    async function cargar() {
+      const { data, error } = await supabase.rpc("estimacion_tanques_robot_tavil", { p_usuario: usuario, p_turno_id: turnoId })
+      if (vivo && !error) setLeida({ turnoId: turnoId!, estimaciones: mapearEstimaciones(data) })
+    }
+    void cargar()
+    const id = setInterval(() => void cargar(), REFRESCO_ESTIMACION_MS)
+    return () => {
+      vivo = false
+      clearInterval(id)
+    }
+  }, [usuario, turnoId])
+
+  return usuario && leida?.turnoId === turnoId ? leida.estimaciones : SIN_ESTIMACIONES
+}
+
+const SIN_ESTIMACIONES: EstimacionTanque[] = []
+
+/** Lo que muestra un tanque: el estimado (oficial − pendiente, nunca negativo) y si la precarga supera lo que queda. */
+export function nivelEstimado(e: EstimacionTanque): { estimadoL: number; excede: boolean } {
+  return { estimadoL: Math.max(0, e.volumenOficialL - e.litrosPendientes), excede: e.litrosPendientes > e.volumenOficialL }
+}

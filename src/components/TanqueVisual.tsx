@@ -61,6 +61,7 @@ export function TanqueVisual({
   numeroTanque,
   condicion,
   volumenL,
+  volumenOficialL = null,
   volumenInicialL = null,
   color,
   capacidad = 20000,
@@ -83,12 +84,20 @@ export function TanqueVisual({
   paraVacio?: boolean
   /** Sabor del lote, para la fruta de la lata de Vacío. */
   saborNombre?: string | null
+  /**
+   * Volumen oficial cuando `volumenL` es el estimado del Robot Tavil (Panel).
+   * Si es mayor, lo que falta confirmar se ve como un sombreado translúcido
+   * del mismo color encima del líquido, y el % lleva «≈».
+   */
+  volumenOficialL?: number | null
 }) {
   const tieneLiquido = condicion === "LISTO" || condicion === "STANDBY"
   const deVacio = paraVacio && tieneLiquido
   const pct = tieneLiquido ? Math.min(100, ((volumenL ?? 0) / capacidad) * 100) : 0
   const pctTexto =
     tieneLiquido && volumenInicialL && volumenInicialL > 0 ? Math.min(100, ((volumenL ?? 0) / volumenInicialL) * 100) : pct
+  const pctOficial = tieneLiquido && volumenOficialL != null ? Math.min(100, (volumenOficialL / capacidad) * 100) : pct
+  const estimado = pctOficial > pct
 
   // ---- Llenado en curso (sensor) ----
   const llenando = llenado != null
@@ -141,6 +150,15 @@ export function TanqueVisual({
             }}
           />
         </>
+      )}
+
+      {/* Robot Tavil: lo que ya salió y falta confirmar, del nivel estimado al oficial. */}
+      {estimado && (
+        <div
+          data-testid="pendiente-robot"
+          className="absolute inset-x-0 transition-[bottom,height] duration-1000 ease-out"
+          style={{ bottom: `${pct}%`, height: `${pctOficial - pct}%`, backgroundColor: `color-mix(in oklab, ${color} 28%, transparent)` }}
+        />
       )}
 
       {tieneLiquido && (
@@ -283,6 +301,7 @@ export function TanqueVisual({
 
       {tieneLiquido && !llenando && (
         <span className="num absolute inset-x-0 bottom-1.5 text-center text-sm font-bold text-foreground drop-shadow">
+          {estimado ? "≈" : ""}
           {pctTexto.toFixed(0)}%
         </span>
       )}

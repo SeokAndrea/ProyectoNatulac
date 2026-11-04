@@ -84,6 +84,31 @@ Administrador y el Probador lo tienen por tener todos.
 - El servidor valida el permiso en cada función del operador; no basta con ocultar la tarjeta.
 - El supervisor confirma con los permisos de Producto Terminado que ya tiene.
 
+## Nivel estimado de los tanques en el Panel
+
+El descuento real del tanque lo sigue haciendo el supervisor al confirmar el PT. Mientras tanto, el
+Panel muestra un **estimado**: el volumen oficial menos los litros de la precarga sin confirmar.
+El oficial, la merma, el rendimiento, el cierre de lotes y las transferencias no cambian.
+
+- **Pendiente de una corrida**: (paletas × cajas por paleta + Resto) × litros por caja, menos el PT
+  ya registrado, nunca negativo. Vale 0 cuando la corrida cerró y tiene su PT. Las paletas sin
+  corrida (línea entregada) cuentan para el lote de la corrida que seguía el operador.
+- **En el tanque** (la tarjeta Tanques que ya existe): el líquido baja al estimado y lo pendiente
+  se ve como un sombreado translúcido del mismo color del jugo, hasta el nivel oficial. El % lleva
+  «≈». En el pie, el número grande es el estimado con «≈» y debajo «Oficial N L». Si la precarga
+  supera lo que queda: 0 y «Supera lo que queda. Revisar».
+- Solo en vivo y con el turno abierto. Se relee cada 30 s y trae el oficial del mismo momento,
+  para que no se desfase con el refresco de 15 min del Panel.
+- Función: `estimacion_tanques_robot_tavil`.
+
+## Switch
+
+Un interruptor por área, «Robot Tavil (Aséptico)», en Edición de Datos → Ajustes de planta, como
+los de Calidad y el catálogo de paradas. Solo la dueña lo cambia. Apagado (valor inicial; Pruebas
+arranca encendido): el operador ve «El Robot Tavil no está habilitado», el servidor rechaza sus
+acciones y el supervisor no ve la precarga en Producto Terminado. La estimación del nivel de los
+tanques en el Panel también depende de este switch.
+
 ## Fuera de alcance por ahora
 
 - Conexión automática con el robot o el PLC.

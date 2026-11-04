@@ -23,6 +23,7 @@ import { ResumenPlanta } from "@/components/panel/resumen-planta/ResumenPlanta"
 import { SeccionLineas } from "@/components/panel/SeccionLineas"
 import { SeccionMermas } from "@/components/panel/SeccionMermas"
 import { SeccionTanques } from "@/components/panel/SeccionTanques"
+import { useEstimacionTanques } from "@/lib/robotTavil"
 import { usePanelTurno } from "@/components/panel/usePanelTurno"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
@@ -168,6 +169,8 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
     desdeTurno,
     ahora,
   })
+  // Robot Tavil: nivel estimado de los tanques, solo en vivo (el servidor ya filtra el switch y el turno abierto).
+  const estimaciones = useEstimacionTanques(session?.username, enVivo ? (turno?.id ?? null) : null)
   const ultimaAccion = turno ? ultimaAccionDeTurno(prod.corridas, prep.tanques, prod.contadores, pt.registros, prep.preparaciones) : null
 
   // ------------------------------------------------------------ pantalla
@@ -231,6 +234,7 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
                   servIndustriales={servIndustriales}
                   ahora={ahora}
                   conLinks={esSupervisor}
+                  estimaciones={estimaciones}
                 />
                 <ParadaMasLarga paradas={paradasTurno} completas={paradasCompletas} lineas={lineas} ahora={ahora} />
               </div>

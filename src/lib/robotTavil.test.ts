@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { pistaPrecarga } from "@/components/producto-terminado/calculosPT"
-import { mapearPantallaRobot, mapearPrecargas, mensajeErrorRobot } from "@/lib/robotTavil"
+import { mapearEstimaciones, mapearPantallaRobot, mapearPrecargas, mensajeErrorRobot, nivelEstimado } from "@/lib/robotTavil"
 
 const corrida = (over: Record<string, unknown> = {}) => ({
   id: "c1",
@@ -72,5 +72,19 @@ describe("pistaPrecarga", () => {
     expect(pistaPrecarga("", 8)).toEqual({ texto: "Robot: 8", corrige: false })
     expect(pistaPrecarga("8", 8)).toEqual({ texto: "Robot: 8", corrige: false })
     expect(pistaPrecarga("7", 8)).toEqual({ texto: "Corriges la precarga: Robot 8", corrige: true })
+  })
+})
+
+describe("estimación de los tanques", () => {
+  it("mapea la fila de la base", () => {
+    expect(mapearEstimaciones([{ numero_tanque: 2, volumen_oficial_l: "12400.00", litros_pendientes: "960" }])).toEqual([
+      { numeroTanque: 2, volumenOficialL: 12400, litrosPendientes: 960 },
+    ])
+    expect(mapearEstimaciones(null)).toEqual([])
+  })
+
+  it("el estimado nunca es negativo y avisa si la precarga supera lo que queda", () => {
+    expect(nivelEstimado({ numeroTanque: 1, volumenOficialL: 15000, litrosPendientes: 4944 })).toEqual({ estimadoL: 10056, excede: false })
+    expect(nivelEstimado({ numeroTanque: 1, volumenOficialL: 300, litrosPendientes: 480 })).toEqual({ estimadoL: 0, excede: true })
   })
 })

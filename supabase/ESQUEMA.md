@@ -490,6 +490,8 @@ Ensayo: `scripts/ensayo-sif-frecuencia.sql` (begin ... rollback).
 
 El operador del Robot Tavil (permiso `ROBOT_TAVIL_CARGAR`, tema TURNOS, sin puesto por defecto) cuenta las paletas por línea y escribe el Resto de la corrida. Es una precarga: no toca `producto_terminado`; el supervisor la confirma o la corrige con `registrar_producto_terminado`. Área del operador: Pruebas si su sesión es de Pruebas; si no, Aséptico. Una corrida está abierta para el robot si está activa o esperando su PT y no se entregó. Las tres tablas tienen RLS sin políticas.
 
+**Switch por área** (como Calidad y el catálogo modular): `areas.robot_tavil` (boolean, apagado por defecto; Pruebas arranca encendido) y `areas.robot_tavil_desde`. Lo lee `robot_tavil_area_activo(p_area_codigo)` y solo la dueña lo cambia con `guardar_robot_tavil` (Edición de Datos → Ajustes de planta). Apagado: las funciones del operador fallan con «El Robot Tavil todavía no está habilitado», `robot_tavil_estado` devuelve `habilitado: false` y `listar_precarga_robot_tavil` no devuelve filas.
+
 ### `robot_tavil_paletas`
 Una fila por paleta: `linea_id`, `turno_linea_id` (null = salió con la línea entregada y el turno siguiente sin abrir), `creada_en`, `creada_por`. El «−» la anula (`anulada_en`, `anulada_por`), no la borra.
 
@@ -507,6 +509,7 @@ Qué corrida cuenta el operador en cada línea (`linea_id` PK, `turno_linea_id`)
 | `robot_tavil_guardar_resto(p_usuario, p_linea_codigo, p_cajas)` | Resto de la corrida en curso |
 | `robot_tavil_iniciar(p_usuario, p_linea_codigo)` | «Iniciar con el lote …»: pasa al lote nuevo de la línea (con las paletas sin corrida) |
 | `listar_precarga_robot_tavil(p_usuario, p_turno_id)` | Para la tarjeta de PT: por corrida del turno, paletas, última paleta y quién, Resto y quién. Solo lectura |
+| `estimacion_tanques_robot_tavil(p_usuario, p_turno_id)` | Para el Panel: por tanque con líquido del turno abierto, `volumen_oficial_l` (`volumen_vivo_tanque`) y `litros_pendientes` (precarga menos PT registrado de las corridas del lote; 0 si la corrida cerró con su PT; suma las paletas sin corrida). No toca el volumen. Vacía con el switch apagado |
 | `robot_tavil_preparar`, `robot_tavil_sincronizar`, `robot_tavil_estado_linea`, `robot_tavil_pantalla`, `robot_tavil_corrida_json`, `robot_tavil_corrida_abierta`, `robot_tavil_corrida_vigente`, `robot_tavil_es_continuacion`, `robot_tavil_area`, `robot_tavil_linea` | Internas |
 
 Ensayo: `scripts/ensayo-robot-tavil.sql` (begin ... rollback).

@@ -16,7 +16,7 @@ import { guardarResto, iniciarLote, restarPaleta, sumarPaleta, useRobotTavil } f
 export default function RobotTavil() {
   const { session } = useAuth()
   const usuario = session?.username ?? null
-  const { lineas, cargando, error, ejecutar } = useRobotTavil(usuario)
+  const { lineas, cargando, error, apagado, ejecutar } = useRobotTavil(usuario)
   const { presentaciones } = useCatalogosLive()
 
   const acciones: AccionesRobot = {
@@ -33,6 +33,8 @@ export default function RobotTavil() {
           <div className="flex justify-center py-16 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
           </div>
+        ) : apagado ? (
+          <EmptyState icon={Boxes} title="El Robot Tavil no está habilitado" description="La administración lo activa cuando esté listo para usar." />
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
