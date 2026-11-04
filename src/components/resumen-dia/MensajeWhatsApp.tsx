@@ -21,6 +21,7 @@ export function MensajeWhatsApp({
   turnos,
   etiquetaTurno,
   volumenes,
+  cajasXPaleta,
   mensaje,
   validar,
   onCambio,
@@ -30,6 +31,8 @@ export function MensajeWhatsApp({
   /** "T1 · Javier Bello" */
   etiquetaTurno: (turnoId: string) => string
   volumenes: number[]
+  /** Cajas por paleta de cada presentación (ml → cajas), para corregir en paletas. */
+  cajasXPaleta?: Record<number, number>
   mensaje: string
   validar: (turnoId: string, saborNombre: string, volumenMl: number, cajas: number | null, nota: string) => Promise<Resultado>
   onCambio: () => void
@@ -86,6 +89,7 @@ export function MensajeWhatsApp({
                         item={t}
                         etiqueta={etiquetaTurno(t.turnoId)}
                         volumenes={volumenes}
+                        cajasXPaleta={cajasXPaleta}
                         guardar={(cajas, nota) => validar(t.turnoId, t.saborNombre, t.volumenMl, cajas, nota)}
                         moverA={async (volumenMl, cajas, nota) => {
                           // Se cargó en una presentación y era otra: en ESTE turno la fila queda en 0 y el destino suma las cajas.

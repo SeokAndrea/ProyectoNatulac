@@ -17,6 +17,7 @@ export function ItemValidar({
   item: i,
   etiqueta,
   volumenes,
+  cajasXPaleta,
   guardar,
   moverA,
   onCambio,
@@ -26,6 +27,8 @@ export function ItemValidar({
   etiqueta?: string
   /** Presentaciones que se pueden elegir (ml). */
   volumenes: number[]
+  /** Cajas que trae una paleta por presentación (ml → cajas). Sin dato, solo se captura en cajas. */
+  cajasXPaleta?: Record<number, number>
   guardar: (cajas: number | null, nota: string) => Promise<Resultado>
   /** Pasa `cajas` a la presentación `volumenMl` (esta fila queda en 0). */
   moverA: (volumenMl: number, cajas: number, nota: string) => Promise<Resultado>
@@ -37,9 +40,26 @@ export function ItemValidar({
   const [nota, setNota] = useState(i.nota ?? "")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const nCajas = Number(cajas)
-  const valido = cajas !== "" && Number.isInteger(nCajas) && nCajas >= 0
+  const [enPaletas, setEnPaletas] = useState(true)
+  const [paletas, setPaletas] = useState("")
+  const [sueltas, setSueltas] = useState("")
+  const cxp = cajasXPaleta?.[volumen] ?? 0
+  // Con paletas, el total sale de paletas × cajas por paleta + sueltas (la presentación elegida manda).
+  const porPaletas = enPaletas && cxp > 0
+  const nPaletas = Number(paletas)
+  const nSueltas = Number(sueltas)
+  const validoPaletas =
+    paletas !== "" && sueltas !== "" && Number.isInteger(nPaletas) && Number.isInteger(nSueltas) && nPaletas >= 0 && nSueltas >= 0
+  const nCajas = porPaletas ? nPaletas * cxp + nSueltas : Number(cajas)
+  const valido = porPaletas ? validoPaletas : cajas !== "" && Number.isInteger(nCajas) && nCajas >= 0
   const cambiaPresentacion = volumen !== i.volumenMl
+
+  /** Parte un total de cajas en paletas completas + sueltas para la presentación dada. */
+  function repartir(total: number, porPaleta: number) {
+    if (porPaleta <= 0) return
+    setPaletas(String(Math.floor(total / porPaleta)))
+    setSueltas(String(total % porPaleta))
+  }
 
   async function ejecutar(accion: () => Promise<Resultado>) {
     setEnviando(true)
@@ -91,15 +111,40 @@ export function ItemValidar({
       {editando ? (
         <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-2">
           <div className="flex flex-wrap gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Total de cajas</span>
-              <Input type="number" inputMode="numeric" min={0} value={cajas} onChange={(e) => setCajas(e.target.value)} className="h-8 w-32" />
-            </label>
+            {porPaletas ? (
+              <>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Paletas</span>
+                  <Input type="number" inputMode="numeric" min={0} value={paletas} onChange={(e) => setPaletas(e.target.value)} className="h-8 w-28" />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Cajas sueltas</span>
+                  <Input type="number" inputMode="numeric" min={0} value={sueltas} onChange={(e) => setSueltas(e.target.value)} className="h-8 w-28" />
+                </label>
+              </>
+            ) : (
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Total de cajas</span>
+                <Input type="number" inputMode="numeric" min={0} value={cajas} onChange={(e) => setCajas(e.target.value)} className="h-8 w-32" />
+              </label>
+            )}
             <label className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Presentación</span>
               <select
                 value={volumen}
-                onChange={(e) => setVolumen(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  // Si ya hay paletas capturadas, se conserva el total y se reparte con las cajas por paleta de la nueva presentación.
+                  if (porPaletas && validoPaletas) {
+                    const nuevo = cajasXPaleta?.[v] ?? 0
+                    if (nuevo > 0) repartir(nCajas, nuevo)
+                    else {
+                      setCajas(String(nCajas))
+                      setEnPaletas(false)
+                    }
+                  }
+                  setVolumen(v)
+                }}
                 className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
               >
                 {opciones.map((v) => (
@@ -110,6 +155,32 @@ export function ItemValidar({
               </select>
             </label>
           </div>
+          {porPaletas && (
+            <p className="text-xs text-muted-foreground">
+              {nombrePresentacion(volumen)}: {cxp} cajas por paleta. Total: <span className="num font-semibold">{valido ? miles(nCajas) : "—"}</span> cajas.
+            </p>
+          )}
+          {cxp > 0 && (
+            <button
+              type="button"
+              className="self-start text-xs text-primary underline"
+              onClick={() => {
+                if (porPaletas) {
+                  if (valido) setCajas(String(nCajas))
+                  setEnPaletas(false)
+                } else {
+                  if (cajas !== "" && Number.isInteger(nCajas) && nCajas >= 0) repartir(nCajas, cxp)
+                  else {
+                    setPaletas("")
+                    setSueltas("")
+                  }
+                  setEnPaletas(true)
+                }
+              }}
+            >
+              {porPaletas ? "Poner el total en cajas" : "Poner en paletas"}
+            </button>
+          )}
           {cambiaPresentacion && (
             <p className="text-xs text-muted-foreground">
               Las {valido ? miles(nCajas) : "—"} cajas pasan a {i.saborNombre} {volumen} ml y esta fila queda en 0.
@@ -144,6 +215,9 @@ export function ItemValidar({
             disabled={enviando}
             onClick={() => {
               setCajas(String(i.cajasOficiales))
+              setEnPaletas(true)
+              const porPaleta = cajasXPaleta?.[i.volumenMl] ?? 0
+              if (porPaleta > 0) repartir(i.cajasOficiales, porPaleta)
               setVolumen(i.volumenMl)
               setNota(i.nota ?? "")
               setEditando(true)

@@ -111,6 +111,7 @@ export default function ResumenDia() {
     return t ? `${t.etiqueta} · ${t.turno.supervisorNombre}` : "Turno"
   }
   const volumenes = presentaciones.filter((p) => p.activo).map((p) => p.volumenMl)
+  const cajasXPaleta = Object.fromEntries(presentaciones.map((p) => [p.volumenMl, p.cajasXPaleta]))
   const validar = (turnoId: string, saborNombre: string, volumenMl: number, cajas: number | null, nota: string) =>
     validarTurno(session?.username ?? "", turnoId, saborNombre, volumenMl, cajas, nota)
 
@@ -179,6 +180,7 @@ export default function ResumenDia() {
                 turnos={itemsTurno}
                 etiquetaTurno={etiquetaTurno}
                 volumenes={volumenes}
+                cajasXPaleta={cajasXPaleta}
                 mensaje={mensajeResumenDia(fecha, items)}
                 validar={validar}
                 onCambio={() => setVersion((v) => v + 1)}
