@@ -2,13 +2,13 @@
  * «Cubrir» lo sin reportar de una línea en el Modo Paradas (dueña, 2026-10-25).
  *
  * Lo que falta cubrir sale de la cuenta del PT (minutosSinReportar.ts): se
- * sabe CUÁNTO falta, no CUÁNDO. Las paradas, en cambio, se cuentan por su
- * posición en el reloj y sin solape (minutosPorClaseSinSolape): si la que
- * cubre cae encima de otra, ese tramo no suma y lo sin cubrir no baja. Por
- * eso la parada que cubre va a tramos del turno donde no hay ninguna otra
- * parada, empezando por lo más reciente; si no hay un tramo tan largo, se
- * reparte en varios. La hora queda aproximada (nadie la sabía); el tiempo,
- * completo.
+ * sabe CUÁNTO falta, no CUÁNDO. Desde 2026-11-04 las paradas suman todos sus
+ * minutos aunque se pisen en el reloj (minutosPorClase), así que ya no es
+ * obligatorio caer en un tramo libre para que el tiempo cuente. Se sigue
+ * ubicando la parada que cubre en tramos del turno donde no hay ninguna otra
+ * parada, empezando por lo más reciente, para no apilarla sobre otra en el
+ * reloj; si no hay un tramo tan largo, se reparte en varios. La hora queda
+ * aproximada (nadie la sabía); el tiempo, completo.
  */
 
 export interface TramoHora {

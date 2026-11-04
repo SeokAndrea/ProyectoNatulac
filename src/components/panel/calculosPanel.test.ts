@@ -135,10 +135,10 @@ describe("TP: tiempo de producción del turno", () => {
     ({ id: inicio, lineaCodigo: "LINEA_1", clase: "NO_PROGRAMADA", inicio, fin, pendiente: false, ...over }) as Parada
   const ms = (s: string) => new Date(s).getTime()
 
-  it("minutosParadosEntre junta las que se solapan y recorta al lapso", () => {
+  it("minutosParadosEntre suma cada parada completa (aunque se solapen) y recorta al lapso", () => {
     const p = [par("2026-10-28T08:00:00", "2026-10-28T09:00:00"), par("2026-10-28T08:30:00", "2026-10-28T09:30:00"), par("2026-10-28T06:00:00", "2026-10-28T07:30:00")]
-    // 07:00–07:30 (recortada) + 08:00–09:30 (dos que se solapan) = 30 + 90
-    expect(minutosParadosEntre(p, ms("2026-10-28T07:00:00"), ms("2026-10-28T12:00:00"))).toBe(120)
+    // 07:00–07:30 (recortada) + 08:00–09:00 + 08:30–09:30 (se solapan, las dos cuentan) = 30 + 60 + 60
+    expect(minutosParadosEntre(p, ms("2026-10-28T07:00:00"), ms("2026-10-28T12:00:00"))).toBe(150)
     expect(minutosParadosEntre([par("2026-10-28T10:00:00", "2026-10-28T10:00:00", { pendiente: true })], ms("2026-10-28T07:00:00"), ms("2026-10-28T12:00:00"))).toBe(0)
   })
 

@@ -1,4 +1,4 @@
-import { esParadaLNPE, minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
+import { esParadaLNPE, minutosPorClase, type Parada } from "@/lib/paradas"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { Corrida } from "@/lib/produccion/tipos"
 import { tramoT2 } from "@/lib/turno12x12"
@@ -66,7 +66,7 @@ export function ventanaTurnoMin(turnoMin: number, estado: "ABIERTO" | "CERRADO",
 
 /**
  * Minutos que nadie explicó en una línea (dueña, 2026-10-15): Ventana − paradas cargadas (todas
- * las clases, sin solape, desde el inicio del turno) − lo producido según el PT. Una corrida sin PT
+ * las clases, cada una con todos sus minutos aunque se pisen, desde el inicio del turno) − lo producido según el PT. Una corrida sin PT
  * aporta 0 de producido: su tiempo cuenta como sin reportar (dueña, 2026-10-22; antes daba null y
  * la eficiencia salía inflada). La misma cuenta en la eficiencia y en minutosSinReportar.ts, así el
  * castigo y lo que se muestra coinciden.
@@ -115,7 +115,7 @@ export interface ResultadoEficiencia {
   avancePct: number | null
   /** Lo reportado ÷ velocidad ELEGIDA, en minutos. */
   produccionMin: number
-  /** No programadas registradas (sin contar dos veces lo que se pisa). */
+  /** No programadas registradas (cada parada suma todos sus minutos, se pise o no en el reloj). */
   noProgramadaMin: number
   /** Tiempo que nadie explicó; castiga como no programada. null = no se midió. */
   sinReportarMin: number | null
@@ -269,14 +269,14 @@ export function eficienciaDelTurno(t: EntradaTurno): EficienciaTurno {
     const minutosDesdeActivacion = Math.max(0, Math.round((ahora.getTime() - primeraActivacionMs) / 60000))
     const transcurridoLineaMin = Math.min(transcurridoMin, minutosDesdeActivacion)
 
-    // Sin solape: si supervisor y Mantenimiento registran la misma falla, cuenta una vez.
+    // Cada parada suma todos sus minutos aunque se pise en el reloj (dueña, 2026-11-04): una cargada de más se ve y se discute, no se esconde.
     // Línea No Programada (LNPE) cuenta como el Ocioso: baja la meta, no castiga (dueña, 2026-10-14).
     const paradasLinea = t.paradas
       .filter((p) => numeroLinea(p.lineaCodigo) === numeroLinea(codigo))
       .map((p) => (esParadaLNPE(p) ? { ...p, clase: "OCIOSO" as const } : p))
-    const minutos = minutosPorClaseSinSolape(paradasLinea, ahora, primeraActivacionMs)
+    const minutos = minutosPorClase(paradasLinea, ahora, primeraActivacionMs)
     // Lo sin reportar se mide desde el inicio del turno, igual que en minutosSinReportar.ts.
-    const desdeInicio = minutosPorClaseSinSolape(paradasLinea, ahora)
+    const desdeInicio = minutosPorClase(paradasLinea, ahora)
 
     // Lo real = lo reportado en PT de cada corrida; su tiempo de producción, a la velocidad elegida de esa corrida.
     const envasesDe = new Map<string, number>()

@@ -38,14 +38,41 @@ describe("minutosSinReportar", () => {
     ])
   })
 
-  it("las paradas que se pisan (supervisor y Mantenimiento) cuentan una vez", () => {
+  it("las paradas que se pisan suman todas: la duplicada se ve, no se esconde", () => {
     const [f] = minutosSinReportar({
       ...base,
       corridas: [corrida("c1", "LINEA_1", "1000", 6000)],
       productoTerminado: [pt("c1", "1000", 6000)],
       paradas: [parada("LINEA_1", "NO_PROGRAMADA", "09:00", "10:00"), parada("LINEA_1", "NO_PROGRAMADA", "09:30", "10:30")],
     })
-    expect(f.paradasMin).toBe(90)
+    expect(f.paradasMin).toBe(120)
+  })
+
+  it("caso real (línea 1, Turno 1): paradas cargadas durante una falla eléctrica de 4 h no se pierden", () => {
+    // 1190 cajas de 12 envases a 6.000 env/h = 14.280 envases = 142,8 min → 143. Las 10 paradas de la lista suman 342 min.
+    const p = (clase: Parada["clase"], a: string, b: string, tipoCodigo?: string) =>
+      ({ lineaCodigo: "LINEA_1", clase, inicio: `2026-10-15T${a}:00`, fin: `2026-10-15T${b}:00`, tipoCodigo }) as unknown as Parada
+    const [f] = minutosSinReportar({
+      ...base,
+      corridas: [corrida("c1", "LINEA_1", "1000", 6000)],
+      productoTerminado: [pt("c1", "1000", 14280)],
+      paradas: [
+        p("OCIOSO", "10:08", "14:08"), // falla eléctrica (240)
+        p("PROGRAMADA", "10:20", "10:22"), // cambio de lote
+        p("NO_PROGRAMADA", "10:54", "11:39"), // ajuste de guía
+        p("PROGRAMADA", "11:39", "11:41"), // cambio de sabor
+        p("NO_PROGRAMADA", "11:41", "11:55"),
+        p("NO_PROGRAMADA", "11:55", "12:06"),
+        p("NO_PROGRAMADA", "12:06", "12:09"),
+        p("PROGRAMADA", "12:09", "12:10"),
+        p("NO_PROGRAMADA", "12:10", "12:12"),
+        p("NO_PROGRAMADA", "14:15", "14:37"), // falla de soldadura
+      ],
+    })
+    expect(f.paradasMin).toBe(342)
+    expect(f.producidoMin).toBe(143)
+    // 480 − 342 − 143 = −5: nunca negativo. Antes (con solape) daba 480 − 262 − 143 = 75.
+    expect(f.sinReportarMin).toBe(0)
   })
 
   it("una corrida sin PT aporta 0 de producido: su tiempo sale como sin reportar", () => {

@@ -359,36 +359,27 @@ export function duracionMin(p: Pick<Parada, "inicio" | "fin">, ahora: Date = new
 }
 
 /**
- * Minutos por clase de las paradas de UNA línea, contando una sola vez el
- * tiempo que se solapa: si el supervisor y Mantenimiento registran la
- * misma falla, no se suma dos veces. El tramo compartido se lo queda la
- * parada que empezó primero. `desdeMs`: lo anterior a ese instante no
- * cuenta (ver eficienciaDelTurno, que mide desde que arrancó la línea).
- *
- * Ojo: la parada del supervisor se guarda con fin = hora en que la
- * registró e inicio = fin − minutos. Si la registra mucho después, su
- * tramo no coincide en el reloj con el de Mantenimiento y no se detecta.
+ * Minutos por clase de las paradas de UNA línea: cada parada suma TODOS sus
+ * minutos. Ya NO se descuenta lo que se pisa en el reloj (dueña, 2026-11-04):
+ * la parada cargada por duración se guarda con fin = hora en que se registró
+ * e inicio = fin − minutos, así que si se pone al día durante una falla
+ * larga su tramo cae encima de la falla y el solape hacía desaparecer minutos
+ * reales. Si dos paradas son la misma falla cargada dos veces (supervisor y
+ * Mantenimiento) se ve duplicada y se discute, en vez de esconderse; si en
+ * total pasan del tiempo del turno avisa `paradasExcedenTiempo` (eficiencia).
+ * `desdeMs`: lo anterior a ese instante no cuenta (ver eficienciaDelTurno,
+ * que mide desde que arrancó la línea). Una parada abierta cuenta hasta `ahora`.
  */
-export function minutosPorClaseSinSolape(
+export function minutosPorClase(
   paradas: Pick<Parada, "inicio" | "fin" | "clase">[],
   ahora: Date = new Date(),
   desdeMs = -Infinity,
 ): Record<ClaseParada, number> {
-  const tramos = paradas
-    .map((p) => ({
-      ini: Math.max(new Date(p.inicio).getTime(), desdeMs),
-      fin: Math.min(p.fin ? new Date(p.fin).getTime() : ahora.getTime(), ahora.getTime()),
-      clase: p.clase,
-    }))
-    .filter((t) => t.fin > t.ini)
-    .sort((a, b) => a.ini - b.ini || b.fin - a.fin)
-
   const ms: Record<ClaseParada, number> = { PROGRAMADA: 0, NO_PROGRAMADA: 0, OCIOSO: 0 }
-  let cubiertoHasta = -Infinity
-  for (const t of tramos) {
-    const desde = Math.max(t.ini, cubiertoHasta)
-    if (t.fin > desde) ms[t.clase] += t.fin - desde
-    cubiertoHasta = Math.max(cubiertoHasta, t.fin)
+  for (const p of paradas) {
+    const ini = Math.max(new Date(p.inicio).getTime(), desdeMs)
+    const fin = Math.min(p.fin ? new Date(p.fin).getTime() : ahora.getTime(), ahora.getTime())
+    if (fin > ini) ms[p.clase] += fin - ini
   }
   return {
     PROGRAMADA: Math.round(ms.PROGRAMADA / 60000),
@@ -456,8 +447,8 @@ export function minutosPorLinea(paradas: Parada[], ahora?: Date): ResumenLineaPa
   return codigos
     .map((linea) => {
       const propias = paradas.filter((p) => p.lineaCodigo === linea)
-      // Sin solape: la misma falla cargada por supervisor y Mantenimiento cuenta una vez.
-      const porClase = minutosPorClaseSinSolape(propias, ahora)
+      // Cada parada suma todos sus minutos, se pise o no en el reloj (ver minutosPorClase).
+      const porClase = minutosPorClase(propias, ahora)
       return { linea, veces: propias.length, minutos: porClase.PROGRAMADA + porClase.NO_PROGRAMADA + porClase.OCIOSO, porClase }
     })
     .sort((a, b) => a.linea.localeCompare(b.linea))

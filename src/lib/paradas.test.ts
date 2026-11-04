@@ -12,7 +12,7 @@ import {
   mapearFilaParada,
   type FilaParada,
   fmtDuracion,
-  minutosPorClaseSinSolape,
+  minutosPorClase,
   minutosPorLinea,
   tipoACompletar,
   paradaAbierta,
@@ -130,33 +130,42 @@ describe("minutosPorLinea", () => {
   })
 })
 
-describe("minutosPorClaseSinSolape", () => {
+describe("minutosPorClase", () => {
   const np = (inicio: string, fin: string | null, over: Partial<Parada> = {}) =>
     P({ clase: "NO_PROGRAMADA", inicio: `2026-09-09T${inicio}:00`, fin: fin ? `2026-09-09T${fin}:00` : null, ...over })
 
-  it("la misma falla cargada dos veces (supervisor y Mantenimiento) cuenta una vez", () => {
-    const r = minutosPorClaseSinSolape([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO", responsable: "MANTENIMIENTO" })])
-    expect(r.NO_PROGRAMADA).toBe(90)
+  it("la misma falla cargada dos veces (supervisor y Mantenimiento) se ve duplicada: suma las dos", () => {
+    const r = minutosPorClase([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO", responsable: "MANTENIMIENTO" })])
+    expect(r.NO_PROGRAMADA).toBe(120)
   })
-  it("una parada dentro de otra no suma nada", () => {
-    expect(minutosPorClaseSinSolape([np("10:00", "12:00"), np("10:30", "11:00")]).NO_PROGRAMADA).toBe(120)
+  it("una parada dentro de otra suma sus minutos completos", () => {
+    expect(minutosPorClase([np("10:00", "12:00"), np("10:30", "11:00")]).NO_PROGRAMADA).toBe(150)
   })
   it("sin solape, suma todo", () => {
-    expect(minutosPorClaseSinSolape([np("10:00", "10:30"), np("11:00", "11:15")]).NO_PROGRAMADA).toBe(45)
+    expect(minutosPorClase([np("10:00", "10:30"), np("11:00", "11:15")]).NO_PROGRAMADA).toBe(45)
   })
-  it("el tramo compartido se lo queda la que empezó primero", () => {
-    const r = minutosPorClaseSinSolape([np("10:00", "11:00", { clase: "PROGRAMADA" }), np("10:30", "11:30")])
-    expect(r).toEqual({ PROGRAMADA: 60, NO_PROGRAMADA: 30, OCIOSO: 0 })
+  it("cada clase se queda con sus propios minutos aunque se pisen", () => {
+    const r = minutosPorClase([np("10:00", "11:00", { clase: "PROGRAMADA" }), np("10:30", "11:30")])
+    expect(r).toEqual({ PROGRAMADA: 60, NO_PROGRAMADA: 60, OCIOSO: 0 })
+  })
+  it("las cargadas por duración dentro de una falla larga no desaparecen", () => {
+    // Falla eléctrica 10:08–14:08 (ocioso) y, cargadas durante ella, 45 + 14 min de ajustes: todo cuenta.
+    const falla = np("10:08", "14:08", { clase: "OCIOSO" })
+    const r = minutosPorClase([falla, np("10:54", "11:39"), np("11:41", "11:55")])
+    expect(r).toEqual({ PROGRAMADA: 0, NO_PROGRAMADA: 59, OCIOSO: 240 })
+  })
+  it("una parada pendiente (+1 sin minutos) no suma", () => {
+    expect(minutosPorClase([np("10:00", "10:00", { pendiente: true })]).NO_PROGRAMADA).toBe(0)
   })
   it("abierta cuenta hasta ahora; desdeMs recorta el comienzo", () => {
     const ahora = new Date("2026-09-09T12:00:00")
-    expect(minutosPorClaseSinSolape([np("11:00", null)], ahora).NO_PROGRAMADA).toBe(60)
+    expect(minutosPorClase([np("11:00", null)], ahora).NO_PROGRAMADA).toBe(60)
     const desde = new Date("2026-09-09T11:30:00").getTime()
-    expect(minutosPorClaseSinSolape([np("11:00", null)], ahora, desde).NO_PROGRAMADA).toBe(30)
+    expect(minutosPorClase([np("11:00", null)], ahora, desde).NO_PROGRAMADA).toBe(30)
   })
-  it("minutosPorLinea tampoco cuenta dos veces el solape", () => {
+  it("minutosPorLinea suma las dos aunque se pisen", () => {
     const r = minutosPorLinea([np("10:00", "11:00"), np("10:30", "11:30", { origen: "MANTENIMIENTO", responsable: "MANTENIMIENTO" })])
-    expect(r[0]).toMatchObject({ linea: "LINEA_1", veces: 2, minutos: 90 })
+    expect(r[0]).toMatchObject({ linea: "LINEA_1", veces: 2, minutos: 120 })
   })
 })
 

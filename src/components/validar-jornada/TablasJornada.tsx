@@ -252,7 +252,6 @@ export function TablaParadas({ filas, bloqueada, onAccion }: { filas: FilaParada
             <td className={cn(td, "whitespace-nowrap")}>{f.cuando}</td>
             <td className={td}>
               <span className={cn(excluida && "line-through")}>{f.tipoNombre}</span>
-              {f.seSolapa && <p className="text-xs font-semibold text-warning-foreground">Se pisa con una de Mantenimiento</p>}
               {f.larga && <p className="text-xs font-semibold text-warning-foreground">Más de 4 horas</p>}
               {f.pendiente && <p className="text-xs font-semibold text-danger">Sin minutos (+1 sin completar)</p>}
               {f.sinClasificar && <p className="text-xs font-semibold text-warning-foreground">Falla sin clasificar: falta el código de Mantenimiento</p>}

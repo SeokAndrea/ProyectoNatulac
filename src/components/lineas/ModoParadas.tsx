@@ -12,7 +12,7 @@ import { obtenerEstadoPlantaActual, obtenerTurnoDeFechaTipo } from "@/lib/panelP
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 import { diaMesPlanta, fechaPlanta, horaCortaPlanta, mismaFechaPlanta, restarDias } from "@/lib/tiempoPlanta"
-import { abrirParadaMantenimiento, duracionMin, esDeMantenimiento, fmtDuracion, minutosPorClaseSinSolape, porClasificar, type Parada } from "@/lib/paradas"
+import { abrirParadaMantenimiento, duracionMin, esDeMantenimiento, fmtDuracion, minutosPorClase, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
@@ -195,7 +195,7 @@ export function ModoParadas({
         const corridasLinea = corridasTurno.filter((c) => numero(c.linea) === numero(l.codigo))
         const fila = filas.find((f) => f.linea === numero(l.codigo))
         // Una línea que no corrió también tiene que quedar cubierta (con su LNP): lo producido es 0.
-        const porClase = minutosPorClaseSinSolape(paradasLinea, ahora)
+        const porClase = minutosPorClase(paradasLinea, ahora)
         const paradasMin = fila?.paradasMin ?? porClase.PROGRAMADA + porClase.NO_PROGRAMADA + porClase.OCIOSO
         const producidoMin = fila?.producidoMin ?? 0
         const lineaTurno = corridasLinea.find((c) => c.activa) ?? null

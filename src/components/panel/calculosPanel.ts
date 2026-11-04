@@ -273,22 +273,18 @@ export function programacionDelDia(
 }
 
 /**
- * Minutos parados dentro de [desde, hasta] (ms): las paradas se juntan antes
- * de sumar, así dos que se solapan (supervisor y Mantenimiento) cuentan una
- * vez. Una abierta cuenta hasta `hasta`; un +1 sin minutos no cuenta.
+ * Minutos parados dentro de [desde, hasta] (ms): cada parada suma todos sus
+ * minutos recortados al lapso, aunque se pise con otra (misma regla que
+ * minutosPorClase, dueña 2026-11-04). Una abierta cuenta hasta `hasta`; un +1
+ * sin minutos no cuenta.
  */
 export function minutosParadosEntre(paradas: Pick<Parada, "inicio" | "fin" | "pendiente">[], desde: number, hasta: number): number {
-  const tramos = paradas
-    .filter((p) => !p.pendiente)
-    .map((p) => [Math.max(new Date(p.inicio).getTime(), desde), Math.min(p.fin ? new Date(p.fin).getTime() : hasta, hasta)] as const)
-    .filter(([a, b]) => b > a)
-    .sort((x, y) => x[0] - y[0])
   let total = 0
-  let finAnterior = -Infinity
-  for (const [a, b] of tramos) {
-    const ini = Math.max(a, finAnterior)
-    if (b > ini) total += b - ini
-    finAnterior = Math.max(finAnterior, b)
+  for (const p of paradas) {
+    if (p.pendiente) continue
+    const a = Math.max(new Date(p.inicio).getTime(), desde)
+    const b = Math.min(p.fin ? new Date(p.fin).getTime() : hasta, hasta)
+    if (b > a) total += b - a
   }
   return total / 60000
 }

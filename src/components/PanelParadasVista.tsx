@@ -25,7 +25,7 @@ import {
   esDeMantenimiento,
   jornadaDeParada,
   LINEAS_PARADAS,
-  minutosPorClaseSinSolape,
+  minutosPorClase,
   NOMBRE_CLASE,
   nombreLineaParada,
   paradaAbierta,
@@ -498,8 +498,8 @@ export function PanelParadasVista({
           {LINEAS_PARADAS.map((l, i) => {
             const propias = filtradas.filter((p) => p.lineaCodigo === l.codigo)
             const noProgramadas = propias.filter((p) => p.clase === "NO_PROGRAMADA")
-            // Sin solape con las demás paradas de la línea (supervisor y Mantenimiento cargando la misma falla).
-            const minutosNoProgramados = minutosPorClaseSinSolape(propias, ahora).NO_PROGRAMADA
+            // Cada parada suma todos sus minutos (si una falla está cargada dos veces, se ve duplicada).
+            const minutosNoProgramados = minutosPorClase(propias, ahora).NO_PROGRAMADA
             const enVivo = estadoLineas?.find((e) => e.lineaCodigo === l.codigo)
             return (
               <div key={l.codigo} className="flex min-w-0 flex-col gap-3">

@@ -415,8 +415,6 @@ export interface FilaParada {
   sinClasificar: boolean
   /** Sigue abierta (sin fin). */
   abierta: boolean
-  /** Del supervisor y se pisa con una de Mantenimiento en la misma línea: probablemente la misma falla. */
-  seSolapa: boolean
   /** Más de 4 horas. */
   larga: boolean
   validacion: Validacion | null
@@ -424,7 +422,6 @@ export interface FilaParada {
 
 const MIN_PARADA_LARGA = 240
 const numeroLinea = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
-const ms = (iso: string) => new Date(iso).getTime()
 
 export function filasParadas(
   paradas: Parada[],
@@ -436,17 +433,6 @@ export function filasParadas(
     .sort((a, b) => numeroLinea(a.lineaCodigo).localeCompare(numeroLinea(b.lineaCodigo)) || a.inicio.localeCompare(b.inicio))
     .map((p) => {
       const deMantenimiento = esDeMantenimiento(p)
-      const fin = p.fin ? ms(p.fin) : ahora.getTime()
-      const seSolapa =
-        !deMantenimiento &&
-        paradas.some(
-          (o) =>
-            o.id !== p.id &&
-            esDeMantenimiento(o) &&
-            numeroLinea(o.lineaCodigo) === numeroLinea(p.lineaCodigo) &&
-            ms(o.inicio) < fin &&
-            (o.fin ? ms(o.fin) : ahora.getTime()) > ms(p.inicio),
-        )
       const minutos = duracionMin(p, ahora)
       return {
         id: p.id,
@@ -460,7 +446,6 @@ export function filasParadas(
         pendiente: p.pendiente === true,
         sinClasificar: porClasificar(p),
         abierta: p.fin === null || abiertas.has(p.id),
-        seSolapa,
         larga: minutos > MIN_PARADA_LARGA,
         validacion: validadas.get(p.id) ?? null,
       }

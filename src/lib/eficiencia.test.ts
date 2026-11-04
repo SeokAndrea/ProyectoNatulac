@@ -244,7 +244,7 @@ describe("eficienciaDelTurno", () => {
     expect(r.total?.realCajas).toBe(1800)
   })
 
-  it("la misma falla cargada por supervisor y Mantenimiento resta una sola vez", () => {
+  it("la misma falla cargada por supervisor y Mantenimiento se ve duplicada: resta las dos (dueña, 2026-11-04)", () => {
     const una = eficienciaDelTurno({
       ...base,
       corridas: [corrida("a", "LINEA_2", 9000)],
@@ -257,7 +257,52 @@ describe("eficienciaDelTurno", () => {
       productoTerminado: [pt("a", 43200)],
       paradas: [parada("LINEA_2", "NO_PROGRAMADA", 60), { ...parada("LINEA_2", "NO_PROGRAMADA", 60), id: "mtto", origen: "MANTENIMIENTO" }],
     })
-    expect(duplicada.porLinea.get("LINEA_2")?.operativoMin).toBe(una.porLinea.get("LINEA_2")?.operativoMin)
+    expect(una.porLinea.get("LINEA_2")?.noProgramadaMin).toBe(60)
+    expect(duplicada.porLinea.get("LINEA_2")?.noProgramadaMin).toBe(120)
+    expect(duplicada.porLinea.get("LINEA_2")?.operativoMin).toBe((una.porLinea.get("LINEA_2")?.operativoMin ?? 0) - 60)
+  })
+
+  it("caso real (línea 1, Turno 1): paradas cargadas durante una falla eléctrica de 4 h cuentan completas", () => {
+    // 1.190 cajas de 12 envases a 6.000 env/h = 142,8 min de producción. Las 10 paradas de la lista suman 342 min
+    // y 80 de ellas tienen horas dentro de la falla eléctrica (10:08–14:08, LNPE = ocioso).
+    const pres1l = [{ codigo: "1000", envasesXCaja: 12, cajasXPaleta: 100 }] as unknown as PresentacionLive[]
+    const p = (clase: Parada["clase"], a: string, b: string, tipoCodigo: string | null = null): Parada => ({
+      ...parada("LINEA_1", clase, 0),
+      id: `${a}-${b}`,
+      tipoCodigo,
+      inicio: `2026-09-21T${a}:00`,
+      fin: `2026-09-21T${b}:00`,
+    })
+    const r = eficienciaDelTurno({
+      ...base,
+      presentaciones: pres1l,
+      velocidades: [velocidad("LINEA_1", "1000", 6000)],
+      corridas: [corrida("a", "LINEA_1", 6000, true, "1000")],
+      productoTerminado: [{ corridaId: "a", paletas: 0, cajasSueltas: 1190 }],
+      paradas: [
+        p("NO_PROGRAMADA", "10:08", "14:08", "FALLA_SUMINISTRO_ELECTRICO"),
+        p("PROGRAMADA", "10:20", "10:22"),
+        p("NO_PROGRAMADA", "10:54", "11:39"),
+        p("PROGRAMADA", "11:39", "11:41"),
+        p("NO_PROGRAMADA", "11:41", "11:55"),
+        p("NO_PROGRAMADA", "11:55", "12:06"),
+        p("NO_PROGRAMADA", "12:06", "12:09"),
+        p("PROGRAMADA", "12:09", "12:10"),
+        p("NO_PROGRAMADA", "12:10", "12:12"),
+        p("NO_PROGRAMADA", "14:15", "14:37"),
+      ],
+    })
+    const l1 = r.porLinea.get("LINEA_1")!
+    expect(l1.realCajas).toBe(1190)
+    expect(l1.produccionMin).toBeCloseTo(142.8)
+    // Ocioso 240 (la falla eléctrica, LNPE) + programadas 5 → disponible 235; no programadas 64 + 11 + 22 = 97.
+    expect(l1.disponibleMin).toBe(235)
+    expect(l1.noProgramadaMin).toBe(97)
+    expect(l1.metaCajas).toBe(1958)
+    // 480 − 342 − 143 = −5 → sin reportar 0 (antes, con solape, 75). Eficiencia 142,8 ÷ (142,8 + 97).
+    expect(l1.sinReportarMin).toBe(0)
+    expect(l1.eficienciaPct).toBe(60)
+    expect(l1.paradasExcedenTiempo).toBe(false)
   })
 
   it("una parada de otra línea no afecta", () => {

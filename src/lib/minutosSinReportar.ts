@@ -1,5 +1,5 @@
 import { duracionBaseTurnoMin, sinReportarDeLinea, ventanaTurnoMin } from "@/lib/eficiencia"
-import { fmtDuracion, minutosPorClaseSinSolape, type Parada } from "@/lib/paradas"
+import { fmtDuracion, minutosPorClase, type Parada } from "@/lib/paradas"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import type { Corrida } from "@/lib/produccion/tipos"
 
@@ -8,7 +8,7 @@ import type { Corrida } from "@/lib/produccion/tipos"
  * tiempo de lo que se produjo, para ver qué parte del turno nadie explicó.
  *
  *   Producido    = Σ envases del PT de cada corrida ÷ su velocidad elegida
- *   Sin reportar = Ventana − Paradas cargadas (todas las clases, sin solape) − Producido
+ *   Sin reportar = Ventana − Paradas cargadas (todas las clases, cada parada con todos sus minutos) − Producido
  *
  * Ventana: el turno completo si ya cerró; si sigue abierto, lo que va. Se
  * mide con el PT (pedido de la dueña): una corrida sin PT aporta 0 de
@@ -62,7 +62,7 @@ export function minutosSinReportar(e: EntradaSinReportar): SinReportarLinea[] {
   const lineas = [...new Set(e.corridas.map((c) => numero(c.linea)))].sort()
   return lineas.map((linea) => {
     const corridas = e.corridas.filter((c) => numero(c.linea) === linea)
-    const minutos = minutosPorClaseSinSolape(
+    const minutos = minutosPorClase(
       e.paradas.filter((p) => numero(p.lineaCodigo) === linea),
       ahora,
     )

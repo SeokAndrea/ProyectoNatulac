@@ -181,19 +181,17 @@ describe("filasParadas", () => {
       ...over,
     }) as Parada
 
-  it("marca la del supervisor que se pisa con una de Mantenimiento en la misma línea", () => {
+  it("cada parada sale con sus minutos y su turno, se pise o no con otra", () => {
     const filas = filasParadas(
       [
         parada({ id: "sup" }),
         parada({ id: "mtto", origen: "MANUAL", responsable: "MANTENIMIENTO", tipoNombre: "Llenadora", inicio: "2026-10-11T16:40:00", fin: "2026-10-11T18:15:00" }),
-        parada({ id: "otra", lineaCodigo: "LINEA_2" }),
       ],
       new Map(),
     )
     const por = (id: string) => filas.find((f) => f.id === id)!
-    expect(por("sup")).toMatchObject({ seSolapa: true, minutos: 90, cuando: "T2 16:45" })
-    expect(por("mtto").seSolapa).toBe(false)
-    expect(por("otra").seSolapa).toBe(false)
+    expect(por("sup")).toMatchObject({ minutos: 90, cuando: "T2 16:45" })
+    expect(por("mtto")).toMatchObject({ minutos: 95, cuando: "T2 16:40" })
   })
 
   it("la columna de Mantenimiento sale del responsable, no del origen", () => {
@@ -201,7 +199,7 @@ describe("filasParadas", () => {
       [parada({ id: "a", origen: "SHEET", responsable: "OPERACIONAL" }), parada({ id: "b", lineaCodigo: "LINEA_3", responsable: "MANTENIMIENTO" })],
       new Map(),
     )
-    expect(filas.find((f) => f.id === "a")!.seSolapa).toBe(false)
+    expect(filas.find((f) => f.id === "a")!.deMantenimiento).toBe(false)
     expect(filas.find((f) => f.id === "b")!.deMantenimiento).toBe(true)
   })
 
