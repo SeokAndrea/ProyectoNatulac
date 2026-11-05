@@ -6,6 +6,7 @@ import { LineaCard } from "@/components/lineas/LineaCard"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import type { Parada } from "@/lib/paradas"
+import type { EstadoLineaDeLaBase } from "@/lib/estadoLineas"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { CondicionLinea, Corrida, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
 
@@ -141,6 +142,7 @@ interface Escenario {
   tanquesListos?: TanqueRecepcion[]
   aModoParadas?: () => void
   paradasAbiertas?: Parada[]
+  estadoBase?: EstadoLineaDeLaBase | null
 }
 
 function crearAcciones() {
@@ -179,6 +181,7 @@ function renderCard(e: Escenario = {}, acciones: Acciones = crearAcciones()) {
         paradaQueDetiene={e.paradaQueDetiene ?? null}
         paradaDeLinea={e.paradaDeLinea ?? e.paradaQueDetiene ?? null}
         paradasAbiertas={e.paradasAbiertas}
+        estadoBase={e.estadoBase}
         acciones={acciones}
         aModoParadas={e.aModoParadas}
       />
@@ -686,6 +689,24 @@ describe("LineaCard — sin corrida", () => {
     expect(screen.getByText("Detenida por parada")).toBeInTheDocument()
     expect(screen.getByTestId("cinta")).toHaveTextContent("detenida")
     expect(screen.getByText(/^Parada · /)).toBeInTheDocument()
+  })
+
+  it("manda lo que dice la base (estado_lineas): lo mismo que ven los paneles", () => {
+    const base: EstadoLineaDeLaBase = {
+      linea: "LINEA_1",
+      nombre: "Línea 1",
+      estado: "detenida_por_parada",
+      corridaId: null,
+      pausadaEn: null,
+      loteTerminado: false,
+      condicion: "LISTA",
+      observacion: null,
+      parada: { id: "p", inicio: "2020-01-01T08:00:00", tipoNombre: "Falla", nota: null, deMantenimiento: true, lineaNoProgramada: false, visible: true },
+    }
+    // La tarjeta todavía no se enteró de la parada (sin paradas abiertas): igual muestra lo de la base.
+    renderCard({ lineaEstado: estado("LISTA"), estadoBase: base })
+    expect(screen.getByText("Detenida por parada")).toBeInTheDocument()
+    expect(screen.getByText(/^Mantenimiento · /)).toBeInTheDocument()
   })
 
   it("una parada abierta de otra línea no la toca", () => {

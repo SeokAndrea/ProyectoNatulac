@@ -13,6 +13,7 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { aplicarParadasALineas, paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
 import { leerParadasAbiertas, sincronizarSheetSiHaceFalta } from "@/lib/paradasEnVivo"
+import { useEstadoLineas, useRecargarAlCambiar } from "@/lib/estadoLineas"
 import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 import { esDeMantenimiento } from "@/lib/mantenimientoSesion"
 import { useSesionTurno } from "@/lib/sesionTurno"
@@ -97,6 +98,15 @@ export function LineasEstadoPlanta({
     idTurno && idTurno === sesion.turnoId && sesion.turnoTipo && sesion.fecha && sesion.horaInicio
       ? inicioCuentaTurno(sesion.turnoTipo, sesion.fecha, `${sesion.fecha}T${sesion.horaInicio}`)
       : null
+
+  // El estado de cada línea lo dice la base (cada 15 s, el mismo que los paneles). Solo para el turno
+  // en curso de la planta: en corrección o en un turno ya cerrado, la tarjeta usa su cálculo.
+  const estadoBase = useEstadoLineas(areaParadas)
+  const baseDelTurno = estadoBase && idTurno && estadoBase.turnoId === idTurno ? estadoBase : null
+  // Si cambió algo (otra persona arrancó, paró o terminó una parada), Líneas recarga sola.
+  useRecargarAlCambiar(estadoBase, () => {
+    void Promise.all([refrescar(), recargarParadas(), recargarAbiertas()])
+  })
 
   // Los +1 sin minutos del área, para el botón «Paradas · N» de cada tarjeta (mismo rango que Registrar Paradas).
   const anotaParadas = puede(session, "PARADAS_REGISTRAR")
@@ -207,6 +217,7 @@ export function LineasEstadoPlanta({
           acciones={acciones}
           paradasDetienen={paradasDetienen}
           paradasAbiertas={paradasAbiertas}
+          estadosBase={baseDelTurno}
           esMantenimiento={esMantenimiento}
           terminaSiempre={session.esDueno || session.rol === "SUPERADMINISTRADOR"}
         />
@@ -236,6 +247,7 @@ export function LineasEstadoPlanta({
             paradaQueDetiene={paradasDetienen.find((p) => p.linea === l.codigo && p.pendiente) ?? null}
             paradaDeLinea={paradasDetienen.find((p) => p.linea === l.codigo) ?? null}
             paradasAbiertas={paradasAbiertas}
+            estadoBase={baseDelTurno?.lineas.find((b) => b.linea === l.codigo) ?? null}
             desdeTurno={desdeTurno}
             acciones={acciones}
             paradas={

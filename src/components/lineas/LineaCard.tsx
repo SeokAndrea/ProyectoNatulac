@@ -7,6 +7,7 @@ import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import type { LineaCodigo } from "@/lib/catalogos"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
 import { estadoDeUnaLinea } from "@/components/panel/calculosPanel"
+import { conEstadoDeLaBase, type EstadoLineaDeLaBase } from "@/lib/estadoLineas"
 import type { Parada } from "@/lib/paradas"
 import { textoParadaEnVivo } from "@/lib/paradasEnVivo"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
@@ -54,6 +55,7 @@ export function LineaCard({
   paradaQueDetiene,
   paradaDeLinea,
   paradasAbiertas = [],
+  estadoBase = null,
   desdeTurno = null,
   acciones,
   paradas,
@@ -77,6 +79,8 @@ export function LineaCard({
   paradaDeLinea?: ParadaQueDetiene | null
   /** Paradas abiertas del área (las mismas que leen los paneles): deciden el estado igual que allá. */
   paradasAbiertas?: Parada[]
+  /** El estado de esta línea según la base (estado_lineas), si es el turno en curso: manda sobre el cálculo propio. */
+  estadoBase?: EstadoLineaDeLaBase | null
   /** Inicio del turno en curso: los minutos del aviso de la parada, como en los paneles. */
   desdeTurno?: Date | null
   acciones: AccionesLinea
@@ -97,13 +101,12 @@ export function LineaCard({
 
   const condicion = lineaEstado?.condicion ?? "DETENIDA"
   const enCip = condicion === "CIP"
-  // El estado, con el MISMO cálculo y la misma tabla que los paneles y el Modo Paradas (dueña, 2026-11-05).
-  const estadoUnico = estadoDeUnaLinea(
-    { codigo: lineaCodigo, nombre: nombreLinea },
-    lineaTurno ? [lineaTurno] : [],
-    lineaEstado,
-    paradasAbiertas,
-    new Date(),
+  // El estado: el de la base si llegó (el mismo que ven los paneles); si no, el mismo cálculo de respaldo (dueña, 2026-11-05).
+  const ahora = new Date()
+  const estadoUnico = conEstadoDeLaBase(
+    estadoDeUnaLinea({ codigo: lineaCodigo, nombre: nombreLinea }, lineaTurno ? [lineaTurno] : [], lineaEstado, paradasAbiertas, ahora, desdeTurno),
+    estadoBase,
+    ahora,
     desdeTurno,
   )
   const aspecto = aspectoDeLinea(estadoUnico)

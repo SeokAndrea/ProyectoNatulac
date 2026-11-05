@@ -1,7 +1,7 @@
 # Estado de línea único: igual en Líneas, Modo Paradas y los dos paneles
 
-Estado: decidido por Andrea el 2026-11-05. Fase 1 implementada en la rama `fix/estado-linea-unico`
-(solo pantallas, sin migración). Fases 2 y 3 pendientes.
+Estado: decidido por Andrea el 2026-11-05. Fase 1 en `main` (solo pantallas). Fase 2 en la rama
+`fix/estado-lineas-base` (migración `20261114790000_estado_lineas.sql`). Fase 3 pendiente.
 
 ## Para qué
 
@@ -51,10 +51,36 @@ Líneas, corriendo».
   en cada caso.
 - Un estado nuevo se agrega una vez, en `ASPECTO_LINEA` (el tipo obliga a completarlo).
 
+## Fase 2: la base decide y todas se actualizan solas
+
+Antes, aunque calcularan igual, cada pantalla se refrescaba a su ritmo: el Panel de Paradas cada
+20 s, el Panel de Producción cada **15 min** y Líneas solo al tocar algo. Ahora:
+
+- **`estado_lineas(área)`** (migración `20261114790000`) devuelve el estado ya decidido de cada
+  línea del área y su parada en curso, con la misma regla de arriba. Sin área: la producción con
+  turno abierto, nunca Pruebas. Es también la entrada para el PLC.
+- **Las cuatro pantallas la piden cada 15 s** (`useEstadoLineas`, `src/lib/estadoLineas.ts`) y
+  muestran lo que dice. Si cambió algo (otro turno, una corrida, una pausa, una parada),
+  **recargan sus datos solas** (`useRecargarAlCambiar`); el Panel de Producción ya no espera sus
+  15 min.
+- Líneas usa la respuesta solo si es el turno en curso de la planta; en corrección o en un turno
+  cerrado, la tarjeta usa su cálculo.
+- **Respaldo:** si la base no responde (sin red, o la migración todavía no se aplicó), cada
+  pantalla usa el cálculo en TypeScript, con la misma regla. Por eso se puede publicar la app antes
+  de aplicar la migración. **Si se cambia la regla, se cambia en los dos lados** (SQL y
+  `calculosPanel.ts`) y en sus pruebas.
+- **Un solo turno ABIERTO por área**: candado en la tabla `turnos` (`turnos_un_abierto_por_area`,
+  se revisa al confirmar). `abrir_turno` inserta el nuevo y cierra el anterior en la misma
+  transacción, así que el relevo normal pasa; dos aperturas en el mismo instante (el botón y el
+  respaldo de las 7:30) ya no pueden dejar dos abiertos: la segunda falla. Si al migrar ya hay dos
+  abiertos en un área, no se pone y la migración avisa cuáles.
+
+Pruebas: `scripts/ensayo-estado-lineas.sql` (en la base local, todo en Pruebas y con rollback) y
+`src/lib/estadoLineas.test.ts`.
+
 ## Pendiente
 
-- **Fase 2 (base):** mover el cálculo a una función SQL `estado_lineas(área)` para que la base sea
-  la única fuente (y la señal del PLC entre por ahí). Candado en `abrir_turno` (bloqueo por área +
-  un solo turno ABIERTO por área) después de confirmar que hoy no hay dos abiertos.
 - **Fase 3:** código de envío en `registrar_contador` y `robot_tavil_sumar`, para que un
   reintento tras un corte de señal responda «ya estaba guardado» en vez de «duplicado».
+- Si se quiere que cambie **al instante** (sin esperar los 15 s): Supabase Realtime sobre
+  `turno_lineas`, `lineas_estado` y `paradas`, avisando a `useEstadoLineas`.

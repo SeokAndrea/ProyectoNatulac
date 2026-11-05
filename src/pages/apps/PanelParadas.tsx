@@ -14,6 +14,7 @@ import { puede } from "@/lib/permisos"
 import { obtenerEstadoPlantaActual } from "@/lib/panelProduccion"
 import { textoParadaEnVivo, useParadasAbiertas } from "@/lib/paradasEnVivo"
 import { cargarOeePeriodo } from "@/lib/eficienciaPeriodo"
+import { conEstadosDeLaBase, useEstadoLineas, useRecargarAlCambiar } from "@/lib/estadoLineas"
 import type { TurnoActivo } from "@/lib/turno"
 import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 
@@ -118,6 +119,14 @@ export default function PanelParadas({ enTv = false }: { enTv?: boolean } = {}) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turno?.id])
 
+  // El estado de cada línea lo dice la base (cada 15 s, el mismo que Líneas y el Panel de
+  // Producción); si cambió algo, se recargan ya el turno y sus corridas.
+  const estadoBase = useEstadoLineas(areaParadas)
+  useRecargarAlCambiar(estadoBase, () => {
+    void obtenerEstadoPlantaActual(area).then(setTurno)
+    void prod.recargar()
+  })
+
   // Desde cuándo cuenta el turno en vivo: la cinta suma los minutos desde ahí, igual que el Panel de
   // Producción (dueña, 2026-10-28: el mismo tiempo en los dos, y desde las 7 aunque abran tarde).
   const desdeTurno = turno ? inicioCuentaTurno(turno.turnoTipo, turno.fecha, `${turno.fecha}T${turno.horaInicio}`) : null
@@ -130,10 +139,17 @@ export default function PanelParadas({ enTv = false }: { enTv?: boolean } = {}) 
   // Sin turno ABIERTO (estado_planta_actual devuelve el último cerrado entre un turno y otro), las
   // líneas no heredan el estado del turno cerrado: quedan Libres, salvo una parada abierta.
   const turnoEnCurso = turno?.estado === "ABIERTO"
-  const enVivo = aplicarParadasEnVivo(
-    estadoDeLineas(turnoEnCurso ? prod.corridas : [], turnoEnCurso ? prod.lineasEstado : [], lineasReales),
-    paradasAbiertas,
-    new Date(),
+  const ahora = new Date()
+  // Lo que dice la base; si no responde, el cálculo de respaldo (la misma regla).
+  const enVivo = conEstadosDeLaBase(
+    aplicarParadasEnVivo(
+      estadoDeLineas(turnoEnCurso ? prod.corridas : [], turnoEnCurso ? prod.lineasEstado : [], lineasReales),
+      paradasAbiertas,
+      ahora,
+      turnoEnCurso ? desdeTurno : null,
+    ),
+    estadoBase,
+    ahora,
     turnoEnCurso ? desdeTurno : null,
   )
   const estadoLineas: EstadoLineaEnVivo[] | undefined = prod.cargando
