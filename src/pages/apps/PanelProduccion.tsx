@@ -119,9 +119,12 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
       }
     : null
   const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
-  const lineasBase = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
-  // En vivo, las paradas abiertas de más de 15 min paran la cinta (src/lib/paradasEnVivo.ts).
-  const lineasEstado = enVivo ? aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora, desdeTurno) : lineasBase
+  // En vivo y sin turno ABIERTO (entre un turno y otro llega el último cerrado), las líneas no heredan
+  // el estado del turno cerrado: quedan Libres, salvo una parada abierta (igual que el Panel de Paradas).
+  const conCorridas = !enVivo || turno?.estado === "ABIERTO"
+  const lineasBase = turno ? estadoDeLineas(conCorridas ? prod.corridas : [], conCorridas ? prod.lineasEstado : [], lineas) : []
+  // En vivo, las paradas abiertas: el mismo cálculo que Líneas y el Panel de Paradas (calculosPanel.ts).
+  const lineasEstado = enVivo ? aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora, conCorridas ? desdeTurno : null) : lineasBase
   const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, lineas, presentaciones) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   /*

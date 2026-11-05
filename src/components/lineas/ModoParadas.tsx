@@ -18,8 +18,9 @@ import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
 import { horasTranscurridasTurno } from "@/lib/reportes"
 import type { TurnoActivo } from "@/lib/turno"
+import { estadoDeUnaLinea } from "@/components/panel/calculosPanel"
 import { AnimacionLinea } from "./AnimacionLinea"
-import { aspectoLinea } from "./estadoLinea"
+import { aspectoDeLinea } from "./estadoLinea"
 import { FilaAcciones } from "./FilaAcciones"
 import { FormCompletarParada } from "@/components/paradas/FormCompletarParada"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
@@ -74,6 +75,7 @@ export function ModoParadas({
   onCambio,
   acciones,
   paradasDetienen,
+  paradasAbiertas = [],
   esMantenimiento = false,
   terminaSiempre = false,
 }: {
@@ -92,6 +94,8 @@ export function ModoParadas({
   acciones: Pick<AccionesLinea, "pausar" | "continuar" | "detener">
   /** Qué parada tiene detenida a cada línea (paradas_que_detienen_lineas). */
   paradasDetienen: ParadaQueDetiene[]
+  /** Paradas abiertas del área (las mismas que leen los paneles): deciden el estado de la línea igual que allá. */
+  paradasAbiertas?: Parada[]
   /** Usuario del área Mantenimiento: sin botones que manejan la línea; abre y termina sus paradas. */
   esMantenimiento?: boolean
   /** Puede terminar cualquier parada de Mantenimiento aunque el interruptor del área esté encendido (la dueña). */
@@ -199,9 +203,13 @@ export function ModoParadas({
         const paradasMin = fila?.paradasMin ?? porClase.PROGRAMADA + porClase.NO_PROGRAMADA + porClase.OCIOSO
         const producidoMin = fila?.producidoMin ?? 0
         const lineaTurno = corridasLinea.find((c) => c.activa) ?? null
-        const esperandoPt = lineaTurno === null && corridasLinea.some((c) => c.esperandoCierre)
-        const condicion = lineasEstado.find((le) => le.linea === l.codigo)?.condicion ?? "DETENIDA"
-        const aspecto = aspectoLinea(lineaTurno, condicion, esperandoPt)
+        const estadoLinea = lineasEstado.find((le) => le.linea === l.codigo)
+        const condicion = estadoLinea?.condicion ?? "DETENIDA"
+        // El estado, con el MISMO cálculo y la misma tabla que la tarjeta y los paneles (dueña, 2026-11-05).
+        // El turno anterior ya pasó: ahí no cuentan las paradas abiertas de ahora.
+        const aspecto = aspectoDeLinea(
+          estadoDeUnaLinea(l, lineaTurno ? [lineaTurno] : [], estadoLinea, verAnterior ? [] : paradasAbiertas, ahora, new Date(desdeMs)),
+        )
         // Parar y continuar: solo en el turno en curso, con la corrida en marcha (no en CIP ni con el lote terminado).
         // El CIP solo frena si tiene la corrida en pausa: con la corrida corriendo (como dice la tarjeta), se puede Parar
         // aunque la condición haya quedado en CIP (dueña, 2026-10-28: «la línea está corriendo» y no salía Parar).

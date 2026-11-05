@@ -5,6 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { LineaCard } from "@/components/lineas/LineaCard"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
+import type { Parada } from "@/lib/paradas"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { CondicionLinea, Corrida, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
 
@@ -139,6 +140,7 @@ interface Escenario {
   paradaDeLinea?: ParadaQueDetiene | null
   tanquesListos?: TanqueRecepcion[]
   aModoParadas?: () => void
+  paradasAbiertas?: Parada[]
 }
 
 function crearAcciones() {
@@ -176,6 +178,7 @@ function renderCard(e: Escenario = {}, acciones: Acciones = crearAcciones()) {
         velocidades={VELOCIDADES}
         paradaQueDetiene={e.paradaQueDetiene ?? null}
         paradaDeLinea={e.paradaDeLinea ?? e.paradaQueDetiene ?? null}
+        paradasAbiertas={e.paradasAbiertas}
         acciones={acciones}
         aModoParadas={e.aModoParadas}
       />
@@ -628,7 +631,9 @@ describe("LineaCard — esperando su Producto Terminado", () => {
   it("deja continuar el lote, cargar su PT o arrancar con otro tanque", async () => {
     const u = userEvent.setup()
     const a = renderCard({ corridaEsperandoPt: detenida(), lineaEstado: estado("DETENIDA") })
-    expect(screen.getByText("Esperando PT")).toBeInTheDocument()
+    // «Esperando PT» ya no es un estado (dueña, 2026-11-05): la línea está Libre y el PT queda como tarea.
+    expect(screen.getByText("Libre")).toBeInTheDocument()
+    expect(screen.queryByText("Esperando PT")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Terminó: cargar su PT" })).toHaveAttribute("href", "/producto-terminado")
     await u.click(boton("Continuar el Lote 0001"))
     expect(a.continuarCorridaDetenida).toHaveBeenCalledWith("c0")
@@ -651,9 +656,9 @@ describe("LineaCard — sin corrida", () => {
   it("detenida: arrancar o cambiar la condición", async () => {
     const u = userEvent.setup()
     const a = renderCard({ lineaEstado: estado("DETENIDA") })
-    expect(screen.getByText("Esperando PT")).toBeInTheDocument()
+    expect(screen.getByText("Libre")).toBeInTheDocument()
     expect(screen.queryByText("Parada")).not.toBeInTheDocument()
-    expect(screen.getByTestId("cinta")).toHaveTextContent("detenida")
+    expect(screen.getByTestId("visual")).toHaveTextContent("libre")
     boton("Arrancar línea")
     await u.click(boton("Sin programación"))
     expect(a.cambiarCondicion).toHaveBeenCalledWith({ linea: "LINEA_1", condicion: "SIN_PROGRAMACION", observacion: undefined })
@@ -670,9 +675,23 @@ describe("LineaCard — sin corrida", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("La línea tiene una corrida")
   })
 
-  it("sin estado cargado se toma como detenida", () => {
+  it("sin estado cargado se ve Libre, como en los paneles", () => {
     renderCard()
-    expect(screen.getByText("Esperando PT")).toBeInTheDocument()
+    expect(screen.getByText("Libre")).toBeInTheDocument()
+  })
+
+  it("con una parada abierta se ve «Detenida por parada», igual que en los paneles", () => {
+    const abierta = { id: "p", lineaCodigo: "LINEA_1", inicio: "2020-01-01T08:00:00", fin: null, pendiente: false, tipoNombre: "Falla eléctrica", nota: null } as unknown as Parada
+    renderCard({ lineaEstado: estado("LISTA"), paradasAbiertas: [abierta] })
+    expect(screen.getByText("Detenida por parada")).toBeInTheDocument()
+    expect(screen.getByTestId("cinta")).toHaveTextContent("detenida")
+    expect(screen.getByText(/^Parada · /)).toBeInTheDocument()
+  })
+
+  it("una parada abierta de otra línea no la toca", () => {
+    const otra = { id: "p", lineaCodigo: "LINEA_2", inicio: "2020-01-01T08:00:00", fin: null, pendiente: false, tipoNombre: "Falla", nota: null } as unknown as Parada
+    renderCard({ lineaEstado: estado("LISTA"), paradasAbiertas: [otra] })
+    expect(screen.getByText("Libre")).toBeInTheDocument()
   })
 
   it("cambio de presentación y sin programación", () => {
