@@ -133,6 +133,14 @@ export async function sincronizarSheetSiHaceFalta(usuario: string | null): Promi
   }
 }
 
+/** Las paradas abiertas del área (últimos 30 días). La misma lectura en los paneles y en Líneas. */
+export async function leerParadasAbiertas(area: string | null): Promise<Parada[]> {
+  const hoy = fechaPlanta()
+  const paradas = await listarParadas({ desde: restarDias(hoy, DIAS_ATRAS), hasta: hoy, area })
+  const ahora = new Date()
+  return paradas.filter((p) => sigueEnVivo(p, ahora))
+}
+
 /**
  * Paradas abiertas del área, releídas cada minuto. Con `sincronizarComo`
  * (usuario con permiso para el Sheet), además trae el Sheet de
@@ -150,9 +158,8 @@ export function useParadasAbiertas(area: string | null, sincronizarComo: string 
       await sincronizarSheetSiHaceFalta(sincronizarComo)
       // Las abiertas de 15 min o más ponen su línea en Parada (migración 20261111590000): los paneles quedan abiertos todo el día.
       await aplicarParadasALineas(area)
-      const hoy = fechaPlanta()
-      const paradas = await listarParadas({ desde: restarDias(hoy, DIAS_ATRAS), hasta: hoy, area })
-      if (vivo) setAbiertas(paradas.filter((p) => sigueEnVivo(p, new Date())))
+      const paradas = await leerParadasAbiertas(area)
+      if (vivo) setAbiertas(paradas)
     }
 
     cargar()

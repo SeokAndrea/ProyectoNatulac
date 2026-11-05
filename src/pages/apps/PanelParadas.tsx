@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { MarcoPanel } from "@/components/MarcoPanel"
 import { PanelParadasVista, type CargarOee, type CargarParadas, type EstadoLineaEnVivo } from "@/components/PanelParadasVista"
-import type { EstadoLineaVista } from "@/components/CintaLinea"
+import { aspectoDeLinea } from "@/components/lineas/estadoLinea"
 import { listarParadas, LINEAS_PARADAS } from "@/lib/paradas"
 import { useProduccion } from "@/lib/produccion/useProduccion"
-import { aplicarParadasEnVivo, estadoDeLineas, type LineaConEstado } from "@/components/panel/calculosPanel"
+import { aplicarParadasEnVivo, estadoDeLineas } from "@/components/panel/calculosPanel"
 import { useAuth } from "@/lib/auth"
 import { esAreaDeApoyo } from "@/lib/catalogos"
 import { useCatalogosLive } from "@/lib/catalogosLive"
@@ -43,30 +43,12 @@ import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
  *    solo para que <PanelParadasVista> lo ubique en su slot visual.
  */
 
-/**
- * El estado de cada línea sale del MISMO cálculo que el Panel de Producción
- * (estadoDeLineas + aplicarParadasEnVivo, calculosPanel.ts): antes este panel
- * tenía su propia versión y las dos cintas no coincidían (dueña, 2026-10-28).
- * Acá solo se traduce a la escena de la cinta.
+/*
+ * El estado de cada línea sale del MISMO cálculo que el Panel de Producción,
+ * la tarjeta de Líneas y el Modo Paradas (estadoDeLineas +
+ * aplicarParadasEnVivo, calculosPanel.ts), y su escena de la tabla única
+ * (aspectoDeLinea, src/components/lineas/estadoLinea.ts). Dueña, 2026-11-05.
  */
-function vistaDeEstado(l: LineaConEstado): EstadoLineaVista {
-  switch (l.estado) {
-    case "activa":
-      return l.corrida?.loteTerminado != null ? "TERMINO" : "CORRIENDO"
-    case "parada":
-      return "PARADA"
-    case "detenida":
-      return "DETENIDA"
-    case "cip":
-      return "CIP"
-    case "cambio_presentacion":
-      return "CAMBIO"
-    case "esperando_cierre":
-      return "TERMINO"
-    default:
-      return "LIBRE"
-  }
-}
 
 /** Mientras cargan los catálogos (líneas, velocidades): el OEE se muestra "calculando", no "sin datos". */
 const OEE_PENDIENTE: CargarOee = () => new Promise(() => {})
@@ -145,7 +127,15 @@ export default function PanelParadas({ enTv = false }: { enTv?: boolean } = {}) 
   // (genérico, mismo en todas las áreas). Se matchea por POSICIÓN: ambas
   // listas están ordenadas igual (por código), así que el n-ésimo elemento
   // de cada una es "la misma línea física".
-  const enVivo = turno ? aplicarParadasEnVivo(estadoDeLineas(prod.corridas, prod.lineasEstado, lineasReales), paradasAbiertas, new Date(), desdeTurno) : []
+  // Sin turno ABIERTO (estado_planta_actual devuelve el último cerrado entre un turno y otro), las
+  // líneas no heredan el estado del turno cerrado: quedan Libres, salvo una parada abierta.
+  const turnoEnCurso = turno?.estado === "ABIERTO"
+  const enVivo = aplicarParadasEnVivo(
+    estadoDeLineas(turnoEnCurso ? prod.corridas : [], turnoEnCurso ? prod.lineasEstado : [], lineasReales),
+    paradasAbiertas,
+    new Date(),
+    turnoEnCurso ? desdeTurno : null,
+  )
   const estadoLineas: EstadoLineaEnVivo[] | undefined = prod.cargando
     ? undefined
     : LINEAS_PARADAS.map((l, i) => {
@@ -155,7 +145,7 @@ export default function PanelParadas({ enTv = false }: { enTv?: boolean } = {}) 
         const parada = real?.paradaEnVivo ?? null
         return {
           lineaCodigo: l.codigo,
-          estado: real ? vistaDeEstado(real) : "LIBRE",
+          estado: real ? aspectoDeLinea(real).vista : "LIBRE",
           aviso: parada ? textoParadaEnVivo(parada) : null,
           avisoUrgente: parada?.visible ?? false,
           nota: parada?.nota ?? null,

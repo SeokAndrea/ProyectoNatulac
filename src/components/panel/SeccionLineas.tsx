@@ -1,36 +1,20 @@
 import { Link } from "react-router-dom"
 import { AlertTriangle, Clock3, Workflow } from "lucide-react"
-import { CintaEstadoLinea, type EstadoCinta } from "@/components/CintaEstadoLinea"
+import { CintaEstadoLinea } from "@/components/CintaEstadoLinea"
 import { TextoDesplazable } from "@/components/TextoDesplazable"
+import { aspectoDeLinea, PUNTO_VARIANTE } from "@/components/lineas/estadoLinea"
 import { colorTextoPorNivel, nivelMerma, type NivelMerma } from "@/lib/estadisticas"
 import { textoParadaEnVivo } from "@/lib/paradasEnVivo"
 import { cn } from "@/lib/utils"
-import { formatDuracion, MERMA_ENVASE_PANEL_MAX, MERMA_ENVASE_PANEL_WARN, type EstadoLinea, type FilaLineaCompacta } from "./calculosPanel"
+import { formatDuracion, MERMA_ENVASE_PANEL_MAX, MERMA_ENVASE_PANEL_WARN, type FilaLineaCompacta } from "./calculosPanel"
 import { PanelCard } from "./PanelCard"
 
-const ESTADO_LINEA_INFO: Record<EstadoLinea, { label: string; dot: string; ring: string }> = {
-  activa: { label: "Activa", dot: "bg-success", ring: "bg-success" },
-  parada: { label: "Parada", dot: "bg-warning", ring: "bg-warning" },
-  esperando_cierre: { label: "Esperando cierre", dot: "bg-danger", ring: "bg-danger" },
-  cambio_presentacion: { label: "Cambio de Presentación", dot: "bg-warning", ring: "bg-warning" },
-  cip: { label: "En CIP", dot: "bg-warning", ring: "bg-warning" },
-  sin_programacion: { label: "Sin programación", dot: "bg-info", ring: "bg-info" },
-  detenida: { label: "Esperando PT", dot: "bg-danger", ring: "bg-danger" },
-  libre: { label: "Libre", dot: "bg-muted-foreground", ring: "bg-muted-foreground" },
-}
-
-/**
- * Cinta pixel art chiquita a la derecha del nombre de la línea (misma que
- * Líneas — ver CintaEstadoLinea). En los estados sin escena (libre, sin
- * programación, cambio de presentación, esperando cierre) no se dibuja
- * nada: queda solo el texto.
+/*
+ * Etiqueta, color del punto y cinta chiquita: de la tabla única
+ * (src/components/lineas/estadoLinea.ts), igual que la tarjeta de Líneas y el
+ * Panel de Paradas. En los estados sin cinta (libre, sin programación, cambio
+ * de presentación, terminó el lote) queda solo el texto.
  */
-const CINTA_POR_ESTADO: Partial<Record<EstadoLinea, EstadoCinta>> = {
-  activa: "corriendo",
-  parada: "parada",
-  detenida: "detenida",
-  cip: "cip",
-}
 
 /** Tarjeta "Líneas activas": una fila por línea con estado, producción, eficiencia, paradas y merma. Para el supervisor, cada fila lleva a Preparación. */
 export function SeccionLineas({ filas, conLinks }: { filas: FilaLineaCompacta[]; conLinks: boolean }) {
@@ -68,7 +52,8 @@ export function SeccionLineas({ filas, conLinks }: { filas: FilaLineaCompacta[];
 
 /** Fila compacta de "Líneas activas": estado + producción + merma en una sola línea. */
 function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
-  const info = ESTADO_LINEA_INFO[fila.estado]
+  const aspecto = aspectoDeLinea(fila)
+  const punto = PUNTO_VARIANTE[aspecto.variante]
   const nivelEficiencia: NivelMerma | null =
     fila.eficienciaPct === null ? null : fila.eficienciaPct >= 90 ? "ok" : fila.eficienciaPct >= 60 ? "warn" : "danger"
   const nivelMermaFila = fila.mermaPct === null ? null : nivelMerma(fila.mermaPct, MERMA_ENVASE_PANEL_MAX, MERMA_ENVASE_PANEL_WARN)
@@ -78,8 +63,8 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
     <div className="linea-fila-grid border-b border-border/60 px-2 py-2.5 text-sm transition-colors last:border-b-0 hover:bg-muted/40">
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="relative flex size-2.5 shrink-0 items-center justify-center">
-          {fila.estado === "activa" && <span className={cn("dot-ring absolute size-2.5 rounded-full", info.ring)} />}
-          <span className={cn("relative size-2.5 rounded-full", info.dot)} />
+          {aspecto.cinta === "corriendo" && <span className={cn("dot-ring absolute size-2.5 rounded-full", punto)} />}
+          <span className={cn("relative size-2.5 rounded-full", punto)} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-foreground">
@@ -88,7 +73,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
           </p>
           {fila.corrida?.saborNombre && <p className="truncate text-xs text-muted-foreground">{fila.corrida.saborNombre}</p>}
           <p className="truncate text-xs text-muted-foreground">
-            {info.label}
+            {aspecto.badge}
             {fila.minutosProduccion !== null ? ` - TP: ${formatDuracion(fila.minutosProduccion)}` : ""}
           </p>
           {fila.paradaEnVivo && (
@@ -135,7 +120,7 @@ function LineaFilaCompacta({ fila }: { fila: FilaLineaCompacta }) {
 }
 
 function MiniCinta({ fila, alertaMerma }: { fila: FilaLineaCompacta; alertaMerma: boolean }) {
-  const estado = CINTA_POR_ESTADO[fila.estado]
+  const estado = aspectoDeLinea(fila).cinta
   if (!estado) return null
   return (
     <CintaEstadoLinea

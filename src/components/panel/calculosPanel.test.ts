@@ -4,7 +4,9 @@ import type { Parada } from "@/lib/paradas"
 import type { Corrida, LineaEstado } from "@/lib/produccion/tipos"
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import {
+  aplicarParadasEnVivo,
   estadoDeLineas,
+  estadoDeUnaLinea,
   filasDeLineas,
   formatDuracion,
   minutosParadosEntre,
@@ -57,14 +59,75 @@ describe("estadoDeLineas", () => {
       ["cip", "36 h"],
     ])
     expect(estadoDeLineas([corrida({ pausadaEn: "x" })], [], LINEAS)[0].estado).toBe("parada")
-    expect(estadoDeLineas([corrida({ activa: false, esperandoCierre: true })], [estado("LINEA_1", "DETENIDA", "motor")], LINEAS)[0]).toMatchObject({
-      estado: "esperando_cierre",
-      observacion: "motor",
-    })
     expect(estadoDeLineas([], [estado("LINEA_1", "SIN_PROGRAMACION"), estado("LINEA_2", "LISTA")], LINEAS).map((f) => f.estado)).toEqual([
       "sin_programacion",
       "libre",
     ])
+  })
+
+  it("«Esperando PT» ya no es un estado: la corrida que espera su PT deja la línea Libre (dueña, 2026-11-05)", () => {
+    expect(estadoDeLineas([corrida({ activa: false, esperandoCierre: true })], [estado("LINEA_1", "DETENIDA", "motor")], LINEAS)[0]).toMatchObject({
+      estado: "libre",
+      corrida: null,
+      observacion: null,
+    })
+    // DETENIDA (la que deja Entregar PT) o sin registro: Libre. Con CIP, sigue en CIP.
+    expect(estadoDeLineas([], [estado("LINEA_1", "DETENIDA")], LINEAS).map((f) => f.estado)).toEqual(["libre", "libre"])
+    expect(estadoDeLineas([corrida({ activa: false, esperandoCierre: true })], [estado("LINEA_1", "CIP", "36 h")], LINEAS)[0]).toMatchObject({
+      estado: "cip",
+      observacion: "36 h",
+    })
+  })
+})
+
+describe("aplicarParadasEnVivo: las paradas abiertas, igual en todas las pantallas", () => {
+  const ahora = new Date("2026-11-05T10:00:00")
+  const abierta = (over: Partial<Parada>): Parada =>
+    ({ id: "p", lineaCodigo: "LINEA_1", inicio: "2026-11-05T09:00:00", fin: null, pendiente: false, tipoNombre: "Falla", nota: null, origen: "MANUAL", ...over }) as Parada
+
+  it("con corrida manda la base: pausada = Parada al instante, aunque no hayan pasado 15 min", () => {
+    const [l] = aplicarParadasEnVivo(estadoDeLineas([corrida({ pausadaEn: "2026-11-05T09:58:00" })], [], LINEAS), [], ahora)
+    expect(l.estado).toBe("parada")
+    expect(l.paradaEnVivo?.visible).toBe(false)
+  })
+
+  it("con corrida en marcha, una parada abierta solo avisa: la pausa la pone la base", () => {
+    const [l] = aplicarParadasEnVivo(estadoDeLineas([corrida({})], [], LINEAS), [abierta({})], ahora)
+    expect(l.estado).toBe("activa")
+    expect(l.paradaEnVivo?.visible).toBe(true)
+  })
+
+  it("sin corrida, la parada abierta la deja Detenida por parada; antes del margen sigue Libre", () => {
+    const [l1, l2] = aplicarParadasEnVivo(
+      estadoDeLineas([], [estado("LINEA_1", "LISTA"), estado("LINEA_2", "DETENIDA")], LINEAS),
+      [abierta({}), abierta({ id: "q", lineaCodigo: "LINEA_2", inicio: "2026-11-05T09:55:00" })],
+      ahora,
+    )
+    expect(l1.estado).toBe("detenida_por_parada")
+    expect(l2.estado).toBe("libre")
+  })
+
+  it("en CIP no cambia", () => {
+    const [l] = aplicarParadasEnVivo(estadoDeLineas([], [estado("LINEA_1", "CIP")], LINEAS), [abierta({})], ahora)
+    expect(l.estado).toBe("cip")
+  })
+
+  it("estadoDeUnaLinea (tarjeta y Modo Paradas) da lo mismo que los paneles", () => {
+    const casos: [Corrida[], LineaEstado[], Parada[]][] = [
+      [[corrida({})], [], []],
+      [[corrida({ pausadaEn: "2026-11-05T09:58:00" })], [], []],
+      [[corrida({ pausadaEn: "2026-11-05T09:00:00" })], [estado("LINEA_1", "CIP")], []],
+      [[corrida({ activa: false, esperandoCierre: true })], [estado("LINEA_1", "DETENIDA")], []],
+      [[], [estado("LINEA_1", "LISTA")], [abierta({})]],
+      [[], [estado("LINEA_1", "CAMBIO_PRESENTACION")], []],
+      [[], [estado("LINEA_1", "SIN_PROGRAMACION")], []],
+      [[], [], []],
+    ]
+    for (const [corridas, estados, abiertas] of casos) {
+      const panel = aplicarParadasEnVivo(estadoDeLineas(corridas, estados, LINEAS), abiertas, ahora)[0]
+      const tarjeta = estadoDeUnaLinea({ codigo: "LINEA_1", nombre: "Línea 1" }, corridas.filter((c) => c.activa), estados[0], abiertas, ahora)
+      expect(tarjeta.estado).toBe(panel.estado)
+    }
   })
 })
 

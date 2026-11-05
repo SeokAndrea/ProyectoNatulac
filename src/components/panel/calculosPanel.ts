@@ -1,3 +1,4 @@
+import type { LineaCodigo } from "@/lib/catalogos"
 import type { LineaLive, PresentacionLive } from "@/lib/catalogosLive"
 import type { EficienciaTurno } from "@/lib/eficiencia"
 import { duracionMin, minutosPorLinea, type Parada } from "@/lib/paradas"
@@ -31,14 +32,23 @@ export const HORARIOS: Record<string, { inicio: string; fin: string }> = {
   "12X12": { inicio: "07:00", fin: "19:00" },
 }
 
+/**
+ * Estado de una línea: el MISMO en la tarjeta de Líneas, el Modo Paradas y
+ * los dos paneles (dueña, 2026-11-05). Se calcula solo con estadoDeLineas +
+ * aplicarParadasEnVivo (o estadoDeUnaLinea, que las usa); cómo se ve cada uno
+ * está en una sola tabla, src/components/lineas/estadoLinea.ts.
+ * «Esperando PT» ya no es un estado de la línea: sin corrida en marcha la
+ * línea está Libre, y el PT pendiente queda como tarea (tarjeta y Producto
+ * Terminado).
+ */
 export type EstadoLinea =
   | "activa"
   | "parada"
-  | "esperando_cierre"
+  /** Sin corrida y con una parada abierta (ej. la Línea 3 que no puede arrancar). */
+  | "detenida_por_parada"
   | "cambio_presentacion"
   | "cip"
   | "sin_programacion"
-  | "detenida"
   | "libre"
 
 export interface LineaConEstado {
@@ -46,7 +56,7 @@ export interface LineaConEstado {
   nombre: string
   estado: EstadoLinea
   corrida: Corrida | null
-  /** Falla u observación cargada al dejar la línea en DETENIDA — solo cuando aplica. null si no hay. */
+  /** Motivo del CIP que cargó el supervisor — solo con la línea en CIP. null si no hay. */
   observacion: string | null
   /** Parada abierta ahora mismo (solo en vivo, ver aplicarParadasEnVivo). */
   paradaEnVivo?: ParadaEnVivo | null
@@ -140,23 +150,24 @@ export function textoUltimaActualizacion(ultimaAccion: Date | null, ahora: Date)
   return segundos < 60 ? `hace ${segundos}s` : `hace ${Math.floor(segundos / 60)} min`
 }
 
-/** Condición continua de la línea (sin corrida) → estado del Panel. */
+/**
+ * Condición continua de la línea (sin corrida en marcha) → estado. LISTA,
+ * DETENIDA (la que deja Entregar PT) o sin registro → "libre": «Esperando
+ * PT» se quitó como estado (dueña, 2026-11-05).
+ */
 const ESTADO_POR_CONDICION: Partial<Record<LineaEstado["condicion"], EstadoLinea>> = {
   CAMBIO_PRESENTACION: "cambio_presentacion",
   CIP: "cip",
   SIN_PROGRAMACION: "sin_programacion",
-  DETENIDA: "detenida",
-  // LISTA (o sin registro) → "libre".
 }
 
-/** Una fila por línea del área (catálogo completo), cruzada con la corrida actual/últimamente tocada de las corridas del módulo Producción. */
+/** Una fila por línea del área (catálogo completo), cruzada con la corrida en marcha de las corridas del módulo Producción. */
 export function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[], lineasCatalogo: LineaLive[]): LineaConEstado[] {
   return lineasCatalogo.map((lc) => {
     const corridasLinea = corridas.filter((l) => l.linea === lc.codigo)
     const estadoContinuo = lineasEstado.find((e) => e.linea === lc.codigo)
-    // La nota se muestra con la línea Detenida o en CIP (motivo + descripción del supervisor, migración 20261091).
-    const observacion =
-      estadoContinuo?.condicion === "DETENIDA" || estadoContinuo?.condicion === "CIP" ? estadoContinuo.observacion : null
+    // El motivo se muestra con la línea en CIP (motivo + descripción del supervisor, migración 20261091).
+    const observacion = estadoContinuo?.condicion === "CIP" ? estadoContinuo.observacion : null
 
     const activa = corridasLinea.find((l) => l.activa)
     if (activa) {
@@ -170,33 +181,51 @@ export function estadoDeLineas(corridas: Corrida[], lineasEstado: LineaEstado[],
         observacion: enCip ? observacion : null,
       }
     }
-    const esperandoCierre = corridasLinea.find((l) => l.esperandoCierre)
-    if (esperandoCierre) {
-      return { codigo: lc.codigo, nombre: lc.nombre, estado: "esperando_cierre", corrida: esperandoCierre, observacion }
-    }
-    // Sin corrida: el Panel refleja la condición continua de la línea
-    // (Cambio de Presentación / CIP / Sin programación / Detenida), no
-    // solo "Libre" para todas. Ver LineasEstadoPlanta.tsx.
+    // Sin corrida en marcha (también si una espera su PT): la condición
+    // continua de la línea (Cambio de Presentación / CIP / Sin programación),
+    // o Libre. Ver LineasEstadoPlanta.tsx.
     const estado: EstadoLinea = (estadoContinuo && ESTADO_POR_CONDICION[estadoContinuo.condicion]) ?? "libre"
     return { codigo: lc.codigo, nombre: lc.nombre, estado, corrida: null, observacion }
   })
 }
 
 /**
- * Panel en vivo: las paradas abiertas cambian el estado de la línea (ver
- * src/lib/paradasEnVivo.ts). Con más de 15 min, una línea con corrida se ve
- * "parada" y una sin corrida "detenida"; antes del margen sigue como
- * estaba (la corrida pausada desde Líneas vuelve a verse "activa"), con el
- * aviso en `paradaEnVivo`. CIP y "esperando cierre" no cambian.
+ * Las paradas abiertas (ver src/lib/paradasEnVivo.ts), igual en todas las
+ * pantallas (dueña, 2026-11-05):
+ *   * Con corrida manda la base: Parar la pausa al instante y
+ *     aplicar_paradas_a_lineas a los 15 min de una parada abierta. Acá no se
+ *     recalcula (antes los paneles esperaban 15 min aunque el supervisor ya
+ *     hubiera tocado Parar, y mostraban parada una línea que Mantenimiento
+ *     dejó seguir). Solo se agrega el aviso en `paradaEnVivo`.
+ *   * Sin corrida no hay nada que la base pueda pausar: la parada abierta
+ *     visible la deja "detenida_por_parada" (la LNPE, "sin_programacion").
+ *   * CIP no cambia.
  */
 export function aplicarParadasEnVivo(lineas: LineaConEstado[], abiertas: Parada[], ahora: Date, desdeTurno: Date | null = null): LineaConEstado[] {
   return lineas.map((le) => {
-    if (le.estado === "cip" || le.estado === "esperando_cierre") return le
+    if (le.estado === "cip") return le
     const conCorrida = le.estado === "activa" || le.estado === "parada"
     const parada = paradaEnVivo(le.codigo, abiertas, conCorrida ? (le.corrida?.pausadaEn ?? null) : null, ahora, desdeTurno)
-    if (conCorrida) return { ...le, estado: parada?.visible ? "parada" : "activa", paradaEnVivo: parada }
-    return { ...le, estado: parada?.visible ? "detenida" : le.estado, paradaEnVivo: parada }
+    if (conCorrida || !parada?.visible) return { ...le, paradaEnVivo: parada }
+    return { ...le, estado: parada.lineaNoProgramada ? "sin_programacion" : "detenida_por_parada", paradaEnVivo: parada }
   })
+}
+
+/**
+ * El estado de UNA línea con el mismo cálculo que los paneles: lo usan la
+ * tarjeta de Líneas y el Modo Paradas, para que las cuatro pantallas digan
+ * lo mismo con los mismos datos.
+ */
+export function estadoDeUnaLinea(
+  linea: { codigo: LineaCodigo; nombre: string },
+  corridas: Corrida[],
+  lineaEstado: LineaEstado | null | undefined,
+  abiertas: Parada[],
+  ahora: Date,
+  desdeTurno: Date | null = null,
+): LineaConEstado {
+  const [base] = estadoDeLineas(corridas, lineaEstado ? [lineaEstado] : [], [{ id: linea.codigo, codigo: linea.codigo, nombre: linea.nombre, activo: true }])
+  return aplicarParadasEnVivo([base], abiertas, ahora, desdeTurno)[0]
 }
 
 /**

@@ -1,4 +1,5 @@
-import { BroomSparkles, Pause, PauseCircle, RefreshCw, Square, Wrench } from "lucide-react"
+import { BroomSparkles, CalendarOff, Pause, PauseCircle, RefreshCw, Square, Wrench } from "lucide-react"
+import { ASPECTO_DE_VISTA, TEXTO_VARIANTE } from "@/components/lineas/estadoLinea"
 import { colorSabor } from "@/lib/coloresSabor"
 import { cn } from "@/lib/utils"
 import { TextoDesplazable } from "@/components/TextoDesplazable"
@@ -22,18 +23,24 @@ import { interpretarSabor } from "@/components/pixel/armarJugo"
  * cinta quieta con un técnico atendiéndola (modo "cip" / "reparacion" de
  * CintaPixel) — en PARADA con los envases de la corrida arriba.
  */
-export type EstadoLineaVista = "CORRIENDO" | "PARADA" | "DETENIDA" | "CIP" | "CAMBIO" | "LIBRE" | "TERMINO"
+export type EstadoLineaVista = "CORRIENDO" | "PARADA" | "DETENIDA" | "CIP" | "CAMBIO" | "SIN_PROGRAMACION" | "LIBRE" | "TERMINO"
 
 const CANT_CAJAS = 4
 
-const META: Record<EstadoLineaVista, { etiqueta: string; icono: typeof Pause; tono: string }> = {
-  CORRIENDO: { etiqueta: "Corriendo", icono: Pause, tono: "text-success-foreground" }, // icono sin uso (hay cajas)
-  PARADA: { etiqueta: "Parada", icono: Pause, tono: "text-warning-foreground" },
-  DETENIDA: { etiqueta: "Esperando PT", icono: Wrench, tono: "text-danger" },
-  CIP: { etiqueta: "CIP", icono: BroomSparkles, tono: "text-info" },
-  CAMBIO: { etiqueta: "Cambio Present.", icono: RefreshCw, tono: "text-muted-foreground" },
-  LIBRE: { etiqueta: "Libre", icono: PauseCircle, tono: "text-muted-foreground" },
-  TERMINO: { etiqueta: "Terminó Lote", icono: Square, tono: "text-warning-foreground" },
+/**
+ * Solo el ícono de cada escena: la etiqueta y el color salen de la tabla
+ * única (src/components/lineas/estadoLinea.ts), así dicen lo mismo que la
+ * tarjeta de Líneas y el Panel de Producción.
+ */
+const ICONO: Record<EstadoLineaVista, typeof Pause> = {
+  CORRIENDO: Pause, // sin uso (hay cajas)
+  PARADA: Pause,
+  DETENIDA: Wrench,
+  CIP: BroomSparkles,
+  CAMBIO: RefreshCw,
+  SIN_PROGRAMACION: CalendarOff,
+  LIBRE: PauseCircle,
+  TERMINO: Square,
 }
 
 export function CintaLinea({
@@ -61,8 +68,9 @@ export function CintaLinea({
   /** Chica, como un guiño (Panel de Paradas, dueña 2026-10-31): el dibujo a escala y el aviso abajo, sin tapar. */
   compacto?: boolean
 }) {
-  const meta = META[estado]
-  const Icon = meta.icono
+  const aspecto = ASPECTO_DE_VISTA[estado]
+  const meta = { etiqueta: aspecto.badge, tono: TEXTO_VARIANTE[aspecto.variante] }
+  const Icon = ICONO[estado]
   const conCajas = estado === "CORRIENDO" || estado === "PARADA"
   const color = colorSabor(saborNombre)
   const jugoPixel = interpretarSabor(saborNombre)
