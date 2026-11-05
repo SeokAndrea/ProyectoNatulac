@@ -28,6 +28,7 @@ import { usePanelTurno } from "@/components/panel/usePanelTurno"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
+import { conEstadosDeLaBase, useEstadoLineas, useRecargarAlCambiar } from "@/lib/estadoLineas"
 import { minutosPorLinea } from "@/lib/paradas"
 import { useParadasAbiertas } from "@/lib/paradasEnVivo"
 import { puede } from "@/lib/permisos"
@@ -83,12 +84,17 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
     elegirFecha,
     verEnVivo,
     elegirTramo,
+    refrescarEnVivo,
   } = usePanelTurno()
   // Paradas abiertas para las cintas en vivo. Aséptico y Pruebas ven lo suyo; el resto, producción.
   const areaParadas = areaEfectiva === "ASEPTICO" || areaEfectiva === "PRUEBAS" ? areaEfectiva : null
   // Quien puede, trae el Sheet de Mantenimiento solo cada 5 min (como el botón del Panel de Paradas).
   const puedeSincronizarSheet = areaParadas !== "PRUEBAS" && (puede(session ?? null, "PARADAS_REGISTRAR") || session?.area === "MANTENIMIENTO")
   const paradasAbiertas = useParadasAbiertas(areaParadas, puedeSincronizarSheet ? (session?.username ?? null) : null, enVivo)
+  // En vivo, el estado de cada línea lo dice la base (cada 15 s, el mismo que Líneas y el Panel de
+  // Paradas); si cambió algo, el Panel se refresca ya en vez de esperar sus 15 min.
+  const estadoBase = useEstadoLineas(areaParadas, enVivo)
+  useRecargarAlCambiar(enVivo ? estadoBase : null, refrescarEnVivo)
 
   // ------------------------------------------------------------ cuentas
   const horasTurnoActual = turno ? horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin) : 0
@@ -123,8 +129,10 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
   // el estado del turno cerrado: quedan Libres, salvo una parada abierta (igual que el Panel de Paradas).
   const conCorridas = !enVivo || turno?.estado === "ABIERTO"
   const lineasBase = turno ? estadoDeLineas(conCorridas ? prod.corridas : [], conCorridas ? prod.lineasEstado : [], lineas) : []
-  // En vivo, las paradas abiertas: el mismo cálculo que Líneas y el Panel de Paradas (calculosPanel.ts).
-  const lineasEstado = enVivo ? aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora, conCorridas ? desdeTurno : null) : lineasBase
+  // En vivo: lo que dice la base; si no responde, el mismo cálculo de respaldo que Líneas y el Panel de Paradas.
+  const lineasEstado = enVivo
+    ? conEstadosDeLaBase(aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora, conCorridas ? desdeTurno : null), estadoBase, ahora, conCorridas ? desdeTurno : null)
+    : lineasBase
   const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, lineas, presentaciones) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   /*

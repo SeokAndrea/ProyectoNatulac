@@ -19,6 +19,7 @@ import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/pr
 import { horasTranscurridasTurno } from "@/lib/reportes"
 import type { TurnoActivo } from "@/lib/turno"
 import { estadoDeUnaLinea } from "@/components/panel/calculosPanel"
+import { conEstadoDeLaBase, type EstadoLineasDeLaBase } from "@/lib/estadoLineas"
 import { AnimacionLinea } from "./AnimacionLinea"
 import { aspectoDeLinea } from "./estadoLinea"
 import { FilaAcciones } from "./FilaAcciones"
@@ -76,6 +77,7 @@ export function ModoParadas({
   acciones,
   paradasDetienen,
   paradasAbiertas = [],
+  estadosBase = null,
   esMantenimiento = false,
   terminaSiempre = false,
 }: {
@@ -96,6 +98,8 @@ export function ModoParadas({
   paradasDetienen: ParadaQueDetiene[]
   /** Paradas abiertas del área (las mismas que leen los paneles): deciden el estado de la línea igual que allá. */
   paradasAbiertas?: Parada[]
+  /** El estado de las líneas según la base (estado_lineas), si es el turno en curso: manda sobre el cálculo propio. */
+  estadosBase?: EstadoLineasDeLaBase | null
   /** Usuario del área Mantenimiento: sin botones que manejan la línea; abre y termina sus paradas. */
   esMantenimiento?: boolean
   /** Puede terminar cualquier parada de Mantenimiento aunque el interruptor del área esté encendido (la dueña). */
@@ -205,10 +209,16 @@ export function ModoParadas({
         const lineaTurno = corridasLinea.find((c) => c.activa) ?? null
         const estadoLinea = lineasEstado.find((le) => le.linea === l.codigo)
         const condicion = estadoLinea?.condicion ?? "DETENIDA"
-        // El estado, con el MISMO cálculo y la misma tabla que la tarjeta y los paneles (dueña, 2026-11-05).
-        // El turno anterior ya pasó: ahí no cuentan las paradas abiertas de ahora.
+        // El estado: el de la base si llegó (el mismo que la tarjeta y los paneles); si no, el mismo
+        // cálculo de respaldo (dueña, 2026-11-05). El turno anterior ya pasó: ahí no cuenta lo de ahora.
+        const desde = new Date(desdeMs)
         const aspecto = aspectoDeLinea(
-          estadoDeUnaLinea(l, lineaTurno ? [lineaTurno] : [], estadoLinea, verAnterior ? [] : paradasAbiertas, ahora, new Date(desdeMs)),
+          conEstadoDeLaBase(
+            estadoDeUnaLinea(l, lineaTurno ? [lineaTurno] : [], estadoLinea, verAnterior ? [] : paradasAbiertas, ahora, desde),
+            verAnterior ? null : estadosBase?.lineas.find((b) => b.linea === l.codigo),
+            ahora,
+            desde,
+          ),
         )
         // Parar y continuar: solo en el turno en curso, con la corrida en marcha (no en CIP ni con el lote terminado).
         // El CIP solo frena si tiene la corrida en pausa: con la corrida corriendo (como dice la tarjeta), se puede Parar
