@@ -12,7 +12,9 @@ import { puede } from "@/lib/permisos"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { aplicarParadasALineas, paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
-import { sincronizarSheetSiHaceFalta } from "@/lib/paradasEnVivo"
+import { leerParadasAbiertas, sincronizarSheetSiHaceFalta } from "@/lib/paradasEnVivo"
+import { useEstadoLineas, useRecargarAlCambiar } from "@/lib/estadoLineas"
+import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 import { esDeMantenimiento } from "@/lib/mantenimientoSesion"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { cn } from "@/lib/utils"
@@ -66,6 +68,14 @@ export function LineasEstadoPlanta({
   const { refrescar } = produccion
   // Y el Sheet de Mantenimiento entra solo (cada 5 min, si nadie lo trajo): sus paradas llegan sin apretar el botón.
   const usuarioSheet = areaParadas === "ASEPTICO" && (puede(session, "PARADAS_REGISTRAR") || session?.area === "MANTENIMIENTO") ? (session?.username ?? null) : null
+
+  // Las paradas abiertas del área, la misma lectura que los paneles: con ellas la tarjeta y el Modo
+  // Paradas calculan el estado de la línea igual que los paneles (estadoDeUnaLinea, dueña 2026-11-05).
+  const [paradasAbiertas, setParadasAbiertas] = useState<Parada[]>([])
+  const recargarAbiertas = useCallback(async () => {
+    setParadasAbiertas(await leerParadasAbiertas(areaParadas))
+  }, [areaParadas])
+
   useEffect(() => {
     let vivo = true
     async function aplicar() {
@@ -73,6 +83,7 @@ export function LineasEstadoPlanta({
       if (((await aplicarParadasALineas(areaParadas)) > 0 || delSheet) && vivo) {
         await Promise.all([refrescar(), recargarParadas()])
       }
+      if (vivo) await recargarAbiertas()
     }
     void aplicar()
     const id = setInterval(() => void aplicar(), 60_000)
@@ -80,7 +91,22 @@ export function LineasEstadoPlanta({
       vivo = false
       clearInterval(id)
     }
-  }, [areaParadas, usuarioSheet, refrescar, recargarParadas])
+  }, [areaParadas, usuarioSheet, refrescar, recargarParadas, recargarAbiertas])
+
+  // Desde cuándo cuenta el turno en curso: los minutos del aviso de la parada, igual que en los paneles.
+  const desdeTurno =
+    idTurno && idTurno === sesion.turnoId && sesion.turnoTipo && sesion.fecha && sesion.horaInicio
+      ? inicioCuentaTurno(sesion.turnoTipo, sesion.fecha, `${sesion.fecha}T${sesion.horaInicio}`)
+      : null
+
+  // El estado de cada línea lo dice la base (cada 15 s, el mismo que los paneles). Solo para el turno
+  // en curso de la planta: en corrección o en un turno ya cerrado, la tarjeta usa su cálculo.
+  const estadoBase = useEstadoLineas(areaParadas)
+  const baseDelTurno = estadoBase && idTurno && estadoBase.turnoId === idTurno ? estadoBase : null
+  // Si cambió algo (otra persona arrancó, paró o terminó una parada), Líneas recarga sola.
+  useRecargarAlCambiar(estadoBase, () => {
+    void Promise.all([refrescar(), recargarParadas(), recargarAbiertas()])
+  })
 
   // Los +1 sin minutos del área, para el botón «Paradas · N» de cada tarjeta (mismo rango que Registrar Paradas).
   const anotaParadas = puede(session, "PARADAS_REGISTRAR")
@@ -96,14 +122,14 @@ export function LineasEstadoPlanta({
   }, [recargarPendientes])
   /** Se anotó o completó una parada: pendientes, qué detiene a cada línea y las corridas (una larga pausa la línea sola). */
   const paradasCambiaron = useCallback(async () => {
-    await Promise.all([recargarPendientes(), recargarParadas(), refrescar()])
-  }, [recargarPendientes, recargarParadas, refrescar])
+    await Promise.all([recargarPendientes(), recargarParadas(), refrescar(), recargarAbiertas()])
+  }, [recargarPendientes, recargarParadas, refrescar, recargarAbiertas])
 
-  /** Después de un CIP o de terminarlo, se vuelve a leer qué parada detiene a cada línea. */
+  /** Después de una parada, un CIP o de terminarlo, se vuelve a leer qué parada detiene a cada línea y las abiertas. */
   function yRecargarParadas<A extends unknown[]>(fn: (...args: A) => Promise<Resultado>) {
     return async (...args: A) => {
       const resultado = await fn(...args)
-      if (resultado.ok) await recargarParadas()
+      if (resultado.ok) await Promise.all([recargarParadas(), recargarAbiertas()])
       return resultado
     }
   }
@@ -190,6 +216,8 @@ export function LineasEstadoPlanta({
           onCambio={paradasCambiaron}
           acciones={acciones}
           paradasDetienen={paradasDetienen}
+          paradasAbiertas={paradasAbiertas}
+          estadosBase={baseDelTurno}
           esMantenimiento={esMantenimiento}
           terminaSiempre={session.esDueno || session.rol === "SUPERADMINISTRADOR"}
         />
@@ -218,6 +246,9 @@ export function LineasEstadoPlanta({
             velocidades={velocidades}
             paradaQueDetiene={paradasDetienen.find((p) => p.linea === l.codigo && p.pendiente) ?? null}
             paradaDeLinea={paradasDetienen.find((p) => p.linea === l.codigo) ?? null}
+            paradasAbiertas={paradasAbiertas}
+            estadoBase={baseDelTurno?.lineas.find((b) => b.linea === l.codigo) ?? null}
+            desdeTurno={desdeTurno}
             acciones={acciones}
             paradas={
               anotaParadas && session

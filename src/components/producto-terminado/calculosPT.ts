@@ -119,3 +119,9 @@ export function vistaPreviaCarga(d: {
     mermaProvisional: mermaPct !== null && d.contadorActual === 0,
   }
 }
+
+/** Lo que el Robot Tavil dice de un campo: «Robot: 8», o que se corrige si lo escrito es otro número. */
+export function pistaPrecarga(escrito: string, robot: number): { texto: string; corrige: boolean } {
+  const corrige = escrito !== "" && Number(escrito) !== robot
+  return { texto: corrige ? `Corriges la precarga: Robot ${robot}` : `Robot: ${robot}`, corrige }
+}

@@ -23,10 +23,12 @@ import { ResumenPlanta } from "@/components/panel/resumen-planta/ResumenPlanta"
 import { SeccionLineas } from "@/components/panel/SeccionLineas"
 import { SeccionMermas } from "@/components/panel/SeccionMermas"
 import { SeccionTanques } from "@/components/panel/SeccionTanques"
+import { useEstimacionTanques } from "@/lib/robotTavil"
 import { usePanelTurno } from "@/components/panel/usePanelTurno"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { eficienciaDelTurno } from "@/lib/eficiencia"
+import { conEstadosDeLaBase, useEstadoLineas, useRecargarAlCambiar } from "@/lib/estadoLineas"
 import { minutosPorLinea } from "@/lib/paradas"
 import { useParadasAbiertas } from "@/lib/paradasEnVivo"
 import { puede } from "@/lib/permisos"
@@ -82,12 +84,17 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
     elegirFecha,
     verEnVivo,
     elegirTramo,
+    refrescarEnVivo,
   } = usePanelTurno()
   // Paradas abiertas para las cintas en vivo. Aséptico y Pruebas ven lo suyo; el resto, producción.
   const areaParadas = areaEfectiva === "ASEPTICO" || areaEfectiva === "PRUEBAS" ? areaEfectiva : null
   // Quien puede, trae el Sheet de Mantenimiento solo cada 5 min (como el botón del Panel de Paradas).
   const puedeSincronizarSheet = areaParadas !== "PRUEBAS" && (puede(session ?? null, "PARADAS_REGISTRAR") || session?.area === "MANTENIMIENTO")
   const paradasAbiertas = useParadasAbiertas(areaParadas, puedeSincronizarSheet ? (session?.username ?? null) : null, enVivo)
+  // En vivo, el estado de cada línea lo dice la base (cada 15 s, el mismo que Líneas y el Panel de
+  // Paradas); si cambió algo, el Panel se refresca ya en vez de esperar sus 15 min.
+  const estadoBase = useEstadoLineas(areaParadas, enVivo)
+  useRecargarAlCambiar(enVivo ? estadoBase : null, refrescarEnVivo)
 
   // ------------------------------------------------------------ cuentas
   const horasTurnoActual = turno ? horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin) : 0
@@ -118,9 +125,14 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
       }
     : null
   const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
-  const lineasBase = turno ? estadoDeLineas(prod.corridas, prod.lineasEstado, lineas) : []
-  // En vivo, las paradas abiertas de más de 15 min paran la cinta (src/lib/paradasEnVivo.ts).
-  const lineasEstado = enVivo ? aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora, desdeTurno) : lineasBase
+  // En vivo y sin turno ABIERTO (entre un turno y otro llega el último cerrado), las líneas no heredan
+  // el estado del turno cerrado: quedan Libres, salvo una parada abierta (igual que el Panel de Paradas).
+  const conCorridas = !enVivo || turno?.estado === "ABIERTO"
+  const lineasBase = turno ? estadoDeLineas(conCorridas ? prod.corridas : [], conCorridas ? prod.lineasEstado : [], lineas) : []
+  // En vivo: lo que dice la base; si no responde, el mismo cálculo de respaldo que Líneas y el Panel de Paradas.
+  const lineasEstado = enVivo
+    ? conEstadosDeLaBase(aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora, conCorridas ? desdeTurno : null), estadoBase, ahora, conCorridas ? desdeTurno : null)
+    : lineasBase
   const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, lineas, presentaciones) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   /*
@@ -168,6 +180,8 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
     desdeTurno,
     ahora,
   })
+  // Robot Tavil: nivel estimado de los tanques, solo en vivo (el servidor ya filtra el switch y el turno abierto).
+  const estimaciones = useEstimacionTanques(session?.username, enVivo ? (turno?.id ?? null) : null)
   const ultimaAccion = turno ? ultimaAccionDeTurno(prod.corridas, prep.tanques, prod.contadores, pt.registros, prep.preparaciones) : null
 
   // ------------------------------------------------------------ pantalla
@@ -231,6 +245,7 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
                   servIndustriales={servIndustriales}
                   ahora={ahora}
                   conLinks={esSupervisor}
+                  estimaciones={estimaciones}
                 />
                 <ParadaMasLarga paradas={paradasTurno} completas={paradasCompletas} lineas={lineas} ahora={ahora} />
               </div>

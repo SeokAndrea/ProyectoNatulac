@@ -6,14 +6,18 @@ import { Card, CardContent } from "@/components/ui/card"
 import type { ModoEstadoPlanta } from "@/components/EstadoPlantaTabs"
 import type { LineaCodigo } from "@/lib/catalogos"
 import type { PresentacionLive, VelocidadLive } from "@/lib/catalogosLive"
+import { estadoDeUnaLinea } from "@/components/panel/calculosPanel"
+import { conEstadoDeLaBase, type EstadoLineaDeLaBase } from "@/lib/estadoLineas"
 import type { Parada } from "@/lib/paradas"
+import { textoParadaEnVivo } from "@/lib/paradasEnVivo"
 import type { TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
+import { cn } from "@/lib/utils"
 import { AnimacionLinea } from "./AnimacionLinea"
 import { BotonCargarPtLote } from "./BotonCargarPtLote"
 import { ConfirmarInicioLinea, type NoCorre } from "./ConfirmarInicioLinea"
 import { EstadoCipLinea } from "./EstadoCipLinea"
-import { aspectoLinea } from "./estadoLinea"
+import { aspectoDeLinea } from "./estadoLinea"
 import { FormArrancarLinea } from "./FormArrancarLinea"
 import { FormCipLinea } from "./FormCipLinea"
 import { FormDetenerLinea } from "./FormDetenerLinea"
@@ -50,6 +54,9 @@ export function LineaCard({
   velocidades,
   paradaQueDetiene,
   paradaDeLinea,
+  paradasAbiertas = [],
+  estadoBase = null,
+  desdeTurno = null,
   acciones,
   paradas,
   aModoParadas,
@@ -70,6 +77,12 @@ export function LineaCard({
   paradaQueDetiene: ParadaQueDetiene | null
   /** La parada ligada a la línea: la abierta de una Parada, o el +1 del CIP. */
   paradaDeLinea?: ParadaQueDetiene | null
+  /** Paradas abiertas del área (las mismas que leen los paneles): deciden el estado igual que allá. */
+  paradasAbiertas?: Parada[]
+  /** El estado de esta línea según la base (estado_lineas), si es el turno en curso: manda sobre el cálculo propio. */
+  estadoBase?: EstadoLineaDeLaBase | null
+  /** Inicio del turno en curso: los minutos del aviso de la parada, como en los paneles. */
+  desdeTurno?: Date | null
   acciones: AccionesLinea
   /**
    * Paradas de la línea desde su tarjeta (dueña, 2026-10-25): sus +1 pendientes
@@ -88,9 +101,16 @@ export function LineaCard({
 
   const condicion = lineaEstado?.condicion ?? "DETENIDA"
   const enCip = condicion === "CIP"
-  /** Sin corrida activa, pero quedó una corrida detenida esperando que se cargue su Producto Terminado. */
-  const esperandoPt = lineaTurno === null && corridaEsperandoPt !== null
-  const aspecto = aspectoLinea(lineaTurno, condicion, esperandoPt)
+  // El estado: el de la base si llegó (el mismo que ven los paneles); si no, el mismo cálculo de respaldo (dueña, 2026-11-05).
+  const ahora = new Date()
+  const estadoUnico = conEstadoDeLaBase(
+    estadoDeUnaLinea({ codigo: lineaCodigo, nombre: nombreLinea }, lineaTurno ? [lineaTurno] : [], lineaEstado, paradasAbiertas, ahora, desdeTurno),
+    estadoBase,
+    ahora,
+    desdeTurno,
+  )
+  const aspecto = aspectoDeLinea(estadoUnico)
+  const avisoParada = estadoUnico.paradaEnVivo ?? null
 
   /** Status: corrida heredada que todavía no se revisó. */
   const sinConfirmar = modo === "status" && lineaTurno !== null && !lineaTurno.confirmadoInicioEn
@@ -306,6 +326,11 @@ export function LineaCard({
         </div>
 
         <AnimacionLinea lineaCodigo={lineaCodigo} lineaTurno={lineaTurno} aspecto={aspecto} />
+        {avisoParada && (
+          <p className={cn("-mt-1 text-xs font-semibold", avisoParada.visible ? "text-danger" : "text-warning-foreground")}>
+            {textoParadaEnVivo(avisoParada)}
+          </p>
+        )}
 
         {lineaTurno && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm [&>div]:min-w-0">

@@ -325,6 +325,14 @@ export function usePanelTurno() {
     prodAnterior,
     ptAnterior,
     elegirArea: setAreaFiltro,
+    /**
+     * El refresco silencioso de siempre, ya: lo llama el Panel cuando la base
+     * avisa que cambió el estado de una línea (src/lib/estadoLineas.ts), en vez
+     * de esperar los 15 min.
+     */
+    refrescarEnVivo() {
+      setTickRefresco((n) => n + 1)
+    },
     /** Elegir el tipo de turno busca ese turno en la fecha elegida (deja de estar en vivo). */
     elegirTurnoTipo(tt: string) {
       setTurnoTipo(tt)

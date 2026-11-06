@@ -34,6 +34,7 @@ export const PERMISOS = [
   { codigo: "REPORTES_PARADAS_VER", nombre: "Ver los reportes de paradas" },
   { codigo: "VALVULA_AUX", nombre: "Abrir y cerrar las válvulas auxiliares (Contador de Agua)" },
   { codigo: "PARADAS_ELIMINAR", nombre: "Eliminar paradas" },
+  { codigo: "ROBOT_TAVIL_CARGAR", nombre: "Cargar paletas del Robot Tavil" },
 ] as const
 
 export type Permiso = (typeof PERMISOS)[number]["codigo"]

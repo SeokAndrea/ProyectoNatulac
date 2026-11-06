@@ -64,23 +64,28 @@ describe("aplicarParadasEnVivo", () => {
   ] as LineaLive[]
   const corrida = (over: Partial<Corrida>): Corrida => ({ id: "c", linea: "LINEA_1", activa: true, pausadaEn: null, esperandoCierre: false, ...over }) as Corrida
 
-  it("pausada hace 5 min sigue activa con el aviso; con 20 min, parada", () => {
+  it("Parar se ve al instante (dueña, 2026-11-05): pausada hace 5 min ya es parada, con el aviso", () => {
     const base = estadoDeLineas([corrida({ pausadaEn: "2026-10-12T09:55:00" })], [], LINEAS)
     expect(base[0].estado).toBe("parada")
     const enVivo = aplicarParadasEnVivo(base, [], AHORA)
-    expect(enVivo[0]).toMatchObject({ estado: "activa", paradaEnVivo: { minutos: 5, visible: false } })
+    expect(enVivo[0]).toMatchObject({ estado: "parada", paradaEnVivo: { minutos: 5, visible: false } })
 
     const larga = aplicarParadasEnVivo(estadoDeLineas([corrida({ pausadaEn: "2026-10-12T09:40:00" })], [], LINEAS), [], AHORA)
     expect(larga[0].estado).toBe("parada")
   })
 
-  it("corriendo con una falla de Mantenimiento de 30 min: parada; sin corrida: detenida", () => {
+  it("falla de Mantenimiento de 30 min: con corrida avisa (la pausa la pone la base); sin corrida, Detenida por parada", () => {
     const falla = abierta({ responsable: "MANTENIMIENTO", inicio: "2026-10-12T09:30:00" })
     const conCorrida = aplicarParadasEnVivo(estadoDeLineas([corrida({})], [], LINEAS), [falla], AHORA)
-    expect(conCorrida[0].estado).toBe("parada")
+    expect(conCorrida[0]).toMatchObject({ estado: "activa", paradaEnVivo: { deMantenimiento: true, visible: true } })
     const sinCorrida = aplicarParadasEnVivo(estadoDeLineas([], [], LINEAS), [falla], AHORA)
-    expect(sinCorrida[0].estado).toBe("detenida")
+    expect(sinCorrida[0].estado).toBe("detenida_por_parada")
     expect(sinCorrida[1].estado).toBe("libre")
+  })
+
+  it("una Línea No Programada sin corrida se ve «Sin programación», no detenida", () => {
+    const lnpe = abierta({ tipoCodigo: "FERIADO", tipoNombre: "Feriado", inicio: "2026-10-12T07:00:00", fin: "2026-10-12T15:00:00" })
+    expect(aplicarParadasEnVivo(estadoDeLineas([], [], LINEAS), [lnpe], AHORA)[0].estado).toBe("sin_programacion")
   })
 
   it("CIP no cambia", () => {
