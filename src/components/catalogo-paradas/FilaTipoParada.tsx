@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MensajeError } from "@/components/MensajeError"
 import { esParadaNueva } from "@/lib/catalogoFallas/fallaNueva"
-import { codigoPlanilla, fmtDuracion } from "@/lib/paradas"
+import { codigoDeTipo, fmtDuracion } from "@/lib/paradas"
 import { nombreLinea } from "@/lib/paradasEquipos"
 import { cambiarActivo, guardarTipo, type TipoParadaEditable } from "@/lib/paradasCatalogo"
 import { cn } from "@/lib/utils"
@@ -21,7 +21,7 @@ export function FilaTipoParada({ tipo, usuario, pagina, editable }: { tipo: Tipo
   const soloEn = tipo.lineas?.length && lineasAseptico.size < 3 ? `Solo ${[...lineasAseptico].sort().map(nombreLinea).join(", ") || "Pruebas"}` : null
   const celdas = (
     <>
-      <span className="num col-start-1 row-start-2 text-xs text-muted-foreground sm:row-start-1 sm:text-sm">{tipo.prefijoPlanilla ? codigoPlanilla(tipo, "LINEA_1") : "—"}</span>
+      <span className="num col-start-1 row-start-2 text-xs text-muted-foreground sm:row-start-1 sm:text-sm">{tipo.prefijoPlanilla ? codigoDeTipo(tipo) : "—"}</span>
       <span className="col-start-1 row-start-1 flex min-w-0 flex-col sm:col-start-2">
         <span className={cn("text-sm text-foreground", !tipo.activo && "line-through")}>{tipo.nombre}</span>
         {soloEn && <span className="text-xs text-muted-foreground">{soloEn}</span>}
@@ -66,7 +66,7 @@ function EditorTipo({ tipo, usuario, pagina, onListo }: { tipo: TipoParadaEditab
   return (
     <div className="flex flex-col gap-2 bg-muted px-3 py-3">
       <div className={cn("grid gap-2 sm:items-end sm:gap-3", programada ? "sm:grid-cols-[9rem_minmax(0,1fr)_8rem]" : "sm:grid-cols-[9rem_minmax(0,1fr)]")}>
-        <span className="num text-sm text-muted-foreground sm:pb-2">{tipo.prefijoPlanilla ? codigoPlanilla(tipo, "LINEA_1") : "Sin código"}</span>
+        <span className="num text-sm text-muted-foreground sm:pb-2">{tipo.prefijoPlanilla ? codigoDeTipo(tipo) : "Sin código"}</span>
         <Input
           aria-label="Nombre de la parada"
           autoFocus
