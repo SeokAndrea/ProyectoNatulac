@@ -41,10 +41,28 @@ export function CatalogoFallas({ usuario, editable }: { usuario: string; editabl
     return g ? { equipoId: g.equipo.id, sistemaId: g.sistema.id, subsistemaId: g.subsistema.id } : { equipoId: NUEVO, sistemaId: NUEVO, subsistemaId: NUEVO }
   }
 
+  // Con el formulario a la vista, él es el único filtro: lo que elige (equipo, sistema, subsistema) es lo que muestra la tabla.
+  // «+ Nuevo…» no filtra nada todavía (ese nivel y los de abajo quedan en «todos»).
+  function verUbicacion(u: Inicio) {
+    const real = (v: string) => (v === NUEVO ? "" : v)
+    setEquipoId(real(u.equipoId))
+    setSistemaId(real(u.sistemaId))
+    setSubsistemaId(real(u.subsistemaId))
+  }
+
   function agregarEn(g: GrupoTabla) {
-    setFormulario((f) => ({ inicio: { equipoId: g.equipo.id, sistemaId: g.sistema.id, subsistemaId: g.subsistema.id }, clave: f.clave + 1 }))
+    const inicio = { equipoId: g.equipo.id, sistemaId: g.sistema.id, subsistemaId: g.subsistema.id }
+    setFormulario((f) => ({ inicio, clave: f.clave + 1 }))
+    if (editable) verUbicacion(inicio)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
+
+  // Dónde está mirando la tabla, en palabras (para el aviso «Mostrando…»).
+  const ubicacion = [
+    catalogo.equipos.find((e) => e.id === equipoId)?.nombre,
+    catalogo.sistemas.find((x) => x.id === sistemaId)?.nombre,
+    catalogo.subsistemas.find((x) => x.id === subsistemaId)?.nombre,
+  ].filter(Boolean)
 
   return (
     <div className="flex flex-col gap-4">
@@ -60,6 +78,7 @@ export function CatalogoFallas({ usuario, editable }: { usuario: string; editabl
             inicial={formulario.inicio ?? primerLugar()}
             enfocar={formulario.clave > 0}
             onAgregado={recargar}
+            onUbicacion={verUbicacion}
           />
         </section>
       )}
@@ -69,6 +88,8 @@ export function CatalogoFallas({ usuario, editable }: { usuario: string; editabl
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input type="search" aria-label="Buscar en el catálogo" placeholder="Buscar falla, subsistema o código" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="pl-8" />
         </div>
+        {!editable && (
+          <>
         <select
           aria-label="Equipo"
           className={`${selectClase} sm:w-56`}
@@ -113,11 +134,25 @@ export function CatalogoFallas({ usuario, editable }: { usuario: string; editabl
             </option>
           ))}
         </select>
+          </>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
         <span className="num">
           {fallasVisibles} {fallasVisibles === 1 ? "falla" : "fallas"}
         </span>
+        {editable && ubicacion.length > 0 && (
+          <span className="flex items-center gap-2">
+            Mostrando: <span className="font-medium text-foreground">{ubicacion.join(" › ")}</span>
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-foreground"
+              onClick={() => verUbicacion({ equipoId: "", sistemaId: "", subsistemaId: "" })}
+            >
+              Ver todo
+            </button>
+          </span>
+        )}
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={verInactivos} onChange={(e) => setVerInactivos(e.target.checked)} />
           Mostrar inactivas
