@@ -4,12 +4,13 @@ import { useEffect } from "react"
  * Pantallas de Indicadores, en el orden en que se presentan. Una pantalla
  * nueva se agrega acá y ya entra en la barra y en las flechas del teclado.
  */
-export type Seccion = "1" | "2" | "3" | "semi" | "aus" | "inc"
+export type Seccion = "1" | "2" | "3" | "vacio" | "semi" | "aus" | "inc"
 
 export const SECCIONES: { valor: Seccion; texto: string }[] = [
   { valor: "1", texto: "LÍNEA 1" },
   { valor: "2", texto: "LÍNEA 2" },
   { valor: "3", texto: "LÍNEA 3" },
+  { valor: "vacio", texto: "VACÍO" },
   { valor: "semi", texto: "SEMIELABORADO" },
   { valor: "aus", texto: "AUSENTISMO" },
   { valor: "inc", texto: "INCIDENCIAS / SEGUIMIENTO" },

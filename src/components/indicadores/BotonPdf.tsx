@@ -10,6 +10,7 @@ const TITULOS: Record<Seccion, string> = {
   "1": "Línea 1",
   "2": "Línea 2",
   "3": "Línea 3",
+  vacio: "Vacío",
   semi: "Semielaborado",
   aus: "Ausentismo",
   inc: "Incidencias y seguimiento",

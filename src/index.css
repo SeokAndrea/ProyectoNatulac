@@ -601,6 +601,8 @@
   /* Línea 2 en «naranja Claude» (dueña, 2026-10-15: ni chillón ni marrón). Antes morado #7553d1. */
   --ind-l2: #d97757; --ind-l2-texto: #c15f3c; --ind-l2-cab: #ffffff; --ind-l2-mezcla: #a3360f;
   --ind-l3: #1baf7a; --ind-l3-texto: #11865c; --ind-l3-cab: #ffffff;
+  /* Vacío: violeta. */
+  --ind-vacio: #7a4fc4; --ind-vacio-texto: #6034a8; --ind-vacio-cab: #ffffff;
   --ind-clasicos: #2d3b8f; --ind-clasicos-texto: #2d3b8f; --ind-clasicos-cab: #ffffff;
   /* Selecto un poco más oscuro que su envase, sin parecerse al Clásico (dueña, 2026-10-14). */
   --ind-selecto: #6fa8d8; --ind-selecto-texto: #2f6ea3; --ind-selecto-cab: #1b2260;
@@ -615,6 +617,7 @@
   --ind-l1: #3987e5; --ind-l1-texto: #74abef; --ind-l1-cab: #0b1220;
   --ind-l2: #e08a6c; --ind-l2-texto: #eb9a7c; --ind-l2-cab: #0b1220; --ind-l2-mezcla: #ffffff;
   --ind-l3: #199e70; --ind-l3-texto: #2cc28c; --ind-l3-cab: #0b1220;
+  --ind-vacio: #8e69d6; --ind-vacio-texto: #b59cea; --ind-vacio-cab: #0b1220;
   --ind-clasicos: #7d8ce0; --ind-clasicos-texto: #9aa6ec; --ind-clasicos-cab: #0b1220;
   --ind-selecto: #a9cdea; --ind-selecto-texto: #a9cdea; --ind-selecto-cab: #0b1220;
   --ind-jucosa-texto: #b9d44a; --ind-jucosa-cab: #0b1220;

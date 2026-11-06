@@ -19,6 +19,7 @@ import { ObservacionesGuardadas } from "@/components/indicadores/ObservacionesGu
 import { useIndicadores } from "@/components/indicadores/useIndicadores"
 import { VistaLinea } from "@/components/indicadores/VistaLinea"
 import { VistaSemielaborado, type VistaSemi } from "@/components/indicadores/VistaSemielaborado"
+import { VistaVacio } from "@/components/indicadores/VistaVacio"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { capital, nombreMes, presentacionesDeLinea, sumarMeses, tieneCargaDeLineas } from "@/lib/indicadores/calculos"
@@ -82,11 +83,14 @@ export default function Indicadores() {
   // Ausentismo e incidencias: siempre a mano, se editan aunque el mes sea automático.
   const aMano = SIEMPRE_A_MANO.includes(seccion)
   const esLinea = seccion === "1" || seccion === "2" || seccion === "3"
-  const seccionesEditor = elegido.modo === "MANUAL" ? SECCIONES.map((s) => s.valor) : SIEMPRE_A_MANO
+  // Vacío todavía no se carga a mano (previa con datos de ejemplo).
+  const seccionesEditor = elegido.modo === "MANUAL" ? SECCIONES.map((s) => s.valor).filter((s) => s !== "vacio") : SIEMPRE_A_MANO
   // Lo que no tiene datos no se ve (dueña, 2026-10-15). Quien carga datos ve también las vacías (para cargarlas),
   // salvo al presentar; el PDF y la presentación llevan solo las que tienen datos.
-  const conDatos = calculando ? TODAS : seccionesConDatos(d, elegido.modo, ind.aMano[ind.aMano.length - 1].datos)
-  const aPresentar = conDatos.length > 0 ? conDatos : TODAS
+  const conDatosReales = calculando ? TODAS : seccionesConDatos(d, elegido.modo, ind.aMano[ind.aMano.length - 1].datos)
+  // Vacío (previa con datos de ejemplo) se ve siempre, sin depender de los datos del mes.
+  const conDatos = TODAS.filter((s) => s === "vacio" || conDatosReales.includes(s))
+  const aPresentar = conDatosReales.length > 0 ? conDatos : TODAS
   const visibles = puedeCargar && !presentacion.presentando ? TODAS : aPresentar
   const vacias = TODAS.filter((s) => !conDatos.includes(s))
   useEffect(() => {
@@ -200,6 +204,8 @@ export default function Indicadores() {
                 editar={botonEditar}
               />
             )
+          ) : seccion === "vacio" ? (
+            <VistaVacio mes={mes} puedeEditar={puedeEditar} />
           ) : calculando ? (
             <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con los días confirmados…

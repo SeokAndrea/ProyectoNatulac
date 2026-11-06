@@ -52,7 +52,9 @@ export function BarraIndicadores({
           title={vacias.includes(s.valor) ? "Sin datos este mes: no sale al presentar ni en el PDF" : undefined}
           className={cn(chip, seccion === s.valor && activo, vacias.includes(s.valor) && "border-dashed opacity-50")}
         >
-          {["1", "2", "3"].includes(s.valor) && <span className="size-2.5 rounded-full" style={{ background: `var(--ind-l${s.valor})` }} />}
+          {["1", "2", "3", "vacio"].includes(s.valor) && (
+            <span className="size-2.5 rounded-full" style={{ background: `var(--ind-${s.valor === "vacio" ? "vacio" : `l${s.valor}`})` }} />
+          )}
           {s.texto}
         </button>
       ))}

@@ -21,6 +21,7 @@ export function Kpi({
   sinExtremos,
   claseValor,
   horizontal,
+  sinComparacion,
 }: {
   titulo?: ReactNode
   serie: PuntoSerie[]
@@ -40,6 +41,8 @@ export function Kpi({
   claseValor?: string
   /** NÚMERO ‖ datos uno al lado del otro, con letra que crece con la tarjeta; angosta, se apila. */
   horizontal?: boolean
+  /** Solo el número (y el detalle): sin «vs mes anterior» ni más alto / más bajo (Vacío, dueña 2026-11-05). */
+  sinComparacion?: boolean
 }) {
   const actual = serie[serie.length - 1]
   const anterior = serie.length > 1 ? serie[serie.length - 2] : null
@@ -67,13 +70,13 @@ export function Kpi({
       )
     const datos = [
       detalle,
-      comparacion,
-      verExtremos && ext && (
+      !sinComparacion && comparacion,
+      !sinComparacion && verExtremos && ext && (
         <>
           ▲ Más alto <b className="whitespace-nowrap">{`${mesCorto(ext.alto.mes)} ${texto(ext.alto.valor)}`}</b>
         </>
       ),
-      verExtremos && ext && (
+      !sinComparacion && verExtremos && ext && (
         <>
           ▼ Más bajo <b className="whitespace-nowrap">{`${mesCorto(ext.bajo.mes)} ${texto(ext.bajo.valor)}`}</b>
         </>

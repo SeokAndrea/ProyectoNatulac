@@ -18,6 +18,8 @@ export function seccionesConDatos(datos: DatosMes | null, modo: ModoMes, aMano: 
     "1": linea("1"),
     "2": linea("2"),
     "3": linea("3"),
+    // Vacío todavía no tiene datos reales (previa con datos de ejemplo): Indicadores.tsx lo muestra siempre.
+    vacio: false,
     semi: Object.values(datos.semielaborado).some((v) => v != null),
     aus: !!aMano?.ausentismo,
     inc: (aMano?.incidencias?.length ?? 0) > 0 || aMano?.diasSinIncidentes != null,

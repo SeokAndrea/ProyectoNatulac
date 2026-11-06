@@ -29,6 +29,13 @@ export function colorPresentacion(linea: string, indice: number): CSSProperties 
 const CLAVE_FAMILIA: Record<string, string> = { clasicos: "clasicos", selecto: "selecto", jucosa: "jucosa", premium: "premium", especiales: "especiales" }
 const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
 
+/** Color de la pantalla Vacío: la primera presentación el color base, la segunda más oscura (como las de una línea). */
+export function colorVacio(indice: number): CSSProperties {
+  const p = MEZCLA[Math.min(indice, 1)]
+  const tono = (v: string) => (p === 100 ? `var(${v})` : `color-mix(in srgb, var(${v}) ${p}%, var(--ind-mezcla))`)
+  return vars("--ind-vacio", tono("--ind-vacio"), tono("--ind-vacio-texto"))
+}
+
 /** Color del envase de la familia (familias_producto). Una familia nueva usa el de Especiales. */
 export const colorFamilia = (familia: string) => vars(`--ind-${CLAVE_FAMILIA[sinTildes(familia)] ?? "especiales"}`)
 
