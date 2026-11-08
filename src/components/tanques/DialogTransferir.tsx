@@ -113,7 +113,7 @@ export function DialogTransferir({
           <div className="flex flex-col gap-2">
             <p className="text-xs text-muted-foreground">
               Manda los <span className="font-medium text-foreground">{litros(volumenActual)} L</span> de {tanque.saborNombre} a otro
-              tanque con el mismo sabor — este tanque queda Sucio.
+              tanque con el mismo sabor — este tanque queda Con Restos (0 L).
             </p>
             <Select value={String(tanqueDestino)} onValueChange={(v) => setTanqueDestino(Number(v) as 1 | 2 | 3)}>
               <SelectTrigger className="w-full">

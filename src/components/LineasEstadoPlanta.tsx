@@ -13,7 +13,7 @@ import { usePreparacion } from "@/lib/preparacion/usePreparacion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { aplicarParadasALineas, paradasQueDetienenLineas } from "@/lib/produccion/ajustes"
 import { leerParadasAbiertas, sincronizarSheetSiHaceFalta } from "@/lib/paradasEnVivo"
-import { useEstadoLineas, useRecargarAlCambiar } from "@/lib/estadoLineas"
+import { pedirRefrescoEstadoLineas, useEstadoLineas, useRecargarAlCambiar } from "@/lib/estadoLineas"
 import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 import { esDeMantenimiento } from "@/lib/mantenimientoSesion"
 import { useSesionTurno } from "@/lib/sesionTurno"
@@ -122,6 +122,7 @@ export function LineasEstadoPlanta({
   }, [recargarPendientes])
   /** Se anotó o completó una parada: pendientes, qué detiene a cada línea y las corridas (una larga pausa la línea sola). */
   const paradasCambiaron = useCallback(async () => {
+    pedirRefrescoEstadoLineas()
     await Promise.all([recargarPendientes(), recargarParadas(), refrescar(), recargarAbiertas()])
   }, [recargarPendientes, recargarParadas, refrescar, recargarAbiertas])
 
@@ -129,7 +130,10 @@ export function LineasEstadoPlanta({
   function yRecargarParadas<A extends unknown[]>(fn: (...args: A) => Promise<Resultado>) {
     return async (...args: A) => {
       const resultado = await fn(...args)
-      if (resultado.ok) await Promise.all([recargarParadas(), recargarAbiertas()])
+      if (resultado.ok) {
+        pedirRefrescoEstadoLineas()
+        await Promise.all([recargarParadas(), recargarAbiertas()])
+      }
       return resultado
     }
   }
