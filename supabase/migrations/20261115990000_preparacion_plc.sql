@@ -436,6 +436,350 @@ $$;
 grant execute on function registrar_carga_plc(text, text, jsonb) to anon, authenticated;
 
 -- ------------------------------------------------------------
+-- 6. Lo que ve la tarjeta: estado por tanque
+-- ------------------------------------------------------------
+-- 2.5 → «2,5»; 3.0 → «3» (para los textos de la auditoría).
+create or replace function plc_numero(p_n numeric)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select replace(trim_scale(p_n)::text, '.', ',');
+$$;
+revoke execute on function plc_numero(numeric) from public, anon, authenticated;
+
+create or replace function plc_carga_json(p_carga_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'id', c.id,
+    'numero_tanque', c.numero_tanque,
+    'estado', c.estado,
+    'agua_formula_l', c.agua_formula_l,
+    'kits', c.kits,
+    'kits_listos', c.kits_listos_en is not null,
+    'kits_usados', c.kits_usados,
+    'iniciada_en', c.iniciada_en,
+    'terminada_en', c.terminada_en,
+    'preparacion_id', c.preparacion_id,
+    'ajustes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', a.id,
+        'litros', a.litros,
+        'iniciado_en', a.iniciado_en,
+        'hecho_en', a.hecho_en,
+        'sumado', a.ajuste_volumen_id is not null,
+        'no_sumado_motivo', a.no_sumado_motivo
+      ) order by a.iniciado_en)
+      from plc_cargas_ajustes a
+      where a.carga_id = c.id
+    ), '[]'::jsonb)
+  )
+  from plc_cargas_tanque c
+  where c.id = p_carga_id;
+$$;
+revoke execute on function plc_carga_json(uuid) from public, anon, authenticated;
+
+-- De qué está hecho un lote: unidades × litros por unidad, agua, resto del
+-- lote anterior, desvase y cada ajuste (a mano o del PLC). total_l es el
+-- volumen preparado (volumen_inicial_l).
+create or replace function plc_desglose_json(p_lote_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'lote_id', p.id,
+    'lote', p.lote,
+    'unidades', p.tambores,
+    'litros_por_unidad', s.volumen,
+    'agua_l', coalesce(p.agua, 0),
+    'resto_l', coalesce(p.resto_heredado_l, 0),
+    'desvase_l', coalesce((select sum(d.litros) from desvases d where d.usado_en_lote_id = p.id), 0),
+    'total_l', p.volumen_inicial_l,
+    'ajustes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'origen', av.origen,
+        'litros', av.litros,
+        'creado_en', av.creado_en,
+        'detalle', av.detalle
+      ) order by av.creado_en)
+      from preparaciones_ajuste_volumen av
+      where av.lote_id = p.id
+    ), '[]'::jsonb)
+  )
+  from preparaciones p
+  left join sabores s on s.id = p.sabor_id
+  where p.id = p_lote_id;
+$$;
+revoke execute on function plc_desglose_json(uuid) from public, anon, authenticated;
+
+/*
+ * Para la tarjeta de Preparación, por tanque del turno:
+ *   cola           cargas sin registrar (EN_CURSO / PENDIENTE), la más antigua primero
+ *   carga_del_lote la carga registrada del lote que hoy tiene el tanque
+ *   desglose       de qué está hecho el lote, si el tanque está En Preparación
+ * Apagado: {habilitado: false, tanques: []}. Solo lectura, como turno_json.
+ */
+create or replace function estado_preparacion_plc(p_usuario text, p_turno_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_area areas;
+begin
+  perform public.exigir_usuario('estado_preparacion_plc', p_usuario);
+  select a.* into v_area from turnos t join areas a on a.id = t.area_id where t.id = p_turno_id;
+  if not found or not v_area.preparacion_plc then
+    return jsonb_build_object('habilitado', false, 'tanques', '[]'::jsonb);
+  end if;
+
+  return jsonb_build_object(
+    'habilitado', true,
+    'tanques', (
+      select jsonb_agg(jsonb_build_object(
+        'numero_tanque', n,
+        'cola', coalesce((
+          select jsonb_agg(plc_carga_json(c.id) order by c.iniciada_en, c.creada_en)
+          from plc_cargas_tanque c
+          where c.area_id = v_area.id and c.numero_tanque = n and c.estado in ('EN_CURSO', 'PENDIENTE')
+        ), '[]'::jsonb),
+        'carga_del_lote', (
+          select plc_carga_json(c.id)
+          from recepcion_tanques rt
+          join plc_cargas_tanque c on c.preparacion_id = rt.lote_id and c.estado = 'CONFIRMADA'
+          where rt.turno_id = p_turno_id and rt.numero_tanque = n
+          order by c.confirmada_en desc
+          limit 1
+        ),
+        'desglose', (
+          select plc_desglose_json(rt.lote_id)
+          from recepcion_tanques rt
+          where rt.turno_id = p_turno_id and rt.numero_tanque = n and rt.condicion = 'EN_PREPARACION' and rt.lote_id is not null
+        )
+      ) order by n)
+      from generate_series(1, 3) n
+    )
+  );
+end;
+$$;
+grant execute on function estado_preparacion_plc(text, uuid) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- 7. Registrar y descartar desde la tarjeta
+-- ------------------------------------------------------------
+/*
+ * El supervisor registra una carga: elige sabor y lote; los kits y los
+ * ajustes vienen del PLC (p_kits null usa los del PLC; si escribe otros,
+ * quedan los dos: kits y kits_usados).
+ *   * Reusa iniciar_preparacion: el resto del tanque se suma, el desvase
+ *     elegido también, y una línea que corre sobre el lote anterior sigue
+ *     como hoy. Para Vacío, el lote nace Listo.
+ *   * Bloquea: la carga más antigua del tanque primero; los kits sin
+ *     terminar; un lote En Preparación sin liberar («Libera primero»); un
+ *     lote de Vacío; una línea parada sin Producto Terminado.
+ *   * Tanque en CIP: el CIP se da por terminado.
+ *   * Los ajustes ya cerrados se suman al lote (también si nace Listo).
+ *   * p_liberar («Registrar y liberar»): solo con la carga terminada en el
+ *     PLC y en áreas donde libera el supervisor; libera a su nombre.
+ */
+create or replace function confirmar_carga_plc(
+  p_usuario text,
+  p_turno_id uuid,
+  p_carga_id uuid,
+  p_sabor_id uuid,
+  p_lote text,
+  p_kits numeric default null,
+  p_desvase_id uuid default null,
+  p_para_vacio boolean default false,
+  p_liberar boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_area areas;
+  v_usuario_id uuid;
+  v_carga plc_cargas_tanque;
+  v_mas_vieja uuid;
+  v_tanque recepcion_tanques;
+  v_lote_actual preparaciones;
+  v_kits numeric;
+  v_para_vacio boolean := coalesce(p_para_vacio, false);
+  v_liberar boolean := coalesce(p_liberar, false) and not coalesce(p_para_vacio, false);
+  v_lote_id uuid;
+  v_ajuste record;
+begin
+  perform public.exigir_usuario('confirmar_carga_plc', p_usuario);
+  perform exigir_turno_escribible(p_usuario, p_turno_id, false);
+  if not tiene_permiso(p_usuario, 'TURNO_CARGAR') then
+    raise exception 'No tienes permiso para cargar Preparación.';
+  end if;
+  select a.* into v_area from turnos t join areas a on a.id = t.area_id where t.id = p_turno_id;
+  if not v_area.preparacion_plc then
+    raise exception 'La preparación con PLC no está habilitada en esta área.';
+  end if;
+  if p_sabor_id is null then
+    raise exception 'Elige el sabor.';
+  end if;
+  if nullif(trim(coalesce(p_lote, '')), '') is null then
+    raise exception 'Escribe el lote.';
+  end if;
+  select id into v_usuario_id from usuarios where usuario = lower(p_usuario);
+
+  perform pg_advisory_xact_lock(hashtextextended('plc_cargas|' || v_area.id::text, 0));
+
+  select * into v_carga from plc_cargas_tanque where id = p_carga_id and area_id = v_area.id for update;
+  if not found or v_carga.estado not in ('EN_CURSO', 'PENDIENTE') then
+    raise exception 'Esa carga del PLC ya se registró o se descartó. Recarga la página.';
+  end if;
+
+  select c.id into v_mas_vieja
+  from plc_cargas_tanque c
+  where c.area_id = v_area.id and c.numero_tanque = v_carga.numero_tanque and c.estado in ('EN_CURSO', 'PENDIENTE')
+  order by c.iniciada_en, c.creada_en
+  limit 1;
+  if v_mas_vieja <> v_carga.id then
+    raise exception 'Primero registra la carga más antigua del Tanque %.', v_carga.numero_tanque;
+  end if;
+
+  if v_carga.estado = 'EN_CURSO' and v_carga.kits_listos_en is null then
+    raise exception 'El PLC todavía está cargando los kits. Espera a que termine la pulpa.';
+  end if;
+  v_kits := coalesce(p_kits, v_carga.kits);
+  if v_kits is null or v_kits <= 0 then
+    raise exception 'Faltan los kits: el PLC no los registró.';
+  end if;
+
+  if v_liberar then
+    if calidad_libera_en_turno(p_turno_id) then
+      raise exception 'En esta área libera Calidad: registra sin liberar.';
+    end if;
+    if v_carga.terminada_en is null then
+      raise exception 'El PLC sigue con esta preparación: registra sin liberar.';
+    end if;
+  end if;
+
+  select * into v_tanque from recepcion_tanques where turno_id = p_turno_id and numero_tanque = v_carga.numero_tanque for update;
+  if not found then
+    raise exception 'No se encontró el Tanque % en este turno.', v_carga.numero_tanque;
+  end if;
+  if v_tanque.lote_id is not null then
+    select * into v_lote_actual from preparaciones where id = v_tanque.lote_id;
+  end if;
+  if v_tanque.condicion = 'EN_PREPARACION' then
+    raise exception 'Libera primero el lote % del Tanque %.', coalesce(v_lote_actual.lote, v_tanque.lote, 'abierto'), v_carga.numero_tanque;
+  end if;
+  if v_tanque.condicion in ('LISTO', 'STANDBY') and coalesce(v_lote_actual.para_vacio, false) and v_lote_actual.cerrado_en is null then
+    raise exception 'El Tanque % tiene un lote de Vacío: entrégalo o pásalo a Aséptico primero.', v_carga.numero_tanque;
+  end if;
+  if v_tanque.lote_id is not null and exists (
+    select 1 from turno_lineas tl
+    where tl.lote_id = v_tanque.lote_id and not tl.activa and tl.finalizada_en is null and tl.entregada_en is null
+  ) then
+    raise exception 'La línea que tomó del Tanque % está parada sin Producto Terminado. Cárgalo primero.', v_carga.numero_tanque;
+  end if;
+
+  if v_tanque.condicion = 'CIP' then
+    update recepcion_tanques
+    set condicion = 'LIMPIO', cip_finalizado_en = now(), actualizada_por = v_usuario_id
+    where id = v_tanque.id;
+  end if;
+
+  perform iniciar_preparacion(p_usuario, p_turno_id, v_carga.numero_tanque, p_sabor_id, p_lote, v_kits,
+                              null::numeric, null::numeric, null::numeric, p_desvase_id, v_para_vacio);
+  select lote_id into v_lote_id from recepcion_tanques where id = v_tanque.id;
+
+  update plc_cargas_tanque
+  set estado = 'CONFIRMADA',
+      preparacion_id = v_lote_id,
+      kits_usados = v_kits,
+      confirmada_en = now(),
+      confirmada_por = v_usuario_id
+  where id = v_carga.id;
+
+  for v_ajuste in
+    select a.id from plc_cargas_ajustes a
+    where a.carga_id = v_carga.id and a.hecho_en is not null and a.ajuste_volumen_id is null and a.no_sumado_motivo is null
+    order by a.hecho_en
+  loop
+    perform plc_aplicar_ajuste(v_ajuste.id, p_turno_id, true);
+  end loop;
+
+  if v_liberar then
+    perform liberar_lote(p_usuario, p_turno_id, v_lote_id);
+  end if;
+
+  perform registrar_auditoria(
+    p_usuario, 'EDITAR', 'plc_cargas_tanque', v_carga.id::text, 'Preparación',
+    format('Registró la carga del PLC del Tanque %s: %s kits%s', v_carga.numero_tanque, plc_numero(v_kits),
+           case when v_carga.kits is not null and v_carga.kits <> v_kits then format(' (el PLC marcó %s)', plc_numero(v_carga.kits)) else '' end),
+    jsonb_build_object('estado', v_carga.estado, 'kits', v_carga.kits),
+    jsonb_build_object('estado', 'CONFIRMADA', 'kits_usados', v_kits, 'lote_id', v_lote_id, 'liberado', v_liberar, 'para_vacio', v_para_vacio)
+  );
+
+  return turno_json(p_turno_id);
+end;
+$$;
+grant execute on function confirmar_carga_plc(text, uuid, uuid, uuid, text, numeric, uuid, boolean, boolean) to anon, authenticated;
+
+-- Una carga de prueba o mal hecha: se descarta para que no trabe la cola. Si
+-- el PLC sigue con esa preparación, sigue siendo la misma carga (descartada).
+create or replace function descartar_carga_plc(p_usuario text, p_turno_id uuid, p_carga_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_area areas;
+  v_usuario_id uuid;
+  v_carga plc_cargas_tanque;
+begin
+  perform public.exigir_usuario('descartar_carga_plc', p_usuario);
+  perform exigir_turno_escribible(p_usuario, p_turno_id, false);
+  if not tiene_permiso(p_usuario, 'TURNO_CARGAR') then
+    raise exception 'No tienes permiso para cargar Preparación.';
+  end if;
+  select a.* into v_area from turnos t join areas a on a.id = t.area_id where t.id = p_turno_id;
+  select id into v_usuario_id from usuarios where usuario = lower(p_usuario);
+
+  perform pg_advisory_xact_lock(hashtextextended('plc_cargas|' || v_area.id::text, 0));
+
+  select * into v_carga from plc_cargas_tanque where id = p_carga_id and area_id = v_area.id for update;
+  if not found or v_carga.estado not in ('EN_CURSO', 'PENDIENTE') then
+    raise exception 'Esa carga del PLC ya se registró o se descartó. Recarga la página.';
+  end if;
+
+  update plc_cargas_tanque
+  set estado = 'DESCARTADA', descartada_en = now(), descartada_por = v_usuario_id, motivo_descarte = 'La descartó el supervisor.'
+  where id = v_carga.id;
+
+  perform registrar_auditoria(
+    p_usuario, 'EDITAR', 'plc_cargas_tanque', v_carga.id::text, 'Preparación',
+    format('Descartó la carga del PLC del Tanque %s%s', v_carga.numero_tanque,
+           case when v_carga.kits is not null then format(' (%s kits)', plc_numero(v_carga.kits)) else '' end),
+    jsonb_build_object('estado', v_carga.estado),
+    jsonb_build_object('estado', 'DESCARTADA')
+  );
+
+  return estado_preparacion_plc(p_usuario, p_turno_id);
+end;
+$$;
+grant execute on function descartar_carga_plc(text, uuid, uuid) to anon, authenticated;
+
+-- ------------------------------------------------------------
 -- Final: control de usuario en las funciones con p_usuario
 -- ------------------------------------------------------------
 select * from asegurar_control_usuario();
