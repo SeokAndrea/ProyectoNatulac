@@ -45,7 +45,7 @@ echo.
 echo --- Bridge modo REAL (deja esta ventana abierta durante la prueba) ---
 echo.
 set PLC_MODO=real
-node srcindex.js
+node src\index.js
 goto despues
 
 :simulacion
@@ -53,14 +53,14 @@ echo.
 echo --- Bridge modo SIMULACION ---
 echo.
 set PLC_MODO=simulacion
-node srcindex.js
+node src\index.js
 goto despues
 
 :escritura
 echo.
 echo --- Prueba de escritura al PLC (DB9) ---
 echo.
-node srcprueba-escritura.js
+node src\prueba-escritura.js
 goto despues
 
 :despues

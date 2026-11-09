@@ -24,6 +24,16 @@
 // sabe la condicion del tanque via turno_json()/volumen_vivo_tanque().
 // No se usa para calcular tanque_activo/llenando (eso lo decide la valvula
 // de entrada + PLC_ID_Tanque).
+//
+// Preparacion (DB5, agregado por Automatizacion para la preparacion con PLC,
+// ver docs/superpowers/specs/2026-11-06-preparacion-plc-design.md):
+//   Estatus_Preparacion X24.0  sube al iniciar la preparacion, baja al terminar
+//   Fase_1/2/3          X24.1-3  sube al comenzar cada fase, baja al completarla
+//   PLC_Ajuste_Agua     INT18  litros del ajuste de Calidad (fase 3); vuelve a 0 al terminar cada ajuste
+//   PLC_Nro_Kits        REAL20 kits (admite medios); vuelve a 0 al terminar la preparacion
+// Los tags de kits y ajuste son del tanque seleccionado (PLC_ID_Tanque), no
+// uno por tanque. Aca se pasan tal cual en "preparacion"; que es una carga y
+// cuando se cierra un ajuste lo decide la base (ver cargas.js).
 
 import NodeS7 from "nodes7";
 import { leer, tagsExtra, validarDireccion } from "../config.js";
@@ -45,6 +55,13 @@ const TAGS_BASE = [
   ["PLC_TAG_TOTAL_TANQUE", "litros_tanque", "DB5,DINT8"],
   // PLC_Caudal_LPM: caudal del flujometro en L/min, calculado por el PLC.
   ["PLC_TAG_CAUDAL", "caudal_l_min", "DB5,INT16"],
+  // Preparacion (ver arriba): estado, fases, ajuste de agua y kits.
+  ["PLC_TAG_PREPARACION", "preparacion", "DB5,X24.0"],
+  ["PLC_TAG_FASE_1", "fase_1", "DB5,X24.1"],
+  ["PLC_TAG_FASE_2", "fase_2", "DB5,X24.2"],
+  ["PLC_TAG_FASE_3", "fase_3", "DB5,X24.3"],
+  ["PLC_TAG_AJUSTE_AGUA", "ajuste_agua", "DB5,INT18"],
+  ["PLC_TAG_KITS", "kits", "DB5,REAL20"],
 ];
 
 // Comandos que la app puede escribir (DB_COMANDOS, DB9). La HMI escribe el
@@ -78,6 +95,24 @@ function limpiarValor(valor) {
   const numero = Number(valor);
   if (!Number.isFinite(numero)) return null;
   return Math.round(numero * 1000) / 1000;
+}
+
+/**
+ * El bloque "preparacion" del mensaje, tal cual lo entrega el PLC. null si no
+ * llego Estatus_Preparacion (tag mal configurado o sin conexion): sin ese bit
+ * no se puede saber si hay una preparacion en curso.
+ */
+export function armarPreparacion(valores) {
+  const activa = valores?.preparacion;
+  if (activa === null || activa === undefined) return null;
+  return {
+    activa: !!activa,
+    fase_1: !!valores.fase_1,
+    fase_2: !!valores.fase_2,
+    fase_3: !!valores.fase_3,
+    kits: limpiarValor(valores.kits),
+    ajuste_l: limpiarValor(valores.ajuste_agua),
+  };
 }
 
 export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
@@ -134,6 +169,7 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
       valvulas: { 1: false, 2: false, 3: false },
       auxiliares: { 1: false, 2: false, 3: false },
       llenando: false,
+      preparacion: null,
       extra: extrasDe(null),
       tags_con_error: [],
       conectado: false,
@@ -211,6 +247,7 @@ export function crearFuentePlc({ onEstado, intervaloMs = 200 }) {
           3: !!valores.aux_3,
         },
         llenando: !!(valores.valvula_1 || valores.valvula_2 || valores.valvula_3),
+        preparacion: armarPreparacion(valores),
         extra: extrasDe(valores),
         tags_con_error: malos,
         conectado: true,

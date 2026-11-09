@@ -6,7 +6,8 @@
   "description": "Puente entre el PLC de Preparacion (llenado de tanques por flujometro) y el dashboard, via WebSocket en tiempo real.",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --test"
   },
   "dependencies": {
     "nodes7": "^0.3.18",
