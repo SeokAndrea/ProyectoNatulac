@@ -277,10 +277,14 @@ export async function descartarCargaPlc(usuario: string, turnoId: string, cargaI
  * Interruptor por área (areas.preparacion_plc). Lo cambia solo la dueña.
  */
 
-/** ¿Está encendido en el área? Sin área, Aséptico. null mientras carga. */
-export function usePreparacionPlcActivo(area: string | null): boolean | null {
+/**
+ * ¿Está encendido en el área? Sin área, Aséptico. null mientras carga.
+ * Con consultar = false no pregunta nada y devuelve null.
+ */
+export function usePreparacionPlcActivo(area: string | null, consultar = true): boolean | null {
   const [resultado, setResultado] = useState<{ area: string | null; valor: boolean } | null>(null)
   useEffect(() => {
+    if (!consultar) return
     let vivo = true
     supabase.rpc("preparacion_plc_area_activo", { p_area_codigo: area }).then(({ data, error }) => {
       // Sin la migración en el servidor, la función no existe: se comporta como apagado.
@@ -289,8 +293,8 @@ export function usePreparacionPlcActivo(area: string | null): boolean | null {
     return () => {
       vivo = false
     }
-  }, [area])
-  return resultado?.area === area ? resultado.valor : null
+  }, [area, consultar])
+  return consultar && resultado?.area === area ? resultado.valor : null
 }
 
 export async function guardarPreparacionPlc(usuario: string, area: string, activo: boolean): Promise<Resultado> {

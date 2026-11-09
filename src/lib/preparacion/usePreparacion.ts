@@ -28,6 +28,7 @@ import {
 } from "./ajustes"
 import { confirmarEstadoTanque as confirmarEstadoTanqueAccion, iniciarPreparacion as iniciarPreparacionAccion, liberarLote as liberarLoteAccion } from "./nucleo"
 import { registrarAnalisisCalidad as registrarAnalisisCalidadAccion, type DatosAnalisisCalidad } from "@/lib/calidad"
+import { confirmarCargaPlc as confirmarCargaPlcAccion, type DatosConfirmarCarga } from "./plc"
 import {
   mapearAjusteVolumen,
   mapearDesvaseLote,
@@ -88,6 +89,8 @@ export interface UsePreparacionResultado {
   cargando: boolean
   recargar: () => Promise<void>
   iniciarPreparacion: (datos: DatosIniciarPreparacion) => Promise<Resultado>
+  /** Registra una carga del PLC como lote (y lo libera si se pide), con el mismo turno_json de vuelta. */
+  confirmarCargaPlc: (datos: DatosConfirmarCarga) => Promise<Resultado>
   /** Libera el lote (tanque LISTO). Solo en áreas sin «Calidad libera»; con él, libera registrarAnalisisCalidad. */
   liberarLote: (loteId: string) => Promise<Resultado>
   /** Calidad: guarda Brix/acidez/conformidad del lote; si es conforme, lo libera (tanque LISTO). */
@@ -178,6 +181,14 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
   async function iniciarPreparacion(datos: DatosIniciarPreparacion): Promise<Resultado> {
     if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
     const resultado = await iniciarPreparacionAccion(usuario, turnoId, datos)
+    if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
+    return resultado
+  }
+
+  /** Registra una carga del PLC como lote (Preparación con PLC, src/lib/preparacion/plc.ts). */
+  async function confirmarCargaPlc(datos: DatosConfirmarCarga): Promise<Resultado> {
+    if (!turnoId || !usuario) return { ok: false, error: "No hay un turno en curso." }
+    const resultado = await confirmarCargaPlcAccion(usuario, turnoId, datos)
     if (resultado.ok) tomarDatos(resultado.data as FilaTurnoPreparacion)
     return resultado
   }
@@ -290,6 +301,7 @@ export function usePreparacion(turnoIdElegido?: string | null): UsePreparacionRe
     cargando,
     recargar,
     iniciarPreparacion,
+    confirmarCargaPlc,
     liberarLote,
     registrarAnalisisCalidad,
     ajustarPreparacion,

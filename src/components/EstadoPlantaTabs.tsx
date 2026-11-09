@@ -9,6 +9,7 @@ import { puede } from "@/lib/permisos"
 import type { Sabor } from "@/lib/sabores"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { usePreparacion } from "@/lib/preparacion/usePreparacion"
+import { usePreparacionPlc } from "@/lib/preparacion/usePreparacionPlc"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import { cn } from "@/lib/utils"
@@ -72,11 +73,18 @@ export function EstadoPlantaTabs({
   sabores,
   modo,
   turnoId: turnoIdProp,
+  conPlc = false,
 }: {
   sabores: Sabor[]
   modo: ModoEstadoPlanta
   /** Turno a mostrar/editar — omitido usa el turno en vivo (ver usePreparacion). Superadmin en modo corrección lo pisa. */
   turnoId?: string | null
+  /**
+   * Usar lo del PLC (Preparación con PLC, si el área lo tiene encendido): en
+   * vivo, cargas por registrar y desglose. Solo Preparación, fuera del modo
+   * corrección.
+   */
+  conPlc?: boolean
 }) {
   const { session } = useAuth()
   const preparacion = usePreparacion(turnoIdProp)
@@ -91,6 +99,12 @@ export function EstadoPlantaTabs({
   const puedeIrACalidad = puede(session, "LOTE_LIBERAR") || session?.area === "PRUEBAS"
   const calidadLibera = useCalidadLibera(session?.area ?? null)
   const [modoVacio, setModoVacio] = useState(leerModoVacio)
+  const plc = usePreparacionPlc({
+    turnoId,
+    usuario: session?.username ?? "",
+    area: session?.area ?? null,
+    habilitado: conPlc && modo === "preparacion",
+  })
 
   function cambiarModoVacio() {
     const nuevo = !modoVacio
@@ -124,6 +138,13 @@ export function EstadoPlantaTabs({
     recibirDeVacio: preparacion.recibirDeVacio,
     entregarAVacio: preparacion.entregarAVacio,
     pasarAAseptico: preparacion.pasarLoteAAseptico,
+    // La carga registrada sale de la cola del PLC: se relee lo del PLC enseguida.
+    confirmarCargaPlc: async (datos) => {
+      const r = await preparacion.confirmarCargaPlc(datos)
+      if (r.ok) await plc.recargar()
+      return r
+    },
+    descartarCargaPlc: plc.descartar,
   }
 
   const vacioActivo = modo === "preparacion" && modoVacio
@@ -180,6 +201,7 @@ export function EstadoPlantaTabs({
           modoVacio={vacioActivo}
           salidasVacio={preparacion.salidasVacio}
           corridasSinPt={corridas.filter((c) => !productoTerminado.some((p) => p.corridaId === c.id))}
+          plc={plc.activo ? plc.delTanque(t.numeroTanque) : null}
         />
       ))}
       </div>

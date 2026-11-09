@@ -6,6 +6,7 @@ import type {
   MotivoTransferencia,
   Resultado,
 } from "@/lib/preparacion/tipos"
+import type { DatosConfirmarCarga } from "@/lib/preparacion/plc"
 
 type Tanque = 1 | 2 | 3
 
@@ -25,4 +26,7 @@ export interface AccionesTanque {
   recibirDeVacio: (datos: DatosRecibirDeVacio) => Promise<Resultado>
   entregarAVacio: (numeroTanque: Tanque, litros: number | null) => Promise<Resultado>
   pasarAAseptico: (numeroTanque: Tanque, volumenReal: number) => Promise<Resultado>
+  /** Preparación con PLC (src/lib/preparacion/plc.ts): registrar o descartar una carga del PLC. */
+  confirmarCargaPlc: (datos: DatosConfirmarCarga) => Promise<Resultado>
+  descartarCargaPlc: (cargaId: string) => Promise<Resultado>
 }

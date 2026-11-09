@@ -10,6 +10,7 @@ import { TanqueEditForm } from "@/components/TanqueEditForm"
 import { TanqueVisual } from "@/components/TanqueVisual"
 import type { AnalisisCalidad } from "@/lib/calidad"
 import { colorSabor } from "@/lib/coloresSabor"
+import type { PlcDelTanque } from "@/lib/preparacion/plc"
 import type { ModoTransferencia, PreparacionRegistro, SalidaVacioRegistro, TanqueRecepcion } from "@/lib/preparacion/tipos"
 import type { Corrida } from "@/lib/produccion/tipos"
 import type { Sabor } from "@/lib/sabores"
@@ -53,6 +54,7 @@ export function TanqueCard({
   modoVacio = false,
   salidasVacio = [],
   corridasSinPt = [],
+  plc: _plc = null,
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
@@ -76,6 +78,8 @@ export function TanqueCard({
   salidasVacio?: SalidaVacioRegistro[]
   /** Corridas del turno sin Producto Terminado cargado (de todas las líneas). */
   corridasSinPt?: Corrida[]
+  /** Preparación con PLC encendida: en vivo, cargas por registrar y desglose. null = apagada. */
+  plc?: PlcDelTanque | null
 }) {
   const [editando, setEditando] = useState(false)
   const [transfiriendo, setTransfiriendo] = useState(false)
