@@ -203,6 +203,239 @@ $$;
 grant execute on function guardar_preparacion_plc(text, text, boolean) to anon, authenticated;
 
 -- ------------------------------------------------------------
+-- 5. Lo que reporta el bridge
+-- ------------------------------------------------------------
+create or replace function plc_usuario_bridge_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id from usuarios where usuario = 'plc-bridge';
+$$;
+revoke execute on function plc_usuario_bridge_id() from public, anon, authenticated;
+
+/*
+ * Suma un ajuste cerrado al lote de su carga, como el botón Ajustar
+ * (ajustar_preparacion): volumen_l y volumen_inicial_l += litros, con una
+ * línea en preparaciones_ajuste_volumen (origen PLC, a nombre del Bridge del
+ * PLC) para el desglose y el Acta de Entrega.
+ *   * Sin lote todavía: espera (se suma al registrar la carga).
+ *   * Lote ya liberado o cerrado: no se suma, queda anotado. Salvo al
+ *     registrar (p_al_confirmar): esos ajustes son parte de la preparación,
+ *     aunque el lote nazca Listo (Vacío).
+ *   * p_turno_id: el turno donde cae el ajuste. Null = el turno abierto del
+ *     área, o el del lote si no hay ninguno abierto.
+ */
+create or replace function plc_aplicar_ajuste(p_ajuste_id uuid, p_turno_id uuid, p_al_confirmar boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ajuste plc_cargas_ajustes;
+  v_carga plc_cargas_tanque;
+  v_lote preparaciones;
+  v_turno uuid;
+  v_linea uuid;
+begin
+  select * into v_ajuste from plc_cargas_ajustes where id = p_ajuste_id for update;
+  if not found or v_ajuste.hecho_en is null or v_ajuste.ajuste_volumen_id is not null or v_ajuste.no_sumado_motivo is not null then
+    return;
+  end if;
+  select * into v_carga from plc_cargas_tanque where id = v_ajuste.carga_id;
+  if v_carga.preparacion_id is null then
+    return;
+  end if;
+  select * into v_lote from preparaciones where id = v_carga.preparacion_id for update;
+  if not found then
+    return;
+  end if;
+  if (v_lote.liberado_en is not null or v_lote.cerrado_en is not null) and not coalesce(p_al_confirmar, false) then
+    update plc_cargas_ajustes set no_sumado_motivo = 'El lote ya estaba liberado cuando terminó el ajuste.' where id = v_ajuste.id;
+    return;
+  end if;
+
+  v_turno := coalesce(
+    p_turno_id,
+    (select t.id from turnos t where t.area_id = v_carga.area_id and t.estado = 'ABIERTO' order by t.created_at desc limit 1),
+    v_lote.turno_id
+  );
+
+  update preparaciones
+  set volumen_l = coalesce(volumen_l, 0) + v_ajuste.litros,
+      volumen_inicial_l = coalesce(volumen_inicial_l, 0) + v_ajuste.litros
+  where id = v_lote.id;
+
+  insert into preparaciones_ajuste_volumen (lote_id, turno_id, litros, detalle, usuario_id, creado_en, origen)
+  values (v_lote.id, v_turno, v_ajuste.litros, 'Ajuste de agua del PLC', plc_usuario_bridge_id(), v_ajuste.hecho_en, 'PLC')
+  returning id into v_linea;
+  update plc_cargas_ajustes set ajuste_volumen_id = v_linea where id = v_ajuste.id;
+
+  perform registrar_auditoria(
+    'plc-bridge', 'EDITAR', 'preparaciones', v_lote.id::text, 'Preparación (PLC)',
+    format('Ajuste de agua del PLC · Tanque %s%s · +%s L', v_lote.numero_tanque, coalesce(' · Lote ' || v_lote.lote, ''), v_ajuste.litros),
+    jsonb_build_object('volumen_l', v_lote.volumen_l, 'volumen_inicial_l', v_lote.volumen_inicial_l),
+    jsonb_build_object('volumen_l', coalesce(v_lote.volumen_l, 0) + v_ajuste.litros,
+                       'volumen_inicial_l', coalesce(v_lote.volumen_inicial_l, 0) + v_ajuste.litros)
+  );
+end;
+$$;
+revoke execute on function plc_aplicar_ajuste(uuid, uuid, boolean) from public, anon, authenticated;
+
+-- Cierra el ajuste abierto de una carga (si hay) y lo suma si ya tiene lote.
+create or replace function plc_cerrar_ajuste(p_carga_id uuid, p_momento timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  update plc_cargas_ajustes set hecho_en = p_momento
+  where carga_id = p_carga_id and hecho_en is null
+  returning id into v_id;
+  if v_id is not null then
+    perform plc_aplicar_ajuste(v_id, null, false);
+  end if;
+end;
+$$;
+revoke execute on function plc_cerrar_ajuste(uuid, timestamptz) from public, anon, authenticated;
+
+-- PREPARACION bajó (o el PLC pasó a otro tanque): la carga queda terminada.
+create or replace function plc_terminar_carga(p_carga_id uuid, p_momento timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform plc_cerrar_ajuste(p_carga_id, p_momento);
+  update plc_cargas_tanque
+  set terminada_en = p_momento,
+      estado = case when estado = 'EN_CURSO' then 'PENDIENTE' else estado end,
+      kits_listos_en = case when kits is not null and kits_listos_en is null then p_momento else kits_listos_en end,
+      ultima_lectura_en = greatest(ultima_lectura_en, p_momento)
+  where id = p_carga_id;
+end;
+$$;
+revoke execute on function plc_terminar_carga(uuid, timestamptz) from public, anon, authenticated;
+
+/*
+ * El bridge reporta una LECTURA completa del PLC cada vez que algo cambia, y
+ * una por minuto (plc-bridge/src/cargas.js):
+ *   {momento, tanque, preparacion, fase_1, fase_2, fase_3, kits, ajuste_l, setpoint_l}
+ * Esta función decide. Repetir una lectura no cambia nada: dos bridges
+ * leyendo el mismo PLC no duplican cargas ni ajustes.
+ *   * PREPARACION sube: abre la carga del tanque (una sola abierta por área).
+ *     Si llega otro tanque sin que haya bajado, termina la anterior.
+ *   * Kits (admite medios): se anotan mientras no estén listos; quedan listos
+ *     al bajar la fase 2, con el PLC ya en la fase 3, o al terminar.
+ *     PLC_Nro_Kits vuelve a cero al terminar: un 0 nunca pisa los kits.
+ *   * Ajuste: mayor que 0 abre (o actualiza) el ajuste en curso; 0 lo cierra
+ *     y, si la carga ya tiene lote, lo suma. Null = sin dato: no cierra nada.
+ *   * PREPARACION baja: la carga queda PENDIENTE con la hora del operador.
+ * Un momento en el futuro (reloj adelantado) se guarda como ahora.
+ */
+create or replace function registrar_carga_plc(p_usuario text, p_area_codigo text, p_lectura jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_area areas;
+  v_momento timestamptz;
+  v_tanque smallint;
+  v_prep boolean;
+  v_f2 boolean;
+  v_f3 boolean;
+  v_kits numeric;
+  v_ajuste numeric;
+  v_setpoint numeric;
+  v_carga plc_cargas_tanque;
+  v_abierto plc_cargas_ajustes;
+begin
+  perform public.exigir_usuario('registrar_carga_plc', p_usuario);
+  if not tiene_permiso(p_usuario, 'PLC_CARGAR') then
+    raise exception 'No tienes permiso para registrar cargas del PLC.';
+  end if;
+  select * into v_area from areas where codigo = p_area_codigo;
+  if not found then
+    raise exception 'Esa área no existe.';
+  end if;
+  if not v_area.preparacion_plc then
+    return jsonb_build_object('habilitado', false, 'carga_id', null, 'estado', null);
+  end if;
+  if p_lectura is null or jsonb_typeof(p_lectura -> 'preparacion') is distinct from 'boolean' then
+    raise exception 'La lectura del PLC no trae PREPARACION.';
+  end if;
+
+  -- Una lectura a la vez por área (dos bridges, o reintentos que se cruzan).
+  perform pg_advisory_xact_lock(hashtextextended('plc_cargas|' || v_area.id::text, 0));
+
+  v_momento := least(coalesce((p_lectura ->> 'momento')::timestamptz, now()), now());
+  v_tanque := case when (p_lectura ->> 'tanque') ~ '^[123]$' then (p_lectura ->> 'tanque')::smallint end;
+  v_prep := (p_lectura ->> 'preparacion')::boolean;
+  v_f2 := coalesce((p_lectura ->> 'fase_2')::boolean, false);
+  v_f3 := coalesce((p_lectura ->> 'fase_3')::boolean, false);
+  -- Kits o ajuste negativos son basura del PLC: sin dato.
+  v_kits := case when (p_lectura ->> 'kits')::numeric > 0 then (p_lectura ->> 'kits')::numeric end;
+  v_ajuste := case when (p_lectura ->> 'ajuste_l')::numeric >= 0 then (p_lectura ->> 'ajuste_l')::numeric end;
+  v_setpoint := case when (p_lectura ->> 'setpoint_l')::numeric > 0 then (p_lectura ->> 'setpoint_l')::numeric end;
+
+  select * into v_carga from plc_cargas_tanque where area_id = v_area.id and terminada_en is null for update;
+
+  if v_prep and v_tanque is not null then
+    if v_carga.id is not null and v_carga.numero_tanque <> v_tanque then
+      perform plc_terminar_carga(v_carga.id, v_momento);
+      v_carga := null;
+    end if;
+    if v_carga.id is null then
+      insert into plc_cargas_tanque (area_id, numero_tanque, agua_formula_l, iniciada_en, ultima_lectura_en)
+      values (v_area.id, v_tanque, v_setpoint, v_momento, v_momento)
+      returning * into v_carga;
+    end if;
+
+    update plc_cargas_tanque c
+    set agua_formula_l = coalesce(c.agua_formula_l, v_setpoint),
+        kits = case when c.kits_listos_en is null and v_kits is not null then v_kits else c.kits end,
+        fase_2_vista = c.fase_2_vista or v_f2,
+        ultima_lectura_en = greatest(c.ultima_lectura_en, v_momento)
+    where c.id = v_carga.id
+    returning * into v_carga;
+
+    if v_carga.kits is not null and v_carga.kits_listos_en is null and not v_f2 and (v_carga.fase_2_vista or v_f3) then
+      update plc_cargas_tanque set kits_listos_en = v_momento where id = v_carga.id
+      returning * into v_carga;
+    end if;
+
+    if v_ajuste is not null then
+      select * into v_abierto from plc_cargas_ajustes where carga_id = v_carga.id and hecho_en is null for update;
+      if v_ajuste > 0 then
+        if v_abierto.id is null then
+          insert into plc_cargas_ajustes (carga_id, litros, iniciado_en) values (v_carga.id, v_ajuste, v_momento);
+        elsif v_abierto.litros <> v_ajuste then
+          update plc_cargas_ajustes set litros = v_ajuste where id = v_abierto.id;
+        end if;
+      elsif v_abierto.id is not null then
+        perform plc_cerrar_ajuste(v_carga.id, v_momento);
+      end if;
+    end if;
+  elsif not v_prep and v_carga.id is not null then
+    perform plc_terminar_carga(v_carga.id, v_momento);
+    select * into v_carga from plc_cargas_tanque where id = v_carga.id;
+  end if;
+
+  return jsonb_build_object('habilitado', true, 'carga_id', v_carga.id, 'estado', v_carga.estado);
+end;
+$$;
+grant execute on function registrar_carga_plc(text, text, jsonb) to anon, authenticated;
+
+-- ------------------------------------------------------------
 -- Final: control de usuario en las funciones con p_usuario
 -- ------------------------------------------------------------
 select * from asegurar_control_usuario();
