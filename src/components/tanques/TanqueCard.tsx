@@ -17,12 +17,14 @@ import type { Sabor } from "@/lib/sabores"
 import { useAccion } from "@/lib/useAccion"
 import { CierreTransferencia } from "./CierreTransferencia"
 import { TANK_CAPACITY } from "./constantes"
+import { AjustesNoSumados, DesgloseLote } from "./DesgloseLote"
 import { DescripcionTanque } from "./DescripcionTanque"
 import { DialogTransferir } from "./DialogTransferir"
 import { badgeVariantCondicion, conLiquido, nombreCondicionTanque, saborDibujado } from "./estadoTanque"
 import { PanelAccionesTanque } from "./PanelAccionesTanque"
 import { PanelEnPreparacion } from "./PanelEnPreparacion"
 import { PanelVacioTanque } from "./PanelVacioTanque"
+import { PlcEnVivo } from "./PlcEnVivo"
 import type { AccionesTanque } from "./tipos"
 
 /** Transferencia hecha que falta cerrar con lo medido. */
@@ -54,7 +56,7 @@ export function TanqueCard({
   modoVacio = false,
   salidasVacio = [],
   corridasSinPt = [],
-  plc: _plc = null,
+  plc = null,
 }: {
   tanque: TanqueRecepcion
   sabores: Sabor[]
@@ -106,6 +108,17 @@ export function TanqueCard({
   /** Tanque destino tal como quedó DESPUÉS de la transferencia (dato fresco del turno). */
   const destinoTransferido = transferencia ? tanquesDelTurno.find((t) => t.numeroTanque === transferencia.destino) : undefined
 
+  // Preparación con PLC: lo que el PLC hace ahora en este tanque (del bridge).
+  const vivo = plc?.vivo ?? null
+  const enCursoPlc = vivo !== null || plc?.cola[0]?.estado === "EN_CURSO"
+  // Agua entrando sin lote todavía: se dibuja la mezcla, sin color de sabor.
+  const mezclaPlc = vivo !== null && !conLiquido(tanque) && tanque.condicion !== "EN_PREPARACION"
+  const llenadoPlc = vivo?.llenando
+    ? vivo.ajusteL !== null
+      ? { litros: vivo.litrosAjuste ?? 0, setpointL: vivo.ajusteL, caudalLMin: vivo.caudalLMin }
+      : { litros: vivo.litrosAgua ?? 0, setpointL: vivo.aguaFormulaL, caudalLMin: vivo.caudalLMin }
+    : null
+
   return (
     <Card className="overflow-hidden border-border shadow-sm">
       <CardContent className="flex flex-col gap-3 px-2 py-4">
@@ -114,18 +127,25 @@ export function TanqueCard({
             <Container className="size-4.5 text-muted-foreground" />
             Tanque {tanque.numeroTanque}
           </span>
-          <Badge variant={deVacio ? "vacio" : badgeVariantCondicion[tanque.condicion]} className="shrink-0">
-            {deVacio ? "Para Vacío" : nombreCondicionTanque(tanque.condicion, tanque.volumenL)}
-          </Badge>
+          {enCursoPlc ? (
+            <Badge variant="info" className="shrink-0">
+              Preparación en curso · PLC
+            </Badge>
+          ) : (
+            <Badge variant={deVacio ? "vacio" : badgeVariantCondicion[tanque.condicion]} className="shrink-0">
+              {deVacio ? "Para Vacío" : nombreCondicionTanque(tanque.condicion, tanque.volumenL)}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
           <TanqueVisual
             numeroTanque={tanque.numeroTanque}
-            condicion={tanque.condicion}
+            condicion={mezclaPlc ? "EN_PREPARACION" : tanque.condicion}
             volumenL={tanque.volumenL}
             volumenInicialL={tanque.volumenInicialL}
-            color={colorSabor(saborDibujado(tanque, loteAbierto))}
+            color={colorSabor(mezclaPlc ? null : saborDibujado(tanque, loteAbierto))}
+            llenado={llenadoPlc}
             capacidad={TANK_CAPACITY}
             square
             paraVacio={tanque.paraVacio}
@@ -138,6 +158,8 @@ export function TanqueCard({
           </div>
         </div>
 
+        {vivo && <PlcEnVivo vivo={vivo} />}
+
         <div className="min-w-0">
           <DescripcionTanque tanque={tanque} loteAbierto={loteAbierto} />
           {deVacio && <p className="text-xs text-vacio">Ninguna línea lo toma.</p>}
@@ -149,6 +171,12 @@ export function TanqueCard({
             </p>
           )}
         </div>
+
+        {plc && tanque.condicion === "EN_PREPARACION" && plc.desglose ? (
+          <DesgloseLote desglose={plc.desglose} cargaDelLote={plc.cargaDelLote} ajusteEnCurso={vivo?.ajusteL ?? null} />
+        ) : (
+          plc && <AjustesNoSumados cargaDelLote={plc.cargaDelLote} />
+        )}
 
         {/* También en modo "status": si al editar el tanque queda En Preparación, se debe poder liberar aquí mismo sin ir a Preparación. */}
         {tanque.condicion === "EN_PREPARACION" && loteAbierto && (

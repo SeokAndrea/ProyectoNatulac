@@ -23,3 +23,6 @@ export const DESVASE_HABILITADO = true
  * siguen intactos: poner en `true` para volver a mostrarlos.
  */
 export const MOSTRAR_INSUMOS_PREPARACION = false
+
+/** Litros y kits como el resto de la tarjeta: "4.800" / "2,5". */
+export const cifra = (n: number) => n.toLocaleString("es-CO")
