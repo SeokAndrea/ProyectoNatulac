@@ -230,17 +230,22 @@ export function crearReportador({
   }
 
   async function vaciar() {
+    let salieron = 0;
     while (cola.length && ahora() >= proximoIntentoMs) {
       try {
         if (!token && !(await entrar())) break;
         if (!(await mandarUna(false))) break;
+        salieron += 1;
       } catch (e) {
         fallo(`Sin conexión con la base (${e.cause?.code ?? e.cause?.errors?.[0]?.code ?? e.name}).`);
         avisarEstado("sin_base", `sin conexion con la base: ${cola.length} pendientes`);
         break;
       }
     }
-    guardarSiToca();
+    // Lo que la base ya aceptó sale del disco enseguida: si se corta la luz,
+    // al volver no se reenvía después de lecturas más nuevas.
+    if (salieron > 0) guardar();
+    else guardarSiToca();
   }
 
   function enviarPendientes() {

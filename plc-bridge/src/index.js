@@ -114,3 +114,7 @@ function apagar() {
 
 process.on("SIGTERM", apagar);
 process.on("SIGINT", apagar);
+// Windows: cerrar la ventana del .bat (SIGHUP) o Ctrl+Pausa (SIGBREAK) también
+// guarda la cola de cargas y los registros antes de salir.
+process.on("SIGHUP", apagar);
+process.on("SIGBREAK", apagar);

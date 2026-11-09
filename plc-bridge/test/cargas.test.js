@@ -260,6 +260,16 @@ test("la cola sobrevive a un reinicio y se manda en orden", async () => {
   assert.deepEqual(JSON.parse(readFileSync(archivoCola, "utf8")), []);
 });
 
+test("lo mandado sale de la cola en disco enseguida (un corte no lo reenvía)", async () => {
+  const archivoCola = archivoNuevo()
+  const r = reportador({ archivoCola });
+  r.procesar(estado({ fase_1: true }));
+  await r.enviarPendientes();
+  assert.equal(r.resumen().pendientes, 0);
+  // Sin detener(): como si se cortara la luz justo después de mandar.
+  assert.deepEqual(JSON.parse(readFileSync(archivoCola, "utf8")), []);
+});
+
 test("la cola guarda como máximo 5.000 lecturas (se pierden las más viejas)", async () => {
   const ahora = reloj();
   const fetch = fetchFalso({ registrar: async () => Promise.reject(new TypeError("fetch failed")) });

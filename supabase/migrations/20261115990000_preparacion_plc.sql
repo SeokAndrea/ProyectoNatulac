@@ -170,10 +170,15 @@ begin
   if p_activo is null then
     raise exception 'Falta indicar si se enciende o se apaga.';
   end if;
-  select * into v_area from areas where codigo = p_area_codigo for update;
+  select * into v_area from areas where codigo = p_area_codigo;
   if not found then
     raise exception 'Esa área no existe.';
   end if;
+  -- El mismo candado que registrar_carga_plc, y antes que la fila del área
+  -- (mismo orden en las dos): una lectura que vio el interruptor prendido no
+  -- abre una carga después de apagarlo.
+  perform pg_advisory_xact_lock(hashtextextended('plc_cargas|' || v_area.id::text, 0));
+  select * into v_area from areas where id = v_area.id for update;
   select id into v_usuario_id from usuarios where usuario = lower(p_usuario);
 
   update areas
@@ -328,8 +333,9 @@ revoke execute on function plc_terminar_carga(uuid, timestamptz) from public, an
  * El bridge reporta una LECTURA completa del PLC cada vez que algo cambia, y
  * una por minuto (plc-bridge/src/cargas.js):
  *   {momento, tanque, preparacion, fase_1, fase_2, fase_3, kits, ajuste_l, setpoint_l}
- * Esta función decide. Repetir una lectura no cambia nada: dos bridges
- * leyendo el mismo PLC no duplican cargas ni ajustes.
+ * Esta función decide. Repetir una lectura no cambia nada, y una más vieja
+ * que la última anotada se ignora: dos bridges leyendo el mismo PLC, o la
+ * cola del bridge reenviada tras un corte, no duplican cargas ni ajustes.
  *   * PREPARACION sube: abre la carga del tanque (una sola abierta por área).
  *     Si llega otro tanque sin que haya bajado, termina la anterior.
  *   * Kits (admite medios): se anotan mientras no estén listos; quedan listos
@@ -367,17 +373,28 @@ begin
   if not found then
     raise exception 'Esa área no existe.';
   end if;
-  if not v_area.preparacion_plc then
+
+  -- Una lectura a la vez por área (dos bridges, o reintentos que se cruzan).
+  -- guardar_preparacion_plc toma el mismo candado: el interruptor se lee
+  -- después, para no abrir una carga en un área que se acaba de apagar.
+  perform pg_advisory_xact_lock(hashtextextended('plc_cargas|' || v_area.id::text, 0));
+  if not (select a.preparacion_plc from areas a where a.id = v_area.id) then
     return jsonb_build_object('habilitado', false, 'carga_id', null, 'estado', null);
   end if;
   if p_lectura is null or jsonb_typeof(p_lectura -> 'preparacion') is distinct from 'boolean' then
     raise exception 'La lectura del PLC no trae PREPARACION.';
   end if;
 
-  -- Una lectura a la vez por área (dos bridges, o reintentos que se cruzan).
-  perform pg_advisory_xact_lock(hashtextextended('plc_cargas|' || v_area.id::text, 0));
-
   v_momento := least(coalesce((p_lectura ->> 'momento')::timestamptz, now()), now());
+
+  -- Una lectura más vieja que la última que ya se anotó en el área (la cola
+  -- del bridge reenviada tras un corte, u otro bridge atrasado) no cambia
+  -- nada: reabriría un ajuste ya sumado o una carga ya terminada. La misma
+  -- lectura repetida (mismo momento) sí pasa: no cambia nada.
+  if v_momento < (select greatest(max(c.ultima_lectura_en), max(c.terminada_en))
+                  from plc_cargas_tanque c where c.area_id = v_area.id) then
+    return jsonb_build_object('habilitado', true, 'carga_id', null, 'estado', null, 'ignorada', true);
+  end if;
   v_tanque := case when (p_lectura ->> 'tanque') ~ '^[123]$' then (p_lectura ->> 'tanque')::smallint end;
   v_prep := (p_lectura ->> 'preparacion')::boolean;
   v_f2 := coalesce((p_lectura ->> 'fase_2')::boolean, false);

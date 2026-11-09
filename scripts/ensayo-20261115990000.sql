@@ -248,6 +248,28 @@ begin
   perform registrar_carga_plc('plc-bridge', 'PRUEBAS', pg_temp.lec(null, false, false, false, false, 0, 0, 0, now()));
   if (select estado from plc_cargas_tanque where id = v_c) <> 'DESCARTADA' then raise exception '2.11: al terminar sigue descartada'; end if;
 
+  -- 2.12 Una lectura vieja que llega después de una más nueva (la cola del
+  -- bridge tras un corte, u otro bridge atrasado) no cambia nada: no reabre
+  -- un ajuste ya sumado ni una carga ya terminada.
+  delete from plc_cargas_tanque where area_id = v_pruebas;
+  v_c := (registrar_carga_plc('plc-bridge', 'PRUEBAS', pg_temp.lec(1, true, false, false, true, 2, 50, 4800, t0 + interval '100 min')) ->> 'carga_id')::uuid;
+  perform registrar_carga_plc('plc-bridge', 'PRUEBAS', pg_temp.lec(1, true, false, false, true, 2, 0, 4800, t0 + interval '101 min'));
+  v_r := registrar_carga_plc('plc-bridge', 'PRUEBAS', pg_temp.lec(1, true, false, false, true, 2, 50, 4800, t0 + interval '100 min'));
+  if (v_r ->> 'ignorada')::boolean is distinct from true then raise exception '2.12: la lectura vieja se ignora: %', v_r; end if;
+  if (select count(*) from plc_cargas_ajustes where carga_id = v_c) <> 1
+     or exists (select 1 from plc_cargas_ajustes where carga_id = v_c and hecho_en is null) then
+    raise exception '2.12: no reabre el ajuste ya cerrado';
+  end if;
+  perform registrar_carga_plc('plc-bridge', 'PRUEBAS', pg_temp.lec(null, false, false, false, false, 0, 0, 0, t0 + interval '102 min'));
+  perform registrar_carga_plc('plc-bridge', 'PRUEBAS', pg_temp.lec(1, true, false, false, true, 2, 50, 4800, t0 + interval '100 min'));
+  perform registrar_carga_plc('plc-bridge', 'PRUEBAS', pg_temp.lec(1, true, true, false, false, null, 0, 4800, t0 + interval '101 min'));
+  if (select count(*) from plc_cargas_tanque where area_id = v_pruebas) <> 1 or (pg_temp.abierta('PRUEBAS')).id is not null then
+    raise exception '2.12: no abre una carga fantasma con una lectura vieja';
+  end if;
+  -- La misma lectura repetida (mismo momento) sigue valiendo.
+  v_r := registrar_carga_plc('plc-bridge', 'PRUEBAS', pg_temp.lec(null, false, false, false, false, 0, 0, 0, t0 + interval '102 min'));
+  if (v_r ->> 'ignorada')::boolean then raise exception '2.12: repetir la última no se ignora: %', v_r; end if;
+
   delete from plc_cargas_tanque where area_id = v_pruebas;
   raise notice '2. registrar_carga_plc: OK';
 end $$;

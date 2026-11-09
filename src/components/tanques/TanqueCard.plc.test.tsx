@@ -511,3 +511,22 @@ describe("TanqueCard: registrar la carga del PLC", () => {
     await waitFor(() => expect(screen.getByText("Esa carga del PLC ya se registró o se descartó. Recarga la página.")).toBeInTheDocument())
   })
 })
+
+describe("TanqueCard: Liberar con el PLC todavía ajustando", () => {
+  it("avisa que el ajuste en curso no se sumaría y pide confirmar", async () => {
+    const u = userEvent.setup()
+    const a = renderCard(tanque("EN_PREPARACION"), plc({ vivo: vivo({ fase: 3, ajusteL: 100, litrosAjuste: 40, kits: 2 }), desglose: DESGLOSE, cargaDelLote: carga() }), [LOTE])
+    await u.click(boton(/Liberar/))
+    expect(screen.getByText("El PLC sigue con un ajuste de agua: si liberas ahora, no se suma al lote.")).toBeInTheDocument()
+    expect(a.liberarLote).not.toHaveBeenCalled()
+    await u.click(boton("Sí, liberar"))
+    expect(a.liberarLote).toHaveBeenCalledWith("p2")
+  })
+
+  it("sin ajuste en curso, Liberar va directo", async () => {
+    const u = userEvent.setup()
+    const a = renderCard(tanque("EN_PREPARACION"), plc({ desglose: DESGLOSE, cargaDelLote: carga() }), [LOTE])
+    await u.click(boton(/Liberar/))
+    expect(a.liberarLote).toHaveBeenCalledWith("p2")
+  })
+})

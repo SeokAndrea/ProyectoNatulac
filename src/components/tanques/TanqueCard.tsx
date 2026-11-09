@@ -190,6 +190,7 @@ export function TanqueCard({
             puedeIrACalidad={puedeIrACalidad}
             liberarLote={acciones.liberarLote}
             ajustar={acciones.ajustar}
+            plcAjustando={vivo?.ajusteL != null}
           />
         )}
 
