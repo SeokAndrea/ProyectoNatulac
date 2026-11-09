@@ -46,6 +46,9 @@ supabase/.branches
 # Registro de llenados que guarda el plc-bridge al correr en una PC
 plc-bridge/datos/
 
+# Base local de pruebas armada por scripts/base-local/construir.mjs
+scripts/base-local/base.tar.gz
+
 # Información interna de la empresa: se queda solo en el PC, no va a GitHub
 
 # Maquetas del brainstorming (superpowers)
