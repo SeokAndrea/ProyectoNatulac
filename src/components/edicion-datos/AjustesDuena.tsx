@@ -6,6 +6,7 @@ import { guardarCalidadLibera, useCalidadLibera } from "@/lib/calidad"
 import { guardarMantenimientoFinaliza, useMantenimientoFinaliza } from "@/lib/paradas"
 import { guardarCatalogoModular, useCatalogoModular } from "@/lib/catalogoFallas/switch"
 import { guardarRobotTavilActivo, useRobotTavilActivo } from "@/lib/robotTavil"
+import { guardarPreparacionPlc, usePreparacionPlcActivo } from "@/lib/preparacion/plc"
 import { CorreoMantenimiento } from "./CorreoMantenimiento"
 import { SHEET_MANTENIMIENTO_ACTIVO } from "@/lib/sheetMantenimiento"
 import { EnlaceSheetMantenimiento } from "./EnlaceSheetMantenimiento"
@@ -21,6 +22,7 @@ export function AjustesDuena({ usuario }: { usuario: string }) {
       <InterruptorMantenimiento usuario={usuario} />
       <InterruptorCatalogo usuario={usuario} />
       <InterruptorRobotTavil usuario={usuario} />
+      <InterruptorPreparacionPlc usuario={usuario} />
       {SHEET_MANTENIMIENTO_ACTIVO && <EnlaceSheetMantenimiento usuario={usuario} />}
       <CorreoMantenimiento usuario={usuario} />
     </div>
@@ -100,6 +102,27 @@ function InterruptorRobotTavil({ usuario }: { usuario: string }) {
       confirmarEncender="Desde ahora quien tenga el permiso del Robot Tavil puede cargar las paletas y el Resto, y el supervisor ve la precarga en Producto Terminado. Hazlo en un cambio de turno. ¿Encender?"
       confirmarApagar="El operador deja de poder cargar y el supervisor deja de ver la precarga. Lo cargado queda guardado. ¿Apagar?"
       guardar={(activo) => guardarRobotTavilActivo(usuario, "ASEPTICO", activo)}
+    />
+  )
+}
+
+/**
+ * Preparación con PLC en Aséptico (areas.preparacion_plc, migración
+ * 20261115990000). Encendido: Preparación toma del PLC los kits y los ajustes
+ * de agua (el bridge los manda con el usuario plc-bridge) y el supervisor
+ * solo elige sabor y lote. Al apagar, la base descarta las cargas sin
+ * registrar.
+ */
+function InterruptorPreparacionPlc({ usuario }: { usuario: string }) {
+  return (
+    <InterruptorAjuste
+      titulo="Preparación con PLC (Aséptico)"
+      cargado={usePreparacionPlcActivo("ASEPTICO")}
+      encendido="Encendido · los kits y ajustes llegan del PLC"
+      apagado="Apagado · el supervisor escribe los kits"
+      confirmarEncender="Desde ahora Preparación toma del PLC los kits y los ajustes de agua; el supervisor solo elige sabor y lote. Hazlo con el bridge funcionando y el usuario plc-bridge con su clave. ¿Encender?"
+      confirmarApagar="Preparación vuelve al formulario manual y las cargas del PLC que no se registraron se descartan. ¿Apagar?"
+      guardar={(activo) => guardarPreparacionPlc(usuario, "ASEPTICO", activo)}
     />
   )
 }
