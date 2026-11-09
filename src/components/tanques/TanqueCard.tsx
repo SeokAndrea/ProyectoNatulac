@@ -22,6 +22,7 @@ import { DescripcionTanque } from "./DescripcionTanque"
 import { DialogTransferir } from "./DialogTransferir"
 import { badgeVariantCondicion, conLiquido, nombreCondicionTanque, saborDibujado } from "./estadoTanque"
 import { PanelAccionesTanque } from "./PanelAccionesTanque"
+import { PanelCargaPlc } from "./PanelCargaPlc"
 import { PanelEnPreparacion } from "./PanelEnPreparacion"
 import { PanelVacioTanque } from "./PanelVacioTanque"
 import { PlcEnVivo } from "./PlcEnVivo"
@@ -113,6 +114,8 @@ export function TanqueCard({
   const enCursoPlc = vivo !== null || plc?.cola[0]?.estado === "EN_CURSO"
   // Agua entrando sin lote todavía: se dibuja la mezcla, sin color de sabor.
   const mezclaPlc = vivo !== null && !conLiquido(tanque) && tanque.condicion !== "EN_PREPARACION"
+  // La carga del PLC más antigua sin registrar: se registra desde PanelCargaPlc, no con «Iniciar Preparación».
+  const cargaPlc = modo === "preparacion" ? (plc?.cola[0] ?? null) : null
   const llenadoPlc = vivo?.llenando
     ? vivo.ajusteL !== null
       ? { litros: vivo.litrosAjuste ?? 0, setpointL: vivo.ajusteL, caudalLMin: vivo.caudalLMin }
@@ -190,6 +193,23 @@ export function TanqueCard({
           />
         )}
 
+        {cargaPlc && plc && (
+          <PanelCargaPlc
+            tanque={tanque}
+            carga={cargaPlc}
+            enCola={plc.cola.length}
+            loteAbierto={loteAbierto}
+            loteActivo={loteActivo}
+            corridasSinPt={sinPtDelLote}
+            sabores={sabores}
+            areaCodigo={areaCodigo}
+            usuarioSesion={usuarioSesion}
+            calidadLibera={calidadLibera}
+            modoVacio={modoVacio}
+            acciones={acciones}
+          />
+        )}
+
         {modo === "preparacion" && tanque.condicion === "CIP" && (
           <>
             <Button
@@ -218,6 +238,7 @@ export function TanqueCard({
             usuarioSesion={usuarioSesion}
             acciones={acciones}
             corridasSinPt={sinPtDelLote}
+            ocultarPreparar={cargaPlc !== null}
             onTransferir={() => setTransfiriendo(true)}
           />
         )}
@@ -233,6 +254,7 @@ export function TanqueCard({
             usuarioSesion={usuarioSesion}
             acciones={acciones}
             corridasSinPt={sinPtDelLote}
+            ocultarPreparar={cargaPlc !== null}
             onTransferir={() => setTransfiriendo(true)}
           />
         )}

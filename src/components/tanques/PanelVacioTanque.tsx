@@ -30,6 +30,7 @@ export function PanelVacioTanque({
   usuarioSesion,
   acciones,
   corridasSinPt = [],
+  ocultarPreparar = false,
   onTransferir,
 }: {
   tanque: TanqueRecepcion
@@ -40,6 +41,8 @@ export function PanelVacioTanque({
   acciones: AccionesTanque
   /** Corridas de este lote sin PT cargado. */
   corridasSinPt?: Corrida[]
+  /** Hay una carga del PLC por registrar (PanelCargaPlc): no se ofrece «Preparar para Vacío». */
+  ocultarPreparar?: boolean
   onTransferir: () => void
 }) {
   const [form, setForm] = useState<Form>(null)
@@ -128,10 +131,12 @@ export function PanelVacioTanque({
       <BotonCargarPt corridas={pendientes} />
       {vacioDisponible && (
         <>
-          <Button size="sm" variant="outline" className={botonVacio} onClick={() => setForm("preparar")}>
-            <Beaker className="size-3.5" />
-            Preparar para Vacío
-          </Button>
+          {!ocultarPreparar && (
+            <Button size="sm" variant="outline" className={botonVacio} onClick={() => setForm("preparar")}>
+              <Beaker className="size-3.5" />
+              Preparar para Vacío
+            </Button>
+          )}
           <Button size="sm" variant="outline" className={botonVacio} onClick={() => setForm("recibir")}>
             <PlugZap className="size-3.5" />
             Recibir de Vacío
