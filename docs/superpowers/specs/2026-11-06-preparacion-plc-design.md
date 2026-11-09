@@ -1,6 +1,7 @@
 # Preparación con datos del PLC: kits y ajustes de agua
 
-Estado: borrador del 2026-11-06, pendiente de aprobación de Alexander y Andrea.
+Estado: borrador del 2026-11-06. Alexander pidió implementarlo el 2026-11-09, con un interruptor
+por área como el del Robot Tavil (ver «Interruptor por área» y «Decisiones de implementación»).
 Rama: `rework/preparacion-PLC`.
 Bocetos: lienzo «Preparación con PLC» (https://claude.ai/artifact/MUkJnuaY1TGsuZhowFzZFj).
 
@@ -87,6 +88,18 @@ volumen del lote = kits × sabores.volumen  +  resto del tanque  +  desvase  +  
 
 El ciclo de estados del tanque, Liberar, Medir, Transferir, Desvase, Modo Vacío, las corridas y
 el Producto Terminado.
+
+## Interruptor por área
+
+Como el del Robot Tavil: «Preparación con PLC (Aséptico)» en Edición de Datos → Ajustes de planta.
+Solo la dueña lo cambia y queda en la auditoría.
+
+- **Apagado** (valor inicial; Pruebas arranca encendido): la tarjeta funciona como hoy, con el
+  formulario manual. La app no se conecta al bridge desde Preparación y la base no guarda cargas:
+  `registrar_carga_plc` las ignora.
+- **Encendido**: todo lo de este documento.
+- **Al apagarlo**, las cargas del área que no se registraron se descartan, para que no aparezcan
+  cargas viejas el día que se vuelva a encender.
 
 ## Carga del PLC en la base
 
@@ -217,5 +230,44 @@ el supervisor entra a la app cuando todo terminó, con o sin ajustes. Propuesta:
    turno y queda liberado a la hora en que registra, como funciona hoy. La hora real en que
    terminó el operador en el PLC se guarda solo como referencia.)
 3. (Resuelta: la liberación queda **manual**, a nombre del supervisor.)
-4. **Caducidad de la sesión** del usuario de servicio, para definir cómo reintenta el bridge
-   (lo verifico yo al implementar).
+4. (Resuelta: la sesión vence a los 30 días sin uso y el bridge la usa cada minuto, así que no
+   vence. Si la base la rechaza, por clave cambiada o usuario desactivado, el bridge vuelve a
+   entrar. Con una clave equivocada reintenta cada 5 minutos, para no bloquear al usuario: 5
+   intentos en 15 minutos lo bloquean.)
+
+## Decisiones de implementación (2026-11-09)
+
+Lo que el diseño dejaba abierto y se decidió al planificar la implementación:
+
+1. **El bridge reporta lecturas, no eventos.** Cada vez que cambia el tanque, `PREPARACION`, una
+   fase, los kits o el ajuste, y además una vez por minuto, manda una lectura completa (con el
+   setpoint). `registrar_carga_plc` decide. Repetir una lectura no cambia nada, así que dos
+   bridges leyendo el mismo PLC no duplican cargas ni ajustes.
+2. **Cola en el bridge.** Si la base no responde, las lecturas esperan en orden en
+   `datos/cargas-pendientes.json` y se mandan cuando vuelve. Si el bridge se reinicia en medio de
+   un ajuste, la primera lectura al volver lo cierra, con la hora de esa lectura. Así se achica el
+   riesgo asumido de «Cómo los usa el bridge».
+3. **Kits listos.** Los kits se dan por definitivos cuando baja la fase 2, cuando el PLC ya está en
+   la fase 3 o cuando termina la preparación. Antes de eso la tarjeta no pide sabor y lote.
+4. **Agua de la fórmula.** Se guarda el setpoint al iniciar (`agua_formula_l`) solo para el aviso
+   «Cargado en el PLC: 4.800 L de agua · 2 kits». Nunca suma al volumen.
+5. **Ajustes.** Hay un ajuste cada vez que `PLC_Ajuste_Agua` vuelve a cero, con el último valor
+   distinto de cero. Se suma al lote con una línea en `preparaciones_ajuste_volumen` (origen PLC,
+   a nombre del «Bridge del PLC», en el turno abierto del área), así sale en el Acta de Entrega.
+   Un ajuste que termina con el lote ya liberado no se suma: queda anotado y la tarjeta lo muestra.
+6. **«Calidad libera» encendido.** Solo se ofrece «Registrar»; libera Calidad, como hoy.
+   **Modo Vacío:** «Registrar para Vacío», con los ajustes ya hechos sumados.
+7. **Usuario del bridge.** `plc-bridge` («Bridge del PLC»), con el puesto «Integración PLC»
+   (Aséptico, nivel Apoyo, rol Vista) y un solo permiso, `PLC_CARGAR`. El permiso es del tema
+   Administración, para que ningún otro puesto lo reciba por «todos los permisos». Sistemas le
+   pone la clave con SQL y la clave va en `PLC_BRIDGE_CLAVE` (el `.env.local` del servidor).
+8. **Área de las cargas.** Se configura con `PLC_AREA` en `bridge.conf`. Por defecto es Aséptico
+   en modo real y Pruebas en simulación, para que una simulación nunca escriba en Aséptico.
+9. **El formulario manual se oculta** mientras el tanque tiene cargas del PLC sin registrar. El
+   supervisor las registra o las descarta primero.
+10. **Descartar** sirve para cualquier carga sin registrar, pide confirmación y queda en la
+    auditoría.
+11. **Lo en vivo** se muestra solo si el bridge reporta el área de la sesión.
+12. **Los bloqueos están en la base**, no solo en la pantalla: «Libera primero», lote de Vacío,
+    línea parada sin PT, la carga más antigua primero y carga ya registrada (dos supervisores a la
+    vez).
