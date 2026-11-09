@@ -137,6 +137,8 @@ from (
     exists (select 1 from fn where proname = 'puede_ver_indicadores')
     and exists (select 1 from fn where proname = 'indicadores_meses' and prosrc like '%puede_ver_indicadores(%')),
   ('20261115090000', 'Semielaborado: rendimiento = envasado / preparado',
-    exists (select 1 from fn where proname = 'rendimiento_lotes') and exists (select 1 from fn where proname = 'iniciar_preparacion' and prosrc like '%lote_anterior_id%'))
+    exists (select 1 from fn where proname = 'rendimiento_lotes') and exists (select 1 from fn where proname = 'iniciar_preparacion' and prosrc like '%lote_anterior_id%')),
+  ('20261115890000', 'Robot Tavil: el aviso del lote anterior sabe si sigue abierto',
+    exists (select 1 from fn where proname = 'robot_tavil_corrida_json' and prosrc like '%''abierta''%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

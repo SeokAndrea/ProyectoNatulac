@@ -29,6 +29,11 @@ export interface CorridaRobot {
   ultimaPaletaEn: string | null
   resto: number
   entregada: boolean
+  /**
+   * Todavía sin cerrar (por ejemplo, esperando que el supervisor cargue su PT).
+   * Sirve para que el aviso del lote anterior no diga «cerró» antes de tiempo.
+   */
+  abierta: boolean
 }
 
 export interface LineaRobot {
@@ -67,6 +72,8 @@ interface FilaCorridaRobot {
   ultima_paleta_en: string | null
   resto: number | string | null
   entregada: boolean
+  /** Lo manda la base desde la migración 20261115890000. */
+  abierta?: boolean
 }
 
 interface FilaLineaRobot {
@@ -100,6 +107,8 @@ function mapearCorrida(f: FilaCorridaRobot): CorridaRobot {
     ultimaPaletaEn: f.ultima_paleta_en,
     resto: Number(f.resto) || 0,
     entregada: f.entregada,
+    // Sin la migración no viene: se trata como cerrada, que es lo que se mostraba antes.
+    abierta: f.abierta === true,
   }
 }
 

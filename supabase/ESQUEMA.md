@@ -504,7 +504,7 @@ Qué corrida cuenta el operador en cada línea (`linea_id` PK, `turno_linea_id`)
 ### Funciones
 | Función | Qué hace |
 |---|---|
-| `robot_tavil_estado(p_usuario)` | La pantalla del operador: una entrada por línea con `estado` (`EN_CURSO`, `LOTE_NUEVO`, `ENTREGADA`, `TERMINADA`), `puede_sumar`, la corrida, las paletas sin corrida, el lote nuevo y el anterior. Antes pone al día el seguimiento: adopta la corrida vigente si la línea no tenía y pasa sola a la continuación de una corrida entregada (mismo lote, otro turno) con las paletas sin corrida. Una corrida cerrada hace más de 12 h no se muestra |
+| `robot_tavil_estado(p_usuario)` | La pantalla del operador: una entrada por línea con `estado` (`EN_CURSO`, `LOTE_NUEVO`, `ENTREGADA`, `TERMINADA`), `puede_sumar`, la corrida, las paletas sin corrida, el lote nuevo y el anterior (cada corrida con `entregada` y `abierta`, esta desde 20261115890000). Antes pone al día el seguimiento: adopta la corrida vigente si la línea no tenía y pasa sola a la continuación de una corrida entregada (mismo lote, otro turno) con las paletas sin corrida. Una corrida cerrada hace más de 12 h no se muestra |
 | `robot_tavil_sumar(p_usuario, p_linea_codigo)`, `robot_tavil_restar(…)` | «+» y «−». Con la línea entregada, a las paletas sin corrida. Terminada, o con un lote nuevo sin iniciar y la corrida anterior cerrada: rechazan |
 | `robot_tavil_guardar_resto(p_usuario, p_linea_codigo, p_cajas)` | Resto de la corrida en curso |
 | `robot_tavil_iniciar(p_usuario, p_linea_codigo)` | «Iniciar con el lote …»: pasa al lote nuevo de la línea (con las paletas sin corrida) |

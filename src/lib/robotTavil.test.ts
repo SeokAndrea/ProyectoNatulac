@@ -35,11 +35,32 @@ describe("mapearPantallaRobot", () => {
       lineaNombre: "Línea 1",
       estado: "LOTE_NUEVO",
       puedeSumar: false,
-      corrida: { id: "c1", lote: "2411", saborNombre: "Fresa", presentacionMl: 1000, paletas: 8, ultimaPaletaEn: "2026-11-04T16:01:00+00:00", resto: 12, entregada: false },
+      corrida: { id: "c1", lote: "2411", saborNombre: "Fresa", presentacionMl: 1000, paletas: 8, ultimaPaletaEn: "2026-11-04T16:01:00+00:00", resto: 12, entregada: false, abierta: false },
       sinCorrida: 0,
-      nueva: { id: "c2", lote: "2415", saborNombre: "Fresa", presentacionMl: 1000, paletas: 0, ultimaPaletaEn: null, resto: 0, entregada: false },
+      nueva: { id: "c2", lote: "2415", saborNombre: "Fresa", presentacionMl: 1000, paletas: 0, ultimaPaletaEn: null, resto: 0, entregada: false, abierta: false },
       anterior: null,
     })
+  })
+
+  it("la corrida anterior dice si sigue abierta (sin el dato, cerrada)", () => {
+    const conAnterior = (anterior: Record<string, unknown>) =>
+      mapearPantallaRobot({
+        lineas: [
+          {
+            linea_codigo: "LINEA_1",
+            linea_nombre: "Línea 1",
+            estado: "EN_CURSO",
+            puede_sumar: true,
+            corrida: corrida({ id: "c2", abierta: true }),
+            sin_corrida: 0,
+            nueva: null,
+            anterior,
+          },
+        ],
+      })[0].anterior
+    expect(conAnterior(corrida({ abierta: true }))?.abierta).toBe(true)
+    // Una base sin la migración 20261115890000 no manda el dato: se trata como cerrada (el texto de antes).
+    expect(conAnterior(corrida())?.abierta).toBe(false)
   })
 
   it("sin respuesta, ninguna línea", () => {
