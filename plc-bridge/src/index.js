@@ -4,6 +4,7 @@ import { crearFuenteSimulacion } from "./fuentes/simulacion.js";
 import { crearFuentePlc } from "./fuentes/s7.js";
 import { crearRegistro } from "./registro.js";
 import { crearControlAux } from "./control.js";
+import { crearReportadorDesdeConf } from "./cargas.js";
 
 const PUERTO = Number(leer("PLC_BRIDGE_PUERTO", 4036));
 const INTERVALO_MS = Number(leer("PLC_BRIDGE_INTERVALO_MS", 200));
@@ -25,6 +26,7 @@ console.log(
 let ultimoEstado = null;
 let registro = null;
 let controlAux = null;
+let reportador = null;
 
 const wss = new WebSocketServer({ port: PUERTO, host: HOST });
 
@@ -38,11 +40,16 @@ wss.on("error", (error) => {
 
 function difundir(lectura) {
   registro.procesar(lectura);
+  reportador.procesar(lectura);
+  const cargas = reportador.resumen();
   const estado = {
     ...lectura,
     llenados: registro.ultimosLlenados(REGISTROS_EN_MENSAJE),
     aperturas_aux: registro.ultimasAperturasAux(REGISTROS_EN_MENSAJE),
     control_aux: controlAux.habilitado,
+    // Area de las cargas (PLC_AREA) y como va el envio a la base (cargas.js).
+    area: cargas.area,
+    cargas,
   };
   ultimoEstado = estado;
   const mensaje = JSON.stringify(estado);
@@ -86,6 +93,7 @@ try {
   }
   registro = crearRegistro({ modo: MODO });
   controlAux = crearControlAux({ fuente, registro });
+  reportador = crearReportadorDesdeConf({ modo: MODO });
 } catch (error) {
   // Error de configuracion (direccion mal escrita, falta PLC_HOST...): mensaje
   // corto y claro en vez de la traza completa de Node.
@@ -100,6 +108,7 @@ console.log(`[plc-bridge] modo=${MODO} puerto=${PUERTO} intervalo=${INTERVALO_MS
 function apagar() {
   fuente.detener();
   registro.detener();
+  reportador.detener();
   wss.close(() => process.exit(0));
 }
 

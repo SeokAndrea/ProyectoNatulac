@@ -73,9 +73,19 @@ function crearAlmacen(archivo) {
   return almacen;
 }
 
+/** Carpeta de los archivos del bridge (PLC_REGISTRO_CARPETA, por defecto plc-bridge/datos). */
+export function carpetaDatos() {
+  return leer("PLC_REGISTRO_CARPETA", join(dirname(fileURLToPath(import.meta.url)), "..", "datos"));
+}
+
+/** Los archivos de la simulacion llevan "-simulacion": las pruebas no ensucian los de verdad. */
+export function sufijoModo(modo) {
+  return modo === "real" ? "" : "-simulacion";
+}
+
 export function crearRegistro({ modo }) {
-  const carpeta = leer("PLC_REGISTRO_CARPETA", join(dirname(fileURLToPath(import.meta.url)), "..", "datos"));
-  const sufijo = modo === "real" ? "" : "-simulacion";
+  const carpeta = carpetaDatos();
+  const sufijo = sufijoModo(modo);
   const llenados = crearAlmacen(join(carpeta, `llenados${sufijo}.json`));
   const aperturasAux = crearAlmacen(join(carpeta, `aperturas-aux${sufijo}.json`));
   llenados.cerrarAbiertosAlArrancar();

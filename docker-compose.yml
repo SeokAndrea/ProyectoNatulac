@@ -116,6 +116,10 @@ services:
       # Ahi el bridge revisa el permiso de quien abre/cierra una valvula
       # auxiliar y deja la auditoria (ver plc-bridge/src/control.js).
       - PLC_API_URL=http://api:3000
+      # Clave del usuario plc-bridge (manda las cargas de la preparacion a la
+      # base, ver plc-bridge/src/cargas.js). Sale de .env.local, nunca de
+      # bridge.conf. Vacia = cargas apagadas.
+      - PLC_BRIDGE_CLAVE=${PLC_BRIDGE_CLAVE:-}
     restart: unless-stopped
     profiles:
       - preview
