@@ -16,6 +16,7 @@ export const PERMISOS = [
   { codigo: "AUDITORIA_VER", nombre: "Ver Auditoría" },
   { codigo: "VALIDAR", nombre: "Validar producción" },
   { codigo: "RESUMEN_VER", nombre: "Ver el Resumen Diario" },
+  { codigo: "INDICADORES_VER", nombre: "Ver los Indicadores" },
   { codigo: "PERSONAL_GESTIONAR", nombre: "Gestionar personal" },
   { codigo: "PROGRAMACION_EDITAR", nombre: "Editar Programación" },
   { codigo: "CATALOGO_PARADAS_VER", nombre: "Ver Catálogo de Paradas" },

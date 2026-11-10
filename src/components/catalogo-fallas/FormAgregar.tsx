@@ -27,6 +27,7 @@ export function FormAgregar({
   inicial,
   enfocar,
   onAgregado,
+  onUbicacion,
 }: {
   catalogo: CatalogoFallas
   usuario: string
@@ -35,6 +36,8 @@ export function FormAgregar({
   /** Poner el cursor en «Falla» al aparecer. */
   enfocar?: boolean
   onAgregado: () => Promise<void>
+  /** Avisa cada vez que se elige otro equipo, sistema o subsistema: la tabla de abajo muestra esa misma ubicación. */
+  onUbicacion?: (u: { equipoId: string; sistemaId: string; subsistemaId: string }) => void
 }) {
   const [equipoId, setEquipoId] = useState(inicial.equipoId)
   const [sistemaId, setSistemaId] = useState(inicial.sistemaId)
@@ -75,11 +78,17 @@ export function FormAgregar({
   function elegirEquipo(id: string) {
     setEquipoId(id)
     const s = activos(catalogo.sistemas).find((x) => x.equipoId === id && !x.reservada)
-    elegirSistema(s?.id ?? NUEVO)
+    elegirSistema(s?.id ?? NUEVO, id)
   }
-  function elegirSistema(id: string) {
+  function elegirSistema(id: string, equipo: string = equipoId) {
     setSistemaId(id)
-    setSubsistemaId(activos(catalogo.subsistemas).find((x) => x.sistemaId === id && !x.reservada)?.id ?? NUEVO)
+    const u = activos(catalogo.subsistemas).find((x) => x.sistemaId === id && !x.reservada)?.id ?? NUEVO
+    setSubsistemaId(u)
+    onUbicacion?.({ equipoId: equipo, sistemaId: id, subsistemaId: u })
+  }
+  function elegirSubsistema(id: string) {
+    setSubsistemaId(id)
+    onUbicacion?.({ equipoId, sistemaId, subsistemaId: id })
   }
 
   async function agregar(nombres: string[]) {
@@ -107,6 +116,7 @@ export function FormAgregar({
     if (r.equipoId) setNuevoEquipo(SIN_NUEVO)
     if (r.sistemaId) setNuevoSistema(SIN_NUEVO)
     if (r.subsistemaId) setNuevoSubsistema(SIN_NUEVO)
+    onUbicacion?.({ equipoId: r.equipoId ?? equipoId, sistemaId: r.sistemaId ?? sistemaId, subsistemaId: r.subsistemaId ?? subsistemaId })
     await onAgregado()
     setEnviando(false)
     if (r.error) return setError(r.error)
@@ -156,7 +166,7 @@ export function FormAgregar({
         que="subsistema"
         opciones={subsistemas}
         valor={subsistemaId}
-        onCambiar={setSubsistemaId}
+        onCambiar={elegirSubsistema}
         nuevo={nuevoSubsistema}
         onNuevo={setNuevoSubsistema}
         ocupados={ocupadosSubsistema}

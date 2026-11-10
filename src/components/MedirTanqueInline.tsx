@@ -30,7 +30,7 @@ export function MedirTanqueInline({
   onCancelar,
   guardarTexto = "Guardar medición",
   descripcion,
-  notaCero = "Si ninguna línea está usando el tanque, el lote se cierra y el tanque queda Sucio.",
+  notaCero = "Si ninguna línea está usando el tanque, el lote se cierra y el tanque queda Con Restos (0 L).",
 }: {
   numeroTanque: number
   /** Lo que el sistema cree que tiene ahora — prefill y referencia. */

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MensajeError } from "@/components/MensajeError"
 import { etiquetaClase } from "@/components/catalogo-fallas/estilos"
-import { codigoPlanilla } from "@/lib/paradas"
+import { codigoDeTipo } from "@/lib/paradas"
 import { guardarTipo, type TipoParadaEditable } from "@/lib/paradasCatalogo"
 import { codigoMuestra, parecidas, siguienteSecuencia, tipoNuevo, type GrupoParadas } from "@/lib/otrasParadas"
 import { cn } from "@/lib/utils"
@@ -38,7 +38,7 @@ export function FormNuevaParada({ grupos, todos, usuario, pagina }: { grupos: Gr
     const fallo = await guardarTipo(usuario, tipo, undefined, pagina)
     setEnviando(false)
     if (fallo) return setError(fallo)
-    setAviso(`Agregada: ${tipo.prefijoPlanilla ? codigoPlanilla(tipo, "LINEA_1") : "sin código"} ${tipo.nombre}`)
+    setAviso(`Agregada: ${tipo.prefijoPlanilla ? codigoDeTipo(tipo) : "sin código"} ${tipo.nombre}`)
     setNombre("")
     setGuia("")
     campoNombre.current?.focus()
@@ -117,7 +117,7 @@ export function FormNuevaParada({ grupos, todos, usuario, pagina }: { grupos: Gr
             <span key={t.codigo}>
               {i > 0 && ", "}
               {t.nombre}
-              {t.prefijoPlanilla && <span className="num"> · {codigoPlanilla(t, "LINEA_1")}</span>}
+              {t.prefijoPlanilla && <span className="num"> · {codigoDeTipo(t)}</span>}
             </span>
           ))}
           . Revisa que no sea la misma.

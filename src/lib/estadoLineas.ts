@@ -19,6 +19,13 @@ import { supabase } from "@/lib/supabase"
 
 export const REFRESCO_ESTADO_MS = 15 * 1000
 
+const EVENTO_REFRESCO_ESTADO = "natulac:refrescar-estado-lineas"
+
+/** Pide releer el estado de las líneas ya (después de Parar, Continuar…), sin esperar los 15 s. */
+export function pedirRefrescoEstadoLineas() {
+  window.dispatchEvent(new Event(EVENTO_REFRESCO_ESTADO))
+}
+
 export interface ParadaDeLaBase {
   id: string | null
   inicio: string
@@ -143,10 +150,12 @@ export function useEstadoLineas(area: string | null, habilitado = true): EstadoL
     void cargar()
     const id = setInterval(() => void cargar(), REFRESCO_ESTADO_MS)
     document.addEventListener("visibilitychange", cargar)
+    window.addEventListener(EVENTO_REFRESCO_ESTADO, cargar)
     return () => {
       vivo = false
       clearInterval(id)
       document.removeEventListener("visibilitychange", cargar)
+      window.removeEventListener(EVENTO_REFRESCO_ESTADO, cargar)
     }
   }, [area, habilitado])
 

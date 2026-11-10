@@ -139,6 +139,15 @@ export function codigoPlanilla(tipo: TipoParada, lineaCodigo: string, area?: str
   return `${tipo.prefijoPlanilla}${linea}${secuencia != null ? `-${secuencia}` : ""}`
 }
 
+/**
+ * Código de un tipo SIN línea, para el Catálogo (que habla del tipo, no de una línea): el prefijo y, si lo
+ * tiene, su secuencia. PP → "PP"; OP número 3 → "OP-3". El código con línea (PPL1, OPL2-3) es el de
+ * codigoPlanilla(), que es el que lleva cada parada al registrarse.
+ */
+export function codigoDeTipo(tipo: Pick<TipoParada, "prefijoPlanilla" | "secuenciaPlanilla">): string {
+  return `${tipo.prefijoPlanilla}${tipo.secuenciaPlanilla != null ? `-${tipo.secuenciaPlanilla}` : ""}`
+}
+
 /*
  * Seed del catálogo completo (planilla del dueño, 2026-09-15). Los códigos
  * de esta lista son los de LÍNEA 1 tal cual los pasó el dueño; para otras

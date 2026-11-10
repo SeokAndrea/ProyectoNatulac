@@ -4,6 +4,7 @@ import {
   jornadaDeParada,
   CATALOGO_PROGRAMADA,
   CATALOGO_TIPOS,
+  codigoDeTipo,
   codigoPlanilla,
   desvioMin,
   duracionMin,
@@ -264,6 +265,17 @@ describe("catálogo completo (CATALOGO_TIPOS)", () => {
     const noProgramada = CATALOGO_TIPOS.filter((t) => t.clase !== "PROGRAMADA")
     expect(noProgramada).toHaveLength(35)
     expect(noProgramada.every((t) => t.clase === "NO_PROGRAMADA")).toBe(true)
+  })
+
+  it("el código del tipo en el Catálogo no lleva línea: PP, PPE, SC-1", () => {
+    const cambioLote = CATALOGO_TIPOS.find((t) => t.codigo === "CAMBIO_LOTE")!
+    const energia = CATALOGO_TIPOS.find((t) => t.codigo === "TRANSFERENCIA_ENERGIA")!
+    const faltaVapor = CATALOGO_TIPOS.find((t) => t.codigo === "FALTA_VAPOR")!
+    expect(codigoDeTipo(cambioLote)).toBe("PP")
+    expect(codigoDeTipo(energia)).toBe("PPE")
+    expect(codigoDeTipo(faltaVapor)).toBe("SC-1")
+    // El de la parada registrada sigue llevando la línea.
+    expect(codigoPlanilla(cambioLote, "LINEA_2")).toBe("PPL2")
   })
 
   it("el código de planilla cambia solo el número de línea, no el nombre/guía", () => {

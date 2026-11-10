@@ -19,7 +19,7 @@ const JEFE_MTTO = sesion("MANTENIMIENTO", "MANTENIMIENTO", [
 ])
 const SERVICIOS = sesion("SERVICIOS_INDUSTRIALES", "SERVICIOS_INDUSTRIALES", ["LECTURAS_SI", "CATALOGO_PARADAS_VER"])
 const JEFE_PRODUCCION = sesion("ASEPTICO", "JEFE_PRODUCCION", [
-  "TURNO_CARGAR", "RESUMEN_VER", "VALIDAR", "REPORTES_PARADAS_VER", "LOTE_LIBERAR", "AUDITORIA_VER", "PERSONAL_GESTIONAR",
+  "TURNO_CARGAR", "RESUMEN_VER", "INDICADORES_VER", "VALIDAR", "REPORTES_PARADAS_VER", "LOTE_LIBERAR", "AUDITORIA_VER", "PERSONAL_GESTIONAR",
 ])
 // Pruebas: puesto Probador (todos los permisos); la sesión trae la lista completa.
 const PRUEBAS = sesion("PRUEBAS", "SUPERVISOR", PERMISOS.map((p) => p.codigo))
@@ -91,5 +91,16 @@ describe("tarjetas por permisos del puesto", () => {
 
   it("un rol ya no decide nada: mismo rol, sin el permiso, no ve la tarjeta", () => {
     expect(visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", []))).not.toContain("reportes-paradas")
+  })
+
+  it("Indicadores tiene permiso propio: con solo el Resumen Diario (RESUMEN_VER) se ve el Resumen pero no Indicadores", () => {
+    const v = visibles(sesion("MANTENIMIENTO", "MANTENIMIENTO", ["RESUMEN_VER"]))
+    expect(v).toContain("resumen-dia")
+    expect(v).not.toContain("indicadores")
+  })
+
+  it("Indicadores lo ven INDICADORES_VER y, como siempre, la analista (VALIDAR)", () => {
+    expect(visibles(sesion("ASEPTICO", "JEFE_PRODUCCION", ["RESUMEN_VER", "INDICADORES_VER"]))).toContain("indicadores")
+    expect(visibles(sesion("ASEPTICO", "ANALISTA", ["VALIDAR"]))).toContain("indicadores")
   })
 })

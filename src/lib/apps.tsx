@@ -286,8 +286,9 @@ export const apps: AppDef[] = [
     href: "/indicadores",
     icon: BarChart3,
     requiereTurno: false,
-    // Jefe, analista y la dueña (2026-10-13): los mismos del Resumen Diario. Cada mes, automático o cargado a mano.
-    permiso: ["RESUMEN_VER", "VALIDAR"],
+    // Jefe, analista y la dueña (2026-10-13). Desde 2026-11-06 con permiso propio (INDICADORES_VER), aparte del Resumen
+    // Diario: dar el Resumen (por ejemplo a Mantenimiento) ya no abre Indicadores. VALIDAR (la analista) lo sigue viendo.
+    permiso: ["INDICADORES_VER", "VALIDAR"],
     // Atajo al lado del Panel de Paradas, en amarillo (dueña, 2026-10-15).
     atajo: true,
     color: "warning",
