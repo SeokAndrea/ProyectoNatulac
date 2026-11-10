@@ -15,6 +15,7 @@ import { EditorTotal } from "@/components/indicadores/editor/EditorTotal"
 import { EditorLinea } from "@/components/indicadores/editor/EditorLinea"
 import { EditorParadas, LISTA_CAUSAS } from "@/components/indicadores/editor/EditorParadas"
 import { EditorSemielaborado } from "@/components/indicadores/editor/EditorSemielaborado"
+import { EditorVacio } from "@/components/indicadores/editor/EditorVacio"
 
 type Resultado = { ok: true } | { ok: false; error: string }
 type Auto = DatosMes | { error: string }
@@ -86,7 +87,7 @@ export function EditorManual({
   async function traerAutomatico() {
     const r = await obtenerAuto(mes)
     if ("error" in r) return setError(r.error)
-    // Ausentismo, incidencias, las paradas generales y el % total sin cajas no vienen de la app: se conservan.
+    // Ausentismo, incidencias, Vacío, las paradas generales y el % total sin cajas no vienen de la app: se conservan.
     const b = borrador
     cambiar({
       ...structuredClone(r),
@@ -96,6 +97,7 @@ export function EditorManual({
       diasSinIncidentes: b.diasSinIncidentes,
       totalAseptico: b.totalAseptico,
       paradasGenerales: b.paradasGenerales,
+      vacio: b.vacio,
     })
     setVersion((v) => v + 1)
   }
@@ -158,6 +160,8 @@ export function EditorManual({
             </p>
           ) : tab === "semi" ? (
             <EditorSemielaborado familias={familias} datos={borrador} onCambio={cambiar} />
+          ) : tab === "vacio" ? (
+            <EditorVacio datos={borrador} onCambio={cambiar} />
           ) : tab === "aus" ? (
             <EditorAusentismo datos={borrador} onCambio={cambiar} />
           ) : tab === "inc" ? (

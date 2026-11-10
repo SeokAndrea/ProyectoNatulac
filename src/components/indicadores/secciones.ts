@@ -16,8 +16,8 @@ export const SECCIONES: { valor: Seccion; texto: string }[] = [
   { valor: "inc", texto: "INCIDENCIAS / SEGUIMIENTO" },
 ]
 
-/** Ausentismo e incidencias se cargan siempre a mano, aunque el mes sea automático. */
-export const SIEMPRE_A_MANO: Seccion[] = ["aus", "inc"]
+/** Vacío, ausentismo e incidencias se cargan siempre a mano, aunque el mes sea automático. */
+export const SIEMPRE_A_MANO: Seccion[] = ["vacio", "aus", "inc"]
 
 /**
  * ← → pasan a la pantalla anterior o siguiente, como en una presentación

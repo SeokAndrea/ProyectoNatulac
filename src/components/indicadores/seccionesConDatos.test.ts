@@ -25,3 +25,17 @@ describe("seccionesConDatos", () => {
     expect(seccionesConDatos(mesVacio(), "AUTO", { ...mesVacio(), diasSinIncidentes: null })).toEqual([])
   })
 })
+
+describe("seccionesConDatos — Vacío", () => {
+  const vacio = (eficiencia: number | null, cajas: number | null) => ({
+    ...mesVacio(),
+    vacio: { eficiencia, presentaciones: { "AL-340": { cajas, cajasPlan: null, mermaEmpaque: null, mermaSemi: null, paradas: [] } } },
+  })
+
+  it("aparece solo si hay algo cargado a mano, aunque el mes sea automático", () => {
+    expect(seccionesConDatos(mesVacio(), "AUTO", vacio(86, null))).toEqual(["vacio"])
+    expect(seccionesConDatos(mesVacio(), "AUTO", vacio(null, 9640))).toEqual(["vacio"])
+    expect(seccionesConDatos(mesVacio(), "AUTO", vacio(null, null))).toEqual([])
+    expect(seccionesConDatos(mesVacio(), "AUTO", mesVacio())).toEqual([])
+  })
+})

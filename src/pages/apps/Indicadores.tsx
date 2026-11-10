@@ -80,17 +80,14 @@ export default function Indicadores() {
   const opcionesMes = Array.from({ length: 12 }, (_, i) => sumarMeses(mesActual, -i))
   const familias = [...new Set([...(sabores ?? []).filter((s) => s.activo).map((s) => s.familiaNombre), ...Object.keys(elegido.datos?.semielaborado ?? {})])]
   const claves = ind.meses.flatMap((m) => Object.keys(m.datos?.presentaciones ?? {}))
-  // Ausentismo e incidencias: siempre a mano, se editan aunque el mes sea automático.
+  // Vacío, ausentismo e incidencias: siempre a mano, se editan aunque el mes sea automático.
   const aMano = SIEMPRE_A_MANO.includes(seccion)
   const esLinea = seccion === "1" || seccion === "2" || seccion === "3"
-  // Vacío todavía no se carga a mano (previa con datos de ejemplo).
-  const seccionesEditor = elegido.modo === "MANUAL" ? SECCIONES.map((s) => s.valor).filter((s) => s !== "vacio") : SIEMPRE_A_MANO
+  const seccionesEditor = elegido.modo === "MANUAL" ? SECCIONES.map((s) => s.valor) : SIEMPRE_A_MANO
   // Lo que no tiene datos no se ve (dueña, 2026-10-15). Quien carga datos ve también las vacías (para cargarlas),
   // salvo al presentar; el PDF y la presentación llevan solo las que tienen datos.
-  const conDatosReales = calculando ? TODAS : seccionesConDatos(d, elegido.modo, ind.aMano[ind.aMano.length - 1].datos)
-  // Vacío (previa con datos de ejemplo) se ve siempre, sin depender de los datos del mes.
-  const conDatos = TODAS.filter((s) => s === "vacio" || conDatosReales.includes(s))
-  const aPresentar = conDatosReales.length > 0 ? conDatos : TODAS
+  const conDatos = calculando ? TODAS : seccionesConDatos(d, elegido.modo, ind.aMano[ind.aMano.length - 1].datos)
+  const aPresentar = conDatos.length > 0 ? conDatos : TODAS
   const visibles = puedeCargar && !presentacion.presentando ? TODAS : aPresentar
   const vacias = TODAS.filter((s) => !conDatos.includes(s))
   useEffect(() => {
@@ -107,7 +104,7 @@ export default function Indicadores() {
   const manualDe = (m: string) => ind.aMano.find((x) => x.mes === m)?.datos ?? null
   const modoDe = (m: string) => ind.meses.find((x) => x.mes === m)?.modo ?? "AUTO"
 
-  /** Lo que calculó la app para el mes, con lo que siempre es a mano (ausentismo, incidencias, % total sin cajas). */
+  /** Lo que calculó la app para el mes, con lo que siempre es a mano (Vacío, ausentismo, incidencias, % total sin cajas). */
   async function autoConLoAMano(m: string): Promise<DatosMes> {
     const manual = manualDe(m)
     const auto = await ind.obtenerAuto(m)
@@ -119,6 +116,7 @@ export default function Indicadores() {
       diasSinIncidentes: manual?.diasSinIncidentes,
       totalAseptico: manual?.totalAseptico,
       paradasGenerales: manual?.paradasGenerales,
+      vacio: manual?.vacio,
     }
   }
 
@@ -193,6 +191,8 @@ export default function Indicadores() {
           {aMano ? (
             ind.cargando ? (
               <Loader2 className="m-auto size-5 animate-spin text-muted-foreground" />
+            ) : seccion === "vacio" ? (
+              <VistaVacio key={mes} meses={ind.aMano} observaciones={ind.observaciones} puedeEditar={puedeEditar} onGuardarObservacion={guardarObs} editar={botonEditar} />
             ) : seccion === "aus" ? (
               <VistaAusentismo meses={ind.aMano} editar={botonEditar} />
             ) : (
@@ -204,8 +204,6 @@ export default function Indicadores() {
                 editar={botonEditar}
               />
             )
-          ) : seccion === "vacio" ? (
-            <VistaVacio mes={mes} puedeEditar={puedeEditar} />
           ) : calculando ? (
             <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Calculando {nombreMes(mes)} con los días confirmados…

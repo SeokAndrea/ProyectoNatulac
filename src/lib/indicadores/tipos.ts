@@ -91,6 +91,29 @@ export interface DatosMes {
   tituloIncidencias?: string
   /** "Días sin incidentes" de la pantalla de Incidencias, escrito por la analista. Vacío = no se muestra. */
   diasSinIncidentes?: number | null
+  /** Pantalla VACÍO: siempre a mano, también en los meses automáticos. */
+  vacio?: DatosVacio | null
+}
+
+/** Una presentación de Vacío (AL-340, V-250…) en el mes: todo cargado a mano. */
+export interface DatosPresentacionVacio {
+  /** Cajas producidas (un total). */
+  cajas: number | null
+  /** Cajas planificadas (un total). */
+  cajasPlan: number | null
+  /** Merma de empaque, %. */
+  mermaEmpaque: number | null
+  /** Merma de semielaborado, %. */
+  mermaSemi: number | null
+  /** Paradas del mes: lista a mano, solo los nombres (como en las líneas en MANUAL). */
+  paradas: ParadaMes[]
+}
+
+/** Vacío en el mes. Una sola eficiencia para las dos presentaciones que se miren. */
+export interface DatosVacio {
+  eficiencia: number | null
+  /** Clave: el código de la presentación ("AL-340"). */
+  presentaciones: Record<string, DatosPresentacionVacio>
 }
 
 /** Días sin incidentes: menos de AMARILLO en rojo, desde AMARILLO en amarillo y desde VERDE en verde (dueña, 2026-10-15). */
