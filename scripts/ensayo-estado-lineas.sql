@@ -1,4 +1,4 @@
--- Ensayo de 20261114790000_estado_lineas.sql (estado de línea desde la base y un turno abierto por área).
+-- Ensayo de 20261114800000_estado_lineas.sql (estado de línea desde la base y un turno abierto por área).
 -- Todo en el Área de Pruebas, dentro de una transacción con rollback; si algo no sale, hay una excepción.
 --   docker exec -i natulac-local-db-1 psql -U postgres -d natulac -v ON_ERROR_STOP=1 < scripts/ensayo-estado-lineas.sql
 -- Mismos casos que src/components/panel/calculosPanel.test.ts (la regla de respaldo en TypeScript).

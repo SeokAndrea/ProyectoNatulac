@@ -178,7 +178,8 @@ export function PanelParadasLinea({
 
   function guardar() {
     if (!minValido) return
-    if (colocar && !horas) return void cubrirMinutos(min, colocar)
+    // Sin tramo libre en el turno (ej. ya cargaron una falla de 3 h): se anota igual como «terminó recién»; las paradas suman todos sus minutos.
+    if (colocar && !horas && ubicacion.length > 0) return void cubrirMinutos(min, colocar)
     void anotar(min)
   }
 
@@ -207,9 +208,7 @@ export function PanelParadasLinea({
   async function cubrirMinutos(minutos: number, ubicarEn: (minutos: number) => TramoHora[]) {
     if (!tipo) return
     const tramos = ubicarEn(minutos)
-    if (tramos.length === 0) {
-      return setError(`No queda tiempo libre en el turno para ${fmtDuracion(minutos)}: revisa las paradas ya cargadas en esta línea.`)
-    }
+    if (tramos.length === 0) return void anotar(minutos)
     setEnviando(true)
     setError(null)
     for (const t of tramos) {

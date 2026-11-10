@@ -137,6 +137,9 @@ from (
     exists (select 1 from fn where proname = 'puede_ver_indicadores')
     and exists (select 1 from fn where proname = 'indicadores_meses' and prosrc like '%puede_ver_indicadores(%')),
   ('20261115090000', 'Semielaborado: rendimiento = envasado / preparado',
-    exists (select 1 from fn where proname = 'rendimiento_lotes') and exists (select 1 from fn where proname = 'iniciar_preparacion' and prosrc like '%lote_anterior_id%'))
+    exists (select 1 from fn where proname = 'rendimiento_lotes') and exists (select 1 from fn where proname = 'iniciar_preparacion' and prosrc like '%lote_anterior_id%')),
+  ('20261115290000', 'Paradas: Anotar sin choque de horas y Terminar sin «turno ya cerrado»',
+    exists (select 1 from fn where proname = 'anotar_parada' and prosrc not like '%Ya hay una parada con horas%')
+    and exists (select 1 from fn where proname = 'terminar_parada' and prosrc not like '%El fin no puede caer en un turno ya cerrado%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;
