@@ -10,6 +10,7 @@ import {
   filasDeLineas,
   totalesParadaPorLinea,
   produccionPorLineaDe,
+  productoConPrecargaRobot,
   programacionDelDia,
   textoUltimaActualizacion,
   ultimaAccionDeTurno,
@@ -23,7 +24,7 @@ import { ResumenPlanta } from "@/components/panel/resumen-planta/ResumenPlanta"
 import { SeccionLineas } from "@/components/panel/SeccionLineas"
 import { SeccionMermas } from "@/components/panel/SeccionMermas"
 import { SeccionTanques } from "@/components/panel/SeccionTanques"
-import { useEstimacionTanques } from "@/lib/robotTavil"
+import { useEstimacionTanques, usePrecargaRobot } from "@/lib/robotTavil"
 import { usePanelTurno } from "@/components/panel/usePanelTurno"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
@@ -98,6 +99,13 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
 
   // ------------------------------------------------------------ cuentas
   const horasTurnoActual = turno ? horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin) : 0
+  // Robot Tavil: lo que carga el operador cuenta en vivo hasta que el supervisor confirma el PT de la corrida
+  // (productoConPrecargaRobot). Lo usan el banner, la Meta y las cajas por línea; las mermas, el PT oficial.
+  const precargasRobot = usePrecargaRobot(session?.username, turno?.id ?? null)
+  const ptPanel = useMemo(
+    () => productoConPrecargaRobot(pt.registros, precargasRobot, prod.corridas, presentaciones),
+    [pt.registros, precargasRobot, prod.corridas, presentaciones],
+  )
   // Meta y eficiencia con paradas (src/lib/eficiencia.ts, docs/plan-eficiencia-meta.md): base = turno completo;
   // la meta baja con las Programadas y el Ocioso; la eficiencia baja solo con las No programadas.
   const eficiencia = turno
@@ -108,7 +116,7 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
         estado: turno.estado,
         horasTranscurridas: horasTurnoActual,
         corridas: prod.corridas,
-        productoTerminado: pt.registros,
+        productoTerminado: ptPanel,
         presentaciones,
         velocidades,
         paradas: paradasTurno,
@@ -124,7 +132,7 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
         totalEsperadas: eficiencia?.total?.metaCajas ?? 0,
       }
     : null
-  const litrosProducidos = pt.registros.reduce((a, p) => a + p.litrosProducidos, 0)
+  const litrosProducidos = ptPanel.reduce((a, p) => a + p.litrosProducidos, 0)
   // En vivo y sin turno ABIERTO (entre un turno y otro llega el último cerrado), las líneas no heredan
   // el estado del turno cerrado: quedan Libres, salvo una parada abierta (igual que el Panel de Paradas).
   const conCorridas = !enVivo || turno?.estado === "ABIERTO"
@@ -133,11 +141,12 @@ export default function PanelProduccion({ enTv = false }: { enTv?: boolean } = {
   const lineasEstado = enVivo
     ? conEstadosDeLaBase(aplicarParadasEnVivo(lineasBase, paradasAbiertas, ahora, conCorridas ? desdeTurno : null), estadoBase, ahora, conCorridas ? desdeTurno : null)
     : lineasBase
-  const produccionPorLinea = turno ? produccionPorLineaDe(pt.registros, lineas, presentaciones) : []
+  const produccionPorLinea = turno ? produccionPorLineaDe(ptPanel, lineas, presentaciones) : []
   const cajasProducidasTotal = produccionPorLinea.reduce((a, l) => a + l.cajas, 0)
   /*
    * "Producción del turno": Cajas / Litros del banner son SIEMPRE del
-   * turno cargado — se mueven con lo que carga el supervisor activo. El
+   * turno cargado — se mueven con lo que carga el operador del Robot Tavil
+   * y, al confirmar el PT de una corrida, con lo del supervisor. El
    * acumulado de la jornada (los 3 turnos) solo lo usa el carrusel de
    * Programación diaria, para cruzarlo contra el plan del día.
    */

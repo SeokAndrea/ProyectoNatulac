@@ -12,11 +12,13 @@ import {
   minutosParadosEntre,
   paradaMasLargaDe,
   produccionPorLineaDe,
+  productoConPrecargaRobot,
   programacionDelDia,
   textoUltimaActualizacion,
   totalesParadaPorLinea,
   tiempoRelativo,
 } from "./calculosPanel"
+import type { PrecargaRobot } from "@/lib/robotTavil"
 
 const LINEAS = [
   { id: "1", codigo: "LINEA_1", nombre: "Línea 1", activo: true },
@@ -30,6 +32,42 @@ const estado = (linea: string, condicion: LineaEstado["condicion"], observacion:
   ({ linea, condicion, observacion }) as LineaEstado
 const pt = (linea: string, sabor: string, paletas: number, sueltas: number, litros: number) =>
   ({ linea, saborNombre: sabor, presentacion: "1000", paletas, cajasSueltas: sueltas, litrosProducidos: litros }) as ProductoTerminadoRegistro
+
+describe("productoConPrecargaRobot", () => {
+  const presRobot = [{ codigo: "1000", cajasXPaleta: 85, litrosXCaja: 12 }] as unknown as PresentacionLive[]
+  const precarga = (corridaId: string, paletas: number, resto: number | null): PrecargaRobot => ({
+    corridaId,
+    paletas,
+    ultimaPaletaEn: "2026-11-12T15:00:00Z",
+    ultimaPaletaPor: "Op",
+    resto,
+    restoEn: null,
+    restoPor: null,
+  })
+  const corridas = [
+    corrida({ id: "c1", linea: "LINEA_1", presentacion: "1000", saborNombre: "Manzana" }),
+    corrida({ id: "c2", linea: "LINEA_2", presentacion: "1000", saborNombre: "Pera" }),
+  ]
+
+  it("sin PT confirmado cuenta lo del robot (paletas × cajas + Resto, y sus litros)", () => {
+    const r = productoConPrecargaRobot([], [precarga("c1", 3, 10)], corridas, presRobot)
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatchObject({ linea: "LINEA_1", corridaId: "c1", paletas: 3, cajasSueltas: 10, litrosProducidos: (3 * 85 + 10) * 12 })
+    expect(produccionPorLineaDe(r, LINEAS, presRobot)[0]).toMatchObject({ cajas: 265, litros: 3180 })
+  })
+
+  it("con PT confirmado manda el PT de esa corrida; las demás siguen con el robot", () => {
+    const oficial = { ...pt("LINEA_1", "Manzana", 2, 0, 2040), corridaId: "c1" }
+    const r = productoConPrecargaRobot([oficial], [precarga("c1", 3, 10), precarga("c2", 1, null)], corridas, presRobot)
+    expect(r.map((p) => `${p.corridaId} ${p.paletas}`)).toEqual(["c1 2", "c2 1"])
+  })
+
+  it("sin precarga (robot apagado) queda el PT de siempre; una precarga en cero no suma", () => {
+    const oficial = [pt("LINEA_1", "Manzana", 2, 0, 2040)]
+    expect(productoConPrecargaRobot(oficial, [], corridas, presRobot)).toBe(oficial)
+    expect(productoConPrecargaRobot(oficial, [precarga("c2", 0, null)], corridas, presRobot)).toBe(oficial)
+  })
+})
 
 describe("formatDuracion / tiempos relativos", () => {
   it("minutos y horas", () => {

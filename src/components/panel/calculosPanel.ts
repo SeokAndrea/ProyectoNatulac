@@ -9,6 +9,50 @@ import type { ContadorRegistro, Corrida, LineaEstado } from "@/lib/produccion/ti
 import type { ProductoTerminadoRegistro } from "@/lib/productoTerminado"
 import type { ProgramacionItem as PlanDiaItem } from "@/lib/programacion"
 import { mermaLineaTurno } from "@/lib/reportes"
+import type { PrecargaRobot } from "@/lib/robotTavil"
+
+/**
+ * Producción del Panel en vivo con el Robot Tavil (Alexander, 2026-11-12):
+ * por cada corrida, si el supervisor ya confirmó su Producto Terminado manda
+ * el PT (el oficial); si no, cuenta lo que lleva cargado el operador del
+ * robot (paletas × cajas por paleta + Resto, y sus litros). Sin precarga
+ * (robot apagado en el área) queda el PT de siempre.
+ * Lo usan el banner «Producción del turno», la Meta y las cajas por línea;
+ * las mermas siguen con el PT oficial.
+ */
+export function productoConPrecargaRobot(
+  productoTerminado: ProductoTerminadoRegistro[],
+  precargas: PrecargaRobot[],
+  corridas: Corrida[],
+  presentaciones: PresentacionLive[],
+): ProductoTerminadoRegistro[] {
+  if (precargas.length === 0) return productoTerminado
+  const conPT = new Set(productoTerminado.map((p) => p.corridaId).filter(Boolean))
+  const delRobot: ProductoTerminadoRegistro[] = []
+  for (const pr of precargas) {
+    if (conPT.has(pr.corridaId)) continue
+    const c = corridas.find((x) => x.id === pr.corridaId)
+    if (!c) continue
+    const resto = pr.resto ?? 0
+    if (pr.paletas === 0 && resto === 0) continue
+    const pres = presentaciones.find((p) => p.codigo === c.presentacion)
+    const cajas = pr.paletas * (pres?.cajasXPaleta ?? 0) + resto
+    delRobot.push({
+      id: `robot-${pr.corridaId}`,
+      linea: c.linea,
+      corridaId: c.id,
+      saborId: c.saborId,
+      saborNombre: c.saborNombre,
+      presentacion: c.presentacion,
+      paletas: pr.paletas,
+      cajasSueltas: resto,
+      litrosProducidos: Math.round(cajas * (pres?.litrosXCaja ?? 0)),
+      creadoEn: pr.ultimaPaletaEn ?? pr.restoEn ?? c.activadaEn,
+      registradoPorNombre: "Robot Tavil",
+    })
+  }
+  return delRobot.length ? [...productoTerminado, ...delRobot] : productoTerminado
+}
 
 /*
  * Cuentas del Panel de Producción — funciones puras, sin React. La meta y
