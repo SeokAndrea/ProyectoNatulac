@@ -1,6 +1,8 @@
 # Trazabilidad de paletizado del Robot Tavil (hoja 1-PR-F-040 Rev.01)
 
-Estado: **borrador para visto bueno** (2026-11-11). Sin código ni migración todavía. Parte de lo ya
+Estado: **aprobado e implementado** (2026-11-12) en la rama `robot-tavilesco`: migración
+`20261115290000_trazabilidad_paletizado.sql` (ensayo en `scripts/ensayo-trazabilidad-paletizado.sql`,
+todavía sin correr en una base), pantalla del operador, tarjeta «Trazabilidad del paletizado» y PDF. Parte de lo ya
 implementado en `20261114690000_robot_tavil_precarga.sql` (ver
 `2026-11-04-operador-robot-tavil-design.md`) y de la hoja original guardada en
 `docs/robot-tavil-trazabilidad/`.
@@ -154,11 +156,9 @@ una presentación no tiene código, la hoja imprime «N ml».
 
 ## Pantalla del operador
 
-**El «+» pide el ticket y el tipo** (Alexander, 2026-11-11): al tocarlo se abre un cuadro con:
+**El «+» pide el ticket y la conformidad** (Alexander, 2026-11-11): al tocarlo se abre un cuadro con:
 
 - **Nº de ticket**: el operador lo **teclea** (no se escanea). Obligatorio.
-- **Paleta manual**: un interruptor, apagado por defecto (= Automático). Se enciende en los casos muy
-  particulares en que la paleta se arma a mano; la carga el mismo operador del Robot Tavil.
 - **No conforme**: un interruptor, apagado por defecto (= C, conforme). Al encenderlo (NC) aparece la
   **observación / desviación** con el formato de la hoja: uno o más códigos de 1 a 7 (1 solapas
   despegadas, 2 faltante de cajas en la paleta, 3 faltante de unidades en las cajas, 4 defectos en la
@@ -171,6 +171,18 @@ toque y crea la paleta enseguida): hay que ajustar `src/pages/apps/RobotTavil.ts
 `src/components/robot-tavil/TarjetaLineaRobot.tsx`, y la función `robot_tavil_sumar` recibe el ticket y
 el tipo. **Anotado para hacerlo después de aprobar este spec; no está hecho.**
 
+**Interruptor «Paleta manual» en la tarjeta de la línea** (Alexander, 2026-11-12). Ya no va dentro del
+cuadro del «+»: vive en la tarjeta de cada línea, como una **franja delgada pegada al borde superior,
+sobre el nombre de la línea** (etiqueta «Paleta manual» e interruptor pequeño a la derecha; encendido
+se tiñe de ámbar y agrega «las nuevas se guardan como Manual»), apagado por defecto (= Automático).
+Diseño aprobado por Alexander el 2026-11-12 en la maqueta
+(https://claude.ai/artifact/6Awkd1y1hya9gcuZjw5rXw). Mientras esté
+**encendido, toda paleta que se cree con el «+» se guarda como `MANUAL`** (`tipo_paletizado`); apagado,
+como `AUTOMATICO`. Cambiarlo **no modifica las paletas ya creadas**. Se usa en los casos muy
+particulares en que las paletas se arman a mano; lo maneja el mismo operador del Robot Tavil. El valor
+va a la hoja en el punto **1.2 «Tipo de paletizado»** (ver «PDF»). El cambio del interruptor es una
+acción brusca: pide confirmación y queda en Auditoría.
+
 Una paleta manual cuenta igual que las demás: suma a la precarga del Producto Terminado y comparte la
 numeración de su combinación de sabor y presentación (la hoja es una sola tabla).
 
@@ -182,10 +194,19 @@ paleta). Lo garantiza el servidor con un índice único parcial sobre el ticket 
 repetirlo. La paleta anulada con el «−» conserva su ticket pero **sale del índice**, así que ese
 ticket **se puede reutilizar**. Vale también al corregir el ticket desde la lista de paletas.
 
-Los demás campos se crean por defecto (cajas del catálogo). La tarjeta de cada línea muestra además las
-paletas del día en una lista; tocar una fila permite al operador corregir ticket, tipo, cajas,
-conformidad, observación y acción de corrección. La confirmación doble del «−» no cambia. Toda
-edición queda en Auditoría con antes/después (regla de auditoría universal).
+Los demás campos se crean por defecto (cajas del catálogo; el tipo sale del interruptor de la tarjeta).
+
+**Lista de paletas del día** (Alexander, 2026-11-12). Va en la tarjeta de cada línea, **debajo de los
+controles de entrada** (el «+», el «−» y el interruptor de paleta manual), y es un **desplegable**:
+
+- **Contraído (por defecto)**: muestra solo **la última paleta registrada** (la más reciente de esa
+  línea y día), con su Nº, sabor/presentación, ticket y conformidad, y un indicador para extender.
+- **Extendido**: muestra la lista completa del día, como el diseño anterior.
+- Tocar una fila (en cualquiera de los dos estados) permite al operador corregir ticket, tipo, cajas,
+  conformidad, observación y acción de corrección. La confirmación doble del «−» no cambia. Toda
+  edición queda en Auditoría con antes/después (regla de auditoría universal).
+- Al crear una paleta nueva, la lista se queda como estaba (contraída o extendida) y la fila visible
+  pasa a ser la nueva.
 
 Cuando el ticket pase a generarlo el sistema (ver «Ticket»), ese campo del «+» desaparece; el
 interruptor de paleta manual se queda.
@@ -208,6 +229,16 @@ pega después a la corrida del turno siguiente **conserva** el turno y la fecha 
 ## Tarjeta «Trazabilidad del paletizado» y permisos
 
 Tarjeta nueva en el Hub, con su pantalla, que lista y exporta las hojas (día, línea, presentación).
+
+**Filtros** (Alexander, 2026-11-12): el usuario elige
+- el **día**;
+- el **turno**: por defecto se ven **los 3 turnos** del día; se puede especificar uno solo (o varios);
+- las **líneas** (Línea 1, 2 y 3): funciona **igual que el filtro de turno** (Alexander, 2026-11-12);
+  por defecto se ven **las 3 líneas**, se puede dejar una sola o varias, y siempre queda al menos una
+  marcada.
+
+El filtro de turno usa el `turno_tipo` de cada paleta (ver «Turno de cada paleta»), no la hora de
+creación.
 Siguiendo el patrón de `src/lib/permisos.ts` y `src/lib/apps.tsx` (por ejemplo `CATALOGO_PARADAS_VER`
 y `CATALOGO_PARADAS`), con un permiso para ver y otro para editar:
 
@@ -234,6 +265,10 @@ y `CATALOGO_PARADAS`), con un permiso para ver y otro para editar:
   presentación cambia a mitad del día se agrega una página por cada presentación.
 - Encabezado 1.1 Fecha, 1.2 Tipo de paletizado, 1.3 Presentación; filas 1.3.1 a 1.3.9 como en la
   hoja; sin paletas anuladas.
+- **1.2 Tipo de paletizado** sale del `tipo_paletizado` de las paletas (Automático o Manual, según el
+  interruptor de la tarjeta del operador). Como el interruptor puede cambiarse a mitad del día, si en
+  una hoja hay paletas de los dos tipos se agrega una página por tipo, igual que con la presentación.
+- Se exporta lo que muestran los filtros (día, turnos y líneas elegidos).
 
 ## Ticket (pendiente a futuro)
 
@@ -251,7 +286,9 @@ y si se genera al tocar «+» o en un paso aparte.
 3. ~~Turno de una paleta sin corrida~~: **resuelto** (hora de planta con `turno_de_hora()`; ver
    «Turno de cada paleta»).
 4. ~~Permisos~~: **resuelto** (tarjeta nueva, `TRAZABILIDAD_VER` y `TRAZABILIDAD_EDITAR`).
-5. ~~Paletas «Manual»~~: **resuelto**, las carga el operador con un interruptor en el cuadro del «+».
+5. ~~Paletas «Manual»~~: **resuelto**, las carga el operador con un interruptor **en la tarjeta de la
+   línea** (movido el 2026-11-12; ya no está en el cuadro del «+»): encendido, todas las paletas nuevas
+   se guardan como manuales.
 6. ~~Ticket al tocar «+»~~: **resuelto** (se teclea, obligatorio, aviso si ya existe, reutilizable
    tras anular).
 

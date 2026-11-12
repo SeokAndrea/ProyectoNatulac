@@ -52,15 +52,15 @@ describe("filtrarFilas", () => {
 describe("armarItems", () => {
   it("agrupa en el orden de las opciones, sin la columna del grupo", () => {
     const items = armarItems(
-      [fila("a", { nombre: "Piña", familia_id: "f2", volumen: 2180 }), fila("b", { nombre: "Pera", familia_id: "f1", volumen: 2710 })],
+      [fila("a", { nombre: "Piña", familia_id: "f2", volumen: 2180 }), fila("b", { nombre: "Pera", familia_id: "f1", volumen: 2710, codigo: "PR" })],
       sabores,
       externas,
     )
     expect(items.map((i) => (i.tipo === "grupo" ? `# ${i.etiqueta} (${i.cantidad})` : i.celdas.join(" | ")))).toEqual([
       "# Clásicos (1)",
-      "Pera | 2710",
+      "Pera | 2710 | PR",
       "# Premium (1)",
-      "Piña | 2180",
+      "Piña | 2180 | —",
     ])
   })
 

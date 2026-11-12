@@ -5,7 +5,7 @@ import { MensajeError } from "@/components/MensajeError"
 import { TarjetaLineaRobot, type AccionesRobot } from "@/components/robot-tavil/TarjetaLineaRobot"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
-import { guardarResto, iniciarLote, restarPaleta, sumarPaleta, useRobotTavil } from "@/lib/robotTavil"
+import { cambiarManual, editarPaleta, guardarResto, iniciarLote, restarPaleta, sumarPaleta, useRobotTavil } from "@/lib/robotTavil"
 
 /*
  * Robot Tavil: el operador ve las líneas activas de la planta y, cuando sale
@@ -16,11 +16,13 @@ import { guardarResto, iniciarLote, restarPaleta, sumarPaleta, useRobotTavil } f
 export default function RobotTavil() {
   const { session } = useAuth()
   const usuario = session?.username ?? null
-  const { lineas, cargando, error, apagado, ejecutar } = useRobotTavil(usuario)
+  const { lineas, cargando, error, apagado, ejecutar, intentar } = useRobotTavil(usuario)
   const { presentaciones } = useCatalogosLive()
 
   const acciones: AccionesRobot = {
-    sumar: (linea) => ejecutar(() => sumarPaleta(usuario!, linea)),
+    crear: (linea, d) => intentar(() => sumarPaleta(usuario!, linea, d)),
+    editar: (paletaId, d) => intentar(() => editarPaleta(usuario!, paletaId, d)),
+    cambiarManual: (linea, manual) => intentar(() => cambiarManual(usuario!, linea, manual)),
     restar: (linea) => ejecutar(() => restarPaleta(usuario!, linea)),
     guardarResto: (linea, cajas) => ejecutar(() => guardarResto(usuario!, linea, cajas)),
     iniciar: (linea) => ejecutar(() => iniciarLote(usuario!, linea)),
@@ -38,7 +40,8 @@ export default function RobotTavil() {
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
-              Toca <b>+</b> cuando sale una paleta de la línea que corresponde. Si te equivocas, toca <b>−</b>. El Resto se escribe directamente.
+              Toca <b>+</b> cuando sale una paleta de la línea que corresponde y escribe su ticket. Si te equivocas, toca <b>−</b> o
+              corrige la paleta en «Paletas de hoy». El Resto se escribe directamente.
             </p>
             <MensajeError error={error} />
             {lineas.length === 0 ? (

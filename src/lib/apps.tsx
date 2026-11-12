@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import {
+  ScrollText,
   Warehouse,
   PlayCircle,
   PackageCheck,
@@ -173,6 +174,17 @@ export const apps: AppDef[] = [
     // El operador no abre turno: ve las líneas activas de la planta (migración 20261114690000).
     requiereTurno: false,
     permiso: "ROBOT_TAVIL_CARGAR",
+    seccion: "produccion",
+  },
+  {
+    slug: "trazabilidad-paletizado",
+    title: "Trazabilidad del paletizado",
+    description: "Hoja 1-PR-F-040 por día, turno y línea; exporta el PDF.",
+    href: "/trazabilidad-paletizado",
+    icon: ScrollText,
+    requiereTurno: false,
+    // Ver y exportar: TRAZABILIDAD_VER. Corregir conformidad: TRAZABILIDAD_EDITAR (migración 20261115290000).
+    permiso: ["TRAZABILIDAD_VER", "TRAZABILIDAD_EDITAR"],
     seccion: "produccion",
   },
   {

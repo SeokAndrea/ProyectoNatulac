@@ -39,7 +39,64 @@ describe("mapearPantallaRobot", () => {
       sinCorrida: 0,
       nueva: { id: "c2", lote: "2415", saborNombre: "Fresa", presentacionMl: 1000, paletas: 0, ultimaPaletaEn: null, resto: 0, entregada: false },
       anterior: null,
+      manual: false,
+      proximoNumero: null,
+      proximoTurno: null,
+      proximoSaborCodigo: null,
+      proximoPresentacionCodigo: null,
+      paletasDia: [],
+      anuladasDia: 0,
     })
+  })
+
+  it("trae el interruptor manual, el próximo Nº y las paletas del día", () => {
+    const [l] = mapearPantallaRobot({
+      lineas: [
+        {
+          linea_codigo: "LINEA_2",
+          linea_nombre: "Línea 2",
+          estado: "EN_CURSO",
+          puede_sumar: true,
+          corrida: corrida(),
+          sin_corrida: 0,
+          nueva: null,
+          anterior: null,
+          manual: true,
+          proximo_numero: "4",
+          proximo_turno: "TURNO_2",
+          proximo_sabor_codigo: "MZ%",
+          proximo_presentacion_codigo: "TPA-250 cm3",
+          anuladas_dia: "1",
+          paletas_dia: [
+            {
+              id: "p3",
+              linea_codigo: "LINEA_2",
+              linea_nombre: "Línea 2",
+              fecha_produccion: "2026-11-12",
+              turno_tipo: "TURNO_2",
+              creada_en: "2026-11-12T19:40:00+00:00",
+              numero: "3",
+              ticket: "T-3",
+              tipo_paletizado: "MANUAL",
+              cajas: "140",
+              conforme: false,
+              observacion_codigos: [7, 1],
+              observacion_otros: "golpe",
+              accion_correccion: null,
+              lote: "2611",
+              sabor_codigo: "MZ%",
+              sabor_nombre: "Manzana 35%",
+              presentacion_volumen_ml: 250,
+              presentacion_codigo: "TPA-250 cm3",
+              editada_en: null,
+              editada_por: null,
+            },
+          ],
+        },
+      ],
+    })
+    expect(l).toMatchObject({ manual: true, proximoNumero: 4, proximoTurno: "TURNO_2", anuladasDia: 1 })
+    expect(l.paletasDia[0]).toMatchObject({ numero: 3, cajas: 140, tipoPaletizado: "MANUAL", conforme: false, observacionCodigos: [1, 7] })
   })
 
   it("sin respuesta, ninguna línea", () => {

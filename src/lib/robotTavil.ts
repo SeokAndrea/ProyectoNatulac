@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { mapearPaleta, type DatosConformidad, type FilaPaleta, type Paleta, type TipoPaletizado, type TurnoTipo } from "@/lib/trazabilidadPaletizado"
 
 /*
  * Robot Tavil: el operador cuenta las paletas que salen del robot («+» y «−»
@@ -44,6 +45,16 @@ export interface LineaRobot {
   nueva: CorridaRobot | null
   /** El lote anterior, mientras la corrida nueva no tenga paletas. */
   anterior: CorridaRobot | null
+  /** Interruptor «Paleta manual»: encendido, las paletas nuevas se guardan como MANUAL. */
+  manual: boolean
+  /** Nº que llevará la próxima paleta (null si no se puede sumar). */
+  proximoNumero: number | null
+  proximoTurno: TurnoTipo | null
+  proximoSaborCodigo: string | null
+  proximoPresentacionCodigo: string | null
+  /** Paletas vivas del día de la hoja, la más reciente primero. */
+  paletasDia: Paleta[]
+  anuladasDia: number
 }
 
 /** Lo que cargó el operador en una corrida, para la tarjeta de Producto Terminado. */
@@ -78,6 +89,13 @@ interface FilaLineaRobot {
   sin_corrida: number | string | null
   nueva: FilaCorridaRobot | null
   anterior: FilaCorridaRobot | null
+  manual?: boolean | null
+  proximo_numero?: number | string | null
+  proximo_turno?: TurnoTipo | null
+  proximo_sabor_codigo?: string | null
+  proximo_presentacion_codigo?: string | null
+  paletas_dia?: FilaPaleta[] | null
+  anuladas_dia?: number | string | null
 }
 
 interface FilaPrecarga {
@@ -115,6 +133,13 @@ export function mapearPantallaRobot(data: unknown): LineaRobot[] {
     sinCorrida: Number(f.sin_corrida) || 0,
     nueva: f.nueva ? mapearCorrida(f.nueva) : null,
     anterior: f.anterior ? mapearCorrida(f.anterior) : null,
+    manual: f.manual === true,
+    proximoNumero: f.proximo_numero === null || f.proximo_numero === undefined ? null : Number(f.proximo_numero),
+    proximoTurno: f.proximo_turno ?? null,
+    proximoSaborCodigo: f.proximo_sabor_codigo ?? null,
+    proximoPresentacionCodigo: f.proximo_presentacion_codigo ?? null,
+    paletasDia: (f.paletas_dia ?? []).map(mapearPaleta),
+    anuladasDia: Number(f.anuladas_dia) || 0,
   }))
 }
 
@@ -180,7 +205,39 @@ export async function guardarRobotTavilActivo(usuario: string, area: string, act
 }
 
 export const leerPantallaRobot = (usuario: string) => llamar("robot_tavil_estado", { p_usuario: usuario })
-export const sumarPaleta = (usuario: string, linea: string) => llamar("robot_tavil_sumar", { p_usuario: usuario, p_linea_codigo: linea })
+/** Lo que pide el «+»: el ticket y la conformidad. El tipo sale del interruptor de la línea. */
+export interface DatosNuevaPaleta extends DatosConformidad {
+  ticket: string
+}
+
+/** Lo que se corrige desde la lista de paletas del operador. */
+export interface DatosEditarPaleta extends DatosConformidad {
+  ticket: string
+  tipoPaletizado: TipoPaletizado
+  cajas: number
+}
+
+/** Conforme: sin observación ni acción. */
+const conformidadParaEnviar = (d: DatosConformidad) => ({
+  p_conforme: d.conforme,
+  p_observacion_codigos: d.conforme ? [] : d.observacionCodigos,
+  p_observacion_otros: d.conforme ? null : d.observacionOtros,
+  p_accion_correccion: d.conforme ? null : d.accionCorreccion,
+})
+
+export const sumarPaleta = (usuario: string, linea: string, d: DatosNuevaPaleta) =>
+  llamar("robot_tavil_sumar", { p_usuario: usuario, p_linea_codigo: linea, p_ticket: d.ticket, ...conformidadParaEnviar(d) })
+export const editarPaleta = (usuario: string, paletaId: string, d: DatosEditarPaleta) =>
+  llamar("robot_tavil_editar_paleta", {
+    p_usuario: usuario,
+    p_paleta_id: paletaId,
+    p_ticket: d.ticket,
+    p_tipo_paletizado: d.tipoPaletizado,
+    p_cajas: d.cajas,
+    ...conformidadParaEnviar(d),
+  })
+export const cambiarManual = (usuario: string, linea: string, manual: boolean) =>
+  llamar("robot_tavil_cambiar_manual", { p_usuario: usuario, p_linea_codigo: linea, p_manual: manual })
 export const restarPaleta = (usuario: string, linea: string) => llamar("robot_tavil_restar", { p_usuario: usuario, p_linea_codigo: linea })
 export const guardarResto = (usuario: string, linea: string, cajas: number) =>
   llamar("robot_tavil_guardar_resto", { p_usuario: usuario, p_linea_codigo: linea, p_cajas: cajas })
@@ -239,7 +296,20 @@ export function useRobotTavil(usuario: string | null) {
     }
   }, [])
 
-  return { lineas, cargando, error, apagado, ejecutar }
+  /** Como ejecutar, pero el error vuelve a quien llama (para mostrarlo dentro de un cuadro). */
+  const intentar = useCallback(async (accion: () => Promise<Lectura<LineaRobot[]>>): Promise<string | null> => {
+    try {
+      const r = await accion()
+      if (!r.ok) return r.error
+      setLineas(r.data)
+      setError(null)
+      return null
+    } catch {
+      return "No se pudo conectar. Intenta de nuevo."
+    }
+  }, [])
+
+  return { lineas, cargando, error, apagado, ejecutar, intentar }
 }
 
 /** Precarga del Robot Tavil de las corridas del turno (vacía sin turno). */

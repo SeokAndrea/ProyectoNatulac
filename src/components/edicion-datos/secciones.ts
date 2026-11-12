@@ -26,6 +26,8 @@ export const SECCIONES_CATALOGO: Seccion[] = [
       },
       // sabores.volumen: litros que rinde una unidad de preparación (tambor, o kit en Selecto/Mango/35 %).
       { clave: "volumen", etiqueta: "Volumen por tambor/kit", tipo: "numero", unidad: "L" },
+      // sabores.codigo: el de la hoja de Trazabilidad de paletizado (MZ, PR, DZ%…). Migración 20261115290000.
+      { clave: "codigo", etiqueta: "Código (paletizado)", tipo: "texto", ancho: "130px" },
     ],
   },
   {
@@ -39,6 +41,8 @@ export const SECCIONES_CATALOGO: Seccion[] = [
       { clave: "cajas_x_paleta", etiqueta: "Cajas por paleta", tipo: "numero" },
       { clave: "litros_x_caja", etiqueta: "Litros por caja", tipo: "numero", unidad: "L" },
       { clave: "envases_x_caja", etiqueta: "Envases por caja", tipo: "numero" },
+      // presentaciones.codigos_presentacion: el de la hoja de Trazabilidad (TBA-1000 cm3…). Migración 20261115290000.
+      { clave: "codigos_presentacion", etiqueta: "Código (paletizado)", tipo: "texto", ancho: "140px" },
     ],
   },
   {

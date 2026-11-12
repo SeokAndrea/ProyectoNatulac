@@ -3,11 +3,13 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import RobotTavil from "@/pages/apps/RobotTavil"
 import type { CorridaRobot, LineaRobot } from "@/lib/robotTavil"
+import type { Paleta } from "@/lib/trazabilidadPaletizado"
 
 /*
  * Pantalla del operador del Robot Tavil: qué muestra en cada estado de la
- * línea y qué manda. Las reglas (qué corrida, cuándo se bloquea) están en la
- * base; aquí solo se prueba que la pantalla las respeta.
+ * línea y qué manda. Las reglas (qué corrida, cuándo se bloquea, el Nº de
+ * paleta, el ticket repetido) están en la base; aquí solo se prueba que la
+ * pantalla las respeta.
  */
 
 vi.mock("@/components/AppShell", () => ({
@@ -23,7 +25,7 @@ vi.mock("@/lib/catalogosLive", () => ({
   useCatalogosLive: () => ({ presentaciones: [{ codigo: "1000", nombre: "1 L", volumenMl: 1000 }] }),
 }))
 
-const estado = { lineas: [] as LineaRobot[], error: null as string | null, apagado: false }
+const estado = { lineas: [] as LineaRobot[], error: null as string | null, apagado: false, errorAccion: null as string | null }
 const llamadas: string[] = []
 const OK = { ok: true as const, data: [] as LineaRobot[] }
 vi.mock("@/lib/robotTavil", () => ({
@@ -33,8 +35,15 @@ vi.mock("@/lib/robotTavil", () => ({
     error: estado.error,
     apagado: estado.apagado,
     ejecutar: async (fn: () => Promise<{ ok: boolean }>) => (await fn()).ok,
+    intentar: async (fn: () => Promise<{ ok: boolean }>) => (await fn(), estado.errorAccion),
   }),
-  sumarPaleta: vi.fn(async (u: string, l: string) => (llamadas.push(`sumar ${u} ${l}`), OK)),
+  sumarPaleta: vi.fn(async (u: string, l: string, d: { ticket: string; conforme: boolean; observacionCodigos: number[] }) => (
+    llamadas.push(`sumar ${u} ${l} ${d.ticket} ${d.conforme ? "C" : `NC ${d.observacionCodigos.join(",")}`}`), OK
+  )),
+  editarPaleta: vi.fn(async (u: string, id: string, d: { ticket: string; tipoPaletizado: string; cajas: number }) => (
+    llamadas.push(`editar ${u} ${id} ${d.ticket} ${d.tipoPaletizado} ${d.cajas}`), OK
+  )),
+  cambiarManual: vi.fn(async (u: string, l: string, m: boolean) => (llamadas.push(`manual ${u} ${l} ${m}`), OK)),
   restarPaleta: vi.fn(async (u: string, l: string) => (llamadas.push(`restar ${u} ${l}`), OK)),
   guardarResto: vi.fn(async (u: string, l: string, c: number) => (llamadas.push(`resto ${u} ${l} ${c}`), OK)),
   iniciarLote: vi.fn(async (u: string, l: string) => (llamadas.push(`iniciar ${u} ${l}`), OK)),
@@ -51,6 +60,30 @@ const corrida = (over: Partial<CorridaRobot> = {}): CorridaRobot => ({
   entregada: false,
   ...over,
 })
+const paleta = (over: Partial<Paleta> = {}): Paleta => ({
+  id: "p1",
+  lineaCodigo: "LINEA_1",
+  lineaNombre: "Línea 1",
+  fechaProduccion: "2026-11-04",
+  turnoTipo: "TURNO_1",
+  creadaEn: "2026-11-04T16:01:00+00:00",
+  numero: 8,
+  ticket: "T-108",
+  tipoPaletizado: "AUTOMATICO",
+  cajas: 85,
+  conforme: true,
+  observacionCodigos: [],
+  observacionOtros: null,
+  accionCorreccion: null,
+  lote: "2411",
+  saborCodigo: "MZ",
+  saborNombre: "Manzana",
+  presentacionMl: 1000,
+  presentacionCodigo: "TBA-1000 cm3",
+  editadaEn: null,
+  editadaPor: null,
+  ...over,
+})
 const linea = (over: Partial<LineaRobot> = {}): LineaRobot => ({
   lineaCodigo: "LINEA_1",
   lineaNombre: "Línea 1",
@@ -60,6 +93,13 @@ const linea = (over: Partial<LineaRobot> = {}): LineaRobot => ({
   sinCorrida: 0,
   nueva: null,
   anterior: null,
+  manual: false,
+  proximoNumero: 9,
+  proximoTurno: "TURNO_1",
+  proximoSaborCodigo: "MZ",
+  proximoPresentacionCodigo: "TBA-1000 cm3",
+  paletasDia: [],
+  anuladasDia: 0,
   ...over,
 })
 
@@ -69,6 +109,7 @@ beforeEach(() => {
   estado.lineas = []
   estado.error = null
   estado.apagado = false
+  estado.errorAccion = null
   llamadas.length = 0
 })
 
@@ -85,7 +126,7 @@ describe("Robot Tavil", () => {
     expect(screen.getByText("No hay líneas activas")).toBeInTheDocument()
   })
 
-  it("en curso: cuenta, «+» y «−» mandan la línea y muestra la última paleta", async () => {
+  it("en curso: cuenta, muestra el próximo Nº y el «−» manda la línea", async () => {
     const u = userEvent.setup()
     estado.lineas = [linea()]
     render(<RobotTavil />)
@@ -93,10 +134,118 @@ describe("Robot Tavil", () => {
     expect(t.getByText("8")).toBeInTheDocument()
     expect(t.getByText("Lote 2411")).toBeInTheDocument()
     expect(t.getByText("1 L")).toBeInTheDocument()
-    expect(t.getByText("Última paleta: 12:01")).toBeInTheDocument()
-    await u.click(t.getByRole("button", { name: "Sumar una paleta a Línea 1" }))
+    expect(t.getByText("Nº 9")).toBeInTheDocument()
+    expect(t.getByText(/última a las 12:01/)).toBeInTheDocument()
     await u.click(t.getByRole("button", { name: "Quitar una paleta de Línea 1" }))
-    expect(llamadas).toEqual(["sumar op LINEA_1", "restar op LINEA_1"])
+    expect(llamadas).toEqual(["restar op LINEA_1"])
+  })
+
+  it("el «+» abre el cuadro, exige el ticket y crea la paleta", async () => {
+    const u = userEvent.setup()
+    estado.lineas = [linea()]
+    render(<RobotTavil />)
+    await u.click(tarjeta().getByRole("button", { name: "Sumar una paleta a Línea 1" }))
+    const cuadro = within(screen.getByRole("dialog"))
+    expect(cuadro.getByText("Nueva paleta · Línea 1")).toBeInTheDocument()
+    expect(cuadro.queryByText("Paleta manual")).not.toBeInTheDocument()
+    await u.click(cuadro.getByRole("button", { name: "Crear paleta" }))
+    expect(cuadro.getByRole("alert")).toHaveTextContent("Escribe el número de ticket")
+    expect(llamadas).toEqual([])
+    await u.type(cuadro.getByLabelText("Nº de ticket"), " T-200 ")
+    await u.click(cuadro.getByRole("button", { name: "Crear paleta" }))
+    await waitFor(() => expect(llamadas).toEqual(["sumar op LINEA_1 T-200 C"]))
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  })
+
+  it("no conforme exige la observación y la manda", async () => {
+    const u = userEvent.setup()
+    estado.lineas = [linea()]
+    render(<RobotTavil />)
+    await u.click(tarjeta().getByRole("button", { name: "Sumar una paleta a Línea 1" }))
+    const cuadro = within(screen.getByRole("dialog"))
+    await u.type(cuadro.getByLabelText("Nº de ticket"), "T-201")
+    await u.click(cuadro.getByRole("switch", { name: /No conforme/ }))
+    await u.click(cuadro.getByRole("button", { name: "Crear paleta" }))
+    expect(cuadro.getByRole("alert")).toHaveTextContent("Marca al menos una observación")
+    await u.click(cuadro.getByRole("checkbox", { name: /Poliestrech rasgado/ }))
+    await u.click(cuadro.getByRole("button", { name: "Crear paleta" }))
+    await waitFor(() => expect(llamadas).toEqual(["sumar op LINEA_1 T-201 NC 5"]))
+  })
+
+  it("el error del servidor (ticket repetido) se queda en el cuadro", async () => {
+    const u = userEvent.setup()
+    estado.lineas = [linea()]
+    estado.errorAccion = "Ese ticket ya está en la paleta Nº 3 de la Línea 1 (04/11/2026). No se puede repetir: revisa el papel."
+    render(<RobotTavil />)
+    await u.click(tarjeta().getByRole("button", { name: "Sumar una paleta a Línea 1" }))
+    const cuadro = within(screen.getByRole("dialog"))
+    await u.type(cuadro.getByLabelText("Nº de ticket"), "T-108")
+    await u.click(cuadro.getByRole("button", { name: "Crear paleta" }))
+    expect(await cuadro.findByText(/Ese ticket ya está en la paleta Nº 3/)).toBeInTheDocument()
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+  })
+
+  it("la franja «Paleta manual» pide confirmación antes de cambiar", async () => {
+    const u = userEvent.setup()
+    estado.lineas = [linea()]
+    render(<RobotTavil />)
+    const franja = tarjeta().getByRole("switch", { name: "Paleta manual en Línea 1" })
+    expect(franja).toHaveAttribute("aria-checked", "false")
+    await u.click(franja)
+    const cuadro = within(screen.getByRole("dialog"))
+    expect(cuadro.getByText("¿Encender «Paleta manual» en la Línea 1?")).toBeInTheDocument()
+    expect(llamadas).toEqual([])
+    await u.click(cuadro.getByRole("button", { name: "Sí, encender" }))
+    await waitFor(() => expect(llamadas).toEqual(["manual op LINEA_1 true"]))
+  })
+
+  it("con «Paleta manual» encendida, el cuadro del «+» avisa que se guarda como Manual", async () => {
+    const u = userEvent.setup()
+    estado.lineas = [linea({ manual: true })]
+    render(<RobotTavil />)
+    expect(tarjeta().getByText(/las nuevas se guardan como Manual/)).toBeInTheDocument()
+    await u.click(tarjeta().getByRole("button", { name: "Sumar una paleta a Línea 1" }))
+    expect(within(screen.getByRole("dialog")).getByText(/esta paleta se guardará como Manual/)).toBeInTheDocument()
+  })
+
+  it("la lista de paletas muestra solo la última y se extiende", async () => {
+    const u = userEvent.setup()
+    estado.lineas = [
+      linea({
+        paletasDia: [
+          paleta({ id: "p3", numero: 3, ticket: "T-103", tipoPaletizado: "MANUAL" }),
+          paleta({ id: "p2", numero: 2, ticket: "T-102", conforme: false, observacionCodigos: [1] }),
+          paleta({ id: "p1", numero: 1, ticket: "T-101" }),
+        ],
+        anuladasDia: 1,
+      }),
+    ]
+    render(<RobotTavil />)
+    const t = tarjeta()
+    expect(t.getByText(/3 en el día · 1 anulada · se muestra la última/)).toBeInTheDocument()
+    expect(t.getByText("T-103")).toBeInTheDocument()
+    expect(t.queryByText("T-102")).not.toBeInTheDocument()
+    await u.click(t.getByRole("button", { name: /Ver todas/ }))
+    expect(t.getByText("T-102")).toBeInTheDocument()
+    expect(t.getByText("T-101")).toBeInTheDocument()
+    expect(t.getByText("NC")).toBeInTheDocument()
+    await u.click(t.getByRole("button", { name: /Contraer/ }))
+    expect(t.queryByText("T-101")).not.toBeInTheDocument()
+  })
+
+  it("tocar una paleta de la lista permite corregirla", async () => {
+    const u = userEvent.setup()
+    estado.lineas = [linea({ paletasDia: [paleta()] })]
+    render(<RobotTavil />)
+    await u.click(tarjeta().getByRole("button", { name: /T-108/ }))
+    const cuadro = within(screen.getByRole("dialog"))
+    expect(cuadro.getByText("Paleta Nº 8 · Línea 1")).toBeInTheDocument()
+    const ticket = cuadro.getByLabelText("Nº de ticket")
+    await u.clear(ticket)
+    await u.type(ticket, "T-109")
+    await u.click(cuadro.getByRole("switch", { name: /Paleta manual/ }))
+    await u.click(cuadro.getByRole("button", { name: "Guardar cambios" }))
+    await waitFor(() => expect(llamadas).toEqual(["editar op p1 T-109 MANUAL 85"]))
   })
 
   it("con 0 paletas no deja quitar", () => {
@@ -117,7 +266,7 @@ describe("Robot Tavil", () => {
   })
 
   it("terminada: bloquea todo y lo explica", () => {
-    estado.lineas = [linea({ estado: "TERMINADA", puedeSumar: false })]
+    estado.lineas = [linea({ estado: "TERMINADA", puedeSumar: false, proximoNumero: null })]
     render(<RobotTavil />)
     const t = tarjeta()
     expect(t.getByText("El supervisor terminó esta corrida")).toBeInTheDocument()
