@@ -82,6 +82,11 @@ begin
   select x.u, 'x', x.n, p.id, true
     from (values ('tz_op', 'Operador Ensayo', 'PROBADOR'), ('tz_sup', 'Supervisor Ensayo', 'SUPERVISOR')) x(u, n, pc)
     join puestos p on p.codigo = x.pc;
+  -- El supervisor del ensayo es de Pruebas (como las paletas): si no, queda en Aséptico y no ve nada.
+  delete from usuario_roles where usuario_id = (select id from usuarios where usuario = 'tz_sup');
+  insert into usuario_roles (usuario_id, rol_id, area_id)
+  select u.id, r.id, v_area from usuarios u, roles r where u.usuario = 'tz_sup' and r.codigo = 'SUPERVISOR';
+  if (select area_codigo from rol_y_area_de('tz_sup')) is distinct from 'PRUEBAS' then raise exception '0: tz_sup tiene que quedar en Pruebas'; end if;
   if not pg_temp.falla($q$ select trazabilidad_paletizado_listar('tz_sup', current_date) $q$, 'No tienes permiso') then raise exception '0: sin permiso no ve'; end if;
 
   -- Corrida de Manzana 1000 ml.
