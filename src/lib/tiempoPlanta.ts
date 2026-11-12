@@ -38,7 +38,8 @@ const FMT_HORA_CORTA = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
 }) // HH:MM
-const FMT_DIA_MES = new Intl.DateTimeFormat("es-CO", { timeZone: ZONA_PLANTA, day: "2-digit", month: "2-digit" }) // DD/MM
+// en-GB (como la hora): siempre DD/MM con cero; es-CO devuelve "6/11" según el ICU de Node.
+const FMT_DIA_MES = new Intl.DateTimeFormat("en-GB", { timeZone: ZONA_PLANTA, day: "2-digit", month: "2-digit" }) // DD/MM
 
 /** "YYYY-MM-DD" del instante, en hora de planta. */
 export function fechaPlanta(d: Date = new Date()): string {
