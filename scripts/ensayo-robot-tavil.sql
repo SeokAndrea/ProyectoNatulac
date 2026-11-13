@@ -60,15 +60,11 @@ begin
   if not pg_temp.falla($q$ select robot_tavil_sumar('rt_sup', 'LINEA_1') $q$, 'No tienes permiso') then raise exception 'Sin permiso no suma'; end if;
 
   -- ---------------------------------------------------------------------
-  -- 0b. Switch por área (Pruebas arranca encendido; Aséptico, apagado)
+  -- 0b. Sin interruptor (20261115390000): solo manda el permiso
   -- ---------------------------------------------------------------------
-  if not robot_tavil_area_activo('PRUEBAS') then raise exception 'Pruebas debe arrancar encendido'; end if;
-  if not pg_temp.falla($q$ select guardar_robot_tavil('rt_sup', 'PRUEBAS', false) $q$, 'Solo el dueño') then raise exception 'Solo la dueña cambia el switch'; end if;
-  update areas set robot_tavil = false where id = v_area;
-  if (robot_tavil_estado('rt_op') ->> 'habilitado')::boolean is distinct from false then raise exception 'Apagado: la pantalla debe decirlo'; end if;
-  if not pg_temp.falla($q$ select robot_tavil_sumar('rt_op', 'LINEA_1') $q$, 'no está habilitado') then raise exception 'Apagado: no debe sumar'; end if;
-  if exists (select 1 from listar_precarga_robot_tavil('rt_op', gen_random_uuid())) then raise exception 'Apagado: no hay precarga'; end if;
-  update areas set robot_tavil = true where id = v_area;
+  if exists (select 1 from information_schema.columns where table_name = 'areas' and column_name = 'robot_tavil') then raise exception 'La columna areas.robot_tavil debe haberse borrado'; end if;
+  if exists (select 1 from pg_proc where proname in ('robot_tavil_area_activo', 'guardar_robot_tavil')) then raise exception 'Las funciones del interruptor deben haberse borrado'; end if;
+  if robot_tavil_estado('rt_op') ? 'habilitado' then raise exception 'La pantalla ya no dice «habilitado»'; end if;
 
   -- ---------------------------------------------------------------------
   -- 1. Sin corridas no hay líneas; con una corrida, la adopta sola
@@ -208,9 +204,6 @@ begin
   select count(*) into v_n from estimacion_tanques_robot_tavil('rt_sup', v_ta) e
    where e.numero_tanque = 1 and e.volumen_oficial_l = 10000 and e.litros_pendientes = (2 * v_cxp + 5) * v_lxc;
   if v_n <> 1 then raise exception '7: estimación del tanque 1: %', (select jsonb_agg(e) from estimacion_tanques_robot_tavil('rt_sup', v_ta) e); end if;
-  update areas set robot_tavil = false where id = v_area;
-  if exists (select 1 from estimacion_tanques_robot_tavil('rt_sup', v_ta)) then raise exception '7: apagado no estima'; end if;
-  update areas set robot_tavil = true where id = v_area;
 
   raise notice 'ENSAYO ROBOT TAVIL: todo bien';
 end $$;

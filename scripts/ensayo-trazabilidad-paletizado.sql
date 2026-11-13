@@ -77,7 +77,6 @@ begin
 
   update turnos set estado = 'CERRADO' where area_id = v_area and estado = 'ABIERTO';
   delete from robot_tavil_seguimiento where linea_id in (select id from lineas where area_id = v_area);
-  update areas set robot_tavil = true where id = v_area;
   insert into usuarios (usuario, password_hash, nombre, puesto_id, activo)
   select x.u, 'x', x.n, p.id, true
     from (values ('tz_op', 'Operador Ensayo', 'PROBADOR'), ('tz_sup', 'Supervisor Ensayo', 'SUPERVISOR')) x(u, n, pc)

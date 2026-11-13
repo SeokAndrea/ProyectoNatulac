@@ -167,41 +167,14 @@ export function mensajeErrorRobot(mensaje: string | null | undefined): string {
   return m
 }
 
-/** Error de la lectura cuando el switch del Robot Tavil está apagado en el área. */
-export const ROBOT_TAVIL_APAGADO = "ROBOT_TAVIL_APAGADO"
-
+/*
+ * Quién usa el Robot Tavil lo decide solo el permiso ROBOT_TAVIL_CARGAR: el
+ * interruptor por área se quitó en la migración 20261115390000.
+ */
 async function llamar(funcion: string, args: Record<string, unknown>): Promise<Lectura<LineaRobot[]>> {
   const { data, error } = await supabase.rpc(funcion, args)
   if (error) return { ok: false, error: mensajeErrorRobot(error.message) }
-  if ((data as { habilitado?: boolean } | null)?.habilitado === false) return { ok: false, error: ROBOT_TAVIL_APAGADO }
   return { ok: true, data: mapearPantallaRobot(data) }
-}
-
-/*
- * Switch del Robot Tavil, por área (areas.robot_tavil, migración
- * 20261114690000). Encendido: el operador carga paletas y el supervisor ve la
- * precarga. Lo cambia solo la dueña.
- */
-
-/** ¿Está encendido en el área? Sin área, Aséptico. null mientras carga. */
-export function useRobotTavilActivo(area: string | null): boolean | null {
-  const [resultado, setResultado] = useState<{ area: string | null; valor: boolean } | null>(null)
-  useEffect(() => {
-    let vivo = true
-    supabase.rpc("robot_tavil_area_activo", { p_area_codigo: area }).then(({ data, error }) => {
-      // Sin la migración en el servidor, la función no existe: se comporta como apagado.
-      if (vivo) setResultado({ area, valor: !error && data === true })
-    })
-    return () => {
-      vivo = false
-    }
-  }, [area])
-  return resultado?.area === area ? resultado.valor : null
-}
-
-export async function guardarRobotTavilActivo(usuario: string, area: string, activo: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await supabase.rpc("guardar_robot_tavil", { p_usuario: usuario, p_area_codigo: area, p_activo: activo })
-  return error ? { ok: false, error: error.message || "No se pudo cambiar el ajuste." } : { ok: true }
 }
 
 export const leerPantallaRobot = (usuario: string) => llamar("robot_tavil_estado", { p_usuario: usuario })
@@ -262,7 +235,6 @@ export function useRobotTavil(usuario: string | null) {
   const [lineas, setLineas] = useState<LineaRobot[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [apagado, setApagado] = useState(false)
 
   useEffect(() => {
     if (!usuario) return
@@ -270,9 +242,8 @@ export function useRobotTavil(usuario: string | null) {
     async function cargar() {
       const r = await leerPantallaRobot(usuario!)
       if (!vivo) return
-      setApagado(!r.ok && r.error === ROBOT_TAVIL_APAGADO)
       if (r.ok) setLineas(r.data)
-      else if (r.error !== ROBOT_TAVIL_APAGADO) setError(r.error)
+      else setError(r.error)
       setCargando(false)
     }
     void cargar()
@@ -309,7 +280,7 @@ export function useRobotTavil(usuario: string | null) {
     }
   }, [])
 
-  return { lineas, cargando, error, apagado, ejecutar, intentar }
+  return { lineas, cargando, error, ejecutar, intentar }
 }
 
 /** Precarga del Robot Tavil de las corridas del turno (vacía sin turno). */
@@ -362,8 +333,8 @@ export function mapearEstimaciones(data: unknown): EstimacionTanque[] {
 const REFRESCO_ESTIMACION_MS = 30_000
 
 /**
- * Estimación de los tanques de un turno (vacía sin turno, con el switch
- * apagado o con el turno cerrado). Trae también el volumen oficial del mismo
+ * Estimación de los tanques de un turno (vacía sin turno o con el turno
+ * cerrado). Trae también el volumen oficial del mismo
  * momento, para que estimado y oficial no se desfasen.
  */
 export function useEstimacionTanques(usuario: string | null | undefined, turnoId: string | null): EstimacionTanque[] {

@@ -490,7 +490,7 @@ Ensayo: `scripts/ensayo-sif-frecuencia.sql` (begin ... rollback).
 
 El operador del Robot Tavil (permiso `ROBOT_TAVIL_CARGAR`, tema TURNOS, sin puesto por defecto) cuenta las paletas por línea y escribe el Resto de la corrida. Es una precarga: no toca `producto_terminado`; el supervisor la confirma o la corrige con `registrar_producto_terminado`. Área del operador: Pruebas si su sesión es de Pruebas; si no, Aséptico. Una corrida está abierta para el robot si está activa o esperando su PT y no se entregó. Las tres tablas tienen RLS sin políticas.
 
-**Switch por área** (como Calidad y el catálogo modular): `areas.robot_tavil` (boolean, apagado por defecto; Pruebas arranca encendido) y `areas.robot_tavil_desde`. Lo lee `robot_tavil_area_activo(p_area_codigo)` y solo la dueña lo cambia con `guardar_robot_tavil` (Edición de Datos → Ajustes de planta). Apagado: las funciones del operador fallan con «El Robot Tavil todavía no está habilitado», `robot_tavil_estado` devuelve `habilitado: false` y `listar_precarga_robot_tavil` no devuelve filas.
+**Sin interruptor** (20261115390000): solo manda el permiso `ROBOT_TAVIL_CARGAR`. El switch por área (`areas.robot_tavil`, `robot_tavil_area_activo`, `guardar_robot_tavil`) se borró; la precarga y la estimación de tanques salen en toda área con paletas cargadas.
 
 ### `robot_tavil_paletas`
 Una fila por paleta: `linea_id`, `turno_linea_id` (null = salió con la línea entregada y el turno siguiente sin abrir), `creada_en`, `creada_por`. El «−» la anula (`anulada_en`, `anulada_por`), no la borra.

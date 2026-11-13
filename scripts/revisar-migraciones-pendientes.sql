@@ -122,7 +122,7 @@ from (
   ('20261114690000', 'Contador de Agua: válvulas auxiliares desde la app (valvula_aux_remota)',
     exists (select 1 from fn where proname = 'autorizar_valvula_aux')),
   ('20261114690000', 'Robot Tavil: precarga de paletas y Resto (robot_tavil_precarga)',
-    exists (select 1 from fn where proname = 'robot_tavil_pantalla') and exists (select 1 from fn where proname = 'guardar_robot_tavil')),
+    exists (select 1 from fn where proname = 'robot_tavil_pantalla')),
   ('20261114790000', 'Estado de línea desde la base (estado_lineas)',
     exists (select 1 from fn where proname = 'estado_lineas')),
   ('20261114790000', 'Un solo turno abierto por área (candado de estado_lineas; si falta, había dos abiertos)',
@@ -139,6 +139,8 @@ from (
   ('20261115090000', 'Semielaborado: rendimiento = envasado / preparado',
     exists (select 1 from fn where proname = 'rendimiento_lotes') and exists (select 1 from fn where proname = 'iniciar_preparacion' and prosrc like '%lote_anterior_id%')),
   ('20261115290000', 'Robot Tavil: trazabilidad de paletizado (ticket, Nº de paleta, paleta manual, hoja 1-PR-F-040)',
-    exists (select 1 from fn where proname = 'trazabilidad_paletizado_listar') and exists (select 1 from fn where proname = 'robot_tavil_cambiar_manual'))
+    exists (select 1 from fn where proname = 'trazabilidad_paletizado_listar') and exists (select 1 from fn where proname = 'robot_tavil_cambiar_manual')),
+  ('20261115390000', 'Robot Tavil sin interruptor: solo manda el permiso ROBOT_TAVIL_CARGAR',
+    not exists (select 1 from fn where proname = 'guardar_robot_tavil') and exists (select 1 from fn where proname = 'robot_tavil_pantalla'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;
