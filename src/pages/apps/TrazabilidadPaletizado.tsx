@@ -27,6 +27,7 @@ import {
   type DatosConformidad,
   type LineaFiltro,
   type Paleta,
+  type SaborLeyenda,
   type TurnoTipo,
 } from "@/lib/trazabilidadPaletizado"
 import { cn } from "@/lib/utils"
@@ -47,6 +48,7 @@ export default function TrazabilidadPaletizado() {
   const [lineasSel, setLineasSel] = useState<string[] | null>(null)
   const [lineas, setLineas] = useState<LineaFiltro[]>([])
   const [paletas, setPaletas] = useState<Paleta[]>([])
+  const [sabores, setSabores] = useState<SaborLeyenda[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [corrigiendo, setCorrigiendo] = useState<Paleta | null>(null)
@@ -69,6 +71,7 @@ export default function TrazabilidadPaletizado() {
       setError(null)
       setLineas(r.data.lineas)
       setPaletas(r.data.paletas)
+      setSabores(r.data.sabores)
     }
     void cargar()
     return () => {
@@ -88,9 +91,12 @@ export default function TrazabilidadPaletizado() {
   async function exportar() {
     setExportando(true)
     try {
-      const { generarTrazabilidadPdf, nombreArchivoTrazabilidad } = await import("@/lib/trazabilidadPaletizadoPdf")
+      const { cargarRecursosTrazabilidad, generarTrazabilidadPdf, nombreArchivoTrazabilidad } = await import("@/lib/trazabilidadPaletizadoPdf")
+      const recursos = await cargarRecursosTrazabilidad()
       const todas = lineasActivas.length === lineas.length
-      descargarArchivo(generarTrazabilidadPdf(hojas), nombreArchivoTrazabilidad(fecha, todas ? null : lineasActivas))
+      descargarArchivo(generarTrazabilidadPdf(hojas, { sabores, recursos }), nombreArchivoTrazabilidad(fecha, todas ? null : lineasActivas))
+    } catch {
+      setError("No se pudo armar el PDF. Revisa la conexión e intenta de nuevo.")
     } finally {
       setExportando(false)
     }

@@ -141,6 +141,8 @@ from (
   ('20261115290000', 'Robot Tavil: trazabilidad de paletizado (ticket, Nº de paleta, paleta manual, hoja 1-PR-F-040)',
     exists (select 1 from fn where proname = 'trazabilidad_paletizado_listar') and exists (select 1 from fn where proname = 'robot_tavil_cambiar_manual')),
   ('20261115390000', 'Robot Tavil sin interruptor: solo manda el permiso ROBOT_TAVIL_CARGAR',
-    not exists (select 1 from fn where proname = 'guardar_robot_tavil') and exists (select 1 from fn where proname = 'robot_tavil_pantalla'))
+    not exists (select 1 from fn where proname = 'guardar_robot_tavil') and exists (select 1 from fn where proname = 'robot_tavil_pantalla')),
+  ('20261115490000', 'Trazabilidad de paletizado: la leyenda del PDF con los sabores del catálogo',
+    exists (select 1 from fn where proname = 'trazabilidad_paletizado_listar' and prosrc like '%''sabores''%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

@@ -138,17 +138,50 @@ describe("mapearPaleta", () => {
 })
 
 describe("PDF", () => {
-  it("genera un PDF con una página por hoja", async () => {
-    const hojas = armarHojas([paleta(), paleta({ tipoPaletizado: "MANUAL" }), paleta({ conforme: false, observacionCodigos: [7], observacionOtros: "x" })])
-    const blob = generarTrazabilidadPdf(hojas)
-    // El Blob de jsdom no trae .text(): se lee con FileReader.
-    const texto = await new Promise<string>((ok) => {
+  // El Blob de jsdom no trae .text(): se lee con FileReader.
+  const leer = (blob: Blob) =>
+    new Promise<string>((ok) => {
       const r = new FileReader()
       r.onload = () => ok(String(r.result))
       r.readAsText(blob)
     })
+  const SIN_COMPRIMIR = { comprimir: false }
+  const paginas = (texto: string) => texto.match(/\/Type \/Page\b/g)?.length ?? 0
+
+  it("un documento por línea, día y tipo de paletizado; hoja carta con el código del formato", async () => {
+    const hojas = armarHojas([paleta(), paleta({ tipoPaletizado: "MANUAL" }), paleta({ conforme: false, observacionCodigos: [7], observacionOtros: "x" })])
+    const texto = await leer(generarTrazabilidadPdf(hojas, SIN_COMPRIMIR))
     expect(texto.startsWith("%PDF")).toBe(true)
-    expect(texto.match(/\/Type \/Page\b/g)?.length).toBe(2)
+    expect(paginas(texto)).toBe(2)
+    expect(texto).toContain("1-PR-F-040 Rev.01")
+    expect(texto).toContain("TRAZABILIDAD DE PALETIZADO")
+    // Carta: 612 × 792 pt.
+    expect(texto).toMatch(/\/MediaBox \[0 0 612\.\d* 792\.\d*\]/)
+  })
+
+  it("dos presentaciones de la misma línea y tipo van en la misma página, como bloques 1.3", async () => {
+    const hojas = armarHojas([paleta(), paleta({ presentacionCodigo: "TBA-500 cm3", presentacionMl: 500 })])
+    expect(hojas).toHaveLength(2)
+    expect(paginas(await leer(generarTrazabilidadPdf(hojas, SIN_COMPRIMIR)))).toBe(1)
+  })
+
+  it("con más paletas de las que caben sigue en otra página, con «Pág. x/y»", async () => {
+    // 28 filas en la primera página (como el formato); la 29 pasa a la segunda.
+    const muchas = Array.from({ length: 29 }, (_, i) => paleta({ numero: i + 1, creadaEn: `2026-11-11T10:${String(i).padStart(2, "0")}:00Z` }))
+    const texto = await leer(generarTrazabilidadPdf(armarHojas(muchas), SIN_COMPRIMIR))
+    expect(paginas(texto)).toBe(2)
+    expect(texto).toContain("1/2")
+    expect(texto).toContain("2/2")
+    const justas = await leer(generarTrazabilidadPdf(armarHojas(muchas.slice(0, 28)), SIN_COMPRIMIR))
+    expect(paginas(justas)).toBe(1)
+  })
+
+  it("la leyenda usa los sabores del catálogo que se le pasan", async () => {
+    // La leyenda se escribe palabra por palabra (para partir renglones y poner negritas).
+    const texto = await leer(generarTrazabilidadPdf(armarHojas([paleta()]), { sabores: [{ codigo: "GY", nombre: "Guayaba 35%" }], comprimir: false }))
+    expect(texto).toContain("(GY:)")
+    expect(texto).toContain("(Guayaba)")
+    expect(texto).not.toContain("(Manzana)")
   })
 
   it("nombre del archivo", () => {

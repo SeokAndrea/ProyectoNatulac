@@ -509,7 +509,7 @@ Qué corrida cuenta el operador en cada línea (`linea_id` PK, `turno_linea_id`)
 | `robot_tavil_guardar_resto(p_usuario, p_linea_codigo, p_cajas)` | Resto de la corrida en curso |
 | `robot_tavil_iniciar(p_usuario, p_linea_codigo)` | «Iniciar con el lote …»: pasa al lote nuevo de la línea (con las paletas sin corrida) |
 | `listar_precarga_robot_tavil(p_usuario, p_turno_id)` | Para la tarjeta de PT: por corrida del turno, paletas, última paleta y quién, Resto y quién. Solo lectura |
-| `estimacion_tanques_robot_tavil(p_usuario, p_turno_id)` | Para el Panel: por tanque con líquido del turno abierto, `volumen_oficial_l` (`volumen_vivo_tanque`) y `litros_pendientes` (precarga menos PT registrado de las corridas del lote; 0 si la corrida cerró con su PT; suma las paletas sin corrida). No toca el volumen. Vacía con el switch apagado |
+| `estimacion_tanques_robot_tavil(p_usuario, p_turno_id)` | Para el Panel: por tanque con líquido del turno abierto, `volumen_oficial_l` (`volumen_vivo_tanque`) y `litros_pendientes` (precarga menos PT registrado de las corridas del lote; 0 si la corrida cerró con su PT; suma las paletas sin corrida). No toca el volumen |
 | `robot_tavil_preparar`, `robot_tavil_sincronizar`, `robot_tavil_estado_linea`, `robot_tavil_pantalla`, `robot_tavil_corrida_json`, `robot_tavil_corrida_abierta`, `robot_tavil_corrida_vigente`, `robot_tavil_es_continuacion`, `robot_tavil_area`, `robot_tavil_linea` | Internas |
 
 Ensayo: `scripts/ensayo-robot-tavil.sql` (begin ... rollback).

@@ -216,9 +216,17 @@ export interface LineaFiltro {
   nombre: string
 }
 
+/** Un código de sabor de la leyenda del PDF (sabores activos con código, migración 20261115490000). */
+export interface SaborLeyenda {
+  codigo: string
+  nombre: string
+}
+
 export interface DatosTrazabilidad {
   lineas: LineaFiltro[]
   paletas: Paleta[]
+  /** Vacío si la base todavía no tiene la migración 20261115490000: el PDF usa entonces los códigos de las paletas. */
+  sabores: SaborLeyenda[]
 }
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -244,8 +252,8 @@ export async function listarTrazabilidad(
     p_lineas: lineas,
   })
   if (error) return { ok: false, error: mensajeError(error.message) }
-  const d = (data ?? {}) as { lineas?: LineaFiltro[]; paletas?: FilaPaleta[] }
-  return { ok: true, data: { lineas: d.lineas ?? [], paletas: (d.paletas ?? []).map(mapearPaleta) } }
+  const d = (data ?? {}) as { lineas?: LineaFiltro[]; paletas?: FilaPaleta[]; sabores?: SaborLeyenda[] }
+  return { ok: true, data: { lineas: d.lineas ?? [], paletas: (d.paletas ?? []).map(mapearPaleta), sabores: d.sabores ?? [] } }
 }
 
 export async function corregirConformidad(usuario: string, paletaId: string, d: DatosConformidad): Promise<Resultado<Paleta>> {

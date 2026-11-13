@@ -259,10 +259,22 @@ y `CATALOGO_PARADAS`), con un permiso para ver y otro para editar:
 
 ## PDF
 
-- Archivo nuevo `src/lib/trazabilidadPaletizadoPdf.ts`, con `jspdf` y `jspdf-autotable` como
-  `actaPdf.ts` y `sifPdf.ts`.
-- **Una hoja por línea y día.** La hoja original marca una sola presentación, así que si la
-  presentación cambia a mitad del día se agrega una página por cada presentación.
+- **Idéntico al formato normalizado** (Alexander, 2026-11-13). El Excel, su PDF y el encabezado están
+  en `docs/formatos/1-PR-F-040/`. `src/lib/trazabilidadPaletizadoPdf.ts` (jsPDF) copia las medidas
+  del PDF que exporta ese Excel: hoja **carta** vertical, mismas columnas, filas (28 en la página
+  llena), grosores de línea y posición de cada texto. Encabezado: la ola con el logo Natulac y el
+  sello «Envasado Aséptico» (sacados del Excel, en `src/assets/trazabilidad/`), el título, el código
+  «1-PR-F-040 Rev.01» y **«Pág. x/y»**. Fuente **Carlito** (libre, OFL, mismas medidas que Calibri,
+  en `src/assets/fuentes/`). Sin firmas.
+- **Un documento por línea, día y tipo de paletizado** (el 1.2 es uno por hoja). Cada presentación
+  es un bloque 1.3 (presentación, cabecera y filas), como la página 2 del Excel: dos presentaciones
+  del mismo documento van en la misma página si caben. Si no caben, siguen en otra página con el
+  mismo encabezado y leyenda; «Pág. x/y» cuenta las páginas de ese documento. Las filas que sobran
+  quedan vacías, como en el formato.
+- **Leyenda (pie) con la información de hoy:** los sabores activos con código del catálogo
+  (`trazabilidad_paletizado_listar` → `sabores`, migración `20261115490000`), las observaciones
+  1 a 7 de la app y los términos C/NC. Si la leyenda crece, la tabla tiene menos filas.
+- El formato no tiene casilla de Línea: la línea se escribe junto a la fecha en el 1.1.
 - Encabezado 1.1 Fecha, 1.2 Tipo de paletizado, 1.3 Presentación; filas 1.3.1 a 1.3.9 como en la
   hoja; sin paletas anuladas.
 - **1.2 Tipo de paletizado** sale del `tipo_paletizado` de las paletas (Automático o Manual, según el
