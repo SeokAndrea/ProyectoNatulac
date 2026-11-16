@@ -224,6 +224,8 @@
     </div>
   </div>
 
+  <div id="cargas" class="totales" style="margin-top: 16px">Cargas a la base: -</div>
+
   <p class="crudo-titulo" style="margin-top: 20px">Registro de llenados (ultimos 20):</p>
   <table id="registro" class="registro">
     <thead><tr><th>Tanque</th><th>Inicio</th><th>Fin</th><th class="num">Total ingresado</th><th>Cierre</th></tr></thead>
@@ -299,7 +301,38 @@
       <div class="litros"><span>Total ingresado al tanque</span><b>${litrosTexto(estado.litros_tanque)}</b></div>
       <div class="caudal">Caudal: ${estado.caudal_l_min ?? "sin dato"} L/min</div>
       ${ultimo && !ultimo.fin ? `<div class="caudal">Seleccionado desde: ${momento(ultimo.inicio)}</div>` : ""}
+      <div class="caudal">Preparacion: ${preparacionTexto(estado.preparacion)}</div>
     `;
+  }
+
+  // Tags DB5,X24.x / INT18 / REAL20 tal cual: en curso, fase, kits y ajuste.
+  function preparacionTexto(p) {
+    if (!p) return "sin dato (revisar PLC_TAG_PREPARACION)";
+    if (!p.activa) return "no hay preparacion en curso";
+    const fase = p.fase_1 ? "fase 1" : p.fase_2 ? "fase 2" : p.fase_3 ? "fase 3" : "sin fase (Calidad)";
+    return "<b>en curso</b>, " + fase +
+      ", kits " + (p.kits == null ? "sin dato" : p.kits) +
+      ", ajuste " + (p.ajuste_l == null ? "sin dato" : litrosTexto(p.ajuste_l));
+  }
+
+  // Envio de las cargas a la base (plc-bridge/src/cargas.js).
+  const cargasEl = document.getElementById("cargas");
+  function renderCargas(estado) {
+    const c = estado.cargas;
+    if (!c) {
+      cargasEl.textContent = "Cargas a la base: este bridge no las manda (version anterior).";
+      return;
+    }
+    const partes = ["Cargas a la base (area " + (c.area || estado.area || "-") + "):"];
+    if (!c.habilitado) partes.push("APAGADAS (" + c.motivo_apagado + ")");
+    else {
+      if (c.motivo_apagado) partes.push(c.motivo_apagado);
+      partes.push("pendientes " + c.pendientes);
+      partes.push("ultimo envio " + (c.ultimo_envio ? momento(c.ultimo_envio) : "ninguno"));
+      if (c.error) partes.push("error: " + c.error);
+    }
+    cargasEl.textContent = partes[0] + "  " + partes.slice(1).join("   |   ");
+    cargasEl.style.color = !c.habilitado || c.error ? "var(--alerta)" : "";
   }
 
   function litrosTexto(litros) {
@@ -333,6 +366,7 @@
   function procesarMensaje(estado) {
     [1, 2, 3].forEach((numero) => renderTanque(numero, estado));
     renderRegistro(estado);
+    renderCargas(estado);
     renderOtros(estado);
     crudo.textContent = JSON.stringify(estado, null, 2);
   }

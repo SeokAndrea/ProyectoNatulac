@@ -504,7 +504,7 @@ Qué corrida cuenta el operador en cada línea (`linea_id` PK, `turno_linea_id`)
 ### Funciones
 | Función | Qué hace |
 |---|---|
-| `robot_tavil_estado(p_usuario)` | La pantalla del operador: una entrada por línea con `estado` (`EN_CURSO`, `LOTE_NUEVO`, `ENTREGADA`, `TERMINADA`), `puede_sumar`, la corrida, las paletas sin corrida, el lote nuevo y el anterior. Antes pone al día el seguimiento: adopta la corrida vigente si la línea no tenía y pasa sola a la continuación de una corrida entregada (mismo lote, otro turno) con las paletas sin corrida. Una corrida cerrada hace más de 12 h no se muestra |
+| `robot_tavil_estado(p_usuario)` | La pantalla del operador: una entrada por línea con `estado` (`EN_CURSO`, `LOTE_NUEVO`, `ENTREGADA`, `TERMINADA`), `puede_sumar`, la corrida, las paletas sin corrida, el lote nuevo y el anterior (cada corrida con `entregada` y `abierta`, esta desde 20261115890000). Antes pone al día el seguimiento: adopta la corrida vigente si la línea no tenía y pasa sola a la continuación de una corrida entregada (mismo lote, otro turno) con las paletas sin corrida. Una corrida cerrada hace más de 12 h no se muestra |
 | `robot_tavil_sumar(p_usuario, p_linea_codigo)`, `robot_tavil_restar(…)` | «+» y «−». Con la línea entregada, a las paletas sin corrida. Terminada, o con un lote nuevo sin iniciar y la corrida anterior cerrada: rechazan |
 | `robot_tavil_guardar_resto(p_usuario, p_linea_codigo, p_cajas)` | Resto de la corrida en curso |
 | `robot_tavil_iniciar(p_usuario, p_linea_codigo)` | «Iniciar con el lote …»: pasa al lote nuevo de la línea (con las paletas sin corrida) |
@@ -513,6 +513,38 @@ Qué corrida cuenta el operador en cada línea (`linea_id` PK, `turno_linea_id`)
 | `robot_tavil_preparar`, `robot_tavil_sincronizar`, `robot_tavil_estado_linea`, `robot_tavil_pantalla`, `robot_tavil_corrida_json`, `robot_tavil_corrida_abierta`, `robot_tavil_corrida_vigente`, `robot_tavil_es_continuacion`, `robot_tavil_area`, `robot_tavil_linea` | Internas |
 
 Ensayo: `scripts/ensayo-robot-tavil.sql` (begin ... rollback).
+
+## Preparación con PLC (20261115990000)
+
+El operador carga en la HMI del PLC el agua, los kits (fase 2) y los ajustes de agua de Calidad (fase 3). El plc-bridge reporta lo que ve y la base guarda una **carga** por preparación; el supervisor la registra en la tarjeta del tanque eligiendo sabor y lote, y el lote nace con los kits del PLC (`preparaciones.tambores`) y los ajustes sumados. Diseño: `docs/superpowers/specs/2026-11-06-preparacion-plc-design.md`. Las dos tablas tienen RLS sin políticas.
+
+**Switch por área** (como el Robot Tavil): `areas.preparacion_plc` (apagado por defecto; Pruebas arranca encendido) y `areas.preparacion_plc_desde`. Lo lee `preparacion_plc_area_activo(p_area_codigo)` y solo la dueña lo cambia con `guardar_preparacion_plc` (Edición de Datos → Ajustes de planta). Apagado: `registrar_carga_plc` no guarda nada, `estado_preparacion_plc` devuelve `habilitado: false` y registrar/descartar fallan. Al apagar, las cargas sin registrar del área quedan `DESCARTADA` y terminadas.
+
+**Usuario del bridge:** `plc-bridge` («Bridge del PLC»), puesto `INTEGRACION_PLC` (Aséptico, nivel 4, rol `VISTA`) con un solo permiso, `PLC_CARGAR` (tema `ADMINISTRACION`: un puesto con todos los permisos no lo recibe). Nace con una clave al azar; Sistemas le pone la real y la misma va en `PLC_BRIDGE_CLAVE` (`.env.local` del servidor):
+
+```sql
+update usuarios set password_hash = extensions.crypt('<clave>', extensions.gen_salt('bf')) where usuario = 'plc-bridge';
+```
+
+### `plc_cargas_tanque`
+Una fila por preparación hecha en la HMI: `area_id`, `numero_tanque`, `estado` (`EN_CURSO` → `PENDIENTE` → `CONFIRMADA`, o `DESCARTADA`), `agua_formula_l` (setpoint al iniciar, solo para mostrar), `kits` (último valor distinto de cero), `kits_listos_en`, `iniciada_en`, `terminada_en` (bajó PREPARACION; null = el PLC sigue), `preparacion_id` (el lote), `kits_usados` (los del lote; si difieren de `kits`, el supervisor los corrigió), quién y cuándo la confirmó o la descartó. Una sola abierta en el PLC por área (`terminada_en is null`).
+
+### `plc_cargas_ajustes`
+Un ajuste de agua de la fase 3 por cada vez que `PLC_Ajuste_Agua` vuelve a cero: `litros`, `iniciado_en`, `hecho_en` (null = en curso), `ajuste_volumen_id` (la línea que se sumó al lote) o `no_sumado_motivo` (el lote ya estaba liberado).
+
+`preparaciones_ajuste_volumen.origen`: `MANUAL` (botón Ajustar) o `PLC`. Las líneas del PLC van a nombre del Bridge del PLC, en el turno abierto del área, y salen en el Acta de Entrega como cualquier ajuste.
+
+### Funciones
+| Función | Qué hace |
+|---|---|
+| `registrar_carga_plc(p_usuario, p_area_codigo, p_lectura)` | La llama el bridge con cada lectura que cambia (y una por minuto): `{momento, tanque, preparacion, fase_1, fase_2, fase_3, kits, ajuste_l, setpoint_l}`. Abre la carga al subir PREPARACION, anota los kits hasta que quedan listos (baja la fase 2, el PLC está en la fase 3 o termina), abre y cierra los ajustes y deja la carga `PENDIENTE` al bajar PREPARACION. Repetir una lectura no cambia nada. Exige `PLC_CARGAR`. Devuelve `{habilitado, carga_id, estado}` |
+| `estado_preparacion_plc(p_usuario, p_turno_id)` | Para la tarjeta, por tanque: la `cola` (cargas sin registrar, la más antigua primero), la `carga_del_lote` (la registrada del lote que tiene el tanque) y el `desglose` del lote En Preparación (unidades × litros por unidad, agua, resto heredado, desvase, ajustes con su origen y el total). Solo lectura |
+| `confirmar_carga_plc(p_usuario, p_turno_id, p_carga_id, p_sabor_id, p_lote, p_kits, p_desvase_id, p_para_vacio, p_liberar)` | Registra la carga: reusa `iniciar_preparacion` (resto, desvase, Vacío), suma los ajustes ya hechos y, con `p_liberar` («Registrar y liberar»), libera a nombre del supervisor. Bloquea: la carga más antigua primero, kits sin terminar, lote En Preparación sin liberar, lote de Vacío, línea parada sin PT, Calidad libera (para liberar), carga ya registrada. Un tanque en CIP queda con el CIP terminado. Exige `TURNO_CARGAR`. Devuelve `turno_json` |
+| `descartar_carga_plc(p_usuario, p_turno_id, p_carga_id)` | Descarta una carga sin registrar (prueba o mal hecha). Exige `TURNO_CARGAR`. Devuelve el estado |
+| `preparacion_plc_area_activo(p_area_codigo)`, `guardar_preparacion_plc(p_usuario, p_area_codigo, p_activo)` | El switch |
+| `plc_aplicar_ajuste`, `plc_cerrar_ajuste`, `plc_terminar_carga`, `plc_carga_json`, `plc_desglose_json`, `plc_numero`, `plc_usuario_bridge_id` | Internas |
+
+Ensayo: `scripts/ensayo-20261115990000.sql` (begin ... rollback). Sin Docker, con la base local de `scripts/base-local/` (PGlite): `node construir.mjs ../../supabase/migrations 20261115890000_robot_tavil_anterior_abierta.sql` y `node correr.mjs --migracion ../../supabase/migrations/20261115990000_preparacion_plc.sql ../ensayo-20261115990000.sql`.
 
 ## Sesiones con credencial (20261109690000)
 

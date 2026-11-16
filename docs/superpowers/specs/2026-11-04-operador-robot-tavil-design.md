@@ -1,7 +1,8 @@
 # Operador del Robot Tavil: precarga de paletas
 
 Estado: aprobado por Alexander y Andrea el 2026-11-04. Implementado en la migración
-`20261114690000_robot_tavil_precarga.sql` y en la pantalla `/robot-tavil`.
+`20261114690000_robot_tavil_precarga.sql` y en la pantalla `/robot-tavil`. Ajuste del aviso del
+lote anterior (2026-11-09, Alexander): migración `20261115890000_robot_tavil_anterior_abierta.sql`.
 
 ## Para qué
 
@@ -37,7 +38,9 @@ en que sale, con una persona del Robot Tavil que cuenta.
   **«Iniciar con el lote …»**. Al tocarlo, la tarjeta pasa al lote nuevo con la cuenta en cero y un
   aviso verde de cómo cerró el anterior. El cambio no es automático, para que una paleta que sale
   justo en el cambio no quede en el lote equivocado. Si el lote anterior seguía abierto, hasta
-  tocar Iniciar se sigue sumando en él.
+  tocar Iniciar se sigue sumando en él, y después el aviso verde no dice que cerró: «El lote X sigue
+  abierto con N paletas y M cajas sueltas hasta que el supervisor lo cierre». Cuando el supervisor
+  lo cierra, el aviso pasa solo a «El lote X cerró con …».
 - **Entrega la línea**: la corrida queda cerrada. Las paletas que salen mientras el turno siguiente
   no abre se guardan sin corrida; cuando abre (misma línea y mismo lote), la cuenta pasa sola a la
   corrida nueva con esas paletas.

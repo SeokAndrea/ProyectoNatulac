@@ -20,6 +20,7 @@ export function PanelEnPreparacion({
   puedeIrACalidad,
   liberarLote,
   ajustar,
+  plcAjustando = false,
 }: {
   lote: PreparacionRegistro
   /** true = libera Calidad; false = libera el supervisor; null = cargando. */
@@ -28,10 +29,13 @@ export function PanelEnPreparacion({
   puedeIrACalidad: boolean
   liberarLote: AccionesTanque["liberarLote"]
   ajustar: AccionesTanque["ajustar"]
+  /** El PLC está metiendo un ajuste de agua ahora: si se libera, ese ajuste no se suma al lote. */
+  plcAjustando?: boolean
 }) {
   const liberar = useAccion()
   const ajuste = useAccion()
   const [mostrarAjuste, setMostrarAjuste] = useState(false)
+  const [confirmandoLiberar, setConfirmandoLiberar] = useState(false)
   const [litros, setLitros] = useState("")
   const [detalle, setDetalle] = useState("")
 
@@ -52,11 +56,27 @@ export function PanelEnPreparacion({
           size="sm"
           className="self-start"
           disabled={calidadLibera === null || liberar.enviando || ajuste.enviando}
-          onClick={() => liberar.ejecutar(() => liberarLote(lote.id))}
+          variant={confirmandoLiberar ? "destructive" : "default"}
+          onClick={() => {
+            if (plcAjustando && !confirmandoLiberar) {
+              setConfirmandoLiberar(true)
+              return
+            }
+            setConfirmandoLiberar(false)
+            liberar.ejecutar(() => liberarLote(lote.id))
+          }}
         >
           {liberar.enviando ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
-          Liberar (marcar Listo)
+          {confirmandoLiberar ? "Sí, liberar" : "Liberar (marcar Listo)"}
         </Button>
+      )}
+      {confirmandoLiberar && (
+        <p className="text-xs font-medium text-destructive" role="alert">
+          El PLC sigue con un ajuste de agua: si liberas ahora, no se suma al lote.{" "}
+          <button type="button" className="underline" onClick={() => setConfirmandoLiberar(false)}>
+            Cancelar
+          </button>
+        </p>
       )}
       <MensajeError error={liberar.error} />
 

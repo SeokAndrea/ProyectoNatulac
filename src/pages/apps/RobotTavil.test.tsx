@@ -57,6 +57,7 @@ const corrida = (over: Partial<CorridaRobot> = {}): CorridaRobot => ({
   ultimaPaletaEn: "2026-11-04T16:01:00+00:00",
   resto: 12,
   entregada: false,
+  abierta: false,
   ...over,
 })
 const paleta = (over: Partial<Paleta> = {}): Paleta => ({
@@ -296,6 +297,21 @@ describe("Robot Tavil", () => {
     ]
     render(<RobotTavil />)
     expect(tarjeta().getByText("Lote 2415 en curso. El lote 2411 cerró con 8 paletas y 12 cajas sueltas.")).toBeInTheDocument()
+  })
+
+  it("lote recién iniciado con el anterior abierto: no dice que cerró", () => {
+    estado.lineas = [
+      linea({
+        corrida: corrida({ id: "c2", lote: "2415", paletas: 0, resto: 0, ultimaPaletaEn: null }),
+        anterior: corrida({ abierta: true }),
+      }),
+    ]
+    render(<RobotTavil />)
+    const t = tarjeta()
+    expect(
+      t.getByText("Lote 2415 en curso. El lote 2411 sigue abierto con 8 paletas y 12 cajas sueltas hasta que el supervisor lo cierre."),
+    ).toBeInTheDocument()
+    expect(t.queryByText(/cerró/)).not.toBeInTheDocument()
   })
 
   it("muestra el error de la base", () => {

@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { guardarCalidadLibera, useCalidadLibera } from "@/lib/calidad"
 import { guardarMantenimientoFinaliza, useMantenimientoFinaliza } from "@/lib/paradas"
 import { guardarCatalogoModular, useCatalogoModular } from "@/lib/catalogoFallas/switch"
+import { guardarPreparacionPlc, usePreparacionPlcActivo } from "@/lib/preparacion/plc"
 import { CorreoMantenimiento } from "./CorreoMantenimiento"
 import { SHEET_MANTENIMIENTO_ACTIVO } from "@/lib/sheetMantenimiento"
 import { EnlaceSheetMantenimiento } from "./EnlaceSheetMantenimiento"
@@ -19,6 +20,7 @@ export function AjustesDuena({ usuario }: { usuario: string }) {
       <InterruptorCalidad usuario={usuario} />
       <InterruptorMantenimiento usuario={usuario} />
       <InterruptorCatalogo usuario={usuario} />
+      <InterruptorPreparacionPlc usuario={usuario} />
       {SHEET_MANTENIMIENTO_ACTIVO && <EnlaceSheetMantenimiento usuario={usuario} />}
       <CorreoMantenimiento usuario={usuario} />
     </div>
@@ -79,6 +81,27 @@ function InterruptorCatalogo({ usuario }: { usuario: string }) {
       confirmarEncender="Desde ahora las fallas de equipo se registran con el catálogo nuevo, en todas las líneas de Aséptico, y la SIF empieza a contar de cero por falla nueva. Lo registrado antes queda como está. Hazlo con el catálogo ya cargado, en un cambio de turno. ¿Encender?"
       confirmarApagar="Vuelve el catálogo anterior para registrar fallas. Lo registrado con el nuevo queda guardado. ¿Apagar?"
       guardar={(activo) => guardarCatalogoModular(usuario, "ASEPTICO", activo)}
+    />
+  )
+}
+
+/**
+ * Preparación con PLC en Aséptico (areas.preparacion_plc, migración
+ * 20261115990000). Encendido: Preparación toma del PLC los kits y los ajustes
+ * de agua (el bridge los manda con el usuario plc-bridge) y el supervisor
+ * solo elige sabor y lote. Al apagar, la base descarta las cargas sin
+ * registrar.
+ */
+function InterruptorPreparacionPlc({ usuario }: { usuario: string }) {
+  return (
+    <InterruptorAjuste
+      titulo="Preparación con PLC (Aséptico)"
+      cargado={usePreparacionPlcActivo("ASEPTICO")}
+      encendido="Encendido · los kits y ajustes llegan del PLC"
+      apagado="Apagado · el supervisor escribe los kits"
+      confirmarEncender="Desde ahora Preparación toma del PLC los kits y los ajustes de agua; el supervisor solo elige sabor y lote. Hazlo con el bridge funcionando y el usuario plc-bridge con su clave. ¿Encender?"
+      confirmarApagar="Preparación vuelve al formulario manual y las cargas del PLC que no se registraron se descartan. ¿Apagar?"
+      guardar={(activo) => guardarPreparacionPlc(usuario, "ASEPTICO", activo)}
     />
   )
 }

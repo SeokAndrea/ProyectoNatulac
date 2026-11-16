@@ -88,7 +88,7 @@ export default function Preparacion() {
         )}
         {/* En corrección, solo lectura: un turno cerrado no cambia tanques (el servidor también lo rechaza). */}
         <fieldset disabled={enModoCorreccion} className="m-0 min-w-0 border-0 p-0">
-          <EstadoPlantaTabs sabores={sabores} modo="preparacion" turnoId={turnoIdEfectivo} />
+          <EstadoPlantaTabs sabores={sabores} modo="preparacion" turnoId={turnoIdEfectivo} conPlc={!enModoCorreccion} />
         </fieldset>
         <div className="flex justify-center">
           <Button asChild variant="outline">

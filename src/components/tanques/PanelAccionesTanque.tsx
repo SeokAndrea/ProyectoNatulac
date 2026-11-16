@@ -31,6 +31,7 @@ export function PanelAccionesTanque({
   usuarioSesion,
   acciones,
   corridasSinPt = [],
+  ocultarPreparar = false,
   onTransferir,
 }: {
   tanque: TanqueRecepcion
@@ -50,6 +51,8 @@ export function PanelAccionesTanque({
   acciones: AccionesTanque
   /** Corridas de este lote sin PT cargado (las paradas bloquean preparar encima, transferir y desvasar). */
   corridasSinPt?: Corrida[]
+  /** Hay una carga del PLC por registrar (PanelCargaPlc): no se ofrece preparar a mano encima. */
+  ocultarPreparar?: boolean
   onTransferir: () => void
 }) {
   const [form, setForm] = useState<Form>(null)
@@ -144,7 +147,7 @@ export function PanelAccionesTanque({
         )}
         <div className="flex flex-wrap gap-2">
           <BotonCargarPt corridas={pendientes} />
-          {!deVacio && (
+          {!deVacio && !ocultarPreparar && (
             <Button size="sm" variant="outline" disabled={faltaPt} onClick={() => setForm("preparar")}>
               <Beaker className="size-3.5" />
               {tanque.condicion === "LISTO" ? "Iniciar nueva preparación" : "Iniciar Preparación"}

@@ -134,7 +134,9 @@ export function TarjetaLineaRobot({
           <Aviso tono="ok">
             {anterior.entregada
               ? `La línea viene del turno anterior: el lote ${anterior.lote ?? ""} cerró allá con ${cierre(anterior)}. Esta cuenta empieza en cero.`
-              : `Lote ${corrida.lote ?? ""} en curso. El lote ${anterior.lote ?? ""} cerró con ${cierre(anterior)}.`}
+              : anterior.abierta
+                ? `Lote ${corrida.lote ?? ""} en curso. El lote ${anterior.lote ?? ""} sigue abierto con ${cierre(anterior)} hasta que el supervisor lo cierre.`
+                : `Lote ${corrida.lote ?? ""} en curso. El lote ${anterior.lote ?? ""} cerró con ${cierre(anterior)}.`}
           </Aviso>
         )}
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { MensajeError } from "@/components/MensajeError"
@@ -8,6 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TanqueVisual } from "@/components/TanqueVisual"
 import { useAuth } from "@/lib/auth"
+import {
+  type AperturaAux,
+  type EstadoBridge,
+  type Llenado,
+  type Persona,
+  type ResultadoOrden,
+  textoCargas,
+  URL_PLC_BRIDGE,
+  usePlcBridge,
+} from "@/lib/plc/bridge"
 import { puede } from "@/lib/permisos"
 import { tokenSesion } from "@/lib/sesionToken"
 import { diaMesPlanta, horaPlanta } from "@/lib/tiempoPlanta"
@@ -26,144 +36,7 @@ import { cn } from "@/lib/utils"
  * que lee el PLC, así una orden desde la HMI también se ve acá.
  */
 
-const URL_PLC_BRIDGE = import.meta.env.VITE_PLC_BRIDGE_WS_URL || "ws://192.168.10.143:4036"
 const NUMEROS_TANQUE = [1, 2, 3] as const
-
-/** Un llenado del registro que guarda el bridge (plc-bridge/src/registro.js). */
-interface Llenado {
-  tanque: number
-  inicio: string
-  /** null = sigue abierto. */
-  fin: string | null
-  /** Último PLC_Totales_Litros leído mientras el tanque estuvo seleccionado. */
-  litros_tanque: number | null
-  motivo_fin: string | null
-}
-
-/** Quién dio la orden desde la app. */
-interface Persona {
-  usuario: string
-  nombre: string
-}
-
-/** Una apertura de la válvula auxiliar (Actuador_Aux_Tank_X) que registra el bridge. */
-interface AperturaAux {
-  tanque: number
-  inicio: string
-  /** null = desde la HMI/PLC; sin el campo = registro de antes de que se guardara. */
-  abierta_por?: Persona | null
-  /** null = sigue abierta. */
-  fin: string | null
-  cerrada_por?: Persona | null
-  /** "bridge reiniciado" si se cortó el registro; si no, null. */
-  motivo_fin: string | null
-}
-
-interface EstadoLlenado {
-  timestamp: string
-  fuente: string
-  tanque_activo: number | null
-  setpoint_l: number | null
-  /** PLC_Actuales_Litros: litros de la apertura en curso. */
-  litros_actuales: number | null
-  /** PLC_Totales_Litros: total que entró al tanque seleccionado (el PLC lo pone en 0 al cambiar de tanque). */
-  litros_tanque: number | null
-  /** PLC_Caudal_LPM. */
-  caudal_l_min: number | null
-  valvulas: Record<string, boolean>
-  /** Válvula de recirculación/CIP de cada tanque (no es la de entrada de agua) — ver plc-bridge/src/fuentes/s7.js. */
-  auxiliares: Record<string, boolean>
-  llenando: boolean
-  /** Tags PLC_EXTRA_* de plc-bridge/bridge.conf: nombre → valor (null si el PLC no lo entregó). */
-  extra?: Record<string, number | boolean | null>
-  /** Tags que el PLC no pudo entregar (dirección mal configurada en bridge.conf). */
-  tags_con_error?: string[]
-  /** Últimos llenados, el más reciente primero. */
-  llenados?: Llenado[]
-  /** Últimas aperturas de las válvulas auxiliares, la más reciente primero. */
-  aperturas_aux?: AperturaAux[]
-  /** El bridge acepta órdenes para las válvulas auxiliares (PLC_API_URL / PLC_CONTROL_AUX). */
-  control_aux?: boolean
-  /** false = el bridge no tiene comunicación con el PLC (solo en modo real). */
-  conectado?: boolean
-}
-
-/** Lo que contesta el bridge a una orden (plc-bridge/src/control.js). */
-type ResultadoOrden = { ok: true } | { ok: false; error: string }
-
-const ESPERA_RESPUESTA_MS = 10000
-
-function usePlcLlenado(url: string) {
-  const [estado, setEstado] = useState<EstadoLlenado | null>(null)
-  const [conectado, setConectado] = useState(false)
-  const socketRef = useRef<WebSocket | null>(null)
-  const pendientes = useRef(new Map<string, (r: ResultadoOrden) => void>())
-  const contadorOrdenes = useRef(0)
-
-  useEffect(() => {
-    let reintento: ReturnType<typeof setTimeout> | null = null
-    let cancelado = false
-
-    function conectar() {
-      const socket = new WebSocket(url)
-      socketRef.current = socket
-
-      socket.onopen = () => setConectado(true)
-
-      socket.onmessage = (evento) => {
-        try {
-          const mensaje = JSON.parse(evento.data)
-          if (mensaje.tipo === "respuesta") {
-            pendientes.current.get(mensaje.id)?.(mensaje.ok ? { ok: true } : { ok: false, error: mensaje.error })
-            pendientes.current.delete(mensaje.id)
-          } else {
-            setEstado(mensaje)
-          }
-        } catch {
-          // mensaje no válido, se ignora
-        }
-      }
-
-      socket.onclose = () => {
-        setConectado(false)
-        if (!cancelado) reintento = setTimeout(conectar, 2000)
-      }
-
-      socket.onerror = () => socket.close()
-    }
-
-    conectar()
-
-    return () => {
-      cancelado = true
-      if (reintento) clearTimeout(reintento)
-      socketRef.current?.close()
-    }
-  }, [url])
-
-  /** Manda una orden al bridge y espera su respuesta. */
-  const enviar = useCallback((orden: Record<string, unknown>): Promise<ResultadoOrden> => {
-    const socket = socketRef.current
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      return Promise.resolve({ ok: false, error: "Sin conexión al bridge." })
-    }
-    // Contador y no crypto.randomUUID(): la app se sirve por http en la red y ahí no existe.
-    const id = `orden-${++contadorOrdenes.current}`
-    return new Promise((resolve) => {
-      const vencer = setTimeout(() => {
-        pendientes.current.delete(id)
-        resolve({ ok: false, error: "El bridge no respondió." })
-      }, ESPERA_RESPUESTA_MS)
-      pendientes.current.set(id, (r) => {
-        clearTimeout(vencer)
-        resolve(r)
-      })
-      socket.send(JSON.stringify({ ...orden, id }))
-    })
-  }, [])
-
-  return { estado, conectado, enviar }
-}
 
 /** "1.020 L" / "sin dato" */
 function litrosLegibles(litros: number | null | undefined): string {
@@ -194,7 +67,7 @@ function quienLegible(persona: Persona | null | undefined): string | null {
 }
 
 export default function PreparacionPLC() {
-  const { estado, conectado, enviar } = usePlcLlenado(URL_PLC_BRIDGE)
+  const { estado, conectado, enviar } = usePlcBridge(URL_PLC_BRIDGE)
   // El permiso, con la sesión que se muestra («Ver como» lo prueba); la orden va con el usuario real.
   const { session, sessionReal } = useAuth()
   const llenados = estado?.llenados ?? []
@@ -217,6 +90,10 @@ export default function PreparacionPLC() {
         <span className={cn("size-2.5 rounded-full", conectado ? "bg-success" : "bg-destructive")} />
         {conectado ? `Conectado (fuente: ${estado?.fuente ?? "..."})` : "Sin conexión al bridge — reintentando..."}
       </div>
+
+      {conectado && textoCargas(estado?.cargas) && (
+        <p className="mb-4 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">{textoCargas(estado?.cargas)}</p>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {NUMEROS_TANQUE.map((numero) => (
@@ -266,7 +143,7 @@ function TarjetaTanque({
   onAccionarAux,
 }: {
   numero: number
-  estado: EstadoLlenado | null
+  estado: EstadoBridge | null
   /** Llenado más reciente de este tanque (abierto si es el tanque activo). */
   ultimoLlenado: Llenado | null
   /** Apertura más reciente de la válvula auxiliar de este tanque (fin = null si sigue abierta). */

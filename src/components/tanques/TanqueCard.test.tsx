@@ -159,6 +159,8 @@ function crearAcciones() {
     recibirDeVacio: vi.fn().mockResolvedValue(OK),
     entregarAVacio: vi.fn().mockResolvedValue(OK),
     pasarAAseptico: vi.fn().mockResolvedValue(OK),
+    confirmarCargaPlc: vi.fn().mockResolvedValue(OK),
+    descartarCargaPlc: vi.fn().mockResolvedValue(OK),
   }
 }
 type Acciones = ReturnType<typeof crearAcciones>

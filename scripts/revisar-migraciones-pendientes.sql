@@ -149,6 +149,10 @@ from (
   ('20261115690000', 'SIF: el historial trae qué pasó y qué se realizó de cada parada',
     exists (select 1 from fn where proname = 'listar_paradas_sif' and prosrc like '%btrim(p.solucion)%')),
   ('20261115790000', 'Fallas nuevas: Identificar (la parada y su SIF pasan a la falla real)',
-    exists (select 1 from fn where proname = 'identificar_falla_nueva'))
+    exists (select 1 from fn where proname = 'identificar_falla_nueva')),
+  ('20261115890000', 'Robot Tavil: el aviso del lote anterior sabe si sigue abierto',
+    exists (select 1 from fn where proname = 'robot_tavil_corrida_json' and prosrc like '%''abierta''%')),
+  ('20261115990000', 'Preparación con PLC: cargas de kits y ajustes (y el usuario plc-bridge)',
+    exists (select 1 from fn where proname = 'confirmar_carga_plc') and exists (select 1 from fn where proname = 'registrar_carga_plc'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

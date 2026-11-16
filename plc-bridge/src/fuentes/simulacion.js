@@ -1,81 +1,35 @@
-// Fuente simulada de datos de llenado, mientras no hay conexion fisica al PLC.
+// Fuente simulada (PLC_MODO=simulacion), mientras no hay conexion fisica al PLC.
 //
 // Modela la tuberia real: un solo flujometro en la linea principal, luego una
 // cruz que reparte el agua a 3 valvulas (una por tanque). Solo un tanque se
-// llena a la vez porque el flujometro es compartido.
+// llena a la vez porque el flujometro es compartido. El agua entra siguiendo
+// el ciclo de una preparacion (ciclo.js): fase 1 hasta el 80 %, fase 2 con los
+// kits, espera de Calidad y ajustes de agua.
 //
-// Cualquier fuente futura (por ejemplo una que hable S7comm con el PLC real)
-// debe exponer la misma forma: { iniciar(), detener() } y llamar a onEstado()
-// con un objeto con la misma forma que emitir() produce aqui, para que
-// servidor.js no tenga que cambiar.
+// Cualquier fuente expone la misma forma: { iniciar(), detener(),
+// escribirAux() } y llama a onEstado() con un objeto como el de emitir(), para
+// que index.js no tenga que cambiar.
 
-import { tagsExtra } from "../config.js";
+import { leer, tagsExtra } from "../config.js";
+import { crearCicloPreparacion } from "./ciclo.js";
 
 const NUMEROS_TANQUE = [1, 2, 3];
 
-export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreLlenadosMs = 3000 }) {
-  let indiceTanque = 0;
-  let tanqueActivo = null;
-  let setpointL = 0;
-  let litrosActuales = 0;
-  // Como PLC_Totales_Litros: suma lo que entra al tanque y vuelve a 0 al
-  // seleccionar un tanque distinto.
-  let litrosTanque = 0;
-  let ultimoTanque = null;
-  let caudalLMin = 0;
-  let pausaHastaMs = 0;
-  // Valvula auxiliar simulada: se abre en el tanque que termina de llenarse
-  // (como si la abriera el operador desde la HMI) y se cierra sola a los 45 s.
+export function crearFuenteSimulacion({ onEstado, intervaloMs = 200 }) {
+  // PLC_SIM_VELOCIDAD: cuantas veces mas rapido corre el ciclo (1 = tiempo real).
+  const velocidad = Number(leer("PLC_SIM_VELOCIDAD", 1)) || 1;
+  const ciclo = crearCicloPreparacion({ velocidad });
+  // Valvula auxiliar simulada: se abre en el tanque que termina su preparacion
+  // (como si el operador la abriera desde la HMI) y se cierra sola a los 45 s.
   // Una orden de la app la deja abierta o cerrada hasta la orden siguiente.
   const AUX_ABIERTA_MS = 45000;
   const auxHastaMs = { 1: 0, 2: 0, 3: 0 };
+  let anterior = null;
   let temporizador = null;
   const extras = tagsExtra();
+  if (velocidad !== 1) console.log(`[plc-bridge] simulacion x${velocidad}`);
   for (const { nombre, direccion } of extras) {
     console.log(`[plc-bridge]   extra.${nombre.padEnd(22)} ${direccion} (valor simulado)`);
-  }
-
-  function estadoValvulas() {
-    return {
-      1: tanqueActivo === 1,
-      2: tanqueActivo === 2,
-      3: tanqueActivo === 3,
-    };
-  }
-
-  function iniciarNuevoLlenado() {
-    // A veces el operador vuelve al mismo tanque para un ajuste (el total del
-    // PLC sigue sumando); si no, pasa al siguiente tanque.
-    if (ultimoTanque !== null && Math.random() < 0.3) {
-      tanqueActivo = ultimoTanque;
-    } else {
-      tanqueActivo = NUMEROS_TANQUE[indiceTanque % NUMEROS_TANQUE.length];
-      indiceTanque += 1;
-    }
-    if (tanqueActivo !== ultimoTanque) litrosTanque = 0;
-    ultimoTanque = tanqueActivo;
-    setpointL = Math.round(500 + Math.random() * 1500); // 500-2000 L, como en un setpoint tipico del HMI
-    litrosActuales = 0;
-  }
-
-  function emitir() {
-    onEstado({
-      timestamp: new Date().toISOString(),
-      fuente: "simulacion",
-      tanque_activo: tanqueActivo,
-      setpoint_l: tanqueActivo ? setpointL : null,
-      // DINT e INT en el PLC: llegan sin decimales.
-      litros_actuales: Math.round(litrosActuales),
-      litros_tanque: Math.round(litrosTanque),
-      caudal_l_min: Math.round(caudalLMin),
-      valvulas: estadoValvulas(),
-      // Actuador_Aux_Tank_X = valvula de recirculacion/CIP, no de entrada
-      // de agua (ver s7.js).
-      auxiliares: Object.fromEntries(NUMEROS_TANQUE.map((n) => [n, Date.now() < auxHastaMs[n]])),
-      llenando: tanqueActivo !== null,
-      extra: valoresExtraSimulados(),
-      tags_con_error: [],
-    });
   }
 
   // Los PLC_EXTRA_* de bridge.conf tambien salen en simulacion, con valores
@@ -92,35 +46,30 @@ export function crearFuenteSimulacion({ onEstado, intervaloMs = 200, pausaEntreL
   }
 
   function tick() {
-    const ahora = Date.now();
-
-    if (tanqueActivo === null) {
-      caudalLMin = 0;
-      if (ahora < pausaHastaMs) {
-        emitir();
-        return;
-      }
-      iniciarNuevoLlenado();
+    const paso = ciclo.avanzar(intervaloMs);
+    if (anterior?.preparacion.activa && !paso.preparacion.activa && anterior.tanque) {
+      auxHastaMs[anterior.tanque] = Date.now() + AUX_ABIERTA_MS;
     }
+    anterior = paso;
 
-    // caudal con algo de ruido, como leeria un flujometro real
-    caudalLMin = 80 + Math.random() * 60;
-    const incrementoL = (caudalLMin / 60) * (intervaloMs / 1000);
-    const litrosAntes = litrosActuales;
-    litrosActuales = Math.min(setpointL, litrosActuales + incrementoL);
-    litrosTanque += litrosActuales - litrosAntes;
-
-    if (litrosActuales >= setpointL) {
-      litrosActuales = setpointL;
-      emitir();
-      auxHastaMs[tanqueActivo] = ahora + AUX_ABIERTA_MS;
-      tanqueActivo = null;
-      caudalLMin = 0;
-      pausaHastaMs = ahora + pausaEntreLlenadosMs;
-      return;
-    }
-
-    emitir();
+    onEstado({
+      timestamp: new Date().toISOString(),
+      fuente: "simulacion",
+      tanque_activo: paso.tanque,
+      setpoint_l: paso.setpoint_l,
+      // DINT e INT en el PLC: llegan sin decimales.
+      litros_actuales: Math.round(paso.litros_actuales),
+      litros_tanque: Math.round(paso.litros_tanque),
+      caudal_l_min: Math.round(paso.caudal_l_min),
+      valvulas: Object.fromEntries(NUMEROS_TANQUE.map((n) => [n, paso.valvula_abierta && paso.tanque === n])),
+      // Actuador_Aux_Tank_X = valvula de recirculacion/CIP, no de entrada de
+      // agua (ver s7.js).
+      auxiliares: Object.fromEntries(NUMEROS_TANQUE.map((n) => [n, Date.now() < auxHastaMs[n]])),
+      llenando: paso.valvula_abierta,
+      preparacion: paso.preparacion,
+      extra: valoresExtraSimulados(),
+      tags_con_error: [],
+    });
   }
 
   return {
