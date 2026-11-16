@@ -42,6 +42,14 @@ export function fallasDeLinea(c: CatalogoFallas, lineaId: string | null): Opcion
   return opciones
 }
 
+/** Los equipos activos de una línea (los suyos y los de servicios), con o sin fallas. */
+export const equiposDeLinea = (c: CatalogoFallas, lineaId: string | null): EquipoCatalogo[] =>
+  c.equipos.filter((e) => e.activo && (e.tipo !== "LINEA" || (!!lineaId && e.lineas.includes(lineaId))))
+
+/** Los sistemas activos de un equipo, con o sin fallas; lo reservado («General») al final. */
+export const sistemasDeEquipo = (c: CatalogoFallas, equipoId: string): SistemaCatalogo[] =>
+  c.sistemas.filter((s) => s.activo && s.equipoId === equipoId).sort(reservadaAlFinal)
+
 /** Busca por nombre de la falla, subsistema, sistema, equipo o código; sin tildes, palabras en cualquier orden. */
 export const buscarFallas = (opciones: OpcionFalla[], busqueda: string, equipoId = "") =>
   opciones.filter(

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { MensajeError } from "@/components/MensajeError"
 import { agregarFallas } from "@/lib/catalogoFallas/api"
 import { fallaNuevaDeEquipo } from "@/lib/catalogoFallas/fallaNueva"
-import { fallasDeLinea, opcionDeFalla, type OpcionFalla } from "@/lib/catalogoFallas/paradas"
+import { equiposDeLinea, fallasDeLinea, opcionDeFalla, sistemasDeEquipo, type OpcionFalla } from "@/lib/catalogoFallas/paradas"
 import { useCatalogoFallas } from "@/lib/catalogoFallas/useCatalogoFallas"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { etiquetaClase, selectClase } from "./estilos"
@@ -55,9 +55,13 @@ export function ElegirFallaMtto({
   }, [produccion?.falla.id])
 
   const unicos = <T extends { id: string }>(xs: T[]) => [...new Map(xs.map((x) => [x.id, x])).values()]
+  // Quien puede crear la falla ve todo el catálogo de la línea, aunque el sistema aún no tenga fallas
+  // (identificar una «Falla nueva» es justo crearla ahí). Quien no, solo lo que tiene fallas para elegir.
   // «Equipo no listado» (reservado) va al final.
-  const equipos = unicos(opciones.map((o) => o.equipo)).sort((a, b) => Number(!!a.reservada) - Number(!!b.reservada))
-  const sistemas = unicos(opciones.filter((o) => o.equipo.id === equipoId).map((o) => o.sistema))
+  const equipos = (puedeCrear ? equiposDeLinea(catalogo, lineaId) : unicos(opciones.map((o) => o.equipo))).sort(
+    (a, b) => Number(!!a.reservada) - Number(!!b.reservada),
+  )
+  const sistemas = puedeCrear ? sistemasDeEquipo(catalogo, equipoId) : unicos(opciones.filter((o) => o.equipo.id === equipoId).map((o) => o.sistema))
   // Los subsistemas sin fallas también (para crearles la primera).
   const subsistemas = catalogo.subsistemas.filter((u) => u.activo && u.sistemaId === sistemaId)
   const fallas = opciones.filter((o) => o.subsistema.id === subsistemaId)
