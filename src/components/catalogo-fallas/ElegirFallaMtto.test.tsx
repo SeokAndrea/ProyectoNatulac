@@ -51,6 +51,26 @@ describe("ElegirFallaMtto", () => {
     expect(screen.getByLabelText("Falla nueva en este subsistema")).toBeInTheDocument()
   })
 
+  it("al identificar: arranca solo con el equipo, sin lo reservado ni el enlace «Falla nueva»", async () => {
+    const onCambiar = vi.fn()
+    render(<ElegirFallaMtto lineaCodigo="LINEA_1" fallaProduccionId="f-nueva" usuario="jefe" puedeCrear identificar onCambiar={onCambiar} />)
+
+    expect(screen.getByLabelText("Equipo")).toHaveValue("eq1")
+    expect(screen.getByLabelText("Sistema")).toHaveValue("")
+    expect(opciones("Sistema")).toEqual(["Elige…", "Dosificación"])
+    expect(screen.queryByRole("button", { name: "Falla nueva" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Según Producción/)).not.toBeInTheDocument()
+    expect(onCambiar).toHaveBeenLastCalledWith(null)
+
+    await userEvent.selectOptions(screen.getByLabelText("Sistema"), "si-dos")
+    expect(opciones("Subsistema")).toEqual(["Elige…", "Válvulas"])
+  })
+
+  it("al terminar una parada (no identificar) el enlace «Falla nueva» sigue", () => {
+    render(<ElegirFallaMtto lineaCodigo="LINEA_1" fallaProduccionId="f-nueva" usuario="jefe" puedeCrear onCambiar={vi.fn()} />)
+    expect(screen.getByRole("button", { name: "Falla nueva" })).toBeInTheDocument()
+  })
+
   it("quien no puede crear solo ve los sistemas que tienen fallas para elegir", () => {
     render(<ElegirFallaMtto lineaCodigo="LINEA_1" fallaProduccionId="f-nueva" usuario="mtto" puedeCrear={false} onCambiar={vi.fn()} />)
     expect(opciones("Sistema")).toEqual(["Elige…", "General"])

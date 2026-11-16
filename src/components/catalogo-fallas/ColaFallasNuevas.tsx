@@ -208,7 +208,7 @@ function IdentificarFalla({
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
-      <ElegirFallaMtto lineaCodigo={falla.lineaCodigo} fallaProduccionId={falla.fallaId} usuario={usuario} puedeCrear onCambiar={setElegida} />
+      <ElegirFallaMtto lineaCodigo={falla.lineaCodigo} fallaProduccionId={falla.fallaId} usuario={usuario} puedeCrear identificar onCambiar={setElegida} />
       {falla.sifCodigo && (
         <p className="text-xs text-muted-foreground">
           Está en la solicitud <span className="num">{falla.sifCodigo}</span>: se identifican juntas sus paradas de «Falla nueva» y la solicitud toma el nombre de la falla

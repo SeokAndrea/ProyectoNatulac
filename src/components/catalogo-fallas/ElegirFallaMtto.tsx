@@ -21,12 +21,19 @@ export function ElegirFallaMtto({
   fallaProduccionId,
   usuario,
   puedeCrear,
+  identificar = false,
   onCambiar,
 }: {
   lineaCodigo: string
   fallaProduccionId: string | null
   usuario: string
   puedeCrear: boolean
+  /**
+   * Identificar una «Falla nueva» (cola Fallas nuevas): se clasifica la falla genérica, así que no se
+   * ofrece lo reservado («Falla nueva», «General › Sin clasificar», «Equipo no listado») y se arranca
+   * solo con el equipo puesto.
+   */
+  identificar?: boolean
   onCambiar: (o: OpcionFalla | null) => void
 }) {
   const { catalogo, cargando, recargar } = useCatalogoFallas()
@@ -46,6 +53,12 @@ export function ElegirFallaMtto({
   // Arranca en la falla de Producción (cuando el catálogo termina de cargar).
   useEffect(() => {
     if (!produccion || fallaId) return
+    if (identificar) {
+      // La genérica no cuenta: solo el equipo (si es uno real); sistema, subsistema y falla, por elegir.
+      if (!produccion.equipo.reservada) setEquipoId(produccion.equipo.id)
+      onCambiar(null)
+      return
+    }
     setEquipoId(produccion.equipo.id)
     setSistemaId(produccion.sistema.id)
     setSubsistemaId(produccion.subsistema.id)
@@ -58,12 +71,15 @@ export function ElegirFallaMtto({
   // Quien puede crear la falla ve todo el catálogo de la línea, aunque el sistema aún no tenga fallas
   // (identificar una «Falla nueva» es justo crearla ahí). Quien no, solo lo que tiene fallas para elegir.
   // «Equipo no listado» (reservado) va al final.
-  const equipos = (puedeCrear ? equiposDeLinea(catalogo, lineaId) : unicos(opciones.map((o) => o.equipo))).sort(
+  const sinReservado = <T extends { reservada?: boolean }>(xs: T[]) => (identificar ? xs.filter((x) => !x.reservada) : xs)
+  const equipos = sinReservado(puedeCrear ? equiposDeLinea(catalogo, lineaId) : unicos(opciones.map((o) => o.equipo))).sort(
     (a, b) => Number(!!a.reservada) - Number(!!b.reservada),
   )
-  const sistemas = puedeCrear ? sistemasDeEquipo(catalogo, equipoId) : unicos(opciones.filter((o) => o.equipo.id === equipoId).map((o) => o.sistema))
+  const sistemas = sinReservado(
+    puedeCrear ? sistemasDeEquipo(catalogo, equipoId) : unicos(opciones.filter((o) => o.equipo.id === equipoId).map((o) => o.sistema)),
+  )
   // Los subsistemas sin fallas también (para crearles la primera).
-  const subsistemas = catalogo.subsistemas.filter((u) => u.activo && u.sistemaId === sistemaId)
+  const subsistemas = sinReservado(catalogo.subsistemas.filter((u) => u.activo && u.sistemaId === sistemaId))
   const fallas = opciones.filter((o) => o.subsistema.id === subsistemaId)
   const elegida = opciones.find((o) => o.falla.id === fallaId) ?? null
   const cambio = !!produccion && !!elegida && elegida.falla.id !== produccion.falla.id
@@ -136,13 +152,15 @@ export function ElegirFallaMtto({
   return (
     <div className="flex flex-col gap-2">
       {select("mt-equipo", "Equipo", equipoId, equipos, (v) => cambiarNivel("equipo", v))}
-      <button
-        type="button"
-        onClick={elegirFallaNueva}
-        className="self-start text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
-      >
-        Falla nueva
-      </button>
+      {!identificar && (
+        <button
+          type="button"
+          onClick={elegirFallaNueva}
+          className="self-start text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
+        >
+          Falla nueva
+        </button>
+      )}
       {select("mt-sistema", "Sistema", sistemaId, sistemas, (v) => cambiarNivel("sistema", v), !equipoId)}
       {select("mt-subsistema", "Subsistema", subsistemaId, subsistemas, (v) => cambiarNivel("subsistema", v), !sistemaId)}
       {select("mt-falla", "Falla", fallaId, fallas.map((o) => ({ id: o.falla.id, nombre: o.falla.nombre })), elegirFalla, !subsistemaId)}
@@ -173,7 +191,7 @@ export function ElegirFallaMtto({
         ))}
       <MensajeError error={error} />
 
-      {produccion && (
+      {produccion && !identificar && (
         <div className={cambio ? "rounded-md bg-warning-soft px-3 py-2 text-xs text-warning-foreground" : "text-xs text-muted-foreground"}>
           <p>
             Según Producción: <span className="font-medium">{produccion.falla.nombre}</span> · {produccion.subsistema.nombre} <span className="num">{produccion.falla.codigo}</span>
