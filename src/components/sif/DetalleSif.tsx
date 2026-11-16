@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useState } from "react"
 import { CircleCheck, Eye, FileText, Loader2 } from "lucide-react"
 import { VisorActa } from "@/components/acta/VisorActa"
 import { Button } from "@/components/ui/button"
@@ -191,6 +191,7 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
                       {[conSistema ? sistemaDe(f) : null, conRegistro ? f.registro : null].filter(Boolean).join(" · ")}
                     </span>
                   )}
+                  <ObservacionesFalla falla={f} />
                 </li>
               ))}
             </ul>
@@ -207,7 +208,8 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
                 </thead>
                 <tbody>
                   {fallas.map((f) => (
-                    <tr key={f.id} className="border-b border-border/50 last:border-0">
+                    <Fragment key={f.id}>
+                    <tr className={cn((f.nota || f.solucion) ? "" : "border-b border-border/50 last:border-0")}>
                       <td className="num whitespace-nowrap py-2 pr-3">{fechaHoraSif(f.inicio)}</td>
                       <td className="num whitespace-nowrap py-2 pr-3">{textoDuracion(minutosEntre(f.inicio, f.fin))}</td>
                       <td className="py-2 pr-3">
@@ -216,6 +218,14 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
                       {conSistema && <td className="py-2 pr-3">{sistemaDe(f) || "—"}</td>}
                       {conRegistro && <td className="py-2">{f.registro ?? "—"}</td>}
                     </tr>
+                    {(f.nota || f.solucion) && (
+                      <tr className="border-b border-border/50 last:border-0">
+                        <td colSpan={3 + (conSistema ? 1 : 0) + (conRegistro ? 1 : 0)} className="pb-2 pr-3">
+                          <ObservacionesFalla falla={f} />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -224,6 +234,27 @@ export function DetalleSif({ sif, usuario, puedeGestionar, onCambio }: { sif: Si
         )}
       </section>
     </article>
+  )
+}
+
+/** Lo que escribió Producción al abrirla y lo que hizo Mantenimiento al terminarla (dueña, 2026-11-13). */
+function ObservacionesFalla({ falla }: { falla: FallaSif }) {
+  if (!falla.nota && !falla.solucion) return null
+  return (
+    <div className="flex flex-col gap-0.5 text-xs">
+      {falla.nota && (
+        <p className="whitespace-pre-wrap break-words">
+          <span className="font-semibold text-muted-foreground">Qué pasó: </span>
+          {falla.nota}
+        </p>
+      )}
+      {falla.solucion && (
+        <p className="whitespace-pre-wrap break-words">
+          <span className="font-semibold text-muted-foreground">Qué se realizó: </span>
+          {falla.solucion}
+        </p>
+      )}
+    </div>
   )
 }
 

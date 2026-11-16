@@ -80,7 +80,7 @@ export function notaParadaActa(p: Pick<Parada, "nota" | "tipoNombre" | "origen" 
   return partes.length > 0 ? partes.join(" — ") : null
 }
 
-const NOMBRE_RESPONSABLE: Record<Parada["responsable"], string> = { OPERACIONAL: "Operacional", MANTENIMIENTO: "Mantenimiento" }
+const NOMBRE_RESPONSABLE: Record<Parada["responsable"], string> = { OPERACIONAL: "Operacional", MANTENIMIENTO: "Mantenimiento", POR_DEFINIR: "Por definir" }
 
 /**
  * Un renglón del recuadro de paradas de una línea: hora, tipo, Responsable y

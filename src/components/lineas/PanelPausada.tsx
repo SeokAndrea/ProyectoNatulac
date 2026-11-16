@@ -29,6 +29,7 @@ export function PanelPausada({
   onCip,
   onDetener,
   aModoParadas,
+  porDefinir = false,
 }: {
   corrida: Corrida
   /** +1 sin completar ligado a la línea. */
@@ -39,6 +40,8 @@ export function PanelPausada({
   onCip?: () => void
   onDetener?: () => void
   aModoParadas?: () => void
+  /** La parada abierta aún no tiene dueño: Continuar espera a que se marque Operacional (o la tome Mantenimiento). */
+  porDefinir?: boolean
 }) {
   const { enviando, error, ejecutar } = useAccion()
   const [justificacion, setJustificacion] = useState("")
@@ -68,7 +71,7 @@ export function PanelPausada({
           </p>
           {abierta.nota && <p className="text-foreground">{abierta.nota}</p>}
           {abierta.laTerminaMantenimiento ? (
-            <p className="text-muted-foreground">La termina Mantenimiento; la línea sigue sola.</p>
+            <p className="text-muted-foreground">La termina Mantenimiento.</p>
           ) : (
             abierta.deMantenimiento && <p className="text-muted-foreground">Es de Mantenimiento: se cierra con Terminar parada.</p>
           )}
@@ -101,7 +104,7 @@ export function PanelPausada({
         </label>
       )}
       <div className="flex flex-wrap gap-2">
-        {continuar && !abierta?.deMantenimiento && !abierta?.laTerminaMantenimiento && (
+        {continuar && !porDefinir && !abierta?.deMantenimiento && !abierta?.laTerminaMantenimiento && (
           <Button
             size="sm"
             onClick={() =>

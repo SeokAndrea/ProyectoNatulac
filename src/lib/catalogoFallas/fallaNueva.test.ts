@@ -23,6 +23,9 @@ const pendiente = (id: string, origen: string, minutos: number, inicio: string):
   fin: null,
   minutos,
   terminada: false,
+  fallaId: null,
+  sifCodigo: null,
+  sifParadas: null,
 })
 
 describe("fallaNuevaDeEquipo", () => {

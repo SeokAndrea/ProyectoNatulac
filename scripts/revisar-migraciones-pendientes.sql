@@ -143,6 +143,12 @@ from (
   ('20261115390000', 'Robot Tavil sin interruptor: solo manda el permiso ROBOT_TAVIL_CARGAR',
     not exists (select 1 from fn where proname = 'guardar_robot_tavil') and exists (select 1 from fn where proname = 'robot_tavil_pantalla')),
   ('20261115490000', 'Trazabilidad de paletizado: la leyenda del PDF con los sabores del catálogo',
-    exists (select 1 from fn where proname = 'trazabilidad_paletizado_listar' and prosrc like '%''sabores''%'))
+    exists (select 1 from fn where proname = 'trazabilidad_paletizado_listar' and prosrc like '%''sabores''%')),
+  ('20261115590000', 'Paradas: el supervisor abre por definir; Mantenimiento la toma o el supervisor la marca Operacional',
+    exists (select 1 from fn where proname = 'definir_responsable_parada')),
+  ('20261115690000', 'SIF: el historial trae qué pasó y qué se realizó de cada parada',
+    exists (select 1 from fn where proname = 'listar_paradas_sif' and prosrc like '%btrim(p.solucion)%')),
+  ('20261115790000', 'Fallas nuevas: Identificar (la parada y su SIF pasan a la falla real)',
+    exists (select 1 from fn where proname = 'identificar_falla_nueva'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

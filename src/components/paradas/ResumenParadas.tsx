@@ -185,6 +185,7 @@ export function ResumenParadas({ paradas, anteriores, rango, onRango, linea, onL
               { valor: "TODOS", texto: "Todos" },
               { valor: "OPERACIONAL", texto: "Producción" },
               { valor: "MANTENIMIENTO", texto: "Mantenimiento" },
+              { valor: "POR_DEFINIR", texto: "Por definir" },
             ]}
           />
         </div>

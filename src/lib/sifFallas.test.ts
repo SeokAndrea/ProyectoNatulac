@@ -36,4 +36,19 @@ describe("listarFallasSif", () => {
       ["b", "Mantenimiento"],
     ])
   })
+
+  it("trae las observaciones de Producción y Mantenimiento, y rotula la parada por definir", async () => {
+    rpc.mockResolvedValue({
+      data: [
+        fila({ parada_id: "a", responsable: "POR_DEFINIR", nota: "Se botó el nivel", solucion: "Se cambió el sensor" }),
+        fila({ parada_id: "b" }),
+      ],
+      error: null,
+    })
+    const r = await listarFallasSif("ana", "sif-1")
+    if (!r.ok) throw new Error(r.error)
+    expect(r.data[0]).toMatchObject({ responsable: "Por definir", nota: "Se botó el nivel", solucion: "Se cambió el sensor" })
+    // Sin la migración 20261115690000 no vienen: quedan null.
+    expect(r.data[1]).toMatchObject({ nota: null, solucion: null })
+  })
 })

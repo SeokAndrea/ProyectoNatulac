@@ -38,6 +38,11 @@ export interface FallaNuevaPendiente {
   minutos: number
   /** false = la parada sigue abierta: Mantenimiento todavía no escribe su observación. */
   terminada: boolean
+  /** La «Falla nueva» que cuenta (null en una «Parada nueva», que no se identifica). Sin la migración 20261115790000, null. */
+  fallaId: string | null
+  /** La Solicitud de intervención en la que está, y cuántas paradas tiene. */
+  sifCodigo: string | null
+  sifParadas: number | null
 }
 
 interface Fila {
@@ -53,6 +58,9 @@ interface Fila {
   fin: string | null
   minutos: number | null
   terminada: boolean
+  falla_id?: string | null
+  sif_codigo?: string | null
+  sif_paradas?: number | null
 }
 
 export const mapearFallaNueva = (f: Fila): FallaNuevaPendiente => ({
@@ -68,6 +76,9 @@ export const mapearFallaNueva = (f: Fila): FallaNuevaPendiente => ({
   fin: f.fin,
   minutos: f.minutos ?? 0,
   terminada: f.terminada,
+  fallaId: f.falla_id ?? null,
+  sifCodigo: f.sif_codigo ?? null,
+  sifParadas: f.sif_paradas ?? null,
 })
 
 export async function listarFallasNuevas(usuario: string): Promise<Resultado<FallaNuevaPendiente[]>> {
@@ -81,6 +92,25 @@ export async function descartarFallasNuevas(usuario: string, paradaIds: string[]
   const { data, error } = await supabase.rpc("descartar_fallas_nuevas", { p_usuario: usuario, p_ids: paradaIds })
   if (error) return { ok: false, error: error.message || "No se pudo descartar." }
   return { ok: true, valor: Number(data) }
+}
+
+export interface Identificada {
+  paradas: number
+  /** Código de la SIF en la que quedó (renombrada o unida), si está en una. */
+  sif: string | null
+  /** true = había otra SIF abierta de la falla real y se unieron. */
+  unida: boolean
+}
+
+/**
+ * «Identificar» (migración 20261115790000): la parada (y las demás de su SIF de «Falla nueva») pasa a la
+ * falla real y la SIF cambia de nombre o se une con la abierta de esa falla.
+ */
+export async function identificarFallaNueva(usuario: string, paradaId: string, fallaId: string): Promise<Resultado<Identificada>> {
+  const { data, error } = await supabase.rpc("identificar_falla_nueva", { p_usuario: usuario, p_parada_id: paradaId, p_falla_id: fallaId, p_pagina: "Catálogo de Paradas" })
+  if (error || !data) return { ok: false, error: error?.message || "No se pudo identificar la falla. Intenta de nuevo." }
+  const d = data as { paradas: number; sif: string | null; unida: boolean }
+  return { ok: true, valor: { paradas: Number(d.paradas), sif: d.sif ?? null, unida: d.unida === true } }
 }
 
 export interface GrupoFallaNueva {

@@ -162,18 +162,17 @@ describe("ModoParadas — paradas de Mantenimiento", () => {
     expect(a.pausar).not.toHaveBeenCalled()
   })
 
-  it("el supervisor con la línea sin corrida abre una parada Operacional desde ahora, sin pausar nada", async () => {
+  it("el supervisor con la línea sin corrida abre una parada por definir desde ahora, sin pausar nada", async () => {
     delTurno = []
     const a = montar({ corridas: [], paradasDetienen: [] })
     await userEvent.click(await screen.findByRole("button", { name: "Parar" }))
-    await userEvent.click(screen.getByRole("radio", { name: "Operacional" }))
     await userEvent.click(screen.getByText("Elegir tipo"))
     await userEvent.type(screen.getByRole("textbox"), "Sin poder arrancar")
     await userEvent.click(screen.getByRole("button", { name: /confirmar parada/i }))
     await waitFor(() => expect(abrirParadaMantenimiento).toHaveBeenCalled())
     expect(abrirParadaMantenimiento).toHaveBeenCalledWith(
       "u1",
-      expect.objectContaining({ lineaCodigo: "LINEA_1", nota: "Sin poder arrancar", responsable: "OPERACIONAL", inicio: null }),
+      expect.objectContaining({ lineaCodigo: "LINEA_1", nota: "Sin poder arrancar", responsable: "POR_DEFINIR", inicio: null }),
       expect.any(String),
     )
     expect(a.pausar).not.toHaveBeenCalled()

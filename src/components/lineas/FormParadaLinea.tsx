@@ -18,9 +18,10 @@ import { useAccion } from "@/lib/useAccion"
 
 /**
  * "Parar": pausa la corrida y deja abierta su parada. Empieza ahora, o a la
- * hora que se ponga si empezó antes; Continuar la termina. Responsable
- * (Operacional o Mantenimiento), Equipo y Falla, y Comentario son
- * obligatorios. Con `responsableFijo` (Mantenimiento) no se pregunta.
+ * hora que se ponga si empezó antes; Continuar la termina. Equipo y Falla y
+ * Comentario son obligatorios. El responsable no se pregunta: queda por definir
+ * (Mantenimiento la toma o el supervisor la marca Operacional) y con
+ * `responsableFijo` (Mantenimiento) va ese valor.
  */
 export function FormParadaLinea({
   corridaId,
@@ -47,7 +48,6 @@ export function FormParadaLinea({
   onCerrar: () => void
 }) {
   const equipos = useEquiposParadas()
-  const [elegido, setElegido] = useState<ResponsableParada | null>(null)
   const [tipo, setTipo] = useState<TipoParada | null>(null)
   // Con el catálogo nuevo encendido (20261113790000): falla de equipo u otra parada, desde un solo buscador.
   const modular = useCatalogoModular(areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO") === true
@@ -59,10 +59,11 @@ export function FormParadaLinea({
   const [inicio, setInicio] = useState(ahoraPlanta)
   const { enviando, error, ejecutar } = useAccion()
   const area = areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO"
-  const responsable = responsableFijo ?? elegido
+  // El supervisor no elige responsable: la parada queda por definir (migración 20261115590000).
+  const responsable: ResponsableParada = responsableFijo ?? "POR_DEFINIR"
   const tipoCodigo = modular ? (eleccion?.tipo?.codigo ?? (eleccion?.falla ? TIPO_FALLA_EQUIPO : undefined)) : tipo?.codigo
   const tipoElegido = modular ? (eleccion?.tipo ?? null) : tipo
-  const listo = responsable !== null && tipoCodigo !== undefined && motivo.trim() !== "" && (!conInicio || inicio !== "")
+  const listo = tipoCodigo !== undefined && motivo.trim() !== "" && (!conInicio || inicio !== "")
 
   async function confirmar() {
     if (!tipoCodigo || !responsable || !listo) return
@@ -83,15 +84,6 @@ export function FormParadaLinea({
           ? "La línea no tiene corrida: la parada queda abierta desde ahora y cuenta hasta que la termines o arranques la línea."
           : "La línea se detiene ya; el tiempo cuenta hasta Continuar."}
       </p>
-      {responsableFijo === undefined && (
-        <div role="radiogroup" aria-label="Responsable de la parada" className="grid grid-cols-2 gap-2">
-          {(["OPERACIONAL", "MANTENIMIENTO"] as const).map((r) => (
-            <Button key={r} type="button" role="radio" aria-checked={elegido === r} variant={elegido === r ? "default" : "outline"} className="h-11" onClick={() => setElegido(r)}>
-              {r === "OPERACIONAL" ? "Operacional" : "Mantenimiento"}
-            </Button>
-          ))}
-        </div>
-      )}
       {modular ? (
         <BuscadorParada lineaCodigo={lineaCodigo} area={area} presentacionMl={presentacionMl} onElegir={setEleccion} />
       ) : (

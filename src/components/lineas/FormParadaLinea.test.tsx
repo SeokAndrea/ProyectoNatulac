@@ -27,47 +27,29 @@ const confirmar = () => screen.getByRole("button", { name: /confirmar parada/i }
 const escribir = (t: string) => userEvent.type(screen.getByRole("textbox"), t)
 
 describe("FormParadaLinea", () => {
-  it("Confirmar parada está deshabilitado sin responsable, sin tipo o sin comentario", async () => {
+  it("Confirmar parada está deshabilitado sin tipo o sin comentario", async () => {
     montar()
     expect(confirmar()).toBeDisabled()
-    await userEvent.click(screen.getByRole("radio", { name: "Mantenimiento" }))
     await userEvent.click(screen.getByText("Elegir tipo"))
     expect(confirmar()).toBeDisabled() // falta comentario
     await escribir("Se rompió")
     expect(confirmar()).toBeEnabled()
   })
 
-  it("sin responsable sigue deshabilitado aunque haya tipo y comentario", async () => {
+  it("sin tipo sigue deshabilitado aunque haya comentario", async () => {
     montar()
-    await userEvent.click(screen.getByText("Elegir tipo"))
     await escribir("Se rompió")
     expect(confirmar()).toBeDisabled()
   })
 
-  it("sin tipo sigue deshabilitado aunque haya responsable y comentario", async () => {
-    montar()
-    await userEvent.click(screen.getByRole("radio", { name: "Operacional" }))
-    await escribir("Se rompió")
-    expect(confirmar()).toBeDisabled()
-  })
-
-  it("con los tres llama a pausar con MANTENIMIENTO", async () => {
+  it("con tipo y comentario llama a pausar con el responsable por definir", async () => {
     const { pausar, onCerrar } = montar()
-    await userEvent.click(screen.getByRole("radio", { name: "Mantenimiento" }))
+    expect(screen.queryByRole("radio")).toBeNull()
     await userEvent.click(screen.getByText("Elegir tipo"))
     await escribir("Se rompió")
     await userEvent.click(confirmar())
-    expect(pausar).toHaveBeenCalledWith("c1", { motivo: "Se rompió", tipoCodigo: "DESVASE_PRODUCTO", responsable: "MANTENIMIENTO", inicio: null })
+    expect(pausar).toHaveBeenCalledWith("c1", { motivo: "Se rompió", tipoCodigo: "DESVASE_PRODUCTO", responsable: "POR_DEFINIR", inicio: null })
     expect(onCerrar).toHaveBeenCalled()
-  })
-
-  it("con los tres llama a pausar con OPERACIONAL", async () => {
-    const { pausar } = montar()
-    await userEvent.click(screen.getByRole("radio", { name: "Operacional" }))
-    await userEvent.click(screen.getByText("Elegir tipo"))
-    await escribir("Falta tapa")
-    await userEvent.click(confirmar())
-    expect(pausar).toHaveBeenCalledWith("c1", expect.objectContaining({ responsable: "OPERACIONAL", tipoCodigo: "DESVASE_PRODUCTO" }))
   })
 
   it("no existe el botón «No sé / es una falla»", () => {
@@ -81,7 +63,6 @@ describe("FormParadaLinea", () => {
     expect(screen.queryByLabelText(/empezó a las/i)).toBeNull()
     await userEvent.click(screen.getByRole("button", { name: /empezó antes/i }))
     expect(screen.getByLabelText(/empezó a las/i)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole("radio", { name: "Operacional" }))
     await userEvent.click(screen.getByText("Elegir tipo"))
     await escribir("Falta tapa")
     await userEvent.click(confirmar())

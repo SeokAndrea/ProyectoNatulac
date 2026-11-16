@@ -21,7 +21,14 @@ import { restarDias } from "@/lib/tiempoPlanta"
 export type ClaseParada = "PROGRAMADA" | "NO_PROGRAMADA" | "OCIOSO"
 export type OrigenParada = "MANUAL" | "SHEET" | "MANTENIMIENTO"
 /** Quién responde por la parada (lo elige quien la reporta; el origen ya no cuenta). */
-export type ResponsableParada = "OPERACIONAL" | "MANTENIMIENTO"
+/** POR_DEFINIR: la abrió el supervisor y aún no se dice de quién es (solo con el interruptor «Mantenimiento termina las fallas»; migración 20261115590000). */
+export type ResponsableParada = "OPERACIONAL" | "MANTENIMIENTO" | "POR_DEFINIR"
+
+export const ROTULO_RESPONSABLE: Record<ResponsableParada, string> = {
+  OPERACIONAL: "Operacional",
+  MANTENIMIENTO: "Mantenimiento",
+  POR_DEFINIR: "Por definir",
+}
 
 /** Orden fijo para todos los repartos por clase. */
 export const CLASES_PARADA: ClaseParada[] = ["PROGRAMADA", "NO_PROGRAMADA", "OCIOSO"]
@@ -342,6 +349,9 @@ export const paradaAbierta = (p: Parada) => p.fin === null
 
 /** De quién es la parada: el Responsable que se eligió al reportarla. */
 export const esDeMantenimiento = (p: Pick<Parada, "responsable">) => p.responsable === "MANTENIMIENTO"
+
+/** Abierta por el supervisor, sin que Mantenimiento ni él digan de quién es. */
+export const esPorDefinir = (p: Pick<Parada, "responsable">) => p.responsable === "POR_DEFINIR"
 
 /**
  * La nota de una parada del Sheet de Mantenimiento ("Mantenimiento — falla —
@@ -697,7 +707,7 @@ export function mapearFilaParada(f: FilaParada): Parada {
     id: f.id,
     clase: f.clase,
     origen: f.origen,
-    responsable: f.responsable === "MANTENIMIENTO" ? "MANTENIMIENTO" : "OPERACIONAL",
+    responsable: f.responsable === "MANTENIMIENTO" || f.responsable === "POR_DEFINIR" ? f.responsable : "OPERACIONAL",
     lineaCodigo: f.linea_codigo,
     turnoTipo: f.turno_tipo,
     tipoCodigo: f.tipo_codigo,
@@ -882,6 +892,12 @@ export function useMantenimientoFinaliza(area: string | null): boolean | null {
 export async function guardarMantenimientoFinaliza(usuario: string, area: string, activo: boolean): Promise<Resultado> {
   const { error } = await supabase.rpc("guardar_mantenimiento_finaliza", { p_usuario: usuario, p_area_codigo: area, p_activo: activo })
   return error ? { ok: false, error: error.message || "No se pudo cambiar el ajuste." } : { ok: true }
+}
+
+/** Marca de quién es una parada abierta: Mantenimiento la toma; el supervisor la marca Operacional (migración 20261115590000). */
+export async function definirResponsableParada(usuario: string, paradaId: string, responsable: "OPERACIONAL" | "MANTENIMIENTO", pagina: string): Promise<Resultado> {
+  const { error } = await supabase.rpc("definir_responsable_parada", { p_usuario: usuario, p_parada_id: paradaId, p_responsable: responsable, p_pagina: pagina })
+  return error ? { ok: false, error: error.message || "No se pudo marcar la parada. Intenta de nuevo." } : { ok: true }
 }
 
 /** Elimina una parada cargada por error (queda en Auditoría). */

@@ -71,10 +71,14 @@ export interface FallaSif {
   inicio: string
   fin: string | null
   /** Responsable que se eligió al reportarla: Producción (Operacional) o Mantenimiento. */
-  responsable: "Producción" | "Mantenimiento"
+  responsable: "Producción" | "Mantenimiento" | "Por definir"
   equipo: string | null
   subsistema: string | null
   registro: string | null
+  /** Lo que escribió Producción al abrirla («Qué pasó»). Sin la migración 20261115690000 llega null. */
+  nota: string | null
+  /** Lo que hizo Mantenimiento al terminarla («¿Qué se realizó?»). */
+  solucion: string | null
 }
 
 export interface SupervisorEntrega {
@@ -140,6 +144,8 @@ interface FilaFalla {
   equipo: string | null
   subsistema: string | null
   registro: string | null
+  nota?: string | null
+  solucion?: string | null
 }
 
 /** Las abiertas y las últimas `cerradas` terminadas. */
@@ -179,10 +185,12 @@ export async function listarFallasSif(usuario: string, sifId: string): Promise<L
     id: f.parada_id,
     inicio: f.inicio,
     fin: f.fin,
-    responsable: f.responsable === "MANTENIMIENTO" ? "Mantenimiento" : "Producción",
+    responsable: f.responsable === "MANTENIMIENTO" ? "Mantenimiento" : f.responsable === "POR_DEFINIR" ? "Por definir" : "Producción",
     equipo: f.equipo,
     subsistema: f.subsistema,
     registro: f.registro,
+    nota: f.nota ?? null,
+    solucion: f.solucion ?? null,
   }))
   return { ok: true, data: fallas }
 }

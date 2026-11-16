@@ -12,7 +12,7 @@ import { obtenerEstadoPlantaActual, obtenerTurnoDeFechaTipo } from "@/lib/panelP
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
 import { diaMesPlanta, fechaPlanta, horaCortaPlanta, mismaFechaPlanta, restarDias } from "@/lib/tiempoPlanta"
-import { abrirParadaMantenimiento, duracionMin, esDeMantenimiento, fmtDuracion, minutosPorClase, porClasificar, type Parada } from "@/lib/paradas"
+import { abrirParadaMantenimiento, duracionMin, esDeMantenimiento, esPorDefinir, fmtDuracion, minutosPorClase, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
@@ -30,6 +30,7 @@ import { FormParadaLinea } from "./FormParadaLinea"
 import { FormTerminarParada } from "./FormTerminarParada"
 import { PanelParadasLinea } from "./PanelParadasLinea"
 import { PanelPausada } from "./PanelPausada"
+import { PorDefinir } from "./PorDefinir"
 import type { AccionesLinea } from "./tipos"
 
 /*
@@ -246,7 +247,9 @@ export function ModoParadas({
             (esDeMantenimiento(p) || lineaTurno === null || new Date(p.inicioReal ?? p.inicio).getTime() < new Date(lineaTurno.activadaEn).getTime()),
         )
         const aTerminar = abiertas.find((p) => p.id === abierto?.paradaId) ?? null
-        const puedeTerminar = (p: Parada) => esMantenimiento || terminaSiempre || !p.laTerminaMantenimiento
+        const porDefinirLinea = paradasLinea.filter((p) => p.fin === null && !p.pendiente && esPorDefinir(p))
+        // Una por definir la termina Mantenimiento (queda suya); el supervisor primero la marca Operacional.
+        const puedeTerminar = (p: Parada) => esMantenimiento || terminaSiempre || (!p.laTerminaMantenimiento && !esPorDefinir(p))
         // Con la línea sin corrida (programada pero sin poder arrancar) la parada queda abierta desde su hora de inicio.
         const sinCorrida = lineaTurno === null && !verAnterior
         // Mantenimiento abre su parada también con la línea libre o en CIP (queda anotada); el supervisor, con la corrida en marcha o la línea sin corrida.
@@ -420,6 +423,7 @@ export function ModoParadas({
                     paradaQueDetiene={detiene.find((p) => p.pendiente) ?? null}
                     paradaDeLinea={detiene[0] ?? null}
                     continuar={esMantenimiento ? undefined : yRecargar(acciones.continuar)}
+                    porDefinir={porDefinirLinea.length > 0}
                     onDetener={esMantenimiento ? undefined : () => setAbierto({ linea: l.codigo, modo: "detener" })}
                   />
                 )}
@@ -441,11 +445,15 @@ export function ModoParadas({
                           Terminar parada
                         </Button>
                       ) : (
-                        !yaEnPanel && <p className="text-muted-foreground">La termina Mantenimiento.</p>
+                        !yaEnPanel && !esPorDefinir(p) && <p className="text-muted-foreground">La termina Mantenimiento.</p>
                       )}
                     </div>
                   )
                 })}
+                {/* La línea ya dice «Parada · <falla>»; de quién es se clasifica aparte (dueña, 2026-11-13). */}
+                {porDefinirLinea.map((p) => (
+                  <PorDefinir key={p.id} parada={p} usuario={usuario} esMantenimiento={esMantenimiento} terminaSiempre={terminaSiempre} pagina={PAGINA} onListo={cambio} />
+                ))}
                 <FilaAcciones>
                   {puedeParar && (
                     <Button size="sm" variant="outline" onClick={() => setAbierto({ linea: l.codigo, modo: "parada" })}>

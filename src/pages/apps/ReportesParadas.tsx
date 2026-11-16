@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
 import { puede } from "@/lib/permisos"
-import { LINEAS_PARADAS, listarParadas, listarParadasLectura, nombreLineaParada, type Parada, type ResponsableParada } from "@/lib/paradas"
+import { LINEAS_PARADAS, listarParadas, listarParadasLectura, nombreLineaParada, ROTULO_RESPONSABLE, type Parada, type ResponsableParada } from "@/lib/paradas"
 import type { VentanaTurno } from "@/lib/paradasTramo"
 import { listarVentanasTurnos, ventanasDeParada } from "@/lib/ventanasParadas"
 import { esteMes, periodoAnterior } from "@/lib/reportesResumen"
@@ -198,6 +198,7 @@ export default function ReportesParadas() {
               { valor: "TODOS", texto: "Todos" },
               { valor: "OPERACIONAL", texto: "Operacional" },
               { valor: "MANTENIMIENTO", texto: "Mantenimiento" },
+              { valor: "POR_DEFINIR", texto: "Por definir" },
             ]}
           />
           <Opciones<FiltroEstado>
@@ -266,7 +267,7 @@ export default function ReportesParadas() {
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Badge variant={p.responsable === "MANTENIMIENTO" ? "warning" : "secondary"}>
-                    {p.responsable === "MANTENIMIENTO" ? "Mantenimiento" : "Operacional"}
+                    {ROTULO_RESPONSABLE[p.responsable]}
                   </Badge>
                   {p.fin === null && <Badge variant="warning">En curso</Badge>}
                   <span className="num text-xs text-muted-foreground">{textoTiempos(p, ventanasDeParada(p, turnos, ahora), ahora)}</span>

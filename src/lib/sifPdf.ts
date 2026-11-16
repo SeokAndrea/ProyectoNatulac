@@ -112,6 +112,35 @@ export function generarSifPdf(sif: Sif, codigoParada: string, fallas: FallaSif[]
       doc.text(doc.splitTextToSize(c, columnas[i][1] - 2)[0] ?? "", x, y)
       x += columnas[i][1]
     })
+    // Lo que escribió Producción y lo que hizo Mantenimiento, debajo de la fila (dueña, 2026-11-13).
+    const observaciones: [string, string | null][] = [
+      ["Qué pasó: ", f.nota],
+      ["Qué se realizó: ", f.solucion],
+    ]
+    for (const [etiqueta, texto] of observaciones) {
+      if (!texto) continue
+      doc.setFontSize(7.5)
+      doc.setFont("helvetica", "bold")
+      const anchoEtiqueta = doc.getTextWidth(etiqueta)
+      doc.setFont("helvetica", "normal")
+      const lineas = doc.splitTextToSize(texto, W - 6 - anchoEtiqueta) as string[]
+      lineas.forEach((l, i) => {
+        y += 3.8
+        if (y + 2 > LIMITE_Y) {
+          asegurar(LIMITE_Y)
+          y += 1
+        }
+        if (i === 0) {
+          doc.setFont("helvetica", "bold")
+          doc.setTextColor(...GRIS)
+          doc.text(etiqueta, M + 3, y)
+          doc.setTextColor(0)
+          doc.setFont("helvetica", "normal")
+        }
+        doc.text(l, M + 3 + anchoEtiqueta, y)
+      })
+    }
+    doc.setFontSize(8)
     doc.setDrawColor(230)
     doc.line(M, y + 1.5, M + W, y + 1.5)
     y += 5.5
