@@ -1,5 +1,12 @@
 services:
+  # Servidor de desarrollo (para programar), NO va en el servidor de planta.
+  # Sin perfil, el despliegue (--profile preview) también lo creaba; si no
+  # lograba arrancar (ej. puerto 5173 ocupado), cortaba el arranque y
+  # «preview» (la app, 4035) quedaba en «Created» sin responder.
+  # Para usarlo en una PC:  docker compose --profile dev up dev
   dev:
+    profiles:
+      - dev
     build:
       context: .
       target: dev
