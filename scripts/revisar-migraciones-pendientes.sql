@@ -163,6 +163,8 @@ from (
   ('20261116390000', 'Familia «Clásicos» pasa a «Clásico»',
     exists (select 1 from fn where proname = 'es_familia_clasica') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_clasica%')),
   ('20261116490000', 'Familia «Especiales» pasa a «Bebida té negro»',
-    exists (select 1 from fn where proname = 'es_familia_te') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_te%'))
+    exists (select 1 from fn where proname = 'es_familia_te') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_te%')),
+  ('20261116590000', 'Ticket de paleta por sistema (QR), vida útil y búsqueda por ticket',
+    exists (select 1 from fn where proname = 'robot_tavil_configurar_tickets') and exists (select 1 from fn where proname = 'robot_tavil_sumar' and prosrc like '%robot_tavil_ticket_seq%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

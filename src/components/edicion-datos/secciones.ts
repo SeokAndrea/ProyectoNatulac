@@ -28,6 +28,8 @@ export const SECCIONES_CATALOGO: Seccion[] = [
       { clave: "volumen", etiqueta: "Volumen por tambor/kit", tipo: "numero", unidad: "L" },
       // sabores.codigo: el de la hoja de Trazabilidad de paletizado (MZ, PR, DZ%…). Migración 20261115290000.
       { clave: "codigo", etiqueta: "Código (paletizado)", tipo: "texto", ancho: "130px" },
+      // sabores.vida_util_meses: vencimiento del ticket de paleta = producción + vida útil. Migración 20261116590000.
+      { clave: "vida_util_meses", etiqueta: "Vida útil", tipo: "numero", unidad: "meses" },
     ],
   },
   {

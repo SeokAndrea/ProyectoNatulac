@@ -66,10 +66,15 @@ export function TarjetaLineaRobot({
   linea,
   presentaciones,
   acciones,
+  ticketsSistema = false,
+  onReimprimir,
 }: {
   linea: LineaRobot
   presentaciones: PresentacionLive[]
   acciones: AccionesRobot
+  /** «Tickets por sistema» encendido (migración 20261116590000): el «+» no pide ticket. */
+  ticketsSistema?: boolean
+  onReimprimir?: (p: Paleta) => void
 }) {
   const { corrida, estado, nueva, anterior } = linea
   const [enviando, setEnviando] = useState(false)
@@ -185,7 +190,14 @@ export function TarjetaLineaRobot({
         <ListaPaletasDia linea={linea} onElegir={(p) => setDialogo({ tipo: "editar", paleta: p })} />
       </CardContent>
 
-      <DialogoPaleta modo={dialogo} onCerrar={() => setDialogo(null)} onCrear={acciones.crear} onEditar={acciones.editar} />
+      <DialogoPaleta
+        modo={dialogo}
+        onCerrar={() => setDialogo(null)}
+        onCrear={acciones.crear}
+        onEditar={acciones.editar}
+        ticketsSistema={ticketsSistema}
+        onReimprimir={onReimprimir}
+      />
       <ConfirmarManual
         abierto={confirmarManual}
         linea={linea}

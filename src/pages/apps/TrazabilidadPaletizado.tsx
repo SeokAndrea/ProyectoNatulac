@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { FileDown, Loader2, PackageSearch } from "lucide-react"
+import { FileDown, Loader2, PackageSearch, Printer, Search, X } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { EmptyState } from "@/components/EmptyState"
 import { MensajeError } from "@/components/MensajeError"
@@ -12,11 +12,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth"
 import { descargarArchivo } from "@/lib/descargarArchivo"
+import { imprimirYRegistrar } from "@/lib/imprimirEtiqueta"
 import { puede } from "@/lib/permisos"
 import { fechaJornadaPlanta, fechaPlanta, horaCortaPlanta } from "@/lib/tiempoPlanta"
+import { extraerTicket, lineaPresentacion, lineaSabor, numeroPaleta4, textoVence } from "@/lib/ticketPaleta"
 import {
   TURNOS,
   armarHojas,
+  buscarPorTicket,
   codigoSabor,
   corregirConformidad,
   errorConformidad,
@@ -37,11 +40,17 @@ import { cn } from "@/lib/utils"
  * filtros de turno y de línea (por defecto, todos), y el PDF con el formato
  * de la hoja. TRAZABILIDAD_VER ve y exporta; TRAZABILIDAD_EDITAR además
  * corrige la conformidad y la observación (opcional). Migración 20261115290000.
+ *
+ * Buscar por ticket (migración 20261116590000): se pega el texto del QR del
+ * ticket (copiado con la cámara del teléfono o Google Lens) o se escribe el
+ * código. Leer el QR con la cámara desde la app es una mejora futura
+ * (docs/mejoras-futuras.md).
  */
 export default function TrazabilidadPaletizado() {
   const { session } = useAuth()
   const usuario = session?.username ?? null
   const puedeCorregir = !!session?.esDueno || puede(session, "TRAZABILIDAD_EDITAR")
+  const puedeImprimir = !!session?.esDueno || puede(session, "TRAZABILIDAD_EDITAR") || puede(session, "ROBOT_TAVIL_CARGAR")
 
   const [fecha, setFecha] = useState(() => fechaJornadaPlanta())
   const [turnos, setTurnos] = useState<TurnoTipo[]>(TURNOS.map((t) => t.codigo))
@@ -53,6 +62,22 @@ export default function TrazabilidadPaletizado() {
   const [error, setError] = useState<string | null>(null)
   const [corrigiendo, setCorrigiendo] = useState<Paleta | null>(null)
   const [exportando, setExportando] = useState(false)
+  const [aviso, setAviso] = useState<{ tono: "ok" | "warning" | "error"; texto: string; paleta: Paleta | null } | null>(null)
+
+  async function reimprimir(p: Paleta) {
+    if (!usuario) return
+    const r = await imprimirYRegistrar(usuario, p, 1, "Trazabilidad del paletizado")
+    setAviso(r.error ? { tono: "error", texto: r.error, paleta: p } : { tono: "ok", texto: `Ticket ${p.ticket ?? ""} enviado a la impresora.`, paleta: null })
+  }
+
+  function irAlDia(dia: string) {
+    setTurnos(TURNOS.map((t) => t.codigo))
+    setLineasSel(null)
+    if (dia !== fecha) {
+      setCargando(true)
+      setFecha(dia)
+    }
+  }
 
   // Se leen todas las paletas del día; turno y línea se filtran aquí (así el
   // filtro responde al instante y las líneas del área llegan aunque no haya paletas).
@@ -152,6 +177,32 @@ export default function TrazabilidadPaletizado() {
         </div>
 
         <MensajeError error={error} />
+        {aviso && (
+          <div
+            role={aviso.tono === "error" ? "alert" : "status"}
+            className={cn(
+              "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm",
+              aviso.tono === "ok" && "border-success/35 bg-success-soft text-success-foreground",
+              aviso.tono === "warning" && "border-warning/50 bg-warning-soft text-warning-foreground",
+              aviso.tono === "error" && "border-danger/40 bg-danger-soft text-danger-foreground",
+            )}
+          >
+            <span>{aviso.texto}</span>
+            <span className="flex shrink-0 items-center gap-1">
+              {aviso.paleta && puedeImprimir && (
+                <Button size="sm" variant="outline" className="bg-card" onClick={() => void reimprimir(aviso.paleta!)}>
+                  <Printer className="size-4" />
+                  Reimprimir
+                </Button>
+              )}
+              <Button size="icon" variant="ghost" className="size-8" aria-label="Cerrar el aviso" onClick={() => setAviso(null)}>
+                <X className="size-4" />
+              </Button>
+            </span>
+          </div>
+        )}
+
+        {usuario && <BuscarTicket usuario={usuario} puedeImprimir={puedeImprimir} onReimprimir={reimprimir} onIrAlDia={irAlDia} />}
 
         {cargando ? (
           <div className="flex justify-center py-16 text-muted-foreground">
@@ -201,7 +252,7 @@ export default function TrazabilidadPaletizado() {
                               {p.saborCodigo && <span className="block text-xs text-muted-foreground">{p.saborNombre}</span>}
                             </td>
                             <td className="num px-3 py-2">{p.lote ?? "—"}</td>
-                            <td className="num px-3 py-2">{p.ticket ?? "—"}</td>
+                            <td className="num px-3 py-2 whitespace-nowrap">{p.ticket ?? "—"}</td>
                             <td className="num px-3 py-2">{p.cajas ?? "—"}</td>
                             <td className="px-3 py-2">
                               Turno {numeroTurno(p.turnoTipo)}
@@ -240,9 +291,143 @@ export default function TrazabilidadPaletizado() {
         paleta={corrigiendo}
         usuario={usuario}
         onCerrar={() => setCorrigiendo(null)}
-        onGuardada={(p) => setPaletas((ps) => ps.map((x) => (x.id === p.id ? p : x)))}
+        onGuardada={(p) => {
+          const antes = corrigiendo
+          setPaletas((ps) => ps.map((x) => (x.id === p.id ? p : x)))
+          // El ticket pegado dice la conformidad de antes: hay que reimprimirlo.
+          if (p.ticketSistema && antes && antes.conforme !== p.conforme)
+            setAviso({
+              tono: "warning",
+              texto: `El ticket ${p.ticket ?? ""} pegado en la paleta Nº ${numeroPaleta4(p.numero)} dice «${antes.conforme ? "CONFORME" : "NO CONFORME"}». Reimprímelo y cambia el pegado.`,
+              paleta: p,
+            })
+        }}
       />
     </AppShell>
+  )
+}
+
+/**
+ * Buscar una paleta por su ticket: se pega el texto del QR (o el código) y
+ * salen las paletas con ese ticket, con sus datos de hoy en la base.
+ */
+function BuscarTicket({
+  usuario,
+  puedeImprimir,
+  onReimprimir,
+  onIrAlDia,
+}: {
+  usuario: string
+  puedeImprimir: boolean
+  onReimprimir: (p: Paleta) => Promise<void>
+  onIrAlDia: (fecha: string) => void
+}) {
+  const [texto, setTexto] = useState("")
+  const [buscado, setBuscado] = useState<string | null>(null)
+  const [resultados, setResultados] = useState<Paleta[] | null>(null)
+  const [buscando, setBuscando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function buscar(valor = texto) {
+    const ticket = extraerTicket(valor)
+    if (!ticket) {
+      setError("Pega el texto del QR o escribe el ticket (por ejemplo, P-000124).")
+      return
+    }
+    setError(null)
+    setBuscando(true)
+    const r = await buscarPorTicket(usuario, ticket)
+    setBuscando(false)
+    setBuscado(ticket)
+    if (!r.ok) {
+      setError(r.error)
+      setResultados(null)
+    } else setResultados(r.data)
+  }
+
+  return (
+    <Card className="gap-3 px-4 py-3">
+      <form
+        className="flex flex-col gap-1.5"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void buscar()
+        }}
+      >
+        <Label htmlFor="traza-ticket">Buscar paleta por ticket</Label>
+        <div className="flex gap-2">
+          <Input
+            id="traza-ticket"
+            value={texto}
+            autoComplete="off"
+            placeholder="Pega el texto del QR o escribe P-000124"
+            onChange={(e) => setTexto(e.target.value)}
+            onPaste={(e) => {
+              // Al pegar el texto del QR, busca enseguida.
+              const pegado = e.clipboardData.getData("text")
+              if (pegado.trim()) {
+                e.preventDefault()
+                setTexto(pegado.trim())
+                void buscar(pegado)
+              }
+            }}
+            className="max-w-md"
+          />
+          <Button type="submit" variant="outline" disabled={buscando}>
+            {buscando ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+            Buscar
+          </Button>
+        </div>
+        <span className="text-xs text-muted-foreground">Con la cámara del teléfono (o Google Lens) apunta al QR del ticket, copia el texto y pégalo aquí.</span>
+      </form>
+      <MensajeError error={error} />
+      {resultados && resultados.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No hay ninguna paleta con el ticket <b className="num text-foreground">{buscado}</b>.
+        </p>
+      )}
+      {resultados && resultados.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {resultados.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="flex flex-wrap items-center gap-2">
+                  <b className="num text-lg">Nº {numeroPaleta4(p.numero)}</b>
+                  {p.anuladaEn ? (
+                    <Badge variant="muted">Anulada</Badge>
+                  ) : p.conforme ? (
+                    <Badge variant="success">Conforme</Badge>
+                  ) : (
+                    <Badge variant="danger">No conforme</Badge>
+                  )}
+                  <span className="num text-sm text-muted-foreground">Ticket {p.ticket}</span>
+                </span>
+                <span className="text-sm font-semibold">{lineaSabor(p)}</span>
+                <span className="text-sm text-muted-foreground">
+                  {lineaPresentacion(p)} · {p.cajas ?? "—"} cajas · Lote {p.lote ?? "—"}
+                </span>
+                <span className="num text-xs text-muted-foreground">
+                  {p.lineaNombre} · {p.fechaProduccion ? fechaHoja(p.fechaProduccion) : "—"} · Turno {numeroTurno(p.turnoTipo)} · Vence {textoVence(p.vence)}
+                </span>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                {puedeImprimir && p.ticketSistema && !p.anuladaEn && (
+                  <Button size="sm" variant="outline" onClick={() => void onReimprimir(p)}>
+                    <Printer className="size-4" />
+                    Reimprimir
+                  </Button>
+                )}
+                {p.fechaProduccion && !p.anuladaEn && (
+                  <Button size="sm" onClick={() => onIrAlDia(p.fechaProduccion!)}>
+                    Ver el día
+                  </Button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   )
 }
 

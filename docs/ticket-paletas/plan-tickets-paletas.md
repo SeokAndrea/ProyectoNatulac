@@ -1,9 +1,31 @@
 # Plan: ticket de paleta impreso por el sistema, con QR (2026-11-17)
 
-Pedido de Alexander. **Solo plan, sin código** hasta que lo apruebe. Es una **prueba**: va detrás de un
-interruptor en Robot Tavil; apagado, todo sigue como hoy (el operador escribe el ticket del papel).
+Pedido de Alexander. Es una **prueba**: va detrás de un interruptor en Robot Tavil; apagado, todo sigue
+como hoy (el operador escribe el ticket del papel).
 
-Maquetas hechas sobre la app real con datos simulados (en esta carpeta):
+## Estado: HECHO (2026-11-17) en la rama `tickets-paletas`, sin unir a main ni subir
+
+Sale de `Adenpior_V2.0` (incluye «Clásico» y «Bebida té negro»). Migración
+`20261116590000_tickets_paletas.sql`; ensayo `scripts/ensayo-tickets-paletas.sql`.
+
+- **Base:** `robot_tavil_config` (interruptor por área + copias 1–4), permiso `ROBOT_TAVIL_TICKETS`,
+  secuencia `P-000001…`, `sabores.vida_util_meses` (cargada de la tabla de la sección 4d),
+  `robot_tavil_paletas.vence / ticket_sistema / impresiones`, `robot_tavil_registrar_impresion()`
+  (la reimpresión va a Auditoría), `trazabilidad_paletizado_buscar()`. Sumar, corregir y «−» devuelven la
+  paleta (`creada` / `editada` / `anulada`).
+- **App:** tarjeta «Tickets por sistema · Prueba» con doble confirmación; el «+» sin ticket y «Crear e
+  imprimir ticket»; etiqueta `EtiquetaPaleta` (qrcode.react 4.2.0) impresa por el navegador
+  (`src/lib/imprimirEtiqueta.tsx`, `@page 100mm 150mm`, una página por copia); «Reimprimir» en el aviso y al
+  corregir; «−» avisa retirar el ticket; buscador por ticket en Trazabilidad (pegar el texto del QR); aviso
+  de ticket desactualizado al corregir la conformidad; «Vida útil (meses)» en Edición de Datos → Sabores.
+- **Verificado:** ensayo SQL en PGlite (y los demás ensayos igual que antes), `tsc`, pruebas de Vitest,
+  y recorrido en el navegador con la API simulada (sin tocar la base): el documento impreso tiene 2 páginas
+  de 100 × 150 mm con 2 copias. Fotos en [app/](app/).
+- **Falta:** probar con la impresora real cuando se compre (driver de Windows; Chrome con
+  `--kiosk-printing` para que no salga el cuadro de impresión) y cargar en Edición de Datos la vida útil
+  de los sabores que no encajaron por nombre.
+
+Maquetas del plan (antes de programar), hechas sobre la app real con datos simulados:
 
 | Imagen | Qué muestra |
 |---|---|

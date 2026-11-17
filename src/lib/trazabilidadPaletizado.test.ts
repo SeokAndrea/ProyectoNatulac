@@ -35,6 +35,13 @@ const paleta = (over: Partial<Paleta> = {}): Paleta => ({
   presentacionCodigo: "TBA-1000 cm3",
   editadaEn: null,
   editadaPor: null,
+  saborNombreBase: null,
+  creadaPor: null,
+  vence: null,
+  ticketSistema: false,
+  impresiones: 0,
+  impresaEn: null,
+  anuladaEn: null,
   ...over,
 })
 

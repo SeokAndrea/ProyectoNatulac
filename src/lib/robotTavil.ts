@@ -152,6 +152,58 @@ export function mapearPantallaRobot(data: unknown): LineaRobot[] {
   }))
 }
 
+/** Interruptor «Tickets por sistema» del área (migración 20261116590000). */
+export interface ConfigTickets {
+  activo: boolean
+  /** Copias por paleta (1 a 4). */
+  copias: number
+  cambiadoEn: string | null
+  cambiadoPor: string | null
+}
+
+export const SIN_TICKETS: ConfigTickets = { activo: false, copias: 1, cambiadoEn: null, cambiadoPor: null }
+
+interface FilaConfigTickets {
+  activo?: boolean | null
+  copias?: number | string | null
+  cambiado_en?: string | null
+  cambiado_por?: string | null
+}
+
+export function mapearConfigTickets(f: FilaConfigTickets | null | undefined): ConfigTickets {
+  if (!f) return SIN_TICKETS
+  const copias = Number(f.copias)
+  return {
+    activo: f.activo === true,
+    copias: Number.isInteger(copias) && copias >= 1 ? Math.min(copias, 4) : 1,
+    cambiadoEn: f.cambiado_en ?? null,
+    cambiadoPor: f.cambiado_por ?? null,
+  }
+}
+
+/**
+ * Lo que devuelven la lectura y cada acción: las líneas, el interruptor de
+ * tickets y, según la acción, la paleta creada («+»), corregida o anulada («−»).
+ */
+export interface PantallaRobot {
+  lineas: LineaRobot[]
+  tickets: ConfigTickets
+  creada: Paleta | null
+  editada: Paleta | null
+  anulada: Paleta | null
+}
+
+export function mapearPantalla(data: unknown): PantallaRobot {
+  const d = (data ?? {}) as { tickets?: FilaConfigTickets; creada?: FilaPaleta; editada?: FilaPaleta; anulada?: FilaPaleta }
+  return {
+    lineas: mapearPantallaRobot(data),
+    tickets: mapearConfigTickets(d.tickets),
+    creada: d.creada ? mapearPaleta(d.creada) : null,
+    editada: d.editada ? mapearPaleta(d.editada) : null,
+    anulada: d.anulada ? mapearPaleta(d.anulada) : null,
+  }
+}
+
 export function mapearPrecargas(data: unknown): PrecargaRobot[] {
   return ((data as FilaPrecarga[] | null) ?? []).map((f) => ({
     corridaId: f.turno_linea_id,
@@ -180,14 +232,14 @@ export function mensajeErrorRobot(mensaje: string | null | undefined): string {
  * Quién usa el Robot Tavil lo decide solo el permiso ROBOT_TAVIL_CARGAR: el
  * interruptor por área se quitó en la migración 20261115390000.
  */
-async function llamar(funcion: string, args: Record<string, unknown>): Promise<Lectura<LineaRobot[]>> {
+async function llamar(funcion: string, args: Record<string, unknown>): Promise<Lectura<PantallaRobot>> {
   const { data, error } = await supabase.rpc(funcion, args)
   if (error) return { ok: false, error: mensajeErrorRobot(error.message) }
-  return { ok: true, data: mapearPantallaRobot(data) }
+  return { ok: true, data: mapearPantalla(data) }
 }
 
 export const leerPantallaRobot = (usuario: string) => llamar("robot_tavil_estado", { p_usuario: usuario })
-/** Lo que pide el «+»: el ticket y la conformidad. El tipo sale del interruptor de la línea. */
+/** Lo que pide el «+»: el ticket y la conformidad. El tipo sale del interruptor de la línea. Con «Tickets por sistema» el ticket va vacío. */
 export interface DatosNuevaPaleta extends DatosConformidad {
   ticket: string
   /** Segundo clic: guardar aunque el ticket ya esté en otra paleta (migración 20261116190000). */
@@ -243,6 +295,13 @@ export const guardarResto = (usuario: string, linea: string, cajas: number) =>
   llamar("robot_tavil_guardar_resto", { p_usuario: usuario, p_linea_codigo: linea, p_cajas: cajas })
 export const iniciarLote = (usuario: string, linea: string) => llamar("robot_tavil_iniciar", { p_usuario: usuario, p_linea_codigo: linea })
 
+/** Enciende o apaga «Tickets por sistema» y fija las copias (permiso ROBOT_TAVIL_TICKETS). */
+export async function configurarTickets(usuario: string, activo: boolean, copias: number): Promise<Lectura<ConfigTickets>> {
+  const { data, error } = await supabase.rpc("robot_tavil_configurar_tickets", { p_usuario: usuario, p_activo: activo, p_copias: copias })
+  if (error) return { ok: false, error: mensajeErrorRobot(error.message) }
+  return { ok: true, data: mapearConfigTickets(data as FilaConfigTickets) }
+}
+
 export async function listarPrecargas(usuario: string, turnoId: string): Promise<Lectura<PrecargaRobot[]>> {
   const { data, error } = await supabase.rpc("listar_precarga_robot_tavil", { p_usuario: usuario, p_turno_id: turnoId })
   if (error) return { ok: false, error: mensajeErrorRobot(error.message) }
@@ -260,6 +319,7 @@ const REFRESCO_PRECARGA_MS = 20_000
  */
 export function useRobotTavil(usuario: string | null) {
   const [lineas, setLineas] = useState<LineaRobot[]>([])
+  const [tickets, setTickets] = useState<ConfigTickets>(SIN_TICKETS)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -269,8 +329,10 @@ export function useRobotTavil(usuario: string | null) {
     async function cargar() {
       const r = await leerPantallaRobot(usuario!)
       if (!vivo) return
-      if (r.ok) setLineas(r.data)
-      else setError(r.error)
+      if (r.ok) {
+        setLineas(r.data.lineas)
+        setTickets(r.data.tickets)
+      } else setError(r.error)
       setCargando(false)
     }
     void cargar()
@@ -281,12 +343,16 @@ export function useRobotTavil(usuario: string | null) {
     }
   }, [usuario])
 
-  const ejecutar = useCallback(async (accion: () => Promise<Lectura<LineaRobot[]>>): Promise<boolean> => {
+  /** `alListo` recibe la pantalla de la acción (por ejemplo, la paleta creada para imprimir su ticket). */
+  const ejecutar = useCallback(async (accion: () => Promise<Lectura<PantallaRobot>>, alListo?: (p: PantallaRobot) => void): Promise<boolean> => {
     setError(null)
     try {
       const r = await accion()
-      if (r.ok) setLineas(r.data)
-      else setError(r.error)
+      if (r.ok) {
+        setLineas(r.data.lineas)
+        setTickets(r.data.tickets)
+        alListo?.(r.data)
+      } else setError(r.error)
       return r.ok
     } catch {
       setError("No se pudo conectar. Intenta de nuevo.")
@@ -295,19 +361,21 @@ export function useRobotTavil(usuario: string | null) {
   }, [])
 
   /** Como ejecutar, pero el error vuelve a quien llama (para mostrarlo dentro de un cuadro). */
-  const intentar = useCallback(async (accion: () => Promise<Lectura<LineaRobot[]>>): Promise<string | null> => {
+  const intentar = useCallback(async (accion: () => Promise<Lectura<PantallaRobot>>, alListo?: (p: PantallaRobot) => void): Promise<string | null> => {
     try {
       const r = await accion()
       if (!r.ok) return r.error
-      setLineas(r.data)
+      setLineas(r.data.lineas)
+      setTickets(r.data.tickets)
       setError(null)
+      alListo?.(r.data)
       return null
     } catch {
       return "No se pudo conectar. Intenta de nuevo."
     }
   }, [])
 
-  return { lineas, cargando, error, ejecutar, intentar }
+  return { lineas, tickets, setTickets, cargando, error, ejecutar, intentar }
 }
 
 /** Precarga del Robot Tavil de las corridas del turno (vacía sin turno). */

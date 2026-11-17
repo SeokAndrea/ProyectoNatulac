@@ -64,6 +64,15 @@ export interface Paleta {
   presentacionCodigo: string | null
   editadaEn: string | null
   editadaPor: string | null
+  /** Ticket de paleta por sistema (migración 20261116590000). Sin la migración llegan vacíos. */
+  saborNombreBase: string | null
+  creadaPor: string | null
+  /** Vencimiento guardado al crear la paleta (null si el sabor no tenía vida útil). */
+  vence: string | null
+  ticketSistema: boolean
+  impresiones: number
+  impresaEn: string | null
+  anuladaEn: string | null
 }
 
 export interface FilaPaleta {
@@ -88,6 +97,13 @@ export interface FilaPaleta {
   presentacion_codigo: string | null
   editada_en: string | null
   editada_por: string | null
+  sabor_nombre_base?: string | null
+  creada_por?: string | null
+  vence?: string | null
+  ticket_sistema?: boolean | null
+  impresiones?: number | string | null
+  impresa_en?: string | null
+  anulada_en?: string | null
 }
 
 const numeroONull = (v: number | string | null | undefined) => (v === null || v === undefined || v === "" ? null : Number(v))
@@ -115,6 +131,13 @@ export function mapearPaleta(f: FilaPaleta): Paleta {
     presentacionCodigo: f.presentacion_codigo,
     editadaEn: f.editada_en,
     editadaPor: f.editada_por,
+    saborNombreBase: f.sabor_nombre_base ?? null,
+    creadaPor: f.creada_por ?? null,
+    vence: f.vence ?? null,
+    ticketSistema: f.ticket_sistema === true,
+    impresiones: Number(f.impresiones) || 0,
+    impresaEn: f.impresa_en ?? null,
+    anuladaEn: f.anulada_en ?? null,
   }
 }
 
@@ -254,6 +277,25 @@ export async function listarTrazabilidad(
   if (error) return { ok: false, error: mensajeError(error.message) }
   const d = (data ?? {}) as { lineas?: LineaFiltro[]; paletas?: FilaPaleta[]; sabores?: SaborLeyenda[] }
   return { ok: true, data: { lineas: d.lineas ?? [], paletas: (d.paletas ?? []).map(mapearPaleta), sabores: d.sabores ?? [] } }
+}
+
+/** Paletas con ese ticket (las vivas primero; las anuladas también, marcadas). Migración 20261116590000. */
+export async function buscarPorTicket(usuario: string, ticket: string): Promise<Resultado<Paleta[]>> {
+  const { data, error } = await supabase.rpc("trazabilidad_paletizado_buscar", { p_usuario: usuario, p_ticket: ticket })
+  if (error) return { ok: false, error: mensajeError(error.message) }
+  return { ok: true, data: ((data ?? []) as FilaPaleta[]).map(mapearPaleta) }
+}
+
+/** Cuenta una impresión del ticket del sistema (la reimpresión queda en Auditoría). Devuelve la paleta al día. */
+export async function registrarImpresion(usuario: string, paletaId: string, copias: number, pagina: string): Promise<Resultado<Paleta>> {
+  const { data, error } = await supabase.rpc("robot_tavil_registrar_impresion", {
+    p_usuario: usuario,
+    p_paleta_id: paletaId,
+    p_copias: copias,
+    p_pagina: pagina,
+  })
+  if (error) return { ok: false, error: mensajeError(error.message) }
+  return { ok: true, data: mapearPaleta(data as FilaPaleta) }
 }
 
 export async function corregirConformidad(usuario: string, paletaId: string, d: DatosConformidad): Promise<Resultado<Paleta>> {
