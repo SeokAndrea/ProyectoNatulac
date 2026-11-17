@@ -205,3 +205,5 @@ begin
 end;
 $$;
 grant execute on function robot_tavil_editar_paleta(text, uuid, text, text, integer, boolean, integer[], text, text, boolean) to anon, authenticated;
+
+select * from asegurar_control_usuario();
