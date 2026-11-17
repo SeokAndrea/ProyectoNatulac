@@ -153,6 +153,16 @@ from (
   ('20261115890000', 'Robot Tavil: el aviso del lote anterior sabe si sigue abierto',
     exists (select 1 from fn where proname = 'robot_tavil_corrida_json' and prosrc like '%''abierta''%')),
   ('20261115990000', 'Preparación con PLC: cargas de kits y ajustes (y el usuario plc-bridge)',
-    exists (select 1 from fn where proname = 'confirmar_carga_plc') and exists (select 1 from fn where proname = 'registrar_carga_plc'))
+    exists (select 1 from fn where proname = 'confirmar_carga_plc') and exists (select 1 from fn where proname = 'registrar_carga_plc')),
+  ('20261116090000', 'Terminar parada: Mantenimiento con el catálogo nuevo no pide subsistema',
+    exists (select 1 from fn where proname = 'terminar_parada' and prosrc like '%catalogo_modular_area%' and prosrc like '%POR_DEFINIR%')),
+  ('20261116190000', 'Robot Tavil: ticket repetido con doble confirmación',
+    exists (select 1 from fn where proname = 'robot_tavil_sumar' and prosrc like '%p_confirmar_repetido%')),
+  ('20261116290000', 'Nitrógeno del turno: bombonas al recibir y al entregar',
+    exists (select 1 from fn where proname = 'guardar_nitrogeno_turno') and exists (select 1 from fn where proname = 'finalizar_turno' and prosrc like '%turno_nitrogeno%')),
+  ('20261116390000', 'Familia «Clásicos» pasa a «Clásico»',
+    exists (select 1 from fn where proname = 'es_familia_clasica') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_clasica%')),
+  ('20261116490000', 'Familia «Especiales» pasa a «Bebida té negro»',
+    exists (select 1 from fn where proname = 'es_familia_te') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_te%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

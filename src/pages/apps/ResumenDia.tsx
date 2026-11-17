@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, MessageSquareText } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, MessageSquareText } from "lucide-react"
 import { AppShell } from "@/components/AppShell"
 import { ActasDelDia } from "@/components/resumen-dia/ActasDelDia"
 import { CajasPorGrupo } from "@/components/resumen-dia/CajasPorGrupo"
@@ -9,12 +9,15 @@ import { LineasDelDia } from "@/components/resumen-dia/LineasDelDia"
 import { MensajeWhatsApp } from "@/components/resumen-dia/MensajeWhatsApp"
 import { NovedadesDelDia } from "@/components/resumen-dia/NovedadesDelDia"
 import { ParadasDelDia } from "@/components/resumen-dia/ParadasDelDia"
+import { VistaSemana } from "@/components/resumen-dia/VistaSemana"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth"
 import { useCatalogosLive } from "@/lib/catalogosLive"
 import { puede } from "@/lib/permisos"
 import { franjaDeHora, restarDias } from "@/lib/tiempoPlanta"
+import { lunesDeSemana, textoSemana } from "@/lib/resumenSemana"
+import { cn } from "@/lib/utils"
 import {
   cargarResumenDia,
   cargarValidacionesTurno,
@@ -47,7 +50,8 @@ import {
  * cajas por sabor y presentación, por línea, paradas y novedades. La
  * analista (VALIDAR) ve además las cajas por grupo y el mensaje de WhatsApp,
  * donde corrige el número oficial del día. Ver src/lib/resumenDiario.ts y
- * src/lib/resumenDia.ts.
+ * src/lib/resumenDia.ts. Vista Semana (Alexander, 2026-11-17): lunes a
+ * domingo, sin actas; ver src/lib/resumenSemana.ts.
  */
 const AREA = "ASEPTICO"
 
@@ -65,13 +69,16 @@ export default function ResumenDia() {
   // Jornada operativa en curso (7:00 a 7:00): de madrugada, todavía es la del día anterior.
   const hoy = franjaDeHora().fecha
   const [fecha, setFecha] = useState(() => restarDias(hoy, 1))
+  const [modo, setModo] = useState<"dia" | "semana">("dia")
+  const estaSemana = lunesDeSemana(hoy)
+  const [lunes, setLunes] = useState(estaSemana)
   const [cargado, setCargado] = useState<Cargado | null>(null)
   /** Sube con cada corrección: vuelve a pedir el resumen sin cambiar la fecha. */
   const [version, setVersion] = useState(0)
   const esAnalista = puede(session, "VALIDAR")
 
   useEffect(() => {
-    if (!session || !fecha) return
+    if (!session || !fecha || modo !== "dia") return
     let vivo = true
     Promise.all([
       cargarResumenDia(session.username, AREA, fecha),
@@ -91,7 +98,7 @@ export default function ResumenDia() {
     return () => {
       vivo = false
     }
-  }, [session, fecha, version])
+  }, [session, fecha, version, modo])
   const vigente = cargado?.fecha === fecha ? cargado : null
 
   // Solo las líneas físicas (LINEA_1, LINEA_2...), sin las de Pruebas.
@@ -120,18 +127,69 @@ export default function ResumenDia() {
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Fecha</span>
-              <Input type="date" value={fecha} max={hoy} onChange={(e) => setFecha(e.target.value)} className="w-[170px]" />
-            </label>
-            <Button size="sm" variant={fecha === hoy ? "default" : "outline"} onClick={() => setFecha(hoy)}>
-              Hoy
-            </Button>
-            <Button size="sm" variant={fecha === restarDias(hoy, 1) ? "default" : "outline"} onClick={() => setFecha(restarDias(hoy, 1))}>
-              Ayer
-            </Button>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Ver</span>
+              <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="Ver por día o por semana">
+                {(["dia", "semana"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    aria-pressed={modo === m}
+                    onClick={() => setModo(m)}
+                    className={cn(
+                      "rounded-md px-3 py-1 text-sm font-medium",
+                      modo === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {m === "dia" ? "Día" : "Semana"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {modo === "semana" ? (
+              <>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Semana (lunes a domingo)</span>
+                  <div className="flex items-center gap-1">
+                    <Button size="icon" variant="outline" className="size-8" aria-label="Semana anterior" onClick={() => setLunes((l) => restarDias(l, 7))}>
+                      <ChevronLeft className="size-4" />
+                    </Button>
+                    <span className="num min-w-28 text-center text-sm font-medium">{textoSemana(lunes)}</span>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="size-8"
+                      aria-label="Semana siguiente"
+                      disabled={lunes >= estaSemana}
+                      onClick={() => setLunes((l) => restarDias(l, -7))}
+                    >
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+                <Button size="sm" variant={lunes === estaSemana ? "default" : "outline"} onClick={() => setLunes(estaSemana)}>
+                  Esta semana
+                </Button>
+                <Button size="sm" variant={lunes === restarDias(estaSemana, 7) ? "default" : "outline"} onClick={() => setLunes(restarDias(estaSemana, 7))}>
+                  Semana pasada
+                </Button>
+              </>
+            ) : (
+              <>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Fecha</span>
+                  <Input type="date" value={fecha} max={hoy} onChange={(e) => setFecha(e.target.value)} className="w-[170px]" />
+                </label>
+                <Button size="sm" variant={fecha === hoy ? "default" : "outline"} onClick={() => setFecha(hoy)}>
+                  Hoy
+                </Button>
+                <Button size="sm" variant={fecha === restarDias(hoy, 1) ? "default" : "outline"} onClick={() => setFecha(restarDias(hoy, 1))}>
+                  Ayer
+                </Button>
+              </>
+            )}
           </div>
-          {esAnalista && vigente?.dia && (
+          {modo === "dia" && esAnalista && vigente?.dia && (
             <Button size="sm" onClick={() => document.getElementById("mensaje-whatsapp")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
               <MessageSquareText className="size-3.5" />
               Mensaje para WhatsApp
@@ -139,52 +197,71 @@ export default function ResumenDia() {
           )}
         </div>
 
-        {vigente?.error && (
-          <p className="text-sm text-destructive" role="alert">
-            {vigente.error}
-          </p>
-        )}
-
-        {!vigente ? (
-          <div className="flex justify-center py-16 text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" />
-          </div>
+        {modo === "semana" ? (
+          <VistaSemana
+            usuario={session?.username ?? ""}
+            area={AREA}
+            lunes={lunes}
+            hoy={hoy}
+            esAnalista={esAnalista}
+            lineas={lineasPlanta}
+            presentaciones={presentaciones}
+            nombreLinea={nombreLinea}
+            onVerDia={(f) => {
+              setFecha(f)
+              setModo("dia")
+            }}
+          />
         ) : (
           <>
-            {diario && (
+            {vigente?.error && (
+              <p className="text-sm text-destructive" role="alert">
+                {vigente.error}
+              </p>
+            )}
+
+            {!vigente ? (
+              <div className="flex justify-center py-16 text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+              </div>
+            ) : (
               <>
-                <ActasDelDia turnos={turnos} />
-                <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-                  <CajasPorSabor filas={cajasPorSaborYTurno(items, porTurno, turnos)} etiquetas={turnos.map((t) => t.etiqueta)} />
-                  <LineasDelDia lineas={lineasDelDia(lineasPlanta, turnos, porTurno, diario.paradas, presentaciones)} />
-                  <ParadasDelDia paradas={paradasQueMasQuitaron(diario.paradas)} nombreLinea={nombreLinea} />
-                  {!esAnalista && <NovedadesDelDia turnos={turnos} />}
-                </div>
-                {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(turnos)} />}
-                {esAnalista && (
-                  <ContadoresDelDia
-                    filas={contadoresDelDia(turnos, presentaciones)}
-                    nombreLinea={nombreLinea}
-                    supervisorDe={(etiqueta) => turnos.find((t) => t.etiqueta === etiqueta)?.turno.supervisorNombre ?? null}
-                    paradasDe={(turnoId, lineaCodigo) => paradasDeCorrida(diario.paradasPorTurno, turnoId, lineaCodigo)}
-                    usuario={session?.username ?? ""}
-                    area={AREA}
-                    fecha={fecha}
+                {diario && (
+                  <>
+                    <ActasDelDia turnos={turnos} />
+                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                      <CajasPorSabor filas={cajasPorSaborYTurno(items, porTurno, turnos)} etiquetas={turnos.map((t) => t.etiqueta)} />
+                      <LineasDelDia lineas={lineasDelDia(lineasPlanta, turnos, porTurno, diario.paradas, presentaciones)} />
+                      <ParadasDelDia paradas={paradasQueMasQuitaron(diario.paradas)} nombreLinea={nombreLinea} />
+                      {!esAnalista && <NovedadesDelDia turnos={turnos} />}
+                    </div>
+                    {esAnalista && <CajasPorGrupo grupos={cajasPorGrupo(turnos)} />}
+                    {esAnalista && (
+                      <ContadoresDelDia
+                        filas={contadoresDelDia(turnos, presentaciones)}
+                        nombreLinea={nombreLinea}
+                        supervisorDe={(etiqueta) => turnos.find((t) => t.etiqueta === etiqueta)?.turno.supervisorNombre ?? null}
+                        paradasDe={(turnoId, lineaCodigo) => paradasDeCorrida(diario.paradasPorTurno, turnoId, lineaCodigo)}
+                        usuario={session?.username ?? ""}
+                        area={AREA}
+                        fecha={fecha}
+                      />
+                    )}
+                  </>
+                )}
+                {esAnalista && vigente.dia && diario && (
+                  <MensajeWhatsApp
+                    dia={items}
+                    turnos={itemsTurno}
+                    etiquetaTurno={etiquetaTurno}
+                    volumenes={volumenes}
+                    cajasXPaleta={cajasXPaleta}
+                    mensaje={mensajeResumenDia(fecha, items)}
+                    validar={validar}
+                    onCambio={() => setVersion((v) => v + 1)}
                   />
                 )}
               </>
-            )}
-            {esAnalista && vigente.dia && diario && (
-              <MensajeWhatsApp
-                dia={items}
-                turnos={itemsTurno}
-                etiquetaTurno={etiquetaTurno}
-                volumenes={volumenes}
-                cajasXPaleta={cajasXPaleta}
-                mensaje={mensajeResumenDia(fecha, items)}
-                validar={validar}
-                onCambio={() => setVersion((v) => v + 1)}
-              />
             )}
           </>
         )}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { Session } from "@/lib/auth"
 import { apps, puedeVerApp } from "@/lib/apps"
 import type { RolCodigo } from "@/lib/catalogos"
-import { agruparPorSeccion, bloqueoDeApp } from "@/lib/navegacion"
+import { agruparPorSeccion, bloqueoDeApp, filtrarApps } from "@/lib/navegacion"
 
 const principales = apps.filter((a) => !a.atajo)
 const titulos = (rol?: Parameters<typeof agruparPorSeccion>[2]) => agruparPorSeccion(principales, false, rol).map((s) => s.titulo)
@@ -109,5 +109,24 @@ describe("Códigos de Mantenimiento", () => {
     for (const rol of ["MANTENIMIENTO", "SUPERVISOR", "JEFE_PRODUCCION", "ANALISTA"] as const) {
       expect(puedeVerApp(sesion(rol), app)).toBe(false)
     }
+  })
+})
+
+describe("filtrarApps (buscador del Hub)", () => {
+  const slugs = (busqueda: string) => filtrarApps(apps, busqueda).map((a) => a.slug)
+
+  it("sin búsqueda, todas", () => {
+    expect(slugs("   ")).toHaveLength(apps.length)
+  })
+
+  it("sin importar tildes ni mayúsculas, por título", () => {
+    expect(slugs("PRODUCCION")).toEqual(expect.arrayContaining(["panel-produccion", "comenzar-turno"]))
+    expect(slugs("calidad")).toContain("calidad")
+  })
+
+  it("también por descripción, y con todas las palabras", () => {
+    expect(slugs("brix")).toEqual(["calidad"])
+    expect(slugs("turno finalizar")).toEqual(["finalizar-turno"])
+    expect(slugs("zzz")).toEqual([])
   })
 })

@@ -19,7 +19,7 @@ export interface PropsFamilias {
 }
 
 /** Orden del informe; las familias nuevas van al final. */
-const ORDEN = ["Clasicos", "Clásicos", "Selecto", "Jucosa", "Premium", "Especiales"]
+const ORDEN = ["Clásico", "Clasicos", "Clásicos", "Selecto", "Jucosa", "Premium", "Bebida té negro", "Especiales"]
 const posicion = (f: string) => (ORDEN.includes(f) ? ORDEN.indexOf(f) : ORDEN.length)
 
 /*
@@ -45,7 +45,7 @@ export function VistaSemielaborado({
     .sort((a, b) => posicion(a) - posicion(b) || a.localeCompare(b))
 
   return (
-    <section aria-label="Semielaborado" className="flex min-h-0 flex-1 flex-col gap-2.5 rounded-xl border bg-card p-3" style={colorFamilia("Clasicos")}>
+    <section aria-label="Semielaborado" className="flex min-h-0 flex-1 flex-col gap-2.5 rounded-xl border bg-card p-3" style={colorFamilia("Clásico")}>
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
         <h2 className="text-[1.75rem] font-bold tracking-wide text-[var(--c-texto)]">SEMIELABORADO</h2>
         <span className="text-sm text-foreground">Rendimiento por producto · estándar 100 %</span>

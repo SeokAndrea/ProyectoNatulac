@@ -173,6 +173,7 @@ export function turnoDemo(over: Override): TurnoHistorial {
     salidasVacio: [],
     novedades: [],
     ajustesVolumen: [],
+    nitrogeno: { aplica: false, datos: null, turnoAnterior: null },
     ...over,
   }
 }

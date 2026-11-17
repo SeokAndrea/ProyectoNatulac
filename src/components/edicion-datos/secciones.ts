@@ -127,7 +127,7 @@ export const SECCIONES_CATALOGO: Seccion[] = [
         etiqueta: "Familia",
         tipo: "opciones",
         opciones: [
-          { valor: "CLASICOS", etiqueta: "Clásicos", orden: 0 },
+          { valor: "CLASICOS", etiqueta: "Clásico", orden: 0 },
           { valor: "PREMIUM", etiqueta: "Premium", orden: 1 },
           { valor: "TE", etiqueta: "Té", orden: 2 },
         ],

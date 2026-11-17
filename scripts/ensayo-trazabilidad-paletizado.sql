@@ -55,9 +55,9 @@ begin
   select id, codigo into v_linea, v_cod from lineas where area_id = v_area and activo order by codigo limit 1;
   if v_linea is null then raise exception 'Falta una línea activa en Pruebas.'; end if;
   select s.id into v_mz from sabores s join familias_producto f on f.id = s.familia_id
-   where s.nombre ilike 'manzana' and f.nombre ilike 'cl%sicos' limit 1;
+   where s.nombre ilike 'manzana' and f.nombre ilike 'cl%sico%' limit 1;
   select s.id into v_pr from sabores s join familias_producto f on f.id = s.familia_id
-   where s.nombre ilike 'pera' and f.nombre ilike 'cl%sicos' limit 1;
+   where s.nombre ilike 'pera' and f.nombre ilike 'cl%sico%' limit 1;
   select id into v_pres from presentaciones where volumen_ml = 1000;
   if v_mz is null or v_pr is null or v_pres is null then raise exception 'Faltan Manzana/Pera Clásicos o la presentación de 1000 ml.'; end if;
 
@@ -113,8 +113,20 @@ begin
     raise exception '1: datos de la última paleta: %', v_p;
   end if;
 
-  -- Ticket repetido: se bloquea (sin distinguir mayúsculas ni espacios).
-  if not pg_temp.falla(format($q$ select robot_tavil_sumar('tz_op', %L, ' tz-t2 ') $q$, v_cod), 'Ese ticket ya está en la paleta Nº 2') then raise exception '1: ticket repetido'; end if;
+  -- Ticket repetido (20261116190000): sin confirmar avisa (sin distinguir mayúsculas ni espacios);
+  -- con p_confirmar_repetido se guarda y queda en Auditoría.
+  if not pg_temp.falla(format($q$ select robot_tavil_sumar('tz_op', %L, ' tz-t2 ') $q$, v_cod), 'TICKET_REPETIDO|Este ticket ya está registrado en la paleta Nº 2') then raise exception '1: ticket repetido avisa'; end if;
+  perform robot_tavil_sumar('tz_op', v_cod, ' tz-t2 ', true, '{}', null, null, true);
+  select id into v_id from robot_tavil_paletas where ticket = 'tz-t2' and anulada_en is null;
+  if v_id is null then raise exception '1: confirmado, se guarda el repetido'; end if;
+  update robot_tavil_paletas set creada_en = clock_timestamp() where id = v_id;
+  if not exists (select 1 from auditoria where entidad = 'robot_tavil_paletas' and entidad_id = v_id::text and (despues ->> 'ticket_repetido')::boolean) then
+    raise exception '1: el repetido queda en Auditoría';
+  end if;
+  if not pg_temp.falla(format($q$ select robot_tavil_sumar('tz_op', %L, 'TZ-T2') $q$, v_cod), 'registrado en las paletas Nº 4') then raise exception '1: nombra todas las paletas con ese ticket'; end if;
+  -- El «−» anula la repetida: la numeración sigue como antes.
+  perform robot_tavil_restar('tz_op', v_cod);
+  if exists (select 1 from robot_tavil_paletas where id = v_id and anulada_en is null) then raise exception '1: «−» anula la repetida'; end if;
 
   -- NC exige observación; el 7 pide texto.
   if not pg_temp.falla(format($q$ select robot_tavil_sumar('tz_op', %L, 'TZ-NC', false) $q$, v_cod), 'Marca al menos una observación') then raise exception '1: NC sin observación'; end if;
@@ -128,7 +140,7 @@ begin
   perform robot_tavil_restar('tz_op', v_cod);
   v_l := pg_temp.linea(pg_temp.sumar(v_cod, 'TZ-NC'), v_cod);
   if (v_l -> 'paletas_dia' -> 0 ->> 'numero')::int <> 4 then raise exception '1: el número anulado se reutiliza: %', v_l; end if;
-  if (v_l ->> 'anuladas_dia')::int <> 1 then raise exception '1: 1 anulada en el día'; end if;
+  if (v_l ->> 'anuladas_dia')::int <> 2 then raise exception '1: 2 anuladas en el día (la del ticket repetido y esta)'; end if;
 
   -- ---------------------------------------------------------------------
   -- 2. Combinaciones: MZ → PR → MZ continúa donde iba
@@ -164,9 +176,15 @@ begin
   -- 4. Corregir desde la lista del operador (auditado, ticket no repetido)
   -- ---------------------------------------------------------------------
   select id into v_id from robot_tavil_paletas where ticket = 'TZ-T1';
-  if not pg_temp.falla(format($q$ select robot_tavil_editar_paleta('tz_op', %L, 'TZ-T2', 'AUTOMATICO', 80, true, '{}', null, null) $q$, v_id), 'Ese ticket ya está') then
-    raise exception '4: corregir a un ticket repetido';
+  if not pg_temp.falla(format($q$ select robot_tavil_editar_paleta('tz_op', %L, 'TZ-T2', 'AUTOMATICO', 80, true, '{}', null, null) $q$, v_id), 'TICKET_REPETIDO|') then
+    raise exception '4: corregir a un ticket repetido avisa';
   end if;
+  perform robot_tavil_editar_paleta('tz_op', v_id, 'TZ-T2', 'AUTOMATICO', 80, true, '{}', null, null, true);
+  if not exists (select 1 from auditoria where entidad = 'robot_tavil_paletas' and entidad_id = v_id::text and (despues ->> 'ticket_repetido')::boolean) then
+    raise exception '4: corrección con repetido auditada';
+  end if;
+  -- Corregir otra cosa sin cambiar el ticket (ya repetido) no vuelve a preguntar.
+  perform robot_tavil_editar_paleta('tz_op', v_id, 'tz-t2', 'AUTOMATICO', 81, true, '{}', null, null);
   perform robot_tavil_editar_paleta('tz_op', v_id, 'TZ-T1b', 'MANUAL', 80, false, array[2], null, 'Se completó');
   if (select row(ticket, tipo_paletizado, cajas, conforme)::text from robot_tavil_paletas where id = v_id) <> '(TZ-T1b,MANUAL,80,f)' then raise exception '4: corregida'; end if;
   if not exists (select 1 from auditoria where entidad = 'robot_tavil_paletas' and entidad_id = v_id::text and antes ->> 'ticket' = 'TZ-T1') then raise exception '4: auditada con antes'; end if;

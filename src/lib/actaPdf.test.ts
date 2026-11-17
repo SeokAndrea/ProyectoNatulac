@@ -1,7 +1,24 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { generarActaPdf, notaParadaActa, finDelTurno, renglonParadaActa, sinReportarActa } from "@/lib/actaPdf"
 import type { Parada } from "@/lib/paradas"
 import { LINEAS_DEMO, PRESENTACIONES_DEMO, contador, corrida, prep, pt, tanque } from "@/lib/auditoriaDemoFixture"
+
+/** Todo lo que el acta escribe con doc.text (el PDF sale comprimido: no se puede buscar en el archivo). */
+const textos = vi.hoisted(() => [] as string[])
+vi.mock("jspdf", async (importOriginal) => {
+  const Real = (await importOriginal<typeof import("jspdf")>()).default
+  class ConEspia extends Real {
+    constructor(...args: ConstructorParameters<typeof Real>) {
+      super(...args)
+      const original = this.text.bind(this)
+      this.text = ((...a: Parameters<typeof original>) => {
+        textos.push(String(a[0]))
+        return original(...a)
+      }) as typeof original
+    }
+  }
+  return { default: ConEspia }
+})
 
 const VELOCIDADES_DEMO = (["LINEA_1", "LINEA_2", "LINEA_3"] as const).map((linea, i) => ({
   id: `v${i}`,
@@ -14,6 +31,47 @@ const VELOCIDADES_DEMO = (["LINEA_1", "LINEA_2", "LINEA_3"] as const).map((linea
 }))
 
 describe("generarActaPdf", () => {
+  const base = {
+    codigo: "T1-2026-11-17-1",
+    fecha: "2026-11-17",
+    turnoTipo: "TURNO_1" as const,
+    grupo: "GRUPO_1" as const,
+    tanquesEncontrados: null,
+    tanques: [],
+    preparaciones: [],
+    corridas: [],
+    contadores: [],
+    productoTerminado: [],
+    novedades: [],
+    ajustesVolumen: [],
+    supervisorNombre: "Javier Bello",
+    area: "ASEPTICO" as const,
+    lineas: LINEAS_DEMO,
+    presentaciones: PRESENTACIONES_DEMO,
+    velocidades: [...VELOCIDADES_DEMO],
+  }
+  async function textosDelActa(params: Parameters<typeof generarActaPdf>[0]): Promise<string> {
+    textos.length = 0
+    await generarActaPdf(params)
+    return textos.join(" | ")
+  }
+
+  it("nitrógeno: filas bajo 1.6 y 1.8 con lo recibido, lo que llegó, lo entregado y el consumo", async () => {
+    const pdf = await textosDelActa({ ...base, nitrogeno: { aplica: true, datos: { inicio: 3, llegaron: 2, fin: 4 }, turnoAnterior: 3 } })
+    for (const t of ["Nitrógeno al recibir (bombonas llenas)", "Entregó el turno anterior", "Nitrógeno al entregar (llenas)", "Llegaron en el turno", "Consumo del turno", "1 bombona", "4 bombonas"]) {
+      expect(pdf).toContain(t)
+    }
+  })
+
+  it("nitrógeno: turno de antes del cambio (aplica = false) o sin el dato, el acta queda como siempre", async () => {
+    const sinDato = await textosDelActa(base)
+    const viejo = await textosDelActa({ ...base, nitrogeno: { aplica: false, datos: null, turnoAnterior: null } })
+    expect(sinDato).not.toContain("Nitrógeno")
+    expect(viejo).not.toContain("Nitrógeno")
+    const sinCargar = await textosDelActa({ ...base, nitrogeno: { aplica: true, datos: null, turnoAnterior: null } })
+    expect(sinCargar).toContain("Sin registrar")
+  })
+
   it("genera un PDF sin datos cargados (turno recién abierto)", async () => {
     const blob = await generarActaPdf({
       codigo: "T1-2026-09-16-1",

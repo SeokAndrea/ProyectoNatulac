@@ -36,9 +36,12 @@ vi.mock("@/lib/robotTavil", () => ({
     ejecutar: async (fn: () => Promise<{ ok: boolean }>) => (await fn()).ok,
     intentar: async (fn: () => Promise<{ ok: boolean }>) => (await fn(), estado.errorAccion),
   }),
-  sumarPaleta: vi.fn(async (u: string, l: string, d: { ticket: string; conforme: boolean; observacionCodigos: number[] }) => (
-    llamadas.push(`sumar ${u} ${l} ${d.ticket} ${d.conforme ? "C" : `NC ${d.observacionCodigos.join(",")}`}`), OK
-  )),
+  avisoTicketRepetido: (e: string | null) => (e?.startsWith("TICKET_REPETIDO|") ? e.slice("TICKET_REPETIDO|".length) : null),
+  sumarPaleta: vi.fn(
+    async (u: string, l: string, d: { ticket: string; conforme: boolean; observacionCodigos: number[]; confirmarRepetido?: boolean }) => (
+      llamadas.push(`sumar ${u} ${l} ${d.ticket} ${d.conforme ? "C" : `NC ${d.observacionCodigos.join(",")}`}${d.confirmarRepetido ? " REPETIDO" : ""}`), OK
+    ),
+  ),
   editarPaleta: vi.fn(async (u: string, id: string, d: { ticket: string; tipoPaletizado: string; cajas: number }) => (
     llamadas.push(`editar ${u} ${id} ${d.ticket} ${d.tipoPaletizado} ${d.cajas}`), OK
   )),
@@ -164,17 +167,39 @@ describe("Robot Tavil", () => {
     await waitFor(() => expect(llamadas).toEqual(["sumar op LINEA_1 T-201 NC 5"]))
   })
 
-  it("el error del servidor (ticket repetido) se queda en el cuadro", async () => {
+  it("otro error del servidor se queda en el cuadro", async () => {
     const u = userEvent.setup()
     estado.lineas = [linea()]
-    estado.errorAccion = "Ese ticket ya está en la paleta Nº 3 de la Línea 1 (04/11/2026). No se puede repetir: revisa el papel."
+    estado.errorAccion = "Esta línea no tiene una corrida en curso."
     render(<RobotTavil />)
     await u.click(tarjeta().getByRole("button", { name: "Sumar una paleta a Línea 1" }))
     const cuadro = within(screen.getByRole("dialog"))
     await u.type(cuadro.getByLabelText("Nº de ticket"), "T-108")
     await u.click(cuadro.getByRole("button", { name: "Crear paleta" }))
-    expect(await cuadro.findByText(/Ese ticket ya está en la paleta Nº 3/)).toBeInTheDocument()
+    expect(await cuadro.findByText(/no tiene una corrida en curso/)).toBeInTheDocument()
     expect(screen.getByRole("dialog")).toBeInTheDocument()
+  })
+
+  it("ticket repetido: avisa dónde está y guarda con el segundo clic", async () => {
+    const u = userEvent.setup()
+    estado.lineas = [linea()]
+    estado.errorAccion = "TICKET_REPETIDO|Este ticket ya está registrado en la paleta Nº 3 de la Línea 1 (04/11/2026)."
+    render(<RobotTavil />)
+    await u.click(tarjeta().getByRole("button", { name: "Sumar una paleta a Línea 1" }))
+    const cuadro = within(screen.getByRole("dialog"))
+    await u.type(cuadro.getByLabelText("Nº de ticket"), "T-108")
+    await u.click(cuadro.getByRole("button", { name: "Crear paleta" }))
+    expect(await cuadro.findByText(/ya está registrado en la paleta Nº 3/)).toBeInTheDocument()
+    expect(cuadro.queryByText(/TICKET_REPETIDO/)).not.toBeInTheDocument()
+    // Cambiar el ticket quita el aviso; volver al repetido lo pide de nuevo.
+    await u.type(cuadro.getByLabelText("Nº de ticket"), "9")
+    expect(cuadro.getByRole("button", { name: "Crear paleta" })).toBeInTheDocument()
+    await u.type(cuadro.getByLabelText("Nº de ticket"), "{backspace}")
+    await u.click(cuadro.getByRole("button", { name: "Crear paleta" }))
+    estado.errorAccion = null
+    await u.click(await cuadro.findByRole("button", { name: "Sí, guardar con el ticket repetido" }))
+    await waitFor(() => expect(llamadas).toEqual(["sumar op LINEA_1 T-108 C", "sumar op LINEA_1 T-108 C", "sumar op LINEA_1 T-108 C REPETIDO"]))
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   })
 
   it("la franja «Paleta manual» pide confirmación antes de cambiar", async () => {

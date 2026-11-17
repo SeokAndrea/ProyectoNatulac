@@ -16,6 +16,7 @@ import { duracionMin, fmtDuracion, partesNotaSheet, type Parada } from "@/lib/pa
 import type { NovedadTurno } from "@/lib/novedades"
 import type { LecturaServiciosIndustriales } from "@/lib/panelProduccion"
 import { tramoT2 } from "@/lib/turno12x12"
+import { consumoNitrogeno, textoBombonas, type NitrogenoActa } from "@/lib/nitrogeno"
 
 /*
  * Acta de Entrega de Turno en PDF (jsPDF), CALCADA del acta real de Natulac
@@ -33,7 +34,9 @@ import { tramoT2 } from "@/lib/turno12x12"
  * Lo que el sistema suma al formato original va dentro de las mismas
  * casillas: las paradas en los recuadros por línea de 2.1; ajustes de
  * agua/jugo, entregas automáticas, Servicios Industriales y correcciones
- * en 2.3; relevos en 1.4. 1.9 es solo el resumen de cajas (sin calidad /
+ * en 2.3; relevos en 1.4; el nitrógeno en una fila bajo 1.6 (al recibir) y
+ * otra bajo 1.8 (al entregar, llegaron y consumo), solo en los turnos nuevos
+ * (migración 20261116290000). 1.9 es solo el resumen de cajas (sin calidad /
  * no conforme) y la firma es solo la del supervisor saliente (dueño, 2026-10-01).
  */
 
@@ -150,6 +153,8 @@ export async function generarActaPdf(params: {
   lineas: LineaLive[]
   presentaciones: PresentacionLive[]
   velocidades: VelocidadLive[]
+  /** Bombonas de nitrógeno (src/lib/nitrogeno.ts). Sin él, o en turnos de antes (aplica = false), no salen sus filas. */
+  nitrogeno?: NitrogenoActa | null
 }): Promise<Blob> {
   const {
     codigo,
@@ -179,6 +184,7 @@ export async function generarActaPdf(params: {
     lineas,
     presentaciones,
     velocidades,
+    nitrogeno = null,
   } = params
 
   const doc = new jsPDF({ unit: "mm", format: "a4" })
@@ -349,6 +355,19 @@ export async function generarActaPdf(params: {
   }
   bloqueTanques("1.6 CONDICIÓN EN LA QUE RECIBEN LOS TANQUES", (n) => tanquesEncontrados?.find((t) => t.numeroTanque === n) ?? null)
 
+  // ---------------------------------------------------------------- nitrógeno (filas bajo 1.6 y 1.8)
+  const bombonas = (n: number | null | undefined) => (n === null || n === undefined ? "Sin registrar" : textoBombonas(n))
+  const etiquetaNitrogeno = { fondo: CELESTE, negrita: true, tamano: 7 } as const
+  const datoNitrogeno = { negrita: true, tamano: 8 } as const
+  if (nitrogeno?.aplica) {
+    asegurar(5)
+    celda(M, y, 3 * C, 5, "Nitrógeno al recibir (bombonas llenas)", etiquetaNitrogeno)
+    celda(M + 3 * C, y, 1.5 * C, 5, bombonas(nitrogeno.datos?.inicio), datoNitrogeno)
+    celda(M + 4.5 * C, y, 2.5 * C, 5, "Entregó el turno anterior", etiquetaNitrogeno)
+    celda(M + 7 * C, y, 2 * C, 5, nitrogeno.turnoAnterior !== null ? textoBombonas(nitrogeno.turnoAnterior) : "--", datoNitrogeno)
+    y += 5
+  }
+
   // ---------------------------------------------------------------- 1.7 semielaborado
   barra("1.7 SEGUIMIENTO DEL SEMIELABORADO")
   {
@@ -417,6 +436,17 @@ export async function generarActaPdf(params: {
   }
 
   bloqueTanques("1.8 CONDICIÓN EN LA QUE ENTREGAN LOS TANQUES", (n) => tanques.find((t) => t.numeroTanque === n) ?? null)
+  if (nitrogeno?.aplica) {
+    const consumo = consumoNitrogeno(nitrogeno.datos)
+    asegurar(5)
+    celda(M, y, 2.5 * C, 5, "Nitrógeno al entregar (llenas)", etiquetaNitrogeno)
+    celda(M + 2.5 * C, y, C, 5, bombonas(nitrogeno.datos?.fin), datoNitrogeno)
+    celda(M + 3.5 * C, y, 1.5 * C, 5, "Llegaron en el turno", etiquetaNitrogeno)
+    celda(M + 5 * C, y, C, 5, textoBombonas(nitrogeno.datos?.llegaron ?? 0), datoNitrogeno)
+    celda(M + 6 * C, y, 1.5 * C, 5, "Consumo del turno", etiquetaNitrogeno)
+    celda(M + 7.5 * C, y, 1.5 * C, 5, consumo !== null ? textoBombonas(consumo) : "--", datoNitrogeno)
+    y += 5
+  }
 
   // ---------------------------------------------------------------- 1.9 producción
   barra("1.9 ESTADO DE LA PRODUCCIÓN/REALIZADO")

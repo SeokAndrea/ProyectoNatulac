@@ -8,6 +8,7 @@ import { pctRendimiento } from "@/lib/reportes/teorico"
 import type { ItemDia, ItemTurno } from "@/lib/resumenDia"
 import { mapearTurno, type FilaTurno, type TurnoActivo } from "@/lib/turno"
 import { nombreGrupo, type GrupoCodigo } from "@/lib/catalogos"
+import { consumoNitrogeno, mapearNitrogeno, type FilaNitrogeno } from "@/lib/nitrogeno"
 
 /*
  * Resumen Diario (boceto aprobado por la dueña, 2026-10-08): lo ven el Jefe
@@ -47,6 +48,8 @@ export interface DatosResumenDiario {
   paradas: Parada[]
   /** Las mismas paradas, por id de turno (para ver las de una corrida). */
   paradasPorTurno: Record<string, Parada[]>
+  /** Bombonas de nitrógeno consumidas en la jornada (todos los turnos, con o sin producción). null: ninguno las tiene cargadas. */
+  nitrogenoConsumo: number | null
 }
 
 /** Turnos de la jornada que tienen producción, en orden (T1, T2, T3), con su acta, novedades y paradas. */
@@ -70,7 +73,9 @@ export async function cargarResumenDiario(usuario: string, area: string, fecha: 
     cajas: Number(f.cajas),
   }))
 
-  const filas = porTipo.flatMap((r) => (Array.isArray(r.data) ? (r.data as (FilaTurno & { novedades?: unknown[] })[]) : []))
+  const filas = porTipo.flatMap((r) => (Array.isArray(r.data) ? (r.data as (FilaTurno & FilaNitrogeno & { novedades?: unknown[] })[]) : []))
+  const consumos = filas.map((f) => consumoNitrogeno(mapearNitrogeno(f).datos)).filter((c): c is number => c !== null)
+  const nitrogenoConsumo = consumos.length > 0 ? consumos.reduce((a, c) => a + c, 0) : null
   const conDatos = filas
     .map((fila) => ({ fila, cajas: porTurno.filter((p) => p.turnoId === fila.id).reduce((a, p) => a + p.cajas, 0) }))
     .filter((t) => t.cajas > 0)
@@ -85,7 +90,7 @@ export async function cargarResumenDiario(usuario: string, area: string, fecha: 
   }))
   const deCadaTurno = await Promise.all(turnos.map((t) => cargarParadasDelTurno(t.turno.id)))
   const paradasPorTurno = Object.fromEntries(turnos.map((t, i) => [t.turno.id, deCadaTurno[i]]))
-  return { turnos, porTurno, paradas: deCadaTurno.flat(), paradasPorTurno }
+  return { turnos, porTurno, paradas: deCadaTurno.flat(), paradasPorTurno, nitrogenoConsumo }
 }
 
 /** Las paradas de la línea de una corrida, en su turno, en orden de hora. */

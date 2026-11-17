@@ -7,11 +7,11 @@ const miles = (n: number) => n.toLocaleString("es-CO")
 const LIMITE_PCT = LIMITE_MERMA * 100
 
 /** Por línea: cajas del día, merma de envase del día (todos los lotes juntos) y minutos de parada. */
-export function LineasDelDia({ lineas }: { lineas: LineaDelDia[] }) {
+export function LineasDelDia({ lineas, semana = false }: { lineas: LineaDelDia[]; semana?: boolean }) {
   const altas = lineas.filter((l) => l.mermaPct !== null && l.mermaPct > LIMITE_PCT).length
   return (
     <Desplegable titulo="Por línea" resumen={altas > 0 ? <span className="font-semibold text-destructive">{altas} con merma alta</span> : undefined}>
-      <span className="text-xs text-muted-foreground">Merma de envase del día · límite {LIMITE_PCT} %</span>
+      <span className="text-xs text-muted-foreground">Merma de envase {semana ? "de la semana" : "del día"} · límite {LIMITE_PCT} %</span>
       <Table>
         <TableHeader>
           <TableRow>

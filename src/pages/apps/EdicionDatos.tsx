@@ -19,7 +19,7 @@ import { listarFamilias, type Familia } from "@/lib/sabores"
  * la URL (?s=velocidades). Personal tiene su propia pantalla.
  */
 const AJUSTES = "ajustes"
-const NOMBRE_FAMILIA: Record<string, string> = { CLASICOS: "Clásicos", PREMIUM: "Premium", TE: "Té" }
+const NOMBRE_FAMILIA: Record<string, string> = { CLASICOS: "Clásico", PREMIUM: "Premium", TE: "Té" }
 
 export default function EdicionDatos() {
   const { session } = useAuth()

@@ -5,6 +5,7 @@ import { esAreaDeApoyo, type RolCodigo } from "@/lib/catalogos"
 import { puede } from "@/lib/permisos"
 import { useSesionTurno } from "@/lib/sesionTurno"
 import { continuidadReciente, type ContinuidadTurno } from "@/lib/continuidadTurno"
+import { tienePalabras } from "@/lib/texto"
 
 /*
  * Navegación entre pantallas: lo comparten el Hub, el menú lateral (PC) y
@@ -35,6 +36,15 @@ export const FLUJO_SUPERVISOR = [
 
 /** Supervisor (quien más usa la app): lo que tiene en el botón flotante, en este orden (dueño, 2026-10-09). */
 export const RAPIDAS_SUPERVISOR = ["lineas", "preparacion", "panel-produccion"]
+
+/**
+ * Buscador del Hub (Alexander, 2026-11-17): las tarjetas cuyo título o
+ * descripción tienen todas las palabras buscadas, sin importar tildes ni
+ * mayúsculas. Búsqueda vacía: todas.
+ */
+export function filtrarApps(lista: AppDef[], busqueda: string): AppDef[] {
+  return lista.filter((app) => tienePalabras(`${app.title} ${app.description ?? ""}`, busqueda))
+}
 
 export interface Seccion {
   titulo: string | null

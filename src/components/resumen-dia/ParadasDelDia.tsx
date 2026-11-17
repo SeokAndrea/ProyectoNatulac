@@ -7,12 +7,20 @@ import type { ParadaDelDia } from "@/lib/resumenDiario"
  * se ve en "Contadores y merma", junto a la merma de cada lote (dueña,
  * 2026-10-20: ver todas juntas no ayudaba).
  */
-export function ParadasDelDia({ paradas, nombreLinea }: { paradas: ParadaDelDia[]; nombreLinea: (codigo: string) => string }) {
+export function ParadasDelDia({
+  paradas,
+  nombreLinea,
+  semana = false,
+}: {
+  paradas: ParadaDelDia[]
+  nombreLinea: (codigo: string) => string
+  semana?: boolean
+}) {
   const minutos = paradas.reduce((a, p) => a + p.minutos, 0)
   return (
     <Desplegable titulo="Paradas que más tiempo quitaron" resumen={minutos > 0 ? <span className="num">{minutos} min</span> : undefined}>
       {paradas.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sin paradas registradas en esta jornada.</p>
+        <p className="text-sm text-muted-foreground">Sin paradas registradas en {semana ? "esta semana" : "esta jornada"}.</p>
       ) : (
         <Table>
           <TableHeader>

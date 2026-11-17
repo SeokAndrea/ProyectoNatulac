@@ -72,7 +72,7 @@ export type CondicionLinea = "DETENIDA" | "LISTA" | "CIP" | "CAMBIO_PRESENTACION
  * 20261002; esto aplica el mismo criterio del lado del cliente para
  * turnos viejos o si la migración todavía no está en el servidor.
  */
-const FAMILIAS_SUFIJO_OCULTO = ["Clasicos", "Clásicos", "Especiales"]
+const FAMILIAS_SUFIJO_OCULTO = ["Clásico", "Clasico", "Clasicos", "Clásicos", "Bebida té negro", "Especiales"]
 export function saborSinFamiliaOculta(nombre: string | null): string | null {
   if (!nombre) return nombre
   for (const fam of FAMILIAS_SUFIJO_OCULTO) {

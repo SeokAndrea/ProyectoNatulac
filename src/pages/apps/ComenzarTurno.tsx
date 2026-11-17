@@ -117,9 +117,11 @@ export default function ComenzarTurno() {
     )
   }
 
-  /** Revisión de inicio completa: los 3 tanques y toda corrida activa quedaron confirmados. */
+  /** Revisión de inicio completa: los 3 tanques y toda corrida activa quedaron confirmados, y el nitrógeno al recibir cargado (turnos nuevos). */
   const revisionCompleta =
-    tanques.every((t) => t.confirmadoInicioEn !== null) && corridas.filter((c) => c.activa).every((c) => c.confirmadoInicioEn !== null)
+    tanques.every((t) => t.confirmadoInicioEn !== null) &&
+    corridas.filter((c) => c.activa).every((c) => c.confirmadoInicioEn !== null) &&
+    (!sesion.nitrogeno.aplica || sesion.nitrogeno.datos?.inicio != null)
 
   if (!revisionCompleta) {
     return (
