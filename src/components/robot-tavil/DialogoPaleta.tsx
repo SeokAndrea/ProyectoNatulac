@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { AlertTriangle, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { MensajeError } from "@/components/MensajeError"
 import { CamposConformidad } from "@/components/robot-tavil/CamposConformidad"
-import type { DatosEditarPaleta, DatosNuevaPaleta, LineaRobot } from "@/lib/robotTavil"
+import { avisoTicketRepetido, type DatosEditarPaleta, type DatosNuevaPaleta, type LineaRobot } from "@/lib/robotTavil"
 import {
   codigoPresentacion,
   codigoSabor,
@@ -23,8 +23,10 @@ export type DialogoPaletaModo = { tipo: "nueva"; linea: LineaRobot } | { tipo: "
 /**
  * Cuadro del «+» (paleta nueva: ticket y conformidad) y de corregir una
  * paleta de la lista (además, tipo y cajas). El tipo de una paleta nueva sale
- * del interruptor «Paleta manual» de la línea. El error del servidor (ticket
- * repetido, etc.) se muestra aquí mismo y el cuadro queda abierto.
+ * del interruptor «Paleta manual» de la línea. El error del servidor se
+ * muestra aquí mismo y el cuadro queda abierto. Ticket repetido (migración
+ * 20261116190000): el servidor avisa en qué paleta está y el botón pide un
+ * segundo clic para guardarlo igual.
  */
 export function DialogoPaleta({
   modo,
@@ -76,6 +78,8 @@ function CuerpoDialogo({
     accionCorreccion: p?.accionCorreccion ?? "",
   })
   const [error, setError] = useState<string | null>(null)
+  /** Aviso del servidor: el ticket ya está en otra paleta. El siguiente clic guarda igual. */
+  const [repetido, setRepetido] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
   const numero = p ? p.numero : modo.tipo === "nueva" ? modo.linea.proximoNumero : null
@@ -105,17 +109,21 @@ function CuerpoDialogo({
       }
     }
     setEnviando(true)
+    const confirmarRepetido = repetido !== null
     const r =
       modo.tipo === "nueva"
-        ? await onCrear(modo.linea.lineaCodigo, { ticket: ticket.trim(), ...conformidad })
+        ? await onCrear(modo.linea.lineaCodigo, { ticket: ticket.trim(), ...conformidad, confirmarRepetido })
         : await onEditar(modo.paleta.id, {
             ticket: ticket.trim(),
             tipoPaletizado: manual ? "MANUAL" : "AUTOMATICO",
             cajas: nCajas,
             ...conformidad,
+            confirmarRepetido,
           })
     setEnviando(false)
-    if (r) setError(r)
+    const aviso = avisoTicketRepetido(r)
+    if (aviso) setRepetido(aviso)
+    else if (r) setError(r)
     else onCerrar()
   }
 
@@ -163,7 +171,11 @@ function CuerpoDialogo({
           autoComplete="off"
           placeholder="El del papel que va en la paleta"
           aria-invalid={!!error && !ticket.trim()}
-          onChange={(e) => setTicket(e.target.value)}
+          onChange={(e) => {
+            setTicket(e.target.value)
+            // Otro ticket: si también está repetido, se vuelve a avisar.
+            setRepetido(null)
+          }}
         />
       </div>
 
@@ -186,14 +198,22 @@ function CuerpoDialogo({
       <CamposConformidad idBase="paleta" valor={conformidad} onCambio={setConformidad} />
 
       <MensajeError error={error} />
+      {repetido && (
+        <p role="alert" className="flex items-start gap-2 rounded-lg border border-warning/50 bg-warning-soft px-3 py-2 text-sm text-warning-foreground">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {repetido} Si es correcto, toca «Sí, guardar con el ticket repetido».
+          </span>
+        </p>
+      )}
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCerrar} disabled={enviando}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={enviando}>
+        <Button type="submit" disabled={enviando} variant={repetido ? "destructive" : "default"}>
           {enviando && <Loader2 className="size-4 animate-spin" />}
-          {modo.tipo === "nueva" ? "Crear paleta" : "Guardar cambios"}
+          {repetido ? "Sí, guardar con el ticket repetido" : modo.tipo === "nueva" ? "Crear paleta" : "Guardar cambios"}
         </Button>
       </DialogFooter>
     </form>

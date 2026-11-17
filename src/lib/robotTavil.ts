@@ -190,6 +190,8 @@ export const leerPantallaRobot = (usuario: string) => llamar("robot_tavil_estado
 /** Lo que pide el «+»: el ticket y la conformidad. El tipo sale del interruptor de la línea. */
 export interface DatosNuevaPaleta extends DatosConformidad {
   ticket: string
+  /** Segundo clic: guardar aunque el ticket ya esté en otra paleta (migración 20261116190000). */
+  confirmarRepetido?: boolean
 }
 
 /** Lo que se corrige desde la lista de paletas del operador. */
@@ -197,6 +199,15 @@ export interface DatosEditarPaleta extends DatosConformidad {
   ticket: string
   tipoPaletizado: TipoPaletizado
   cajas: number
+  confirmarRepetido?: boolean
+}
+
+/** El servidor avisa el ticket repetido con este prefijo; la pantalla pide un segundo clic. */
+const PREFIJO_TICKET_REPETIDO = "TICKET_REPETIDO|"
+
+/** El aviso de ticket repetido (sin el prefijo), o null si el error es otro. */
+export function avisoTicketRepetido(error: string | null | undefined): string | null {
+  return error?.startsWith(PREFIJO_TICKET_REPETIDO) ? error.slice(PREFIJO_TICKET_REPETIDO.length) : null
 }
 
 /** Conforme: sin observación ni acción. */
@@ -208,7 +219,13 @@ const conformidadParaEnviar = (d: DatosConformidad) => ({
 })
 
 export const sumarPaleta = (usuario: string, linea: string, d: DatosNuevaPaleta) =>
-  llamar("robot_tavil_sumar", { p_usuario: usuario, p_linea_codigo: linea, p_ticket: d.ticket, ...conformidadParaEnviar(d) })
+  llamar("robot_tavil_sumar", {
+    p_usuario: usuario,
+    p_linea_codigo: linea,
+    p_ticket: d.ticket,
+    ...conformidadParaEnviar(d),
+    p_confirmar_repetido: d.confirmarRepetido ?? false,
+  })
 export const editarPaleta = (usuario: string, paletaId: string, d: DatosEditarPaleta) =>
   llamar("robot_tavil_editar_paleta", {
     p_usuario: usuario,
@@ -217,6 +234,7 @@ export const editarPaleta = (usuario: string, paletaId: string, d: DatosEditarPa
     p_tipo_paletizado: d.tipoPaletizado,
     p_cajas: d.cajas,
     ...conformidadParaEnviar(d),
+    p_confirmar_repetido: d.confirmarRepetido ?? false,
   })
 export const cambiarManual = (usuario: string, linea: string, manual: boolean) =>
   llamar("robot_tavil_cambiar_manual", { p_usuario: usuario, p_linea_codigo: linea, p_manual: manual })
