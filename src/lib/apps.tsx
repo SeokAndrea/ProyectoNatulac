@@ -126,9 +126,9 @@ export const apps: AppDef[] = [
     href: "/calidad",
     icon: FlaskConical,
     requiereTurno: false,
+    // En producción desde 2026-11-17 (Alexander): la ve quien tiene LOTE_LIBERAR en su puesto. Quién libera
+    // lo sigue decidiendo el interruptor «Calidad libera los lotes» (Ajustes del dueño). Ver docs/plan-calidad.md.
     permiso: "LOTE_LIBERAR",
-    // Fuera de la planta real (dueña): el módulo vive solo en Pruebas. Ver docs/plan-calidad.md.
-    enPrueba: true,
     color: "purple",
     seccion: "apoyo",
   },

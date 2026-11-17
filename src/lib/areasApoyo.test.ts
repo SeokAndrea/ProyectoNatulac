@@ -32,10 +32,12 @@ describe("áreas de apoyo", () => {
     ])
   })
 
-  it("la tarjeta de Calidad está en prueba: solo Pruebas la ve, aunque se libere lotes", () => {
-    expect(visibles(sesion("CALIDAD", "SUPERVISOR_CALIDAD", ["LOTE_LIBERAR", "CALIDAD_PARAMETROS"]))).not.toContain("calidad")
+  it("la tarjeta de Calidad la ve quien libera lotes (LOTE_LIBERAR), sea de Calidad o de Aséptico", () => {
+    expect(visibles(sesion("CALIDAD", "SUPERVISOR_CALIDAD", ["LOTE_LIBERAR", "CALIDAD_PARAMETROS"]))).toContain("calidad")
+    expect(visibles(sesion("CALIDAD", "CALIDAD", ["LOTE_LIBERAR"]))).toContain("calidad")
+    expect(visibles(sesion("ASEPTICO", "JEFE_PRODUCCION", ["LOTE_LIBERAR", "TURNO_CARGAR"]))).toContain("calidad")
     expect(visibles(sesion("PRUEBAS", "SUPERVISOR", ["LOTE_LIBERAR"]))).toContain("calidad")
-    expect(visibles(sesion("ASEPTICO", "JEFE_PRODUCCION", ["LOTE_LIBERAR", "TURNO_CARGAR"]))).not.toContain("calidad")
+    expect(visibles(sesion("ASEPTICO", "SUPERVISOR", PERMISOS_SUPERVISOR))).not.toContain("calidad")
   })
 
   it("Validar jornada sigue en prueba: solo el Área de Pruebas", () => {

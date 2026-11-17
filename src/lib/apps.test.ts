@@ -50,8 +50,8 @@ describe("tarjetas por permisos del puesto", () => {
     expect(sin).not.toContain("registros-servicios-industriales")
   })
 
-  it("Jefe de Producción no ve Calidad (está en prueba) aunque libere lotes", () => {
-    expect(visibles(JEFE_PRODUCCION)).not.toContain("calidad")
+  it("Jefe de Producción ve Calidad porque libera lotes (en producción desde 2026-11-17)", () => {
+    expect(visibles(JEFE_PRODUCCION)).toContain("calidad")
   })
 
   it("sesión de Pruebas: ve Calidad y todas las demás (menos las de un solo usuario o del dueño)", () => {
