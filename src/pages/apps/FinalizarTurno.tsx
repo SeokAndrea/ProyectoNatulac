@@ -13,6 +13,7 @@ import { MermasPorLote } from "@/components/finalizar-turno/MermasPorLote"
 import { ParadasAlCierre } from "@/components/finalizar-turno/ParadasAlCierre"
 import { ProduccionDelTurno } from "@/components/finalizar-turno/ProduccionDelTurno"
 import { TurnoCerrado } from "@/components/finalizar-turno/TurnoCerrado"
+import { NitrogenoAlEntregar } from "@/components/NitrogenoTurno"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -147,6 +148,9 @@ export default function FinalizarTurno() {
   /** Paradas +1 sin minutos (o Falla sin especificar sin código): finalizar_turno() no deja cerrar (migración 20261090). */
   const paradasPendientes = paradas.filter((p) => p.pendiente)
   const tanquesSinConfirmar = prep.tanques.filter((t) => !t.confirmadoFinEn)
+  /** Mismo criterio que finalizar_turno() (migración 20261116290000): recibidas y entregadas, salvo Pruebas y turnos de antes. */
+  const nitrogenoPide = !esPruebas && sesion.nitrogeno.aplica
+  const nitrogenoFalta = nitrogenoPide && (sesion.nitrogeno.datos?.inicio == null || sesion.nitrogeno.datos.fin === null)
   const mermasSinJustificar = prod.corridas.filter((c) => {
     const m = mermaCorrida(c.id, prod.contadores, pt.registros, presentaciones)
     return m !== null && m.pct > LIMITE_MERMA * 100 && !prod.contadores.some((x) => x.corridaId === c.id && x.justificacion?.trim())
@@ -177,6 +181,16 @@ export default function FinalizarTurno() {
       estado: paradasPendientes.length === 0 ? "ok" : "falta",
       texto: paradasPendientes.length === 0 ? "Todas tienen minutos y código" : `${paradasPendientes.length} sin completar`,
     },
+    ...(nitrogenoPide
+      ? [
+          {
+            seccion: "seccion-nitrogeno",
+            titulo: "Nitrógeno",
+            estado: nitrogenoFalta ? ("falta" as const) : ("ok" as const),
+            texto: nitrogenoFalta ? "Faltan las bombonas recibidas o entregadas" : "Bombonas recibidas y entregadas",
+          },
+        ]
+      : []),
     {
       seccion: "seccion-tanques",
       titulo: "Tanques",
@@ -197,6 +211,7 @@ export default function FinalizarTurno() {
     sinPt.length > 0 ? `${sinPt.length} ${sinPt.length === 1 ? "corrida sin Producto Terminado" : "corridas sin Producto Terminado"}` : null,
     sinResolver.length > 0 ? `${lineasConProblema.length} ${lineasConProblema.length === 1 ? "línea sin resolver" : "líneas sin resolver"}` : null,
     paradasPendientes.length > 0 ? `${paradasPendientes.length} ${paradasPendientes.length === 1 ? "parada sin completar" : "paradas sin completar"}` : null,
+    nitrogenoFalta ? "nitrógeno sin cargar" : null,
   ].filter((x): x is string => x !== null)
   const aviso =
     tanquesSinConfirmar.length > 0 ? `${tanquesSinConfirmar.length} ${tanquesSinConfirmar.length === 1 ? "tanque sin confirmar" : "tanques sin confirmar"}` : null
@@ -255,6 +270,7 @@ export default function FinalizarTurno() {
       horaInicio: sesion.horaInicio,
       // El responsable del turno, no quien lo finaliza (un jefe puede cerrar el turno de otro supervisor).
       supervisorNombre: sesion.supervisorNombre || session.nombre || session.username,
+      nitrogeno: sesion.nitrogeno,
       area: session.area,
       areas,
       lineas,
@@ -368,6 +384,8 @@ export default function FinalizarTurno() {
           presentacionDeLinea={presentacionDeLinea}
           onCambio={recargarParadas}
         />
+
+        {(sesion.nitrogeno.aplica || sesion.nitrogeno.datos) && <NitrogenoAlEntregar id="seccion-nitrogeno" />}
 
         <Card id="seccion-tanques" className="scroll-mt-4">
           <CardHeader className="pb-2">

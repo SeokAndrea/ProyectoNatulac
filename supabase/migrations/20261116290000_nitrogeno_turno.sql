@@ -38,7 +38,8 @@ alter table turno_nitrogeno enable row level security;
 
 -- ------------------------------------------------------------
 -- guardar_nitrogeno_turno(): INICIO = bombonas llenas al recibir;
--- FIN = bombonas llenas al entregar + las que llegaron en el turno.
+-- FIN = bombonas llenas al entregar + las que llegaron en el turno (y, si
+-- se manda p_inicio, corrige también lo recibido en el mismo paso).
 -- Se puede corregir mientras se puedan cargar datos del turno.
 -- ------------------------------------------------------------
 create or replace function guardar_nitrogeno_turno(
@@ -46,7 +47,8 @@ create or replace function guardar_nitrogeno_turno(
   p_turno_id uuid,
   p_momento text,
   p_bombonas integer,
-  p_llegaron integer default null
+  p_llegaron integer default null,
+  p_inicio integer default null
 )
 returns jsonb
 language plpgsql
@@ -77,6 +79,9 @@ begin
   if p_bombonas is null or p_bombonas < 0 or p_bombonas > 999 then
     raise exception 'Escribe cuántas bombonas llenas hay (un número entero desde 0).';
   end if;
+  if p_inicio is not null and (p_inicio < 0 or p_inicio > 999) then
+    raise exception 'Escribe cuántas bombonas llenas recibiste (un número entero desde 0).';
+  end if;
   if p_llegaron is not null and (p_llegaron < 0 or p_llegaron > 999) then
     raise exception 'Las bombonas que llegaron tienen que ser un número entero desde 0.';
   end if;
@@ -90,6 +95,7 @@ begin
   else
     v_fin := p_bombonas;
     v_llegaron := coalesce(p_llegaron, v_llegaron);
+    v_inicio := coalesce(p_inicio, v_inicio);
   end if;
 
   if v_inicio is not null and v_fin is not null and v_fin > v_inicio + v_llegaron then
@@ -100,7 +106,8 @@ begin
   insert into turno_nitrogeno (turno_id, inicio, llegaron, fin, inicio_por, inicio_en, fin_por, fin_en)
   values (
     p_turno_id, v_inicio, v_llegaron, v_fin,
-    case when p_momento = 'INICIO' then v_usuario_id end, case when p_momento = 'INICIO' then now() end,
+    case when p_momento = 'INICIO' or p_inicio is not null then v_usuario_id end,
+    case when p_momento = 'INICIO' or p_inicio is not null then now() end,
     case when p_momento = 'FIN' then v_usuario_id end, case when p_momento = 'FIN' then now() end
   )
   on conflict (turno_id) do update
@@ -120,7 +127,7 @@ begin
     case when p_momento = 'INICIO' then 'Comenzar Turno' else 'Finalizar Turno' end,
     'Nitrógeno del turno ' || coalesce(v_codigo, '') || case when p_momento = 'INICIO'
       then ': ' || v_inicio || ' bombonas llenas al recibir'
-      else ': ' || v_fin || ' bombonas llenas al entregar, llegaron ' || v_llegaron end,
+      else ': recibió ' || coalesce(v_inicio::text, '—') || ', llegaron ' || v_llegaron || ' y entregó ' || v_fin || ' bombonas llenas' end,
     case when v_antes.turno_id is null then null
          else jsonb_build_object('inicio', v_antes.inicio, 'llegaron', v_antes.llegaron, 'fin', v_antes.fin) end,
     jsonb_build_object('inicio', v_inicio, 'llegaron', v_llegaron, 'fin', v_fin)
@@ -129,7 +136,7 @@ begin
   return turno_json(p_turno_id);
 end;
 $$;
-grant execute on function guardar_nitrogeno_turno(text, uuid, text, integer, integer) to anon, authenticated;
+grant execute on function guardar_nitrogeno_turno(text, uuid, text, integer, integer, integer) to anon, authenticated;
 
 -- ------------------------------------------------------------
 -- turno_json(): + nitrogeno_aplica, nitrogeno, nitrogeno_turno_anterior.

@@ -177,6 +177,7 @@ export default function Historial() {
         correcciones: detalle.correcciones,
         supervisorNombre: seleccionado.supervisorNombre,
         area: seleccionado.area,
+        nitrogeno: detalle.nitrogeno,
         areas,
         lineas,
         presentaciones,

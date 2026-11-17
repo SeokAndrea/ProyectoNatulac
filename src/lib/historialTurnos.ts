@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { mapearNitrogeno, type FilaNitrogeno, type NitrogenoActa } from "@/lib/nitrogeno"
 import { MENSAJE_SOLO_LECTURA, rpcBloqueada } from "@/lib/soloLectura"
 import type { AreaCodigo, GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { saborSinFamiliaOculta } from "@/lib/turno"
@@ -87,6 +88,8 @@ export interface TurnoHistorial {
   salidasVacio: SalidaVacioRegistro[]
   novedades: NovedadTurno[]
   ajustesVolumen: AjusteVolumenRegistro[]
+  /** Bombonas de nitrógeno (migración 20261116290000). Ver src/lib/nitrogeno.ts. */
+  nitrogeno: NitrogenoActa
 }
 
 interface FilaTanqueEncontrado {
@@ -98,7 +101,7 @@ interface FilaTanqueEncontrado {
 }
 
 /** Forma cruda de turno_json()/turno_detalle() — mismo shape que src/lib/sesionTurno.tsx (cabecera) + los 6 módulos de dominio. */
-interface FilaTurnoHistorial {
+interface FilaTurnoHistorial extends FilaNitrogeno {
   id: string
   codigo: string
   fecha: string
@@ -167,6 +170,7 @@ export function mapearTurnoHistorial(fila: FilaTurnoHistorial): TurnoHistorial {
     salidasVacio,
     novedades: fila.novedades.map(mapearNovedadTurno),
     ajustesVolumen: fila.ajustes_volumen.map(mapearAjusteVolumen),
+    nitrogeno: mapearNitrogeno(fila),
   }
 }
 

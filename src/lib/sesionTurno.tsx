@@ -18,6 +18,7 @@ import type { GrupoCodigo, TurnoTipoCodigo } from "@/lib/catalogos"
 import { useAuth } from "@/lib/auth"
 import { saborSinFamiliaOculta } from "@/lib/turno"
 import type { CondicionTanque } from "@/lib/preparacion/tipos"
+import { mapearNitrogeno, type FilaNitrogeno, type NitrogenoActa } from "@/lib/nitrogeno"
 import { supabase } from "@/lib/supabase"
 
 /** Foto de cómo estaba un tanque al empezar el turno (Status, revisión de INICIO) — se congela ahí, no cambia con el turno en curso. Se usa en el acta en PDF ("Condiciones encontradas" vs. "dejadas"). null = el turno se cerró sin completar esa revisión. */
@@ -77,6 +78,8 @@ export interface SesionTurno {
   esquema: EsquemaTurnos | null
   responsables: ResponsableTurno[]
   tanquesEncontrados: TanqueEncontrado[] | null
+  /** Bombonas de nitrógeno del turno (migración 20261116290000). Ver src/lib/nitrogeno.ts. */
+  nitrogeno: NitrogenoActa
   usuario: string | null
   cargando: boolean
   iniciarTurno: (turnoTipo: TurnoTipoCodigo, grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -85,6 +88,12 @@ export interface SesionTurno {
   asumirTurno: (grupo: GrupoCodigo | null) => Promise<{ ok: true } | { ok: false; error: string }>
   /** Cambia el grupo del turno abierto (si ese día no se cumplió la rotación). Solo el responsable o quien corrige turnos. */
   cambiarGrupo: (grupo: GrupoCodigo) => Promise<{ ok: true } | { ok: false; error: string }>
+  /** INICIO: bombonas llenas al recibir. FIN: al entregar, con las que llegaron en el turno (y lo recibido, si se corrige ahí). */
+  guardarNitrogeno: (
+    momento: "INICIO" | "FIN",
+    bombonas: number,
+    extra?: { llegaron?: number; inicio?: number },
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
   /** Vuelve a leer el turno abierto sin mostrar la pantalla de carga (ej. después de prender el 12x12). */
   refrescar: () => Promise<void>
 }
@@ -97,7 +106,7 @@ interface FilaTanqueEncontrado {
   lote: string | null
 }
 
-interface FilaTurnoIdentidad {
+interface FilaTurnoIdentidad extends FilaNitrogeno {
   id: string
   codigo: string
   estado: "ABIERTO" | "CERRADO"
@@ -140,6 +149,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
   const [esquema, setEsquema] = useState<EsquemaTurnos | null>(null)
   const [responsables, setResponsables] = useState<ResponsableTurno[]>([])
   const [tanquesEncontrados, setTanquesEncontrados] = useState<TanqueEncontrado[] | null>(null)
+  const [nitrogeno, setNitrogeno] = useState<NitrogenoActa>(() => mapearNitrogeno({}))
   const [turnoGraciaPT, setTurnoGraciaPT] = useState<TurnoGraciaPT | null>(null)
   const [cargando, setCargando] = useState(true)
 
@@ -160,6 +170,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     setAperturaAutomatica(fila?.apertura_automatica ?? false)
     setEsquema(fila?.esquema ?? null)
     setResponsables(fila?.responsables ?? [])
+    setNitrogeno(mapearNitrogeno(fila ?? {}))
     setTanquesEncontrados(
       fila?.tanques_encontrados
         ? fila.tanques_encontrados.map((t) => ({
@@ -292,6 +303,25 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
     return { ok: true as const }
   }
 
+  async function guardarNitrogeno(momento: "INICIO" | "FIN", bombonas: number, extra?: { llegaron?: number; inicio?: number }) {
+    if (!usuario || !turnoId) {
+      return { ok: false as const, error: "No hay un turno abierto." }
+    }
+    const { data, error } = await supabase.rpc("guardar_nitrogeno_turno", {
+      p_usuario: usuario,
+      p_turno_id: turnoId,
+      p_momento: momento,
+      p_bombonas: bombonas,
+      p_llegaron: extra?.llegaron ?? null,
+      p_inicio: extra?.inicio ?? null,
+    })
+    if (error || !data) {
+      return { ok: false as const, error: error?.message || "No se pudo guardar el nitrógeno. Intenta de nuevo." }
+    }
+    tomarIdentidad(data as FilaTurnoIdentidad)
+    return { ok: true as const }
+  }
+
   async function finalizarTurno() {
     if (!turnoId) {
       return { ok: false as const, error: "No hay un turno en curso." }
@@ -338,6 +368,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
         esquema,
         responsables,
         tanquesEncontrados,
+        nitrogeno,
         turnoGraciaPT,
         usuario,
         cargando,
@@ -345,6 +376,7 @@ export function SesionTurnoProvider({ children }: { children: ReactNode }) {
         finalizarTurno,
         asumirTurno,
         cambiarGrupo,
+        guardarNitrogeno,
         refrescar,
       }}
     >

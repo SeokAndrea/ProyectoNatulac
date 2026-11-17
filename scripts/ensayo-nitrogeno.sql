@@ -82,6 +82,13 @@ begin
   perform guardar_nitrogeno_turno('n2_sup', v_t1, 'FIN', 5);
   if (select llegaron from turno_nitrogeno where turno_id = v_t1) <> 6 then raise exception '2: llegaron se conserva'; end if;
   perform guardar_nitrogeno_turno('n2_sup', v_t1, 'INICIO', 3);
+  -- Desde Finalizar se corrige todo en un paso (p_inicio): 3 + 6 - 5 pasa a 5 + 0 - 5,
+  -- que en dos pasos fallaría (FIN con 0 llegadas contra el inicio viejo de 3).
+  v_j := guardar_nitrogeno_turno('n2_sup', v_t1, 'FIN', 5, 0, 5);
+  if v_j -> 'nitrogeno' <> '{"inicio": 5, "llegaron": 0, "fin": 5}'::jsonb then raise exception '2: en un paso: %', v_j -> 'nitrogeno'; end if;
+  if not exists (select 1 from auditoria where entidad = 'turno_nitrogeno' and entidad_id = v_t1::text and resumen like '%recibió 5, llegaron 0 y entregó 5%') then
+    raise exception '2: el resumen dice lo recibido, lo que llegó y lo entregado';
+  end if;
 
   -- Auditoría: quién, antes y después.
   if (select count(*) from auditoria where entidad = 'turno_nitrogeno' and entidad_id = v_t1::text) < 5 then raise exception '2: cada cambio auditado'; end if;

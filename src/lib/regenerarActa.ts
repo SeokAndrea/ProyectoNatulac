@@ -51,6 +51,7 @@ export async function regenerarActaDeMiTurno(
       horaInicio: turno.horaInicio,
       correcciones: turno.correcciones,
       supervisorNombre: turno.supervisorNombre || session.nombre || session.username,
+      nitrogeno: turno.nitrogeno,
       area: session.area,
       ...catalogos,
     })
