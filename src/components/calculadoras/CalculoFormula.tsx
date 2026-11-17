@@ -12,7 +12,7 @@ import {
 } from "@/lib/formulaMateriaPrima"
 
 const NOMBRE_FAMILIA: Record<FamiliaFormula, string> = {
-  CLASICOS: "Clásicos",
+  CLASICOS: "Clásico",
   PREMIUM: "Premium",
   TE: "Té",
 }

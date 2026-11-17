@@ -26,7 +26,7 @@ export function colorPresentacion(linea: string, indice: number): CSSProperties 
   return vars(`--ind-l${linea}`, tono(`--ind-l${linea}`), tono(`--ind-l${linea}-texto`))
 }
 
-const CLAVE_FAMILIA: Record<string, string> = { clasicos: "clasicos", selecto: "selecto", jucosa: "jucosa", premium: "premium", especiales: "especiales" }
+const CLAVE_FAMILIA: Record<string, string> = { clasico: "clasicos", clasicos: "clasicos", selecto: "selecto", jucosa: "jucosa", premium: "premium", especiales: "especiales" }
 const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
 
 /** Color de la pantalla Vacío: la primera presentación el color base, la segunda más oscura (como las de una línea). */
@@ -40,5 +40,5 @@ export function colorVacio(indice: number): CSSProperties {
 export const colorFamilia = (familia: string) => vars(`--ind-${CLAVE_FAMILIA[sinTildes(familia)] ?? "especiales"}`)
 
 /** Nombres para la pantalla: "Clasicos" → "Néctar clásico", como en el informe; "Especiales" → "Té" (dueña, 2026-10-14). */
-const NOMBRES_FAMILIA: Record<string, string> = { clasicos: "Néctar clásico", especiales: "Té" }
+const NOMBRES_FAMILIA: Record<string, string> = { clasico: "Néctar clásico", clasicos: "Néctar clásico", especiales: "Té" }
 export const nombreFamilia = (familia: string) => NOMBRES_FAMILIA[sinTildes(familia)] ?? familia

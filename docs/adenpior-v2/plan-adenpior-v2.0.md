@@ -8,9 +8,10 @@ Decisiones de Alexander:
 1. **Calidad:** la tarjeta la ve quien tenga `LOTE_LIBERAR`; queda en producción y el interruptor «Calidad libera los lotes» se mantiene para poder apagarlo.
 2. **Nitrógeno:** se agregó «Llegaron en el turno». Caso recibe 3 y entrega 5: no se guarda hasta anotar al menos 2 que llegaron (o corregir los conteos). El consumo es recibidas + llegaron − entregadas, así que nunca da negativo.
 3. **Semana:** de lunes a domingo.
+4. **Familia «Clásicos» → «Clásico»** (pedido aparte, 2026-11-17): migración `20261116390000_familia_clasico.sql`. `es_familia_clasica()` acepta las cuatro formas en `sabor_display()` y `nombre_sabor_resumen()`; los meses de Indicadores pasan la clave del semielaborado y su observación a «Clásico». En la app: sabores.ts, turno.ts, colores.ts, VistaSemielaborado y los rótulos de Fórmulas. Ensayo: `scripts/ensayo-familia-clasico.sql` (también aplicada dos veces seguidas).
 
 Verificado:
-- `tsc -p tsconfig.app.json` y las 992 pruebas en verde.
+- `tsc -p tsconfig.app.json` y las 995 pruebas en verde.
 - Ensayos SQL en la base local PGlite: `scripts/ensayo-trazabilidad-paletizado.sql` y `scripts/ensayo-nitrogeno.sql` pasan. Los demás ensayos dan lo mismo antes y después de las migraciones nuevas.
 - Pantallas revisadas en el navegador con la API simulada (sin tocar la base): Hub de Calidad, buscador, Comenzar/Finalizar Turno con nitrógeno y Resumen semanal.
 
@@ -23,6 +24,7 @@ Migraciones nuevas (después de la última, 20261116090000, que sigue sin commit
 | 3. Buscador | ninguna |
 | 4. Nitrógeno | `20261116290000_nitrogeno_turno.sql` |
 | 5. Resumen semanal | ninguna (opción A) |
+| Familia Clásico | `20261116390000_familia_clasico.sql` |
 
 ---
 

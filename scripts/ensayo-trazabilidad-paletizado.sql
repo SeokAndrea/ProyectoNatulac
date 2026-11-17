@@ -55,9 +55,9 @@ begin
   select id, codigo into v_linea, v_cod from lineas where area_id = v_area and activo order by codigo limit 1;
   if v_linea is null then raise exception 'Falta una línea activa en Pruebas.'; end if;
   select s.id into v_mz from sabores s join familias_producto f on f.id = s.familia_id
-   where s.nombre ilike 'manzana' and f.nombre ilike 'cl%sicos' limit 1;
+   where s.nombre ilike 'manzana' and f.nombre ilike 'cl%sico%' limit 1;
   select s.id into v_pr from sabores s join familias_producto f on f.id = s.familia_id
-   where s.nombre ilike 'pera' and f.nombre ilike 'cl%sicos' limit 1;
+   where s.nombre ilike 'pera' and f.nombre ilike 'cl%sico%' limit 1;
   select id into v_pres from presentaciones where volumen_ml = 1000;
   if v_mz is null or v_pr is null or v_pres is null then raise exception 'Faltan Manzana/Pera Clásicos o la presentación de 1000 ml.'; end if;
 
