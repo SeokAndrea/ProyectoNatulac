@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import TrazabilidadPaletizado from "@/pages/apps/TrazabilidadPaletizado"
@@ -44,11 +44,23 @@ const paleta = (over: Partial<Paleta> = {}): Paleta => ({
   presentacionCodigo: "TBA-1000 cm3",
   editadaEn: null,
   editadaPor: null,
+  saborNombreBase: null,
+  creadaPor: null,
+  vence: null,
+  ticketSistema: false,
+  impresiones: 0,
+  impresaEn: null,
+  anuladaEn: null,
   ...over,
 })
 
-const datos = { paletas: [] as Paleta[] }
+const datos = { paletas: [] as Paleta[], encontradas: [] as Paleta[] }
 const corregidas: string[] = []
+const buscados: string[] = []
+const impresos: string[] = []
+vi.mock("@/lib/imprimirEtiqueta", () => ({
+  imprimirYRegistrar: vi.fn(async (_u: string, p: Paleta, copias: number, pagina: string) => (impresos.push(`${p.ticket} ${copias} ${pagina}`), { paleta: p, error: null })),
+}))
 vi.mock("@/lib/trazabilidadPaletizado", async (original) => ({
   ...(await original<typeof import("@/lib/trazabilidadPaletizado")>()),
   listarTrazabilidad: vi.fn(async () => ({
@@ -62,6 +74,7 @@ vi.mock("@/lib/trazabilidadPaletizado", async (original) => ({
       paletas: datos.paletas,
     },
   })),
+  buscarPorTicket: vi.fn(async (_u: string, ticket: string) => (buscados.push(ticket), { ok: true, data: datos.encontradas })),
   corregirConformidad: vi.fn(async (_u: string, id: string, d: { conforme: boolean; observacionCodigos: number[] }) => {
     corregidas.push(`${id} ${d.conforme ? "C" : `NC ${d.observacionCodigos.join(",")}`}`)
     const p = datos.paletas.find((x) => x.id === id)!
@@ -72,6 +85,9 @@ vi.mock("@/lib/trazabilidadPaletizado", async (original) => ({
 beforeEach(() => {
   sesion.permisos = ["TRAZABILIDAD_VER"]
   corregidas.length = 0
+  buscados.length = 0
+  impresos.length = 0
+  datos.encontradas = []
   datos.paletas = [
     paleta({ ticket: "T-L1-T1" }),
     paleta({ ticket: "T-L1-T3", turnoTipo: "TURNO_3", creadaEn: "2026-11-12T03:00:00Z" }),
@@ -128,5 +144,51 @@ describe("Trazabilidad del paletizado", () => {
     await u.click(cuadro.getByRole("button", { name: "Guardar corrección" }))
     await waitFor(() => expect(corregidas).toEqual([`${datos.paletas[0].id} NC `]))
     expect(await screen.findByText("NC")).toBeInTheDocument()
+  })
+
+  it("buscar por ticket: al pegar el texto del QR busca por el código y muestra la paleta", async () => {
+    datos.encontradas = [
+      paleta({ numero: 12, ticket: "P-000124", ticketSistema: true, saborNombreBase: "Manzana", vence: "2027-11-11", fechaProduccion: "2026-11-11" }),
+    ]
+    render(<TrazabilidadPaletizado />)
+    await screen.findByText("T-L1-T1")
+    const campo = screen.getByLabelText("Buscar paleta por ticket")
+    fireEvent.paste(campo, { clipboardData: { getData: () => "NTLPT1;T=P-000124;L=1;F=2026-11-11;N=0012" } })
+    await waitFor(() => expect(buscados).toEqual(["P-000124"]))
+    expect(await screen.findByText("Nº 0012")).toBeInTheDocument()
+    expect(screen.getByText("MZ · Manzana")).toBeInTheDocument()
+    expect(screen.getByText(/Vence 11\/11\/2027/)).toBeInTheDocument()
+    // Solo TRAZABILIDAD_VER: ve, pero no reimprime.
+    expect(screen.queryByRole("button", { name: "Reimprimir" })).not.toBeInTheDocument()
+  })
+
+  it("buscar por ticket: sin resultados lo dice; con permiso reimprime una copia", async () => {
+    const u = userEvent.setup()
+    sesion.permisos = ["TRAZABILIDAD_EDITAR"]
+    render(<TrazabilidadPaletizado />)
+    await screen.findByText("T-L1-T1")
+    await u.type(screen.getByLabelText("Buscar paleta por ticket"), "p-999{Enter}")
+    expect(await screen.findByText(/No hay ninguna paleta con el ticket/)).toBeInTheDocument()
+    expect(buscados).toEqual(["P-999"])
+
+    datos.encontradas = [paleta({ ticket: "P-000124", ticketSistema: true })]
+    await u.click(screen.getByRole("button", { name: "Buscar" }))
+    await u.click(await screen.findByRole("button", { name: "Reimprimir" }))
+    await waitFor(() => expect(impresos).toEqual(["P-000124 1 Trazabilidad del paletizado"]))
+  })
+
+  it("corregir la conformidad de una paleta con ticket del sistema avisa que el pegado quedó viejo", async () => {
+    const u = userEvent.setup()
+    sesion.permisos = ["TRAZABILIDAD_EDITAR"]
+    datos.paletas = [paleta({ numero: 7, ticket: "P-000130", ticketSistema: true })]
+    render(<TrazabilidadPaletizado />)
+    await screen.findByText("P-000130")
+    await u.click(screen.getByRole("button", { name: "Corregir" }))
+    const cuadro = within(screen.getByRole("dialog"))
+    await u.click(cuadro.getByRole("switch", { name: /No conforme/ }))
+    await u.click(cuadro.getByRole("button", { name: "Guardar corrección" }))
+    expect(await screen.findByText(/El ticket P-000130 pegado en la paleta Nº 0007 dice «CONFORME»/)).toBeInTheDocument()
+    await u.click(screen.getByRole("button", { name: "Reimprimir" }))
+    await waitFor(() => expect(impresos).toEqual(["P-000130 1 Trazabilidad del paletizado"]))
   })
 })

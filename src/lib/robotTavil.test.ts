@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { pistaPrecarga } from "@/components/producto-terminado/calculosPT"
-import { mapearEstimaciones, mapearPantallaRobot, mapearPrecargas, mensajeErrorRobot, nivelEstimado } from "@/lib/robotTavil"
+import { mapearConfigTickets, mapearEstimaciones, mapearPantalla, mapearPantallaRobot, mapearPrecargas, mensajeErrorRobot, nivelEstimado } from "@/lib/robotTavil"
 
 const corrida = (over: Record<string, unknown> = {}) => ({
   id: "c1",
@@ -164,5 +164,24 @@ describe("estimación de los tanques", () => {
   it("el estimado nunca es negativo y avisa si la precarga supera lo que queda", () => {
     expect(nivelEstimado({ numeroTanque: 1, volumenOficialL: 15000, litrosPendientes: 4944 })).toEqual({ estimadoL: 10056, excede: false })
     expect(nivelEstimado({ numeroTanque: 1, volumenOficialL: 300, litrosPendientes: 480 })).toEqual({ estimadoL: 0, excede: true })
+  })
+})
+
+describe("tickets por sistema (migración 20261116590000)", () => {
+  it("la pantalla trae el interruptor y la paleta que devolvió la acción", () => {
+    const p = mapearPantalla({
+      lineas: [],
+      tickets: { activo: true, copias: "2", cambiado_en: "2026-11-17T15:00:00Z", cambiado_por: "Ana Pérez" },
+      creada: { id: "p1", linea_codigo: "LINEA_1", linea_nombre: "Línea 1", ticket: "P-000124", ticket_sistema: true, vence: "2027-11-17", impresiones: 0 },
+    })
+    expect(p.tickets).toEqual({ activo: true, copias: 2, cambiadoEn: "2026-11-17T15:00:00Z", cambiadoPor: "Ana Pérez" })
+    expect(p.creada).toMatchObject({ ticket: "P-000124", ticketSistema: true, vence: "2027-11-17", impresiones: 0 })
+    expect(p.anulada).toBeNull()
+  })
+
+  it("sin la migración: apagado y 1 copia", () => {
+    expect(mapearPantalla({ lineas: [] }).tickets).toEqual({ activo: false, copias: 1, cambiadoEn: null, cambiadoPor: null })
+    expect(mapearConfigTickets({ activo: true, copias: 9 }).copias).toBe(4)
+    expect(mapearConfigTickets({ activo: true, copias: null }).copias).toBe(1)
   })
 })

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { AlertTriangle, Loader2, Printer } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -26,18 +26,26 @@ export type DialogoPaletaModo = { tipo: "nueva"; linea: LineaRobot } | { tipo: "
  * del interruptor «Paleta manual» de la línea. El error del servidor se
  * muestra aquí mismo y el cuadro queda abierto. Ticket repetido (migración
  * 20261116190000): el servidor avisa en qué paleta está y el botón pide un
- * segundo clic para guardarlo igual.
+ * segundo clic para guardarlo igual. Con «Tickets por sistema» (migración
+ * 20261116590000) el «+» no pide ticket: lo crea el servidor y la pantalla lo
+ * imprime; el de una paleta con ticket del sistema no se cambia y se puede reimprimir.
  */
 export function DialogoPaleta({
   modo,
   onCerrar,
   onCrear,
   onEditar,
+  ticketsSistema = false,
+  onReimprimir,
 }: {
   modo: DialogoPaletaModo | null
   onCerrar: () => void
   onCrear: (linea: string, d: DatosNuevaPaleta) => Promise<string | null>
   onEditar: (paletaId: string, d: DatosEditarPaleta) => Promise<string | null>
+  /** «Tickets por sistema» encendido: el «+» no pide ticket. */
+  ticketsSistema?: boolean
+  /** Reimprimir el ticket de una paleta con ticket del sistema. */
+  onReimprimir?: (p: Paleta) => void
 }) {
   return (
     <Dialog open={!!modo} onOpenChange={(abierto) => !abierto && onCerrar()}>
@@ -49,6 +57,8 @@ export function DialogoPaleta({
             onCerrar={onCerrar}
             onCrear={onCrear}
             onEditar={onEditar}
+            ticketsSistema={ticketsSistema}
+            onReimprimir={onReimprimir}
           />
         )}
       </DialogContent>
@@ -61,11 +71,15 @@ function CuerpoDialogo({
   onCerrar,
   onCrear,
   onEditar,
+  ticketsSistema,
+  onReimprimir,
 }: {
   modo: DialogoPaletaModo
   onCerrar: () => void
   onCrear: (linea: string, d: DatosNuevaPaleta) => Promise<string | null>
   onEditar: (paletaId: string, d: DatosEditarPaleta) => Promise<string | null>
+  ticketsSistema: boolean
+  onReimprimir?: (p: Paleta) => void
 }) {
   const p = modo.tipo === "editar" ? modo.paleta : null
   const [ticket, setTicket] = useState(p?.ticket ?? "")
@@ -88,10 +102,12 @@ function CuerpoDialogo({
   const turno = p ? p.turnoTipo : modo.tipo === "nueva" ? modo.linea.proximoTurno : null
   const lote = p ? p.lote : modo.tipo === "nueva" ? modo.linea.corrida.lote : null
   const lineaManual = modo.tipo === "nueva" && modo.linea.manual
+  /** El ticket lo pone el sistema: en el «+» con el interruptor encendido, o en una paleta que ya lo tiene. */
+  const ticketDelSistema = modo.tipo === "nueva" ? ticketsSistema : !!p?.ticketSistema
 
   async function guardar() {
     setError(null)
-    if (!ticket.trim()) {
+    if (!ticketDelSistema && !ticket.trim()) {
       setError("Escribe el número de ticket para guardar la paleta.")
       return
     }
@@ -140,7 +156,11 @@ function CuerpoDialogo({
           {modo.tipo === "nueva" ? `Nueva paleta · ${modo.linea.lineaNombre}` : `Paleta Nº ${p?.numero ?? "—"} · ${p?.lineaNombre}`}
         </DialogTitle>
         <DialogDescription>
-          {modo.tipo === "nueva" ? "Escribe el ticket del papel que va en la paleta." : "Corrige lo que haga falta. El cambio queda en Auditoría."}
+          {modo.tipo === "nueva"
+            ? ticketsSistema
+              ? "Marca si la paleta es conforme. El ticket lo crea el sistema y se imprime al guardar."
+              : "Escribe el ticket del papel que va en la paleta."
+            : "Corrige lo que haga falta. El cambio queda en Auditoría."}
         </DialogDescription>
       </DialogHeader>
 
@@ -162,22 +182,40 @@ function CuerpoDialogo({
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="paleta-ticket">Nº de ticket</Label>
-        <Input
-          id="paleta-ticket"
-          value={ticket}
-          autoFocus
-          autoComplete="off"
-          placeholder="El del papel que va en la paleta"
-          aria-invalid={!!error && !ticket.trim()}
-          onChange={(e) => {
-            setTicket(e.target.value)
-            // Otro ticket: si también está repetido, se vuelve a avisar.
-            setRepetido(null)
-          }}
-        />
-      </div>
+      {modo.tipo === "nueva" && ticketsSistema ? (
+        <div className="flex flex-col gap-1 rounded-lg border border-info/35 bg-info-soft px-3 py-2 text-sm text-info-foreground">
+          <span className="flex items-center gap-1.5 font-semibold">
+            <Printer className="size-4" />
+            Ticket por sistema
+          </span>
+          <span>
+            Se crea al guardar (por ejemplo, <b className="num">P-000124</b>) y sale por la impresora.
+          </span>
+        </div>
+      ) : p?.ticketSistema ? (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="paleta-ticket">Nº de ticket</Label>
+          <Input id="paleta-ticket" value={ticket} readOnly disabled className="num" />
+          <span className="text-xs text-muted-foreground">Lo puso el sistema y es el que está impreso: no se cambia.</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="paleta-ticket">Nº de ticket</Label>
+          <Input
+            id="paleta-ticket"
+            value={ticket}
+            autoFocus
+            autoComplete="off"
+            placeholder="El del papel que va en la paleta"
+            aria-invalid={!!error && !ticket.trim()}
+            onChange={(e) => {
+              setTicket(e.target.value)
+              // Otro ticket: si también está repetido, se vuelve a avisar.
+              setRepetido(null)
+            }}
+          />
+        </div>
+      )}
 
       {p && (
         <>
@@ -208,12 +246,24 @@ function CuerpoDialogo({
       )}
 
       <DialogFooter>
+        {p?.ticketSistema && onReimprimir && (
+          <Button type="button" variant="outline" className="sm:mr-auto" onClick={() => onReimprimir(p)} disabled={enviando}>
+            <Printer className="size-4" />
+            Reimprimir ticket
+          </Button>
+        )}
         <Button type="button" variant="outline" onClick={onCerrar} disabled={enviando}>
           Cancelar
         </Button>
         <Button type="submit" disabled={enviando} variant={repetido ? "destructive" : "default"}>
           {enviando && <Loader2 className="size-4 animate-spin" />}
-          {repetido ? "Sí, guardar con el ticket repetido" : modo.tipo === "nueva" ? "Crear paleta" : "Guardar cambios"}
+          {repetido
+            ? "Sí, guardar con el ticket repetido"
+            : modo.tipo === "nueva"
+              ? ticketsSistema
+                ? "Crear e imprimir ticket"
+                : "Crear paleta"
+              : "Guardar cambios"}
         </Button>
       </DialogFooter>
     </form>

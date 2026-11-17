@@ -36,6 +36,7 @@ export const PERMISOS = [
   { codigo: "VALVULA_AUX", nombre: "Abrir y cerrar las válvulas auxiliares (Contador de Agua)" },
   { codigo: "PARADAS_ELIMINAR", nombre: "Eliminar paradas" },
   { codigo: "ROBOT_TAVIL_CARGAR", nombre: "Cargar paletas del Robot Tavil" },
+  { codigo: "ROBOT_TAVIL_TICKETS", nombre: "Activar los tickets por sistema del Robot Tavil" },
   { codigo: "TRAZABILIDAD_VER", nombre: "Ver y exportar la Trazabilidad del paletizado" },
   { codigo: "TRAZABILIDAD_EDITAR", nombre: "Corregir la Trazabilidad del paletizado" },
 ] as const
