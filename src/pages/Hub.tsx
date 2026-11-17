@@ -1,17 +1,18 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
-import { Lock } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
+import { Lock, Search, X } from "lucide-react"
 import { AppCard, COLOR_BORDE_HOVER, COLOR_ICONO } from "@/components/AppCard"
 import { AppHeader } from "@/components/AppHeader"
 import { Logo } from "@/components/Logo"
 import { SelectorVerComo } from "@/components/VerComo"
 import { AvisoSifPendientes } from "@/components/sif/AvisoSifPendientes"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth"
 import { useGenerarActasPendientes } from "@/lib/actasPendientes"
 import { apps, puedeVerApp, type AppDef } from "@/lib/apps"
 import { esAreaDeApoyo } from "@/lib/catalogos"
-import { agruparPorSeccion, FLUJO_SUPERVISOR, TITULOS_SECCION, useTurnoDeLaSesion } from "@/lib/navegacion"
+import { agruparPorSeccion, bloqueoDeApp, filtrarApps, FLUJO_SUPERVISOR, TITULOS_SECCION, useTurnoDeLaSesion } from "@/lib/navegacion"
 import { puede } from "@/lib/permisos"
 import { useTarjetasOcultas } from "@/lib/tarjetasOcultas"
 import { cn } from "@/lib/utils"
@@ -41,6 +42,8 @@ export default function Hub() {
   const puedeSoloParadas = session?.rol === "JEFE_PRODUCCION" || session?.rol === "ANALISTA"
   const [soloParadas, setSoloParadas] = useState(leerSoloParadas)
   const ocultarTurno = puedeSoloParadas && soloParadas
+  const [busqueda, setBusqueda] = useState("")
+  const navigate = useNavigate()
   function cambiarSoloParadas(v: boolean) {
     setSoloParadas(v)
     try {
@@ -49,10 +52,17 @@ export default function Hub() {
       // Sin almacenamiento: vale hasta recargar.
     }
   }
-  // Mismo criterio que las rutas (ProtectedRoute): puedeVerApp en src/lib/apps.tsx.
-  const appsVisibles = apps.filter(
-    (app) => puedeVerApp(session, app) && !(ocultarTurno && APPS_DEL_TURNO.has(app.slug)) && !tarjetasOcultas.has(app.slug),
+  // Mismo criterio que las rutas (ProtectedRoute): puedeVerApp en src/lib/apps.tsx. El buscador filtra sobre eso.
+  const appsVisibles = filtrarApps(
+    apps.filter((app) => puedeVerApp(session, app) && !(ocultarTurno && APPS_DEL_TURNO.has(app.slug)) && !tarjetasOcultas.has(app.slug)),
+    busqueda,
   )
+  const buscando = busqueda.trim() !== ""
+  /** Enter en el buscador: abre la primera tarjeta que no tenga candado. */
+  function abrirPrimera() {
+    const app = appsVisibles.find((a) => !bloqueoDeApp(a, turnoActivo, turnoPorAsumir, continuidad, session?.area ?? null).bloqueada)
+    if (app?.href) navigate(app.href)
+  }
   const atajos = appsVisibles.filter((app) => app.atajo)
   const principales = appsVisibles.filter((app) => !app.atajo)
   const secciones = agruparPorSeccion(principales, esAreaDeApoyo(session?.area), session?.rol)
@@ -88,6 +98,37 @@ export default function Hub() {
                   ? "Elige una aplicación para continuar."
                   : "Inicia un turno para habilitar el resto de las aplicaciones."}
             </p>
+            <div className="relative mt-3 w-full max-w-72">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                type="search"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") abrirPrimera()
+                  if (e.key === "Escape") setBusqueda("")
+                }}
+                placeholder="Buscar tarjeta…"
+                aria-label="Buscar tarjeta"
+                autoComplete="off"
+                className="h-9 pr-8 pl-8 [&::-webkit-search-cancel-button]:hidden"
+              />
+              {buscando && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda("")}
+                  aria-label="Borrar búsqueda"
+                  className="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+            {buscando && appsVisibles.length === 0 && (
+              <p className="mt-2 text-sm text-muted-foreground" role="status">
+                No hay tarjetas con «{busqueda.trim()}».
+              </p>
+            )}
             <div className="mt-3">
               <SelectorVerComo />
             </div>
