@@ -153,6 +153,8 @@ from (
   ('20261115890000', 'Robot Tavil: el aviso del lote anterior sabe si sigue abierto',
     exists (select 1 from fn where proname = 'robot_tavil_corrida_json' and prosrc like '%''abierta''%')),
   ('20261115990000', 'Preparación con PLC: cargas de kits y ajustes (y el usuario plc-bridge)',
-    exists (select 1 from fn where proname = 'confirmar_carga_plc') and exists (select 1 from fn where proname = 'registrar_carga_plc'))
+    exists (select 1 from fn where proname = 'confirmar_carga_plc') and exists (select 1 from fn where proname = 'registrar_carga_plc')),
+  ('20261116090000', 'Terminar parada: Mantenimiento con el catálogo nuevo no pide subsistema',
+    exists (select 1 from fn where proname = 'terminar_parada' and prosrc like '%catalogo_modular_area%' and prosrc like '%POR_DEFINIR%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;
