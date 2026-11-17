@@ -19,7 +19,7 @@ export interface PropsFamilias {
 }
 
 /** Orden del informe; las familias nuevas van al final. */
-const ORDEN = ["Clásico", "Clasicos", "Clásicos", "Selecto", "Jucosa", "Premium", "Especiales"]
+const ORDEN = ["Clásico", "Clasicos", "Clásicos", "Selecto", "Jucosa", "Premium", "Bebida té negro", "Especiales"]
 const posicion = (f: string) => (ORDEN.includes(f) ? ORDEN.indexOf(f) : ORDEN.length)
 
 /*

@@ -9,6 +9,7 @@ Decisiones de Alexander:
 2. **Nitrógeno:** se agregó «Llegaron en el turno». Caso recibe 3 y entrega 5: no se guarda hasta anotar al menos 2 que llegaron (o corregir los conteos). El consumo es recibidas + llegaron − entregadas, así que nunca da negativo.
 3. **Semana:** de lunes a domingo.
 4. **Familia «Clásicos» → «Clásico»** (pedido aparte, 2026-11-17): migración `20261116390000_familia_clasico.sql`. `es_familia_clasica()` acepta las cuatro formas en `sabor_display()` y `nombre_sabor_resumen()`; los meses de Indicadores pasan la clave del semielaborado y su observación a «Clásico». En la app: sabores.ts, turno.ts, colores.ts, VistaSemielaborado y los rótulos de Fórmulas. Ensayo: `scripts/ensayo-familia-clasico.sql` (también aplicada dos veces seguidas).
+5. **Familia «Especiales» → «Bebida té negro»** (2026-11-17): migración `20261116490000_familia_bebida_te_negro.sql`, igual que la anterior con `es_familia_te()`. En Indicadores se sigue mostrando «Té». Ensayo: `scripts/ensayo-familia-bebida-te-negro.sql`.
 
 Verificado:
 - `tsc -p tsconfig.app.json` y las 995 pruebas en verde.
@@ -25,6 +26,7 @@ Migraciones nuevas (después de la última, 20261116090000, que sigue sin commit
 | 4. Nitrógeno | `20261116290000_nitrogeno_turno.sql` |
 | 5. Resumen semanal | ninguna (opción A) |
 | Familia Clásico | `20261116390000_familia_clasico.sql` |
+| Familia Bebida té negro | `20261116490000_familia_bebida_te_negro.sql` |
 
 ---
 

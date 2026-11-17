@@ -161,6 +161,8 @@ from (
   ('20261116290000', 'Nitrógeno del turno: bombonas al recibir y al entregar',
     exists (select 1 from fn where proname = 'guardar_nitrogeno_turno') and exists (select 1 from fn where proname = 'finalizar_turno' and prosrc like '%turno_nitrogeno%')),
   ('20261116390000', 'Familia «Clásicos» pasa a «Clásico»',
-    exists (select 1 from fn where proname = 'es_familia_clasica') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_clasica%'))
+    exists (select 1 from fn where proname = 'es_familia_clasica') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_clasica%')),
+  ('20261116490000', 'Familia «Especiales» pasa a «Bebida té negro»',
+    exists (select 1 from fn where proname = 'es_familia_te') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_te%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

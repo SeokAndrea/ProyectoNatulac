@@ -3,7 +3,8 @@ import { nombreFamilia } from "@/components/indicadores/colores"
 import { nombreSaborConFamilia } from "./sabores"
 import { saborSinFamiliaOculta } from "./turno"
 
-// La familia «Clásicos» pasó a «Clásico» (migración 20261116390000): los dos nombres se tratan igual.
+// Cambios de nombre de familias (Alexander, 2026-11-17): se aceptan el nombre viejo y el nuevo.
+// «Clásicos» pasó a «Clásico» (migración 20261116390000).
 describe("familia Clásico", () => {
   it("el sabor clásico va sin la familia al lado, con el nombre nuevo o el viejo", () => {
     expect(nombreSaborConFamilia("Manzana", "Clásico")).toBe("Manzana")
@@ -22,5 +23,19 @@ describe("familia Clásico", () => {
     expect(nombreFamilia("Clásico")).toBe("Néctar clásico")
     expect(nombreFamilia("Clasicos")).toBe("Néctar clásico")
     expect(nombreFamilia("Jucosa")).toBe("Jucosa")
+  })
+})
+
+// «Especiales» pasó a «Bebida té negro» (migración 20261116490000).
+describe("familia Bebida té negro", () => {
+  it("los tés van sin la familia al lado, con el nombre nuevo o el viejo", () => {
+    expect(nombreSaborConFamilia("Té de Durazno", "Bebida té negro")).toBe("Té de Durazno")
+    expect(nombreSaborConFamilia("Té de Durazno", "Especiales")).toBe("Té de Durazno")
+    expect(saborSinFamiliaOculta("Té de Limón (Bebida té negro)")).toBe("Té de Limón")
+  })
+
+  it("en Indicadores se sigue llamando «Té»", () => {
+    expect(nombreFamilia("Bebida té negro")).toBe("Té")
+    expect(nombreFamilia("Especiales")).toBe("Té")
   })
 })

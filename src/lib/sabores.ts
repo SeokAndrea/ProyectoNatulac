@@ -18,12 +18,12 @@ export interface Sabor {
  * Nombre de sabor para mostrar (mismo criterio que sabor_display() en
  * las migraciones 20260969 / 20261002 y saborSinFamiliaOculta() en
  * turno.ts):
- *  - Clásico (antes «Clásicos», migración 20261116390000) / Especiales: sin sufijo — "Manzana".
+ *  - Clásico (antes «Clásicos», 20261116390000) / Bebida té negro (antes «Especiales», 20261116490000): sin sufijo — "Manzana".
  *  - Selecto: "Manzana 35%" (la familia ES el 35%; más corto que
  *    "(Selecto)" y desambigua igual). Si el nombre ya trae "35%", se deja.
  *  - El resto (Jucosa, Premium): "Manzana (Jucosa)".
  */
-const FAMILIAS_SUFIJO_OCULTO = ["Clásico", "Clasico", "Clasicos", "Clásicos", "Especiales"]
+const FAMILIAS_SUFIJO_OCULTO = ["Clásico", "Clasico", "Clasicos", "Clásicos", "Bebida té negro", "Especiales"]
 export function nombreSaborConFamilia(nombre: string, familiaNombre: string): string {
   if (familiaNombre === "Selecto") return /35\s*%/.test(nombre) ? nombre : `${nombre} 35%`
   return FAMILIAS_SUFIJO_OCULTO.includes(familiaNombre) ? nombre : `${nombre} (${familiaNombre})`

@@ -153,7 +153,7 @@ velocidad real depende de (línea, presentación), no solo de la
 presentación — está en `velocidades_llenadora`.
 
 ### `familias_producto`
-Clásico (antes «Clasicos», renombrada en 20261116390000), Premium, Especiales, Selecto, Jucosa. (Gama comercial —
+Clásico (antes «Clasicos», 20261116390000), Premium, Bebida té negro (antes «Especiales», 20261116490000), Selecto, Jucosa. (Gama comercial —
 **no** confundir con `lineas`, que son las líneas físicas de llenado.)
 
 ### `sabores`
@@ -169,10 +169,10 @@ repite en varias familias con volumen propio.
 | Premium | Manzana Clarificado | 1735 |
 | Premium | Agua de Coco | 170 |
 | Premium | Naranja 100% | 2870 |
-| Especiales | Coctel | 8200 |
-| Especiales | Mango | 2590 |
-| Especiales | Té de Durazno | 4883 |
-| Especiales | Te de Limón | 4883 |
+| Bebida té negro | Coctel | 8200 |
+| Bebida té negro | Mango | 2590 |
+| Bebida té negro | Té de Durazno | 4883 |
+| Bebida té negro | Te de Limón | 4883 |
 | Selecto | Manzana | 3676 |
 | Selecto | Pera | 3522 |
 | Selecto | Durazno | 3750 |
