@@ -169,6 +169,9 @@ from (
   ('20261119090000', 'Registrar la falla y la parada en la misma transacción',
     to_regclass('public.paradas_operaciones') is not null
     and (select count(*) from fn where proname in ('anotar_parada', 'abrir_parada_mantenimiento', 'pausar_linea')
-          and prosrc like '%reclamar_operacion_parada%') = 3)
+          and prosrc like '%reclamar_operacion_parada%') = 3),
+  ('20261119100000', 'Validar el turno seleccionado al anotar y repartir el T2 de 12x12',
+    exists (select 1 from fn where proname = 'anotar_parada' and prosrc like '%v_ventana.hasta%')
+    and exists (select 1 from fn where proname = 'ventana_paradas_turno' and prosrc like '%t2_noche%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

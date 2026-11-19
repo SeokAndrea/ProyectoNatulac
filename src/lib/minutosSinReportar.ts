@@ -28,6 +28,8 @@ export interface EntradaSinReportar {
   estado: "ABIERTO" | "CERRADO"
   /** Horas desde el inicio del turno (solo importa con el turno abierto). */
   horasTranscurridas: number
+  /** Ventana exacta cuando el consumidor ya conoce los límites operativos. */
+  minutosVentana?: number
   corridas: Corrida[]
   productoTerminado: ProductoTerminadoRegistro[]
   /** Paradas del turno (las de Mantenimiento ya recortadas a su ventana). */
@@ -56,7 +58,7 @@ function envasesPt(pt: ProductoTerminadoRegistro): number {
 export function minutosSinReportar(e: EntradaSinReportar): SinReportarLinea[] {
   const turnoMin = duracionBaseTurnoMin(e.turnoTipo, e)
   if (turnoMin === null) return []
-  const ventanaMin = ventanaTurnoMin(turnoMin, e.estado, e.horasTranscurridas)
+  const ventanaMin = e.minutosVentana ?? ventanaTurnoMin(turnoMin, e.estado, e.horasTranscurridas)
   const ahora = e.ahora ?? new Date()
 
   const lineas = [...new Set(e.corridas.map((c) => numero(c.linea)))].sort()

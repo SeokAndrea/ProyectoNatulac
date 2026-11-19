@@ -30,8 +30,9 @@ let turno: TurnoActivo | null = null
 let delTurno: Parada[] = []
 vi.mock("@/lib/panelProduccion", () => ({
   obtenerEstadoPlantaActual: () => Promise.resolve(turno),
-  obtenerTurnoDeFechaTipo: () => Promise.resolve(null),
+  obtenerTurnoAnterior: () => Promise.resolve(null),
 }))
+vi.mock("@/lib/ventanasParadas", () => ({ listarVentanasTurnos: async () => [] }))
 vi.mock("@/lib/paradasCatalogo", async (orig) => ({
   ...(await orig<object>()),
   useTiposActivos: () => [],
@@ -197,6 +198,7 @@ describe("ModoParadas — paradas de Mantenimiento", () => {
     await userEvent.click(screen.getByRole("button", { name: "Guardar" }))
     await waitFor(() => expect(anotarParada).toHaveBeenCalled())
     const datos = anotarParada.mock.calls[0][1] as { inicio: string; fin: string }
+    expect(datos).toMatchObject({ turnoId: "t1" })
     expect(datos.fin <= existente.inicio.slice(0, 16) + ":59").toBe(true)
     expect(datos.fin > datos.inicio).toBe(true)
   })

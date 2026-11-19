@@ -916,6 +916,7 @@ export async function eliminarParadaMantenimiento(usuario: string, paradaId: str
 
 export interface DatosAnotarParada {
   lineaCodigo: string
+  turnoId?: string
   fallaId?: string
   operacionId?: string
   /** null = tiempo ocioso de texto libre (la nota es obligatoria). */
@@ -939,6 +940,7 @@ export async function anotarParada(usuario: string, datos: DatosAnotarParada, pa
     p_fin: datos.fin,
     p_nota: datos.nota,
     p_pagina: pagina,
+    ...(datos.turnoId ? { p_turno_id: datos.turnoId } : {}),
     // Solo si viene: así sigue sirviendo contra una base sin la migración 20261113290000.
     ...(datos.responsable ? { p_responsable: datos.responsable } : {}),
     ...(datos.fallaId ? { p_falla_id: datos.fallaId } : {}),

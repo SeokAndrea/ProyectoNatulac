@@ -129,7 +129,7 @@ export default function PanelParadas({ enTv = false }: { enTv?: boolean } = {}) 
 
   // Desde cuándo cuenta el turno en vivo: la cinta suma los minutos desde ahí, igual que el Panel de
   // Producción (dueña, 2026-10-28: el mismo tiempo en los dos, y desde las 7 aunque abran tarde).
-  const desdeTurno = turno ? inicioCuentaTurno(turno.turnoTipo, turno.fecha, `${turno.fecha}T${turno.horaInicio}`) : null
+  const desdeTurno = turno ? inicioCuentaTurno(turno.turnoTipo, turno.fecha, `${turno.fecha}T${turno.horaInicio}`, turno.esquema) : null
 
   // Las líneas reales del área (LINEA_T1/T2/T3 en Pruebas, LINEA_1/2/3 en
   // Producción — ver LineaCodigo) no comparten código con LINEAS_PARADAS

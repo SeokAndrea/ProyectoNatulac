@@ -11,6 +11,18 @@
  * aproximada (nadie la sabía); el tiempo, completo.
  */
 
+/** Resuelve una hora de reloj en la fecha que le corresponde dentro del turno. */
+export function horaEnVentana(hora: string, desdeMs: number, hastaMs: number): string | null {
+  if (!/^\d{2}:\d{2}$/.test(hora)) return null
+  const fechas = new Set([aHoraPlanta(desdeMs).slice(0, 10), aHoraPlanta(hastaMs).slice(0, 10)])
+  for (const fecha of fechas) {
+    const valor = `${fecha}T${hora}:00`
+    const ms = new Date(valor).getTime()
+    if (ms >= desdeMs && ms <= hastaMs) return valor
+  }
+  return null
+}
+
 export interface TramoHora {
   /** Hora de planta 'YYYY-MM-DDTHH:MM:SS'. */
   inicio: string

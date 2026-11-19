@@ -96,7 +96,7 @@ export function LineasEstadoPlanta({
   // Desde cuándo cuenta el turno en curso: los minutos del aviso de la parada, igual que en los paneles.
   const desdeTurno =
     idTurno && idTurno === sesion.turnoId && sesion.turnoTipo && sesion.fecha && sesion.horaInicio
-      ? inicioCuentaTurno(sesion.turnoTipo, sesion.fecha, `${sesion.fecha}T${sesion.horaInicio}`)
+      ? inicioCuentaTurno(sesion.turnoTipo, sesion.fecha, `${sesion.fecha}T${sesion.horaInicio}`, sesion.esquema)
       : null
 
   // El estado de cada línea lo dice la base (cada 15 s, el mismo que los paneles). Solo para el turno

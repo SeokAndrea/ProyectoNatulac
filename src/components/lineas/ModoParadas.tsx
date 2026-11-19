@@ -1,22 +1,24 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { CircleCheck, ListPlus, Loader2, PauseCircle, TriangleAlert, Wrench } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { tramosLibres, ubicarMinutos } from "@/lib/cubrirTurno"
-import { duracionBaseTurnoMin, ventanaTurnoMin } from "@/lib/eficiencia"
+import { duracionBaseTurnoMin } from "@/lib/eficiencia"
+import { tramoT2 } from "@/lib/turno12x12"
 import { minutosSinReportar } from "@/lib/minutosSinReportar"
 import type { LineaCodigo } from "@/lib/catalogos"
-import { obtenerEstadoPlantaActual, obtenerTurnoDeFechaTipo } from "@/lib/panelProduccion"
+import { obtenerEstadoPlantaActual, obtenerTurnoAnterior } from "@/lib/panelProduccion"
 import { useProduccion } from "@/lib/produccion/useProduccion"
 import { inicioCuentaTurno } from "@/lib/paradasTurnoCompleto"
-import { diaMesPlanta, fechaPlanta, horaCortaPlanta, mismaFechaPlanta, restarDias } from "@/lib/tiempoPlanta"
+import { listarVentanasTurnos } from "@/lib/ventanasParadas"
+import type { VentanaTurno } from "@/lib/paradasTramo"
+import { diaMesPlanta, fechaPlanta, horaCortaPlanta, mismaFechaPlanta } from "@/lib/tiempoPlanta"
 import { abrirParadaMantenimiento, duracionMin, esDeMantenimiento, esPorDefinir, fmtDuracion, minutosPorClase, porClasificar, type Parada } from "@/lib/paradas"
 import { cargarParadasDelTurno } from "@/lib/paradasCatalogo"
 import { useProductoTerminado } from "@/lib/productoTerminado"
 import type { Corrida, LineaEstado, ParadaQueDetiene, Resultado } from "@/lib/produccion/tipos"
-import { horasTranscurridasTurno } from "@/lib/reportes"
 import type { TurnoActivo } from "@/lib/turno"
 import { estadoDeUnaLinea } from "@/components/panel/calculosPanel"
 import { conEstadoDeLaBase, type EstadoLineasDeLaBase } from "@/lib/estadoLineas"
@@ -58,8 +60,6 @@ import type { AccionesLinea } from "./tipos"
 const PAGINA = "Líneas"
 
 const REFRESCO_MS = 60_000
-/** El turno de antes de cada uno (3x8): T1 ← T3 del día anterior, T2 ← T1, T3 ← T2. */
-const ANTERIOR: Record<string, [string, number]> = { TURNO_1: ["TURNO_3", 1], TURNO_2: ["TURNO_1", 0], TURNO_3: ["TURNO_2", 0] }
 const numero = (codigo: string) => codigo.replace(/^LINEA_T?/, "")
 
 interface LineaModo {
@@ -112,7 +112,10 @@ export function ModoParadas({
   /** Como en el PT: el turno anterior también se puede cubrir después de cerrado. */
   const [verAnterior, setVerAnterior] = useState(false)
   const turno = verAnterior && anterior ? anterior : actual
-  const [paradas, setParadas] = useState<Parada[] | null>(null)
+  const [datosParadas, setDatosParadas] = useState<{ turnoId: string | null; registros: Parada[] } | null>(null)
+  const paradas = datosParadas?.turnoId === (turno?.id ?? null) ? datosParadas.registros : null
+  const [ventana, setVentana] = useState<VentanaTurno | null>(null)
+  const cargaActual = useRef(0)
   /** La hora con la que se hace la cuenta: se renueva en cada recarga (cada minuto y al guardar). */
   const [ahora, setAhora] = useState(() => new Date())
   const equipos = useEquiposParadas()
@@ -126,13 +129,18 @@ export function ModoParadas({
   const corridasTurno = verAnterior && anterior ? delAnterior.corridas : corridas
 
   const cargar = useCallback(async () => {
+    const carga = ++cargaActual.current
     const t = await obtenerEstadoPlantaActual(areaParadas)
-    setActual(t)
-    const previo = t && ANTERIOR[t.turnoTipo]
-    const ant = previo ? await obtenerTurnoDeFechaTipo(restarDias(t.fecha, previo[1]), previo[0], areaParadas) : null
-    setAnterior(ant)
+    const ant = t ? await obtenerTurnoAnterior(areaParadas, t.id) : null
     const ver = verAnterior && ant ? ant : t
-    setParadas(ver ? await cargarParadasDelTurno(ver.id) : [])
+    const [registros, ventanas] = ver
+      ? await Promise.all([cargarParadasDelTurno(ver.id), listarVentanasTurnos(areaParadas, ver.fecha, ver.fecha)])
+      : [[], []]
+    if (carga !== cargaActual.current) return
+    setActual(t)
+    setAnterior(ant)
+    setDatosParadas({ turnoId: ver?.id ?? null, registros })
+    setVentana(ventanas.find((v) => v.id === ver?.id) ?? null)
     await recargarPt()
     setAhora(new Date())
   }, [areaParadas, recargarPt, verAnterior])
@@ -140,7 +148,10 @@ export function ModoParadas({
   useEffect(() => {
     void cargar()
     const id = setInterval(() => void cargar(), REFRESCO_MS)
-    return () => clearInterval(id)
+    return () => {
+      clearInterval(id)
+      cargaActual.current++
+    }
   }, [cargar])
 
   async function cambio() {
@@ -167,24 +178,28 @@ export function ModoParadas({
     return <p className="mx-auto max-w-xl rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">No hay un turno abierto.</p>
   }
 
-  const horas = horasTranscurridasTurno(turno.horaInicio, turno.estado, turno.horaFin)
+  const turnoMin = duracionBaseTurnoMin(turno.turnoTipo, turno) ?? 0
+  const ventanaActual = ventana?.id === turno.id ? ventana : null
+  const desdeMs = ventanaActual ? new Date(ventanaActual.desde).getTime()
+    : inicioCuentaTurno(turno.turnoTipo, turno.fecha, `${turno.fecha}T${turno.horaInicio}`, turno.esquema).getTime()
+  const cierre = turno.fechaFin && turno.horaFin ? new Date(`${turno.fechaFin}T${turno.horaFin}`).getTime() : ahora.getTime()
+  const tramo = tramoT2(turno.esquema, turno.turnoTipo, turno.horaInicio)
+  const finProgramado = tramo ? new Date(`${turno.fecha}T${tramo.hasta}:00`).getTime() : desdeMs + turnoMin * 60_000
+  const hastaMs = Math.max(desdeMs, Math.min(finProgramado, ventanaActual ? new Date(ventanaActual.hasta).getTime() : cierre, ahora.getTime()))
+  const horas = Math.max(0, (hastaMs - desdeMs) / 3_600_000)
+  const ventanaMin = Math.round(horas * 60)
   const filas = minutosSinReportar({
     turnoTipo: turno.turnoTipo,
     esquema: turno.esquema,
     horaInicio: turno.horaInicio,
     estado: turno.estado,
     horasTranscurridas: horas,
+    minutosVentana: ventanaMin,
     corridas: corridasTurno,
     productoTerminado: pt.registros,
     paradas,
     ahora,
   })
-  const turnoMin = duracionBaseTurnoMin(turno.turnoTipo, turno) ?? 0
-  const ventanaMin = ventanaTurnoMin(turnoMin, turno.estado, horas)
-  // Dónde caben las paradas que cubren: desde el horario oficial del turno (T1 07:00…) si abrió tarde,
-  // porque la cuenta le suma el turno entero igual; hasta el fin de ese horario o ahora.
-  const desdeMs = inicioCuentaTurno(turno.turnoTipo, turno.fecha, `${turno.fecha}T${turno.horaInicio}`).getTime()
-  const hastaMs = Math.min(desdeMs + turnoMin * 60_000, ahora.getTime())
 
   return (
     <>
@@ -407,6 +422,8 @@ export function ModoParadas({
               <FormDetenerLinea corrida={enVivo} detener={yRecargar(acciones.detener)} onCerrar={() => setAbierto(null)} />
             ) : abiertoAca === "cubrir" || abiertoAca === "paradas" ? (
               <PanelParadasLinea
+                key={turno.id}
+                turno={{ id: turno.id, desdeMs, hastaMs }}
                 esMantenimiento={esMantenimiento}
                 lineaCodigo={l.codigo}
                 nombreLinea={l.nombre}

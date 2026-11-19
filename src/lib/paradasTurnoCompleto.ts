@@ -1,4 +1,5 @@
 import { restarDias } from "@/lib/tiempoPlanta"
+import { tramoT2 } from "@/lib/turno12x12"
 
 /*
  * TURNO COMPLETO (dueña, 2026-10-14): una parada de Línea No Programada /
@@ -25,11 +26,12 @@ export const TURNOS_COMPLETOS: { tipo: TipoTurno; corto: string; desde: string; 
  * Lo usan el Modo Paradas y la cinta en vivo de los dos paneles (dueña,
  * 2026-10-28: el turno empieza a las 7 aunque lo abran a las 8:54).
  */
-export function inicioCuentaTurno(turnoTipo: string, fecha: string, abrioEn: string): Date {
+export function inicioCuentaTurno(turnoTipo: string, fecha: string, abrioEn: string, esquema?: string | null): Date {
   const abrio = new Date(`${abrioEn.slice(0, 16)}:00`)
-  const oficial = TURNOS_COMPLETOS.find((t) => t.tipo === turnoTipo)
+  const oficial = tramoT2(esquema, turnoTipo, abrioEn.slice(11, 16)) ?? TURNOS_COMPLETOS.find((t) => t.tipo === turnoTipo)
   if (!oficial) return abrio
   const desdeOficial = new Date(`${fecha}T${oficial.desde}:00`)
+  if (esquema === "12x12" && turnoTipo === "TURNO_2" && oficial.desde === "19:00") return desdeOficial
   return desdeOficial < abrio ? desdeOficial : abrio
 }
 

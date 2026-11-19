@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useTiposActivos } from "@/lib/paradasCatalogo"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
-import type { TramoHora } from "@/lib/cubrirTurno"
+import { horaEnVentana, type TramoHora } from "@/lib/cubrirTurno"
 import { anotarParada, fmtDuracion, LARGO_NOTA_PARADA, registraSupervisor, type Parada, type ResponsableParada, type TipoParada } from "@/lib/paradas"
 import { esLineaNoProgramada } from "@/lib/paradasTurnoCompleto"
 import { restarDias } from "@/lib/tiempoPlanta"
@@ -62,6 +62,7 @@ export function PanelParadasLinea({
   onCerrar,
   cubrir,
   ubicar,
+  turno,
   esMantenimiento = false,
 }: {
   /** Quien anota es de Mantenimiento: el Responsable viene marcado en Mantenimiento. */
@@ -86,6 +87,7 @@ export function PanelParadasLinea({
    * no a «terminó ahora», que choca con una parada ya cargada en esa hora.
    */
   ubicar?: (minutos: number) => TramoHora[]
+  turno?: { id: string; desdeMs: number; hastaMs: number }
 }) {
   const tipos = useTiposActivos()
   const equipos = useEquiposParadas()
@@ -180,7 +182,12 @@ export function PanelParadasLinea({
 
   /** minutos = null → +1 pendiente (se completa después). */
   async function anotar(minutos: number | null) {
-    const tramos = [{ inicio: minutos === null ? null : conFecha(ini, true), fin: minutos === null ? null : conFecha(fin, false) }]
+    const desde = turno && minutos !== null ? horaEnVentana(ini, turno.desdeMs, turno.hastaMs) : null
+    const hasta = turno && minutos !== null ? horaEnVentana(fin, turno.desdeMs, turno.hastaMs) : null
+    if (turno && minutos !== null && (!desde || !hasta || desde >= hasta)) {
+      return setError("Pon las horas de inicio y fin dentro del turno seleccionado.")
+    }
+    const tramos = [{ inicio: minutos === null ? null : desde ?? conFecha(ini, true), fin: minutos === null ? null : hasta ?? conFecha(fin, false) }]
     await registrar(tramos, JSON.stringify(tramos), minutos)
   }
 
@@ -192,7 +199,7 @@ export function PanelParadasLinea({
   async function registrar(tramos: { inicio: string | null; fin: string | null }[], horasSolicitadas: string, minutos: number | null) {
     if (!tipo || enviando) return
     const fallaId = falla?.falla.id
-    const base = { lineaCodigo, tipoCodigo: tipo.codigo, nota: notaFinal, responsable, ...(fallaId ? { fallaId } : {}) }
+    const base = { lineaCodigo, tipoCodigo: tipo.codigo, nota: notaFinal, responsable, ...(fallaId ? { fallaId } : {}), ...(turno ? { turnoId: turno.id } : {}) }
     const solicitud = JSON.stringify({ base, horasSolicitadas })
     if (intento.current?.solicitud !== solicitud) {
       if (tramos.length === 0) {
