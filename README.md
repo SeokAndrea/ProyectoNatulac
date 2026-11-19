@@ -41,4 +41,4 @@ Los PDF quedan en `../natulac-actas` (al lado de la carpeta del proyecto).
 ## Documentación
 
 - `MAPA.md`: dónde está cada pantalla y su lógica.
-- `docs/`: planes y decisiones de cada módulo.
+- [Índice de documentación](docs/README.md): contexto, procedimientos, planes e historial.

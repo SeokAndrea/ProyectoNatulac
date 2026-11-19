@@ -1,1 +1,0 @@
-No coloques ningún argentinisismo, ningún voseo y mantén las descripciones cortas.
