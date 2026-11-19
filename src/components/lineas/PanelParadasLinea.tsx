@@ -1,8 +1,10 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Check, Loader2, X } from "lucide-react"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
 import { BuscadorParada, type Eleccion } from "@/components/catalogo-fallas/BuscadorParada"
-import { asignarFallaRecienRegistrada, tipoDeFalla, TIPO_FALLA_EQUIPO, type OpcionFalla } from "@/lib/catalogoFallas/paradas"
+import { tipoDeFalla, TIPO_FALLA_EQUIPO, type OpcionFalla } from "@/lib/catalogoFallas/paradas"
+import { nuevaOperacionParada } from "@/lib/operacionParada"
+import { useAccion } from "@/lib/useAccion"
 import { useCatalogoModular } from "@/lib/catalogoFallas/switch"
 import { ahoraPlanta, conSegundos, FormCompletarParada } from "@/components/paradas/FormCompletarParada"
 import { Button } from "@/components/ui/button"
@@ -108,8 +110,8 @@ export function PanelParadasLinea({
   /** Comentario opcional (dueña, 2026-10-28): también en las que se anotan con solo la falla y los minutos. */
   const [nota, setNota] = useState("")
   const notaFinal = nota.trim() || null
-  const [enviando, setEnviando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { enviando, error, setError, ejecutar } = useAccion()
+  const intento = useRef<{ solicitud: string; datos: Parameters<typeof anotarParada>[1][]; enviados: number } | null>(null)
   const [hecho, setHecho] = useState<string | null>(null)
 
   // Como en Registrar Paradas: el Área de Pruebas registra en Pruebas; el resto, en Aséptico.
@@ -118,6 +120,7 @@ export function PanelParadasLinea({
   const repetido = tipo && tipo.codigo !== TIPO_FALLA_EQUIPO ? pendientes.find((p) => p.tipoCodigo === tipo.codigo) : undefined
 
   function elegir(t: TipoParada | null) {
+    intento.current = null
     setTipo(t)
     setFalla(null)
     setBuscando(null)
@@ -136,13 +139,6 @@ export function PanelParadasLinea({
     if (e.tipo) return elegir(e.tipo)
     elegir(tipoDeFalla(e.falla))
     setFalla(e.falla)
-  }
-
-  /** Anota y, si es una falla de equipo del catálogo nuevo, le pone la falla. */
-  async function registrar(datos: Parameters<typeof anotarParada>[1]) {
-    const r = await anotarParada(usuario, datos, PAGINA)
-    if (!r.ok || !falla) return r
-    return asignarFallaRecienRegistrada(usuario, lineaCodigo, falla.falla.id, PAGINA)
   }
 
   const min = Number(minutos)
@@ -177,52 +173,52 @@ export function PanelParadasLinea({
   }
 
   function guardar() {
-    if (!minValido) return
+    if (!minValido || enviando) return
     if (colocar && !horas) return void cubrirMinutos(min, colocar)
     void anotar(min)
   }
 
   /** minutos = null → +1 pendiente (se completa después). */
   async function anotar(minutos: number | null) {
-    if (!tipo) return
-    setEnviando(true)
-    setError(null)
-    const r = await registrar({
-        lineaCodigo,
-        tipoCodigo: tipo.codigo,
-        // Ya pasó: de la hora de inicio a la de fin (por defecto, terminó recién).
-        inicio: minutos === null ? null : conFecha(ini, true),
-        fin: minutos === null ? null : conFecha(fin, false),
-        nota: notaFinal,
-        responsable,
-    })
-    setEnviando(false)
-    if (!r.ok) return setError(r.error)
-    setHecho(minutos === null ? `Anotada como +1: ${tipo.nombre}. Pon los minutos cuando los sepas.` : `Anotada: ${tipo.nombre} · ${minutos} min.`)
-    setTipo(null)
-    await onCambio()
+    const tramos = [{ inicio: minutos === null ? null : conFecha(ini, true), fin: minutos === null ? null : conFecha(fin, false) }]
+    await registrar(tramos, JSON.stringify(tramos), minutos)
   }
 
   /** Cubrir o anotar en el Modo Paradas: una parada por tramo libre (casi siempre uno solo). */
   async function cubrirMinutos(minutos: number, ubicarEn: (minutos: number) => TramoHora[]) {
-    if (!tipo) return
-    const tramos = ubicarEn(minutos)
-    if (tramos.length === 0) {
-      return setError(`No queda tiempo libre en el turno para ${fmtDuracion(minutos)}: revisa las paradas ya cargadas en esta línea.`)
-    }
-    setEnviando(true)
-    setError(null)
-    for (const t of tramos) {
-      const r = await registrar({ lineaCodigo, tipoCodigo: tipo.codigo, inicio: t.inicio, fin: t.fin, nota: notaFinal, responsable })
-      if (!r.ok) {
-        setEnviando(false)
-        await onCambio()
-        return setError(r.error)
+    await registrar(ubicarEn(minutos), String(minutos), minutos)
+  }
+
+  async function registrar(tramos: { inicio: string | null; fin: string | null }[], horasSolicitadas: string, minutos: number | null) {
+    if (!tipo || enviando) return
+    const fallaId = falla?.falla.id
+    const base = { lineaCodigo, tipoCodigo: tipo.codigo, nota: notaFinal, responsable, ...(fallaId ? { fallaId } : {}) }
+    const solicitud = JSON.stringify({ base, horasSolicitadas })
+    if (intento.current?.solicitud !== solicitud) {
+      if (tramos.length === 0) {
+        return setError(`No queda tiempo libre en el turno para ${fmtDuracion(minutos ?? 0)}: revisa las paradas ya cargadas en esta línea.`)
+      }
+      intento.current = {
+        solicitud,
+        datos: tramos.map((tramo) => ({ ...base, ...tramo, operacionId: nuevaOperacionParada() })),
+        enviados: 0,
       }
     }
-    setEnviando(false)
-    setHecho(`${cubrir ? "Cubierto" : "Anotada"}: ${tipo.nombre} · ${fmtDuracion(minutos)}.`)
-    setTipo(null)
+    // Un reintento conserva las horas originales y continúa desde el primer tramo sin confirmar.
+    const actual = intento.current
+    const ok = await ejecutar(async () => {
+      for (const datos of actual.datos.slice(actual.enviados)) {
+        const r = await anotarParada(usuario, datos, PAGINA)
+        if (!r.ok) return r
+        actual.enviados++
+      }
+      return { ok: true }
+    })
+    if (ok) {
+      intento.current = null
+      setHecho(minutos === null ? `Anotada como +1: ${tipo.nombre}. Pon los minutos cuando los sepas.` : `${cubrir ? "Cubierto" : "Anotada"}: ${tipo.nombre} · ${fmtDuracion(minutos)}.`)
+      setTipo(null)
+    }
     await onCambio()
   }
 

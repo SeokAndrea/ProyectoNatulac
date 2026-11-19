@@ -378,7 +378,15 @@ export function ModoParadas({
                 pausar={async (_corridaId, datos): Promise<Resultado> => {
                   const r = await abrirParadaMantenimiento(
                     usuario,
-                    { lineaCodigo: l.codigo, tipoCodigo: datos.tipoCodigo, nota: datos.motivo, inicio: datos.inicio, ...(esMantenimiento ? {} : { responsable: datos.responsable }) },
+                    {
+                      lineaCodigo: l.codigo,
+                      tipoCodigo: datos.tipoCodigo,
+                      nota: datos.motivo,
+                      inicio: datos.inicio,
+                      ...(datos.fallaId ? { fallaId: datos.fallaId } : {}),
+                      ...(datos.operacionId ? { operacionId: datos.operacionId } : {}),
+                      ...(esMantenimiento ? {} : { responsable: datos.responsable }),
+                    },
                     PAGINA,
                   )
                   if (r.ok) await cambio()

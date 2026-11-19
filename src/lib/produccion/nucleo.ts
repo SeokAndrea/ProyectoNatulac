@@ -55,6 +55,8 @@ export async function pausarLinea(
     p_tipo_codigo: datos.tipoCodigo,
     p_responsable: datos.responsable,
     p_inicio: datos.inicio,
+    ...(datos.fallaId ? { p_falla_id: datos.fallaId } : {}),
+    ...(datos.operacionId ? { p_operacion_id: datos.operacionId } : {}),
   })
   if (error || !data) return { ok: false, error: error?.message ?? "No se pudo pausar la línea. Intenta de nuevo." }
   return { ok: true, data }

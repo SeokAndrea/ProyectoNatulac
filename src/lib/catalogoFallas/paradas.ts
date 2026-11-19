@@ -69,12 +69,6 @@ export function opcionDeFalla(c: CatalogoFallas, fallaId: string | null): Opcion
 
 type Resultado = { ok: true } | { ok: false; error: string }
 
-/** Producción, justo después de Parar o Anotar: la falla va a la parada que acaba de registrar en esa línea. */
-export async function asignarFallaRecienRegistrada(usuario: string, lineaCodigo: string, fallaId: string, pagina: string): Promise<Resultado> {
-  const { error } = await supabase.rpc("asignar_falla_recien_registrada", { p_usuario: usuario, p_linea_codigo: lineaCodigo, p_falla_id: fallaId, p_pagina: pagina })
-  return error ? { ok: false, error: error.message || "La parada quedó registrada, pero no se le pudo poner la falla." } : { ok: true }
-}
-
 /** Ponerle la falla a una parada conocida (Mantenimiento al Terminar o Poner código). */
 export async function asignarFallaParada(usuario: string, paradaId: string, fallaId: string, quien: "PRODUCCION" | "MANTENIMIENTO", pagina: string): Promise<Resultado> {
   const { error } = await supabase.rpc("asignar_falla_parada", { p_usuario: usuario, p_parada_id: paradaId, p_falla_id: fallaId, p_quien: quien, p_pagina: pagina })

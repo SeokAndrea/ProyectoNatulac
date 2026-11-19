@@ -839,6 +839,8 @@ export interface DatosAbrirParadaMantenimiento {
   lineaCodigo: string
   tipoCodigo: string
   nota: string
+  fallaId?: string
+  operacionId?: string
   /** 'YYYY-MM-DDTHH:MM:SS' de planta, o null = ahora. */
   inicio: string | null
   /** Sin esto, de Mantenimiento. El supervisor abre la suya (línea sin corrida) como OPERACIONAL. */
@@ -853,6 +855,8 @@ export async function abrirParadaMantenimiento(usuario: string, datos: DatosAbri
     p_tipo_codigo: datos.tipoCodigo,
     p_nota: datos.nota,
     p_inicio: datos.inicio,
+    ...(datos.fallaId ? { p_falla_id: datos.fallaId } : {}),
+    ...(datos.operacionId ? { p_operacion_id: datos.operacionId } : {}),
     // Solo si viene: así sigue funcionando contra una base sin la migración.
     ...(datos.responsable ? { p_responsable: datos.responsable } : {}),
   })
@@ -912,6 +916,8 @@ export async function eliminarParadaMantenimiento(usuario: string, paradaId: str
 
 export interface DatosAnotarParada {
   lineaCodigo: string
+  fallaId?: string
+  operacionId?: string
   /** null = tiempo ocioso de texto libre (la nota es obligatoria). */
   tipoCodigo: string | null
   /** Hora de planta 'YYYY-MM-DDTHH:MM:SS'. null = +1 pendiente (sin minutos). */
@@ -935,6 +941,8 @@ export async function anotarParada(usuario: string, datos: DatosAnotarParada, pa
     p_pagina: pagina,
     // Solo si viene: así sigue sirviendo contra una base sin la migración 20261113290000.
     ...(datos.responsable ? { p_responsable: datos.responsable } : {}),
+    ...(datos.fallaId ? { p_falla_id: datos.fallaId } : {}),
+    ...(datos.operacionId ? { p_operacion_id: datos.operacionId } : {}),
   })
   return error ? { ok: false, error: error.message || "No se pudo guardar la parada. Intenta de nuevo." } : { ok: true }
 }

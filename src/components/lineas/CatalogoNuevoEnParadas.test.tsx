@@ -3,17 +3,17 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { FormParadaLinea } from "@/components/lineas/FormParadaLinea"
 import { FormTerminarParada } from "@/components/lineas/FormTerminarParada"
+import { PanelParadasLinea } from "@/components/lineas/PanelParadasLinea"
 import type { Parada } from "@/lib/paradas"
 
 /*
- * Parar y Terminar con el catálogo nuevo encendido (migraciones 20261113790000
- * y 20261113890000): la parada va con el tipo genérico y después se le pone
- * la falla (Producción al Parar, Mantenimiento al Terminar).
+ * La apertura envía la falla junto con la parada. Al corregirla, Mantenimiento
+ * usa el ID de la parada existente.
  */
 
-const asignarFallaRecienRegistrada = vi.fn()
 const asignarFallaParada = vi.fn()
 const terminarParada = vi.fn()
+const anotarParada = vi.fn()
 const opcion = {
   falla: { id: "f1", subsistemaId: "cam", numero: 1, nombre: "Baja presión", clase: "NO_PROGRAMADA", activo: true, codigo: "CF-SUP-CAM-01" },
   subsistema: { id: "cam", nombre: "Cámara aséptica" },
@@ -25,13 +25,13 @@ vi.mock("@/lib/catalogoFallas/switch", () => ({ useCatalogoModular: () => true }
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ session: { username: "mtto1", esDueno: false, permisos: [], rol: "MANTENIMIENTO" } }) }))
 vi.mock("@/lib/catalogoFallas/paradas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/catalogoFallas/paradas")>()),
-  asignarFallaRecienRegistrada: (...a: unknown[]) => asignarFallaRecienRegistrada(...a),
   asignarFallaParada: (...a: unknown[]) => asignarFallaParada(...a),
   leerFallasDeParadas: async () => new Map([["p1", { fallaProduccionId: "f1", fallaFinalId: null }]]),
 }))
 vi.mock("@/lib/paradas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/paradas")>()),
   terminarParada: (...a: unknown[]) => terminarParada(...a),
+  anotarParada: (...a: unknown[]) => anotarParada(...a),
   paradaCruzoTurnoCerrado: async () => false,
 }))
 // Los buscadores se prueban aparte: acá basta con elegir la falla.
@@ -50,43 +50,68 @@ vi.mock("@/components/catalogo-fallas/ElegirFallaMtto", () => ({
   ),
 }))
 vi.mock("@/lib/paradasEquipos", () => ({ useEquiposParadas: () => [] }))
-vi.mock("@/lib/paradasCatalogo", () => ({ useCatalogoParadas: () => [] }))
+vi.mock("@/lib/paradasCatalogo", () => ({ useCatalogoParadas: () => [], useTiposActivos: () => [] }))
 vi.mock("@/lib/mttoCatalogo", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/mttoCatalogo")>()),
   useCatalogoMtto: () => ({ equipos: [], subsistemas: [], cargando: false, recargar: async () => {} }),
 }))
 
 beforeEach(() => {
-  asignarFallaRecienRegistrada.mockReset().mockResolvedValue({ ok: true })
   asignarFallaParada.mockReset().mockResolvedValue({ ok: true })
   terminarParada.mockReset().mockResolvedValue({ ok: true })
+  anotarParada.mockReset().mockResolvedValue({ ok: true })
 })
 
 describe("Parar con el catálogo nuevo", () => {
-  it("pausa con el tipo genérico y después le pone la falla de Producción", async () => {
+  it("envía la falla de Producción en la misma solicitud que la pausa", async () => {
     const pausar = vi.fn().mockResolvedValue({ ok: true })
     const onCerrar = vi.fn()
     render(<FormParadaLinea corridaId="c1" lineaCodigo="LINEA_2" areaCodigo="ASEPTICO" presentacionMl={1000} pausar={pausar} onCerrar={onCerrar} />)
     await userEvent.click(screen.getByText("Elegir falla"))
     await userEvent.type(screen.getByRole("textbox"), "Bajó la presión")
     await userEvent.click(screen.getByRole("button", { name: /confirmar parada/i }))
-    expect(pausar).toHaveBeenCalledWith("c1", expect.objectContaining({ tipoCodigo: "FALLA_EQUIPO", responsable: "POR_DEFINIR" }))
-    expect(asignarFallaRecienRegistrada).toHaveBeenCalledWith("mtto1", "LINEA_2", "f1", "Líneas")
+    expect(pausar).toHaveBeenCalledExactlyOnceWith("c1", expect.objectContaining({
+      tipoCodigo: "FALLA_EQUIPO", responsable: "POR_DEFINIR", fallaId: "f1", operacionId: expect.any(String),
+    }))
     expect(onCerrar).toHaveBeenCalled()
   })
 
-  it("si no se pudo poner la falla, avisa y no deja volver a parar (la parada ya quedó)", async () => {
-    asignarFallaRecienRegistrada.mockResolvedValue({ ok: false, error: "sin red" })
-    const pausar = vi.fn().mockResolvedValue({ ok: true })
+  it("si se pierde la respuesta, reintenta con el mismo ID de operación", async () => {
+    const pausar = vi.fn().mockRejectedValueOnce(new Error("sin red")).mockResolvedValue({ ok: true })
     const onCerrar = vi.fn()
     render(<FormParadaLinea corridaId="c1" lineaCodigo="LINEA_2" areaCodigo="ASEPTICO" presentacionMl={1000} responsableFijo="OPERACIONAL" pausar={pausar} onCerrar={onCerrar} />)
     await userEvent.click(screen.getByText("Elegir falla"))
     await userEvent.type(screen.getByRole("textbox"), "x")
     await userEvent.click(screen.getByRole("button", { name: /confirmar parada/i }))
-    expect(await screen.findByText(/quedó registrada, pero sin la falla/)).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /confirmar parada/i })).toBeDisabled()
+    expect(await screen.findByText(/No se pudo conectar/)).toBeInTheDocument()
     expect(onCerrar).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole("button", { name: /confirmar parada/i }))
+    expect(pausar).toHaveBeenCalledTimes(2)
+    expect(pausar.mock.calls[1]).toEqual(pausar.mock.calls[0])
+    expect(onCerrar).toHaveBeenCalled()
   })
+})
+
+it("retoma la cobertura desde el tramo sin confirmar aunque cambien los huecos", async () => {
+  const ubicar = vi.fn().mockReturnValue([
+    { inicio: "2026-10-31T10:00:00", fin: "2026-10-31T10:10:00" },
+    { inicio: "2026-10-31T10:20:00", fin: "2026-10-31T10:30:00" },
+  ])
+  anotarParada.mockResolvedValueOnce({ ok: true }).mockRejectedValueOnce(new Error("sin red"))
+  render(<PanelParadasLinea lineaCodigo="LINEA_2" nombreLinea="Línea 2" areaCodigo="ASEPTICO"
+    usuario="mtto1" presentacionMl={1000} pendientes={[]} esMantenimiento
+    cubrir={{ faltaMin: 20, ubicar }} onCambio={async () => {}} onCerrar={() => {}} />)
+  await userEvent.click(screen.getByRole("button", { name: "Elegir falla" }))
+  await userEvent.click(screen.getByRole("button", { name: "Guardar" }))
+  await screen.findByText(/No se pudo conectar/)
+  ubicar.mockReturnValue([])
+  await userEvent.click(screen.getByRole("button", { name: "Guardar" }))
+  expect(anotarParada).toHaveBeenCalledTimes(3)
+  const [primero, segundo, reintento] = anotarParada.mock.calls
+  expect(primero[1].fallaId).toBe("f1")
+  expect(segundo[1].operacionId).not.toBe(primero[1].operacionId)
+  expect(reintento).toEqual(segundo)
+  expect(await screen.findByText(/Cubierto/)).toBeInTheDocument()
 })
 
 const parada: Parada = {

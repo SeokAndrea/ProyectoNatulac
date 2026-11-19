@@ -165,6 +165,10 @@ from (
   ('20261116490000', 'Familia «Especiales» pasa a «Bebida té negro»',
     exists (select 1 from fn where proname = 'es_familia_te') and exists (select 1 from fn where proname = 'sabor_display' and prosrc like '%es_familia_te%')),
   ('20261116590000', 'Ticket de paleta por sistema (QR), vida útil y búsqueda por ticket',
-    exists (select 1 from fn where proname = 'robot_tavil_configurar_tickets') and exists (select 1 from fn where proname = 'robot_tavil_sumar' and prosrc like '%robot_tavil_ticket_seq%'))
+    exists (select 1 from fn where proname = 'robot_tavil_configurar_tickets') and exists (select 1 from fn where proname = 'robot_tavil_sumar' and prosrc like '%robot_tavil_ticket_seq%')),
+  ('20261119090000', 'Registrar la falla y la parada en la misma transacción',
+    to_regclass('public.paradas_operaciones') is not null
+    and (select count(*) from fn where proname in ('anotar_parada', 'abrir_parada_mantenimiento', 'pausar_linea')
+          and prosrc like '%reclamar_operacion_parada%') = 3)
 ) as m (migracion, que_es, aplicada)
 order by migracion;

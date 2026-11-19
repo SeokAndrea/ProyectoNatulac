@@ -192,6 +192,8 @@ export interface DatosPausarLinea {
   motivo: string
   tipoCodigo: string
   responsable: ResponsableParada
+  fallaId?: string
+  operacionId?: string
   /** 'YYYY-MM-DDTHH:MM:SS' de planta, o null = ahora. */
   inicio: string | null
 }

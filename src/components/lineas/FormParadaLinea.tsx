@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Loader2, PauseCircle } from "lucide-react"
 import { BuscadorTipoParada } from "@/components/BuscadorTipoParada"
 import { BuscadorParada, type Eleccion } from "@/components/catalogo-fallas/BuscadorParada"
@@ -9,9 +9,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { MensajeError } from "@/components/MensajeError"
 import { fmtDuracion, LARGO_NOTA_PARADA, TIPO_FALLA_SIN_ESPECIFICAR, type ResponsableParada, type TipoParada } from "@/lib/paradas"
 import { useEquiposParadas } from "@/lib/paradasEquipos"
-import { useAuth } from "@/lib/auth"
 import { esParadaNueva } from "@/lib/catalogoFallas/fallaNueva"
-import { asignarFallaRecienRegistrada, TIPO_FALLA_EQUIPO } from "@/lib/catalogoFallas/paradas"
+import { TIPO_FALLA_EQUIPO } from "@/lib/catalogoFallas/paradas"
+import { nuevaOperacionParada } from "@/lib/operacionParada"
 import { useCatalogoModular } from "@/lib/catalogoFallas/switch"
 import type { AccionesLinea } from "./tipos"
 import { useAccion } from "@/lib/useAccion"
@@ -52,8 +52,7 @@ export function FormParadaLinea({
   // Con el catálogo nuevo encendido (20261113790000): falla de equipo u otra parada, desde un solo buscador.
   const modular = useCatalogoModular(areaCodigo === "PRUEBAS" ? "PRUEBAS" : "ASEPTICO") === true
   const [eleccion, setEleccion] = useState<Eleccion | null>(null)
-  const [sinFalla, setSinFalla] = useState<string | null>(null)
-  const { session } = useAuth()
+  const intento = useRef<{ solicitud: string; id: string } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [conInicio, setConInicio] = useState(desdeAntes)
   const [inicio, setInicio] = useState(ahoraPlanta)
@@ -66,14 +65,15 @@ export function FormParadaLinea({
   const listo = tipoCodigo !== undefined && motivo.trim() !== "" && (!conInicio || inicio !== "")
 
   async function confirmar() {
-    if (!tipoCodigo || !responsable || !listo) return
-    const datos = { motivo: motivo.trim(), tipoCodigo, responsable, inicio: conInicio ? conSegundos(inicio) : null }
-    if (!(await ejecutar(() => pausar(corridaId, datos)))) return
-    // La falla va en un segundo paso: si no se pudo, la parada igual quedó y Mantenimiento se la pone al terminar.
-    if (eleccion?.falla && session) {
-      const r = await asignarFallaRecienRegistrada(session.username, lineaCodigo, eleccion.falla.falla.id, "Líneas")
-      if (!r.ok) return setSinFalla(`La parada quedó registrada, pero sin la falla (${r.error}). Mantenimiento se la pone al terminarla.`)
+    if (!tipoCodigo || !responsable || !listo || enviando) return
+    const fallaId = modular ? eleccion?.falla?.falla.id : undefined
+    const datos = { motivo: motivo.trim(), tipoCodigo, responsable, inicio: conInicio ? conSegundos(inicio) : null, ...(fallaId ? { fallaId } : {}) }
+    if (fallaId) {
+      const solicitud = JSON.stringify(datos)
+      if (intento.current?.solicitud !== solicitud) intento.current = { solicitud, id: nuevaOperacionParada() }
     }
+    const operacionId = fallaId ? intento.current?.id : undefined
+    if (!(await ejecutar(() => pausar(corridaId, { ...datos, ...(operacionId ? { operacionId } : {}) })))) return
     onCerrar()
   }
 
@@ -133,13 +133,13 @@ export function FormParadaLinea({
           <Button size="sm" variant="ghost" onClick={onCerrar} disabled={enviando}>
             Cancelar
           </Button>
-          <Button size="sm" onClick={confirmar} disabled={enviando || !listo || sinFalla !== null}>
+          <Button size="sm" onClick={confirmar} disabled={enviando || !listo}>
             {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PauseCircle className="size-3.5" />}
             Confirmar parada
           </Button>
         </div>
       </div>
-      <MensajeError error={error ?? sinFalla} />
+      <MensajeError error={error} />
     </div>
   )
 }
