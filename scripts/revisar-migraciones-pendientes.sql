@@ -172,6 +172,9 @@ from (
           and prosrc like '%reclamar_operacion_parada%') = 3),
   ('20261119100000', 'Validar el turno seleccionado al anotar y repartir el T2 de 12x12',
     exists (select 1 from fn where proname = 'anotar_parada' and prosrc like '%v_ventana.hasta%')
-    and exists (select 1 from fn where proname = 'ventana_paradas_turno' and prosrc like '%t2_noche%'))
+    and exists (select 1 from fn where proname = 'ventana_paradas_turno' and prosrc like '%t2_noche%')),
+  ('20261119110000', 'CIP sin pendientes con inicio real y validación de 180 minutos',
+    exists (select 1 from fn where proname = 'poner_linea_en_cip' and prosrc like '%cip_inicio_real%')
+    and exists (select 1 from fn where proname = 'terminar_cip' and prosrc like '%180 minutes%'))
 ) as m (migracion, que_es, aplicada)
 order by migracion;

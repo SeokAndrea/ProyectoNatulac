@@ -264,7 +264,12 @@ export function ModoParadas({
         const aTerminar = abiertas.find((p) => p.id === abierto?.paradaId) ?? null
         const porDefinirLinea = paradasLinea.filter((p) => p.fin === null && !p.pendiente && esPorDefinir(p))
         // Una por definir la termina Mantenimiento (queda suya); el supervisor primero la marca Operacional.
-        const puedeTerminar = (p: Parada) => esMantenimiento || terminaSiempre || (!p.laTerminaMantenimiento && !esPorDefinir(p))
+        const cipDeParada = (p: Parada) => detiene.find((d) => d.paradaId === p.id && d.cipInicioReal)
+        const puedeTerminar = (p: Parada) => {
+          const cip = cipDeParada(p)
+          if (cip) return (esMantenimiento || terminaSiempre) && p.responsable === "MANTENIMIENTO" && !cip.cipReparacionFin
+          return esMantenimiento || terminaSiempre || (!p.laTerminaMantenimiento && !esPorDefinir(p))
+        }
         // Con la línea sin corrida (programada pero sin poder arrancar) la parada queda abierta desde su hora de inicio.
         const sinCorrida = lineaTurno === null && !verAnterior
         // Mantenimiento abre su parada también con la línea libre o en CIP (queda anotada); el supervisor, con la corrida en marcha o la línea sin corrida.
@@ -374,6 +379,7 @@ export function ModoParadas({
             ) : abiertoAca === "terminar" && aTerminar ? (
               <FormTerminarParada
                 parada={aTerminar}
+                reparacionCip={Boolean(cipDeParada(aTerminar))}
                 usuario={usuario}
                 areaCodigo={areaCodigo}
                 esMantenimiento={esMantenimiento}
@@ -467,7 +473,7 @@ export function ModoParadas({
                       )}
                       {puedeTerminar(p) ? (
                         <Button size="sm" className="self-start" onClick={() => setAbierto({ linea: l.codigo, modo: "terminar", paradaId: p.id })}>
-                          Terminar parada
+                          {cipDeParada(p) ? "Registrar fin de reparación" : "Terminar parada"}
                         </Button>
                       ) : (
                         !yaEnPanel && !esPorDefinir(p) && <p className="text-muted-foreground">La termina Mantenimiento.</p>

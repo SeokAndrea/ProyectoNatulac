@@ -7,7 +7,7 @@
  */
 import { supabase } from "@/lib/supabase"
 import type { LineaCodigo } from "@/lib/catalogos"
-import type { DatosCipLinea, DatosNuevoContador, ParadaQueDetiene, Resultado } from "./tipos"
+import type { DatosCipLinea, DatosNuevoContador, DatosTerminarCip, ParadaQueDetiene, Resultado } from "./tipos"
 
 /** Un solo paso atómico: termina la corrida conservando el tanque Y deja el motivo anotado en Detenida — antes eran 2 pasos separados y si el segundo no se hacía, el motivo se perdía. */
 export async function detenerLineaPorFalla(
@@ -79,7 +79,7 @@ export async function corregirContador(usuario: string, turnoId: string, datos: 
   return { ok: true, data }
 }
 
-/** CIP con motivo (y descripción opcional). Con corrida: si el lote sigue queda en pausa; si no, Esperando PT. Suma el +1 en Paradas. */
+/** Registra el CIP con la hora real del lavado y su parada. */
 export async function ponerLineaEnCip(usuario: string, turnoId: string, datos: DatosCipLinea): Promise<Resultado & { data?: unknown }> {
   const { data, error } = await supabase.rpc("poner_linea_en_cip", {
     p_usuario: usuario,
@@ -89,14 +89,21 @@ export async function ponerLineaEnCip(usuario: string, turnoId: string, datos: D
     p_descripcion: datos.descripcion?.trim() || null,
     p_turno_linea_id: datos.corridaId ?? null,
     p_lote_sigue: datos.loteSigue ?? null,
+    p_inicio_real: datos.inicioReal ?? null,
+    p_falla_id: datos.fallaId ?? null,
+    p_parada_id: datos.paradaId ?? null,
+    p_operacion_id: datos.operacionId ?? null,
   })
   if (error || !data) return { ok: false, error: error?.message ?? "No se pudo poner la línea en CIP. Intenta de nuevo." }
   return { ok: true, data }
 }
 
 /** Termina el CIP (exige su parada completa). Si el lote seguía, la corrida en pausa continúa. */
-export async function terminarCip(usuario: string, turnoId: string, linea: string): Promise<Resultado & { data?: unknown }> {
-  const { data, error } = await supabase.rpc("terminar_cip", { p_usuario: usuario, p_turno_id: turnoId, p_linea_codigo: linea })
+export async function terminarCip(usuario: string, turnoId: string, linea: string, datos?: DatosTerminarCip): Promise<Resultado & { data?: unknown }> {
+  const { data, error } = await supabase.rpc("terminar_cip", {
+    p_usuario: usuario, p_turno_id: turnoId, p_linea_codigo: linea,
+    ...(datos ? { p_reinicio_real: datos.reinicioReal ?? null, p_motivo_espera: datos.motivoEspera ?? null } : {}),
+  })
   if (error || !data) return { ok: false, error: error?.message ?? "No se pudo terminar el CIP. Intenta de nuevo." }
   return { ok: true, data }
 }
@@ -113,6 +120,8 @@ export async function continuarCorridaDetenida(usuario: string, turnoId: string,
 }
 
 interface FilaParadaQueDetiene {
+  cip_inicio_real?: string | null
+  cip_reparacion_fin?: string | null
   linea_codigo: string
   parada_id: string
   pendiente: boolean
@@ -133,6 +142,7 @@ export async function paradasQueDetienenLineas(turnoId: string): Promise<ParadaQ
   return (data as FilaParadaQueDetiene[]).map((f) => ({
     linea: f.linea_codigo as LineaCodigo,
     paradaId: f.parada_id,
+    ...(f.cip_inicio_real ? { cipInicioReal: f.cip_inicio_real, cipReparacionFin: f.cip_reparacion_fin } : {}),
     pendiente: f.pendiente,
     tipoNombre: f.tipo_nombre,
     clase: f.clase,

@@ -802,6 +802,7 @@ export async function cerrarParadaMantenimiento(usuario: string, paradaId: strin
 }
 
 export interface DatosTerminarParada {
+  fallaFinalId?: string
   /** Equipo y falla de Producción: no se cambian (solo se completan si faltaban). */
   tipoCodigo: string
   /** Equipo de Mantenimiento (su catálogo). */
@@ -831,6 +832,7 @@ export async function terminarParada(usuario: string, paradaId: string, datos: D
     p_mtto_equipo_codigo: datos.mttoEquipoCodigo,
     // Solo si viene: así sigue sirviendo contra una base sin la migración 20261113090000.
     ...(datos.reparacionMin != null ? { p_reparacion_min: datos.reparacionMin } : {}),
+    ...(datos.fallaFinalId ? { p_falla_final_id: datos.fallaFinalId } : {}),
   })
   return error ? { ok: false, error: error.message || "No se pudo terminar la parada. Intenta de nuevo." } : { ok: true }
 }

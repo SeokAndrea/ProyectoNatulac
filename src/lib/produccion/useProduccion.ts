@@ -28,6 +28,7 @@ import type {
   DatosActivarLinea,
   DatosCambiarLinea,
   DatosCipLinea,
+  DatosTerminarCip,
   DatosNuevoContador,
   DatosPausarLinea,
   FilaContador,
@@ -65,7 +66,7 @@ export interface UseProduccionResultado {
   /** CIP con motivo; con corrida, el lote sigue (pausa) o termina (Esperando PT). Suma el +1 en Paradas. */
   ponerLineaEnCip: (datos: DatosCipLinea) => Promise<Resultado>
   /** Termina el CIP (exige su parada completa); si el lote seguía, continúa. */
-  terminarCip: (linea: string) => Promise<Resultado>
+  terminarCip: (linea: string, datos?: DatosTerminarCip) => Promise<Resultado>
   /** La misma corrida detenida (Esperando PT) vuelve a correr, sin cargar PT. */
   continuarCorridaDetenida: (corridaId: string) => Promise<Resultado>
   registrarContador: (datos: DatosNuevoContador) => Promise<Resultado>

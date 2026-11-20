@@ -58,6 +58,8 @@ export interface LineaEstado {
   activadaEn: string
   cipIniciadoEn: string | null
   cipFinalizadoEn: string | null
+  cipFinPrevisto?: string | null
+  cipEnReparacion?: boolean
   /** Falla u observación libre (máx. 140) que se carga al dejar la línea en DETENIDA. */
   observacion: string | null
 }
@@ -133,6 +135,8 @@ export interface FilaLineaEstado {
   activada_en: string
   cip_iniciado_en: string | null
   cip_finalizado_en: string | null
+  cip_fin_previsto?: string | null
+  cip_en_reparacion?: boolean | null
   observacion: string | null
 }
 
@@ -146,7 +150,7 @@ export interface FilaContador {
   creado_en: string
 }
 
-/** Motivo de un CIP de línea (migración 20261091). Cada uno suma su +1 en Registrar Paradas. */
+/** Motivo de un CIP de línea. */
 export type MotivoCip = "SUMINISTRO_ELECTRICO" | "HORAS_36" | "FALLA_MECANICA"
 
 export const MOTIVOS_CIP: { codigo: MotivoCip; nombre: string }[] = [
@@ -162,6 +166,15 @@ export interface DatosCipLinea {
   /** Con corrida corriendo: cuál, y si el lote sigue después del CIP (queda en pausa) o termina (queda Esperando PT). */
   corridaId?: string | null
   loteSigue?: boolean | null
+  inicioReal?: string | null
+  fallaId?: string
+  paradaId?: string
+  operacionId?: string
+}
+
+export interface DatosTerminarCip {
+  reinicioReal?: string
+  motivoEspera?: string
 }
 
 /**
@@ -170,6 +183,8 @@ export interface DatosCipLinea {
  * (`pendiente`), no se termina el CIP ni se continúa hasta completarlo.
  */
 export interface ParadaQueDetiene {
+  cipInicioReal?: string | null
+  cipReparacionFin?: string | null
   linea: LineaCodigo
   paradaId: string
   pendiente: boolean

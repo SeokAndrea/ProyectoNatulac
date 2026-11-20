@@ -127,7 +127,12 @@ export function LineaCard({
   const noCorre: Record<NoCorre, Panel> = { parada: "parada", detener: "detener", cip: "cipConCorrida" }
 
   const formCip = (corrida: Corrida | null) => (
-    <FormCipLinea lineaCodigo={lineaCodigo} corrida={corrida} ponerEnCip={antesConfirmar(acciones.ponerEnCip)} onCerrar={cerrar} />
+    <FormCipLinea lineaCodigo={lineaCodigo} corrida={corrida} areaCodigo={areaCodigo}
+      paradas={paradaDeLinea && !paradaDeLinea.pendiente && !paradaDeLinea.fin
+        ? [{ id: paradaDeLinea.paradaId, nombre: paradaDeLinea.tipoNombre, tipo: paradasAbiertas.find((p) => p.id === paradaDeLinea.paradaId)?.tipoCodigo }]
+        : paradasAbiertas.filter((p) => p.lineaCodigo === lineaCodigo && !p.pendiente && !p.fin)
+          .map((p) => ({ id: p.id, nombre: p.tipoNombre, tipo: p.tipoCodigo }))}
+      ponerEnCip={antesConfirmar(acciones.ponerEnCip)} onCerrar={cerrar} />
   )
 
   const botonParadas = paradas && !aModoParadas && (

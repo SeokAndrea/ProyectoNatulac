@@ -36,6 +36,7 @@ export function mapearLineaEstado(fila: FilaLineaEstado): LineaEstado {
     activadaEn: fila.activada_en,
     cipIniciadoEn: fila.cip_iniciado_en,
     cipFinalizadoEn: fila.cip_finalizado_en,
+    ...(fila.cip_fin_previsto ? { cipFinPrevisto: fila.cip_fin_previsto, cipEnReparacion: !!fila.cip_en_reparacion } : {}),
     observacion: fila.observacion ?? null,
   }
 }

@@ -1,8 +1,7 @@
 import { useState } from "react"
-import { Loader2, PlayCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Corrida, LineaEstado, ParadaQueDetiene } from "@/lib/produccion/tipos"
-import { AvisoParadaPendiente, DescripcionCip } from "./EstadoCipLinea"
+import { EstadoCipLinea } from "./EstadoCipLinea"
 import { MensajeError } from "@/components/MensajeError"
 import type { AccionesLinea } from "./tipos"
 import { useAccion } from "@/lib/useAccion"
@@ -34,8 +33,10 @@ export function PanelCipConLote({
 
   return (
     <div className="flex flex-col gap-2">
-      <DescripcionCip lineaEstado={lineaEstado}>{` El Lote ${lote} sigue después del CIP.`}</DescripcionCip>
-      <AvisoParadaPendiente parada={paradaQueDetiene} />
+      <EstadoCipLinea lineaCodigo={lineaCodigo} lineaEstado={lineaEstado} paradaQueDetiene={paradaQueDetiene}
+        terminarCip={terminarCip} textoBoton={`Terminó CIP: continuar el Lote ${lote}`}>
+        {` El Lote ${lote} sigue después del CIP.`}
+      </EstadoCipLinea>
       {confirmarNoSigue ? (
         <div className="flex flex-col gap-2 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-2">
           <p className="text-xs text-foreground">
@@ -52,10 +53,6 @@ export function PanelCipConLote({
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => ejecutar(() => terminarCip(lineaCodigo))} disabled={enviando || paradaQueDetiene !== null}>
-            {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
-            Terminó CIP: continuar el Lote {lote}
-          </Button>
           <Button size="sm" variant="outline" onClick={() => setConfirmarNoSigue(true)} disabled={enviando}>
             El lote ya no sigue
           </Button>

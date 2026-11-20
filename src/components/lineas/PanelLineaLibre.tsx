@@ -81,7 +81,7 @@ export function PanelLineaLibre({
 
   return (
     <div className="flex flex-col gap-2">
-      {(formCip || condicion === "CIP") && (
+      {(formCip || (condicion === "CIP" && !lineaEstado?.cipFinPrevisto)) && (
         <FilaAcciones>
           <Button variant="outline" size="sm" onClick={onArrancar}>
             <PlayCircle className="size-3.5" />
@@ -99,6 +99,8 @@ export function PanelLineaLibre({
               paradaQueDetiene={paradaQueDetiene}
               terminarCip={terminarCip}
             />
+          ) : lineaEstado?.cipEnReparacion ? (
+            <p className="text-xs text-muted-foreground">Mantenimiento debe registrar el fin de la reparación antes de arrancar.</p>
           ) : (
             <FilaAcciones>
               <Button variant="outline" size="sm" onClick={onArrancar}>

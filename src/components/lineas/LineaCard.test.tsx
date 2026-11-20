@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
@@ -20,6 +20,11 @@ import type { CondicionLinea, Corrida, LineaEstado, ParadaQueDetiene } from "@/l
 // Las animaciones (canvas/pixel) no interesan acá: solo qué estado reciben.
 // Catálogo nuevo apagado: estos tests son del flujo con el catálogo anterior.
 vi.mock("@/lib/catalogoFallas/switch", () => ({ useCatalogoModular: () => false }))
+vi.mock("@/components/catalogo-fallas/BuscadorParada", () => ({
+  BuscadorParada: ({ onElegir }: { onElegir: (e: unknown) => void }) => (
+    <button type="button" onClick={() => onElegir({ falla: { falla: { id: "f1" } } })}>Elegir falla</button>
+  ),
+}))
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ session: { username: "u", esDueno: false, permisos: [], rol: "SUPERVISOR" } }) }))
 vi.mock("@/components/CintaEstadoLinea", () => ({
   CintaEstadoLinea: ({ estado }: { estado: string }) => <div data-testid="cinta">{estado}</div>,
@@ -262,16 +267,17 @@ describe("LineaCard — corriendo", () => {
     await u.click(boton("Sí, sigue"))
     await u.type(screen.getByPlaceholderText(/Descripción breve/), "Toca lavado")
     await u.click(boton("Poner en CIP"))
-    expect(screen.getByText(/El Lote 0001 continúa al terminar el CIP/)).toBeInTheDocument()
+    expect(screen.getByText(/El Lote 0001 queda en pausa/)).toBeInTheDocument()
     expect(a.ponerEnCip).not.toHaveBeenCalled()
     await u.click(boton("Sí, poner en CIP"))
-    expect(a.ponerEnCip).toHaveBeenCalledWith({
+    expect(a.ponerEnCip).toHaveBeenCalledWith(expect.objectContaining({
       linea: "LINEA_1",
       motivo: "HORAS_36",
       descripcion: "Toca lavado",
       corridaId: "c1",
       loteSigue: true,
-    })
+      operacionId: expect.any(String),
+    }))
     await waitFor(() => noHayBoton("Sí, poner en CIP"))
   })
 
@@ -280,11 +286,12 @@ describe("LineaCard — corriendo", () => {
     const a = renderCard({ lineaTurno: corrida() })
     await u.click(boton("CIP"))
     await u.click(boton("Falla mecánica prolongada"))
+    await u.click(boton("Elegir falla"))
     await u.click(boton("No, termina aquí"))
     await u.click(boton("Poner en CIP"))
     expect(screen.getByText(/se detiene y queda esperando su Producto Terminado/)).toBeInTheDocument()
     await u.click(boton("Sí, poner en CIP"))
-    expect(a.ponerEnCip).toHaveBeenCalledWith(expect.objectContaining({ motivo: "FALLA_MECANICA", corridaId: "c1", loteSigue: false }))
+    expect(a.ponerEnCip).toHaveBeenCalledWith(expect.objectContaining({ motivo: "FALLA_MECANICA", corridaId: "c1", loteSigue: false, fallaId: "f1" }))
   })
 
   it("Cambiar de lote: confirma y pasa al siguiente (auto-detecta el tanque)", async () => {
@@ -732,7 +739,7 @@ describe("LineaCard — sin corrida", () => {
     await u.click(boton("Poner en CIP"))
     expect(screen.getByText(/La línea queda en CIP\./)).toBeInTheDocument()
     await u.click(boton("Sí, poner en CIP"))
-    expect(a.ponerEnCip).toHaveBeenCalledWith({ linea: "LINEA_1", motivo: "SUMINISTRO_ELECTRICO", descripcion: "", corridaId: null, loteSigue: null })
+    expect(a.ponerEnCip).toHaveBeenCalledWith(expect.objectContaining({ linea: "LINEA_1", motivo: "SUMINISTRO_ELECTRICO", corridaId: null }))
   })
 
   it("Iniciar CIP: si falla, muestra el error en el formulario", async () => {
@@ -746,6 +753,24 @@ describe("LineaCard — sin corrida", () => {
     await u.click(boton("Sí, poner en CIP"))
     expect(await screen.findByRole("alert")).toHaveTextContent("Falta CIP de tanque")
     boton("Sí, poner en CIP")
+  })
+
+  it("un CIP cargado tarde envía el inicio real y muestra su fin previsto", async () => {
+    const u = userEvent.setup()
+    const a = renderCard({ lineaEstado: estado("DETENIDA") })
+    await u.click(boton("Iniciar CIP"))
+    await u.click(boton("36 h de trabajo"))
+    await u.click(boton("El lavado empezó antes"))
+    fireEvent.change(screen.getByLabelText("Inicio real del lavado", { exact: false }), { target: { value: "2026-10-05T10:00" } })
+    expect(screen.getByText("Fin previsto 2026-10-05 13:00")).toBeInTheDocument()
+    await u.click(boton("Poner en CIP"))
+    await u.click(boton("Sí, poner en CIP"))
+    expect(a.ponerEnCip).toHaveBeenCalledWith(expect.objectContaining({ inicioReal: "2026-10-05T10:00:00" }))
+  })
+
+  it("el CIP nuevo bloquea el cierre si todavía no cumple los 180 minutos", () => {
+    renderCard({ lineaEstado: estado("CIP", { cipFinPrevisto: new Date(Date.now() + 60_000).toISOString() }) })
+    expect(boton("Terminó CIP")).toBeDisabled()
   })
 
   it("en CIP: Terminó CIP, bloqueado mientras falte la parada", async () => {

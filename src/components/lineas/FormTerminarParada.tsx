@@ -51,6 +51,7 @@ export function FormTerminarParada({
   areaCodigo = null,
   esMantenimiento = false,
   soloCodigo = false,
+  reparacionCip = false,
   onTerminada,
 }: {
   parada: Parada
@@ -60,6 +61,7 @@ export function FormTerminarParada({
   esMantenimiento?: boolean
   /** Solo ponerle el código a una falla ya cerrada: sin minutos ni horas. */
   soloCodigo?: boolean
+  reparacionCip?: boolean
   onTerminada: () => void
 }) {
   const equipos = useEquiposParadas()
@@ -78,7 +80,7 @@ export function FormTerminarParada({
   const inicioVerdadero = parada.inicioReal ?? parada.inicio
   const inicioOriginal = inicioVerdadero.slice(0, 16)
   const [comienzo, setComienzo] = useState(inicioOriginal)
-  const [fin, setFin] = useState("")
+  const [fin, setFin] = useState(() => reparacionCip ? ahoraPlanta() : "")
   /** Cuánto tardaron en repararla (opcional, solo Mantenimiento): queda de registro, no cambia el tiempo de la parada. */
   const [reparacion, setReparacion] = useState("")
   const { enviando, error, ejecutar } = useAccion()
@@ -119,7 +121,7 @@ export function FormTerminarParada({
     )
   }
 
-  const mttoModular = modular && esMantenimiento
+  const mttoModular = modular && esMantenimiento && (!reparacionCip || tipoInicial === TIPO_FALLA_EQUIPO)
   // Con el catálogo nuevo: el de Producción si ya tenía uno (no se cambia); si estaba por clasificar, el genérico.
   const tipoCodigo = mttoModular
     ? (tipoInicial ?? (fallaMtto ? TIPO_FALLA_EQUIPO : null))
@@ -130,7 +132,7 @@ export function FormTerminarParada({
   const equipoMtto = equipoElegido ?? equipoMttoSugerido(equiposMtto, equipoProduccion) ?? ""
   const subsistemasDelEquipo = subsistemas.filter((s) => s.activo && s.equipoCodigo === equipoMtto)
   // Los minutos mandan (dueña, 2026-10-27): van de entrada, también si la parada viene de un turno cerrado.
-  const usaMinutos = !conHoras
+  const usaMinutos = !conHoras && !reparacionCip
   const n = Number(minutos)
   const nValido = Number.isInteger(n) && n >= 1
   // Con minutos, el fin es comienzo + minutos; si eso pasa de ahora, la parada empezó antes de que
@@ -145,10 +147,10 @@ export function FormTerminarParada({
   const duracion = finCalculado && inicioFinal ? minutosEntre(inicioFinal, finCalculado) : null
   const tiempoListo = soloCodigo || (finCalculado !== "" && duracion !== null && duracion > 0)
   const nReparacion = Number(reparacion)
-  const reparacionValida = reparacion === "" || (Number.isInteger(nReparacion) && nReparacion >= 1)
+  const reparacionValida = (!reparacionCip && reparacion === "") || (Number.isInteger(nReparacion) && nReparacion >= 1)
   const listo =
     tipoCodigo !== null &&
-    (mttoModular ? fallaMtto !== null : !esMantenimiento || (equipoMtto !== "" && subsistema !== "")) &&
+    (mttoModular ? fallaMtto !== null : !esMantenimiento || (reparacionCip && modular) || (equipoMtto !== "" && subsistema !== "")) &&
     solucion.trim() !== "" &&
     tiempoListo &&
     reparacionValida
@@ -181,10 +183,11 @@ export function FormTerminarParada({
       subsistemaCodigo: esMantenimiento ? subsistema : SIN_SUBSISTEMA,
       solucion: solucion.trim(),
       fin: conSegundos(finCalculado),
-      inicio: empezoAntes ? conSegundos(inicioFinal) : !usaMinutos && !cruzo && comienzo !== inicioOriginal ? conSegundos(comienzo) : null,
+      inicio: reparacionCip ? null : empezoAntes ? conSegundos(inicioFinal) : !usaMinutos && !cruzo && comienzo !== inicioOriginal ? conSegundos(comienzo) : null,
       ...(esMantenimiento && reparacion !== "" ? { reparacionMin: nReparacion } : {}),
+      ...(reparacionCip && fallaMtto ? { fallaFinalId: fallaMtto.falla.id } : {}),
     }
-    if ((await ejecutar(() => terminarParada(usuario, parada.id, datos, PAGINA))) && (await ponerFalla())) onTerminada()
+    if ((await ejecutar(() => terminarParada(usuario, parada.id, datos, PAGINA))) && (reparacionCip || await ponerFalla())) onTerminada()
   }
 
   return (
@@ -249,7 +252,11 @@ export function FormTerminarParada({
         <Textarea value={solucion} onChange={(e) => setSolucion(e.target.value.slice(0, LARGO_SOLUCION))} maxLength={LARGO_SOLUCION} rows={2} className="text-sm" />
       </label>
 
-      {soloCodigo ? null : cruzo ? (
+      {soloCodigo ? null : reparacionCip ? (
+        <label className="grid gap-1 text-xs">Hora real de fin de reparación
+          <Input type="datetime-local" max={ahoraPlanta()} value={fin} onChange={(e) => setFin(e.target.value)} />
+        </label>
+      ) : cruzo ? (
         <>
           <p className="text-xs text-muted-foreground">Empezó {inicioVerdadero.slice(11, 16)} (turno cerrado).</p>
           {usaMinutos ? (
@@ -301,7 +308,7 @@ export function FormTerminarParada({
       {esMantenimiento && (
         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
           <label className="flex flex-wrap items-center gap-2">
-            Tiempo de reparación (opcional)
+            {reparacionCip ? "Tiempo de reparación" : "Tiempo de reparación (opcional)"}
             <Input
               type="number"
               inputMode="numeric"
@@ -312,14 +319,14 @@ export function FormTerminarParada({
             />
             min
           </label>
-          <span>Cuánto tardaron en repararla. Queda en el reporte; no cambia el tiempo de la parada.</span>
+          <span>{reparacionCip ? "El reporte cuenta una sola vez los minutos que coinciden con el lavado." : "Queda en el reporte sin cambiar el tiempo de la parada."}</span>
         </div>
       )}
 
       <div className="flex justify-end">
         <Button size="sm" onClick={confirmar} disabled={enviando || !listo}>
           {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-          {soloCodigo ? "Guardar código" : "Terminar parada"}
+          {soloCodigo ? "Guardar código" : reparacionCip ? "Registrar fin de reparación" : "Terminar parada"}
         </Button>
       </div>
       <MensajeError error={error ?? sinFalla} />
