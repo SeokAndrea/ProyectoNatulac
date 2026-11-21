@@ -43,7 +43,7 @@ async function cargarPerfil(usuario: string): Promise<PerfilActual | null | unde
     activo: Boolean(f.activo),
     rol: f.rol as RolCodigo,
     area: f.area as AreaCodigo | null,
-    esDueno: Boolean(f.es_dueno),
+    esDueno: f.puesto_codigo === "SUPERADMINISTRADOR",
     permisos: (f.permisos ?? []) as Permiso[],
     puestoId: f.puesto_id ?? null,
     puestoCodigo: f.puesto_codigo ?? null,
@@ -60,7 +60,7 @@ export interface Session {
   /** null = todas las áreas (solo aplica a SuperAdministrador). */
   area: AreaCodigo | null
   rol: RolCodigo
-  /** Dueño: por encima de Super Administrador (intocable, gestiona Super Admins, ve Errores y ajustes). Flag aparte del rol, columna usuarios.ve_errores — ver migración 20261079090000_dueno.sql. */
+  /** Capacidad de Super Administrador. El nombre se conserva por compatibilidad. */
   esDueno: boolean
   /** Permisos efectivos (rol + extras). Se refrescan al abrir la app. Ver src/lib/permisos.ts. */
   permisos: Permiso[]
@@ -124,11 +124,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     try {
-      // Sesiones guardadas antes del rework traían veErrores en vez de esDueno.
-      const guardada = JSON.parse(raw) as Session & { veErrores?: boolean }
+      const guardada = JSON.parse(raw) as Session
       // Acá y no en un efecto: las pantallas piden datos antes de que corran los efectos de este provider.
       fijarTokenSesion(guardada.token ?? null)
-      return { ...guardada, esDueno: guardada.esDueno ?? guardada.veErrores ?? false, permisos: guardada.permisos ?? [] }
+      return { ...guardada, esDueno: guardada.puestoCodigo === "SUPERADMINISTRADOR", permisos: guardada.permisos ?? [] }
     } catch {
       return null
     }
@@ -161,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setVistaComo(null)
       return { ok: true as const }
     }
-    if (!session?.esDueno) return { ok: false as const, error: "Solo el dueño puede usar «Ver como»." }
+    if (!session?.esDueno) return { ok: false as const, error: "Solo un Super Administrador puede usar «Ver como»." }
     const estructura = await listarEstructura(session.username)
     const puesto = estructura?.puestos.find((p) => p.id === puestoId)
     if (!puesto) return { ok: false as const, error: "No se encontró ese puesto." }
@@ -179,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true as const }
   }
 
-  // Solo el dueño puede tener «Ver como»; si deja de serlo, no se aplica.
+  // Si la cuenta pierde el puesto, se deja de aplicar «Ver como».
   const vistaActiva = session?.esDueno ? vistaComo : null
   const sessionVista = useMemo<Session | null>(
     () =>
@@ -301,7 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cedula: perfil.cedula ?? null,
       area: perfil.area_codigo as AreaCodigo | null,
       rol: perfil.rol_codigo as RolCodigo,
-      esDueno: Boolean(perfil.ve_errores),
+      esDueno: actual?.puestoCodigo === "SUPERADMINISTRADOR",
       // Fuerza el primer ingreso si la base lo marca, o si la clave
       // escrita no cumple la política — esto último el hash no lo
       // puede saber, solo se ve aquí con el texto plano.

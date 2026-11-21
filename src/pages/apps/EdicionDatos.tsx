@@ -76,7 +76,7 @@ export default function EdicionDatos() {
     titulo: g.titulo,
     items: g.secciones.map((id) => ({ id, titulo: seccionPorId(id)!.titulo, cantidad: contarActivos(filasVisibles[id as CatalogoId]) })),
   }))
-  if (session?.esDueno) grupos.push({ titulo: "Solo dueña", items: [{ id: AJUSTES, titulo: "Ajustes de planta" }] })
+  if (session?.esDueno) grupos.push({ titulo: "Super Administrador", items: [{ id: AJUSTES, titulo: "Ajustes de planta" }] })
 
   const seccion = seccionPorId(actual) ?? (actual === AJUSTES && session?.esDueno ? null : SECCIONES_CATALOGO[0])
 

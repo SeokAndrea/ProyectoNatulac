@@ -9,7 +9,7 @@ import { listarErroresCliente, type ErrorCliente } from "@/lib/erroresCliente"
 
 /*
  * Errores: log de todo error que devolvió un RPC de Supabase, para
- * quien tenga usuarios.ve_errores (hoy solo el dueño) — ver el wrapper
+ * quien tenga el puesto Super Administrador — ver el wrapper
  * de supabase.rpc() en src/lib/supabase.ts, que manda cada error acá
  * solo, sin que ninguna pantalla tenga que acordarse. Antes esto se
  * perdía: quedaba solo en la pantalla de quien lo vivió en el momento.

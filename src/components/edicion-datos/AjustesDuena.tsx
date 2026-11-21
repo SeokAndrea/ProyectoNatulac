@@ -10,7 +10,7 @@ import { CorreoMantenimiento } from "./CorreoMantenimiento"
 import { SHEET_MANTENIMIENTO_ACTIVO } from "@/lib/sheetMantenimiento"
 import { EnlaceSheetMantenimiento } from "./EnlaceSheetMantenimiento"
 
-/** Sección "Ajustes de planta" de Edición de Datos: solo la dueña. */
+/** Sección "Ajustes de planta" de Edición de Datos para Super Administrador. */
 export function AjustesDuena({ usuario }: { usuario: string }) {
   return (
     <div className="flex max-w-3xl flex-col gap-4">

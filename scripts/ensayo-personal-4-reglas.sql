@@ -29,7 +29,13 @@ begin
   select id into v_jp from usuarios where usuario='t4_jp';
   select id into v_cp from usuarios where usuario='t4_cp';
   select id into v_sp from usuarios where usuario='t4_sp';
-  select id into v_dueno from usuarios where usuario='local';
+  insert into usuarios (usuario, password_hash, nombre, puesto_id, ve_errores)
+  select 't4_admin', 'x', 'Administrador de prueba', p.id, true
+    from puestos p where p.codigo = 'SUPERADMINISTRADOR'
+  returning id into v_dueno;
+  insert into usuarios (usuario, password_hash, nombre, puesto_id)
+  select 't4_otro_admin', 'x', 'Otro administrador', id
+    from puestos where codigo = 'SUPERADMINISTRADOR';
   select id into v_p_jefe from puestos where codigo='JEFE_MANTENIMIENTO';
   select id into v_p_tec from puestos where codigo='TECNICO_MANTENIMIENTO';
   select id into v_p_sup from puestos where codigo='SUPERVISOR_MANTENIMIENTO';
@@ -41,17 +47,17 @@ begin
   -- listar_personal('t4_jm'): tm y sm gestionables, sa no aparece, la dueña tampoco
   select count(*) into v_n from listar_personal('t4_jm') where usuario in ('t4_tm','t4_sm') and gestionable;
   if v_n <> 2 then raise exception 'listar_personal(jm) debe traer a tm y sm gestionables (%)', v_n; end if;
-  if exists (select 1 from listar_personal('t4_jm') where usuario in ('t4_sa','local')) then
+  if exists (select 1 from listar_personal('t4_jm') where usuario in ('t4_sa','t4_admin')) then
     raise exception 'listar_personal(jm) no debe traer a otras áreas';
   end if;
   if not exists (select 1 from listar_personal('t4_jm') where usuario='t4_jm' and not gestionable) then
     raise exception 'jm debe verse a sí mismo como no gestionable';
   end if;
-  if not exists (select 1 from listar_personal('local') where usuario='t4_sa' and gestionable) then
+  if not exists (select 1 from listar_personal('t4_admin') where usuario='t4_sa' and gestionable) then
     raise exception 'local debe ver y gestionar a sa';
   end if;
-  if exists (select 1 from listar_personal('jguerrero') where usuario='local' and gestionable) then
-    raise exception 'la dueña no es gestionable por otro Super Admin';
+  if not exists (select 1 from listar_personal('t4_otro_admin') where usuario='t4_admin' and gestionable) then
+    raise exception 'otro Super Admin debe poder gestionar la cuenta honorífica';
   end if;
   begin
     perform * from listar_personal('t4_sm');
@@ -65,10 +71,10 @@ begin
   if v_arr is distinct from array['SUPERVISOR_MANTENIMIENTO','TECNICO_MANTENIMIENTO'] then
     raise exception 'puestos_asignables(jm) = %', v_arr;
   end if;
-  select count(*) into v_n from puestos_asignables('local');
+  select count(*) into v_n from puestos_asignables('t4_admin');
   if v_n < 10 then raise exception 'local debe tener todos los puestos asignables (%)', v_n; end if;
-  if exists (select 1 from puestos_asignables('jguerrero') where codigo='SUPERADMINISTRADOR') then
-    raise exception 'solo la dueña asigna Super Administrador';
+  if not exists (select 1 from puestos_asignables('t4_otro_admin') where codigo='SUPERADMINISTRADOR') then
+    raise exception 'un Super Administrador debe poder asignar el puesto';
   end if;
   update puestos set activo=false where codigo='TECNICO_MANTENIMIENTO';
   if exists (select 1 from puestos_asignables('t4_jm') where codigo='TECNICO_MANTENIMIENTO') then
@@ -82,8 +88,8 @@ begin
   if puede_gestionar_personal('t4_jm', v_sa) then raise exception 'jm no gestiona otra área'; end if;
   if not puede_gestionar_personal('t4_jm', v_tm) then raise exception 'jm gestiona a tm'; end if;
   if puede_gestionar_personal('t4_sm', v_tm) then raise exception 'sm sin permiso no gestiona'; end if;
-  if puede_gestionar_personal('local', v_dueno) is not true then raise exception 'la dueña se gestiona (nombre, cédula)'; end if;
-  if puede_gestionar_personal('jguerrero', v_dueno) then raise exception 'otro Super Admin no gestiona a la dueña'; end if;
+  if puede_gestionar_personal('t4_admin', v_dueno) then raise exception 'la cuenta honorífica no se gestiona a sí misma'; end if;
+  if not puede_gestionar_personal('t4_otro_admin', v_dueno) then raise exception 'otro Super Admin debe poder gestionarla'; end if;
   if puede_gestionar_personal('t4_cp', v_jp) then raise exception 'coordinador no gestiona a jefe'; end if;
   if not puede_gestionar_personal('t4_cp', v_sp) then raise exception 'coordinador gestiona a supervisor de su área'; end if;
   if puede_gestionar_personal('t4_cp', v_tm) then raise exception 'coordinador no gestiona otra área'; end if;
@@ -158,10 +164,9 @@ begin
     if sqlerrm like 'FALLO%' then raise; end if;
   end;
   perform editar_personal('t4_cp', v_sp, 'Sup P', null, v_p_super, null);
-  -- la dueña puede editarse (nombre) pero no cambiar su puesto
-  perform editar_personal('local', v_dueno, 'Dueña', null, (select id from puestos where codigo='SUPERADMINISTRADOR'), null);
+  -- La marca honorífica no concede excepciones en el editor de Personal.
   begin
-    perform editar_personal('local', v_dueno, 'Dueña', null, v_p_tec, null);
+    perform editar_personal('t4_admin', v_dueno, 'Dueña', null, v_p_tec, null);
     raise exception 'FALLO: la dueña se cambió el puesto';
   exception when others then
     if sqlerrm like 'FALLO%' then raise; end if;
@@ -223,10 +228,10 @@ begin
     if sqlerrm like 'FALLO%' then raise; end if;
     if sqlerrm not like 'Solo quien administra áreas y puestos puede eliminar personas.%' then raise exception 'mensaje inesperado: %', sqlerrm; end if;
   end;
-  perform eliminar_personal('local', v_tm, false, null);
+  perform eliminar_personal('t4_admin', v_tm, false, null);
   if exists (select 1 from usuarios where id=v_tm) then raise exception 'tm debía borrarse'; end if;
   begin
-    perform eliminar_personal('local', v_dueno, false, null);
+    perform eliminar_personal('t4_admin', v_dueno, false, null);
     raise exception 'FALLO: la dueña se eliminó';
   exception when others then
     if sqlerrm like 'FALLO%' then raise; end if;
@@ -238,7 +243,7 @@ begin
   if tiene_permiso('t4_pr','ESTRUCTURA_GESTIONAR') then raise exception 'Probador no debe tener ESTRUCTURA_GESTIONAR'; end if;
   if tiene_permiso('t4_pr','PERSONAL_GESTIONAR') then raise exception 'Probador no debe tener PERSONAL_GESTIONAR'; end if;
   if not tiene_permiso('t4_pr','VALIDAR') then raise exception 'Probador debe seguir con VALIDAR'; end if;
-  if not tiene_permiso('local','ESTRUCTURA_GESTIONAR') then raise exception 'Super Admin debe tener ESTRUCTURA_GESTIONAR'; end if;
+  if not tiene_permiso('t4_admin','ESTRUCTURA_GESTIONAR') then raise exception 'Super Admin debe tener ESTRUCTURA_GESTIONAR'; end if;
   begin
     perform * from listar_personal('t4_pr');
     raise exception 'FALLO: Probador listó';
@@ -253,7 +258,7 @@ begin
   if exists (select 1 from listar_permisos_extra('t4_jm') where usuario_id = v_sa) then
     raise exception 'jm no debe ver los extras de sa';
   end if;
-  if not exists (select 1 from listar_permisos_extra('local') where usuario_id = v_sa) then
+  if not exists (select 1 from listar_permisos_extra('t4_admin') where usuario_id = v_sa) then
     raise exception 'local debe ver los extras de sa';
   end if;
 
